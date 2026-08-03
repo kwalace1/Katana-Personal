@@ -3,612 +3,121 @@
 @tailwind utilities;
 
 @layer base {
-  *,
-  *::before,
-  *::after {
-    -webkit-user-select: none;
-    -moz-user-select: none;
-    user-select: none;
-  }
-
-  input,
-  textarea,
-  [contenteditable="true"],
-  .selectable-text,
-  .selectable-text * {
-    -webkit-user-select: text;
-    -moz-user-select: text;
-    user-select: text;
-  }
-
   :root {
-    /* Katana Color Palette - Light Mode */
-    --katana-blue: 211 79% 58%;        /* #4A90E2 */
-    --katana-purple: 241 91% 67%;      /* #5B5FF6 */
-    --aqua: 199 76% 61%;               /* #5DADE2 */
-    --silver: 0 0% 66%;                /* #A8A8A8 */
-    --dark-gray: 0 0% 35%;             /* #5A5A5A */
-    --black: 0 0% 10%;                 /* #1A1A1A */
-    
-    /* Theme Variables — soft light (avoid pure white / high glare) */
-    --background: 220 16% 93%;
-    --foreground: 222 18% 16%;
-    --card: 220 14% 97%;
-    --card-foreground: 222 18% 16%;
-    --popover: 220 14% 97%;
-    --popover-foreground: 222 18% 16%;
-    --primary: var(--katana-blue);
+    /* Marketable calm: mist, ink, deep sea-teal */
+    --background: 168 28% 97%;
+    --foreground: 200 25% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 200 25% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 200 25% 10%;
+    --primary: 172 48% 28%;
     --primary-foreground: 0 0% 100%;
-    --secondary: var(--aqua);
-    --secondary-foreground: 0 0% 100%;
-    --muted: 220 12% 88%;
-    --muted-foreground: 220 8% 42%;
-    --accent: var(--katana-purple);
-    --accent-foreground: 0 0% 100%;
-    --destructive: 0 84.2% 60.2%;
+    --secondary: 168 18% 93%;
+    --secondary-foreground: 200 18% 22%;
+    --muted: 168 14% 94%;
+    --muted-foreground: 200 8% 42%;
+    --accent: 172 32% 92%;
+    --accent-foreground: 172 48% 22%;
+    --destructive: 4 72% 52%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 10% 84%;
-    --input: 220 12% 90%;
-    --ring: var(--katana-blue);
-    --radius: 0.75rem;
-    --portal-substrate: 220 15% 91%;
+    --border: 168 12% 88%;
+    --input: 168 14% 92%;
+    --ring: 172 48% 28%;
+    --radius: 1rem;
+    --kp-glow: 168 40% 70%;
   }
 
   .dark {
-    /* Katana Color Palette - Dark Mode */
-    --portal-substrate: 0 0% 12%;
-    --background: var(--black);
-    --foreground: 0 0% 98%;
-    --card: 0 0% 15%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 15%;
-    --popover-foreground: 0 0% 98%;
-    --primary: var(--katana-blue);
-    --primary-foreground: 0 0% 100%;
-    --secondary: var(--aqua);
-    --secondary-foreground: 0 0% 100%;
-    --muted: var(--dark-gray);
-    --muted-foreground: var(--silver);
-    --accent: var(--katana-purple);
-    --accent-foreground: 0 0% 100%;
-    --destructive: 0 62.8% 50%;
+    --background: 200 18% 6%;
+    --foreground: 168 20% 96%;
+    --card: 200 16% 9%;
+    --card-foreground: 168 20% 96%;
+    --popover: 200 16% 9%;
+    --popover-foreground: 168 20% 96%;
+    --primary: 168 42% 48%;
+    --primary-foreground: 200 25% 8%;
+    --secondary: 200 12% 14%;
+    --secondary-foreground: 168 16% 90%;
+    --muted: 200 12% 13%;
+    --muted-foreground: 168 8% 58%;
+    --accent: 168 18% 14%;
+    --accent-foreground: 168 40% 78%;
+    --destructive: 4 62% 48%;
     --destructive-foreground: 0 0% 100%;
-    --border: var(--dark-gray);
-    --input: 0 0% 25%;
-    --ring: var(--katana-blue);
+    --border: 200 10% 16%;
+    --input: 200 10% 16%;
+    --ring: 168 42% 48%;
+    --kp-glow: 168 30% 28%;
   }
-}
-
-:root {
-  color-scheme: light;
-}
-
-.dark {
-  color-scheme: dark;
 }
 
 @layer base {
   * {
     @apply border-border;
   }
+
   html,
-  body {
-    @apply overflow-x-hidden;
+  body,
+  #root {
+    @apply min-h-full;
   }
 
   body {
-    @apply bg-background text-foreground;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    @apply bg-background text-foreground font-sans antialiased;
     background-image:
-      radial-gradient(at 40% 20%, hsla(var(--katana-blue), 0.04) 0px, transparent 50%),
-      radial-gradient(at 80% 0%, hsla(var(--aqua), 0.03) 0px, transparent 50%),
-      radial-gradient(at 0% 50%, hsla(var(--katana-purple), 0.02) 0px, transparent 50%);
+      radial-gradient(ellipse 90% 55% at 50% -20%, hsl(var(--kp-glow) / 0.35), transparent 55%),
+      radial-gradient(ellipse 50% 40% at 100% 10%, hsl(200 40% 80% / 0.2), transparent 50%),
+      radial-gradient(ellipse 40% 30% at 0% 80%, hsl(168 30% 85% / 0.25), transparent 55%);
+    background-attachment: fixed;
+    letter-spacing: -0.01em;
   }
-  
-  html {
-    zoom: 100%;
-  }
-  
+
   .dark body {
-    background-image: 
-      radial-gradient(at 40% 20%, hsla(var(--katana-blue), 0.08) 0px, transparent 50%),
-      radial-gradient(at 80% 0%, hsla(var(--aqua), 0.06) 0px, transparent 50%),
-      radial-gradient(at 0% 50%, hsla(var(--katana-purple), 0.04) 0px, transparent 50%);
-  }
-  
-  /* Light mode: very subtle grid (high opacity was harsh on the eyes) */
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    opacity: 0.07;
     background-image:
-      repeating-linear-gradient(0deg, transparent, transparent 2px, hsl(var(--border) / 0.35) 2px, hsl(var(--border) / 0.35) 3px),
-      repeating-linear-gradient(90deg, transparent, transparent 2px, hsl(var(--border) / 0.35) 2px, hsl(var(--border) / 0.35) 3px);
-    background-size: 60px 60px;
-    pointer-events: none;
+      radial-gradient(ellipse 80% 50% at 50% -15%, hsl(var(--kp-glow) / 0.35), transparent 55%),
+      radial-gradient(ellipse 45% 35% at 100% 0%, hsl(210 40% 20% / 0.4), transparent 50%);
   }
 
-  .dark body::before {
-    opacity: 0.05;
+  h1,
+  h2,
+  .font-display {
+    font-family: Fraunces, Georgia, serif;
+    font-optical-sizing: auto;
+    letter-spacing: -0.02em;
   }
 
-  /* Employee portal + feed surfaces */
-  .employee-portal-shell {
-    background-color: hsl(var(--portal-substrate));
-  }
-
-  :root .employee-portal-card {
-    @apply border-border/80 shadow-sm;
-    background-color: hsl(var(--card));
-  }
-
-  :root .employee-portal-muted-panel {
-    background-color: hsl(var(--muted) / 0.45);
-    border-color: hsl(var(--border) / 0.9);
-  }
-
-  .dark .employee-portal-muted-panel {
-    background-color: hsl(var(--muted) / 0.25);
-    border-color: hsl(var(--border) / 0.6);
-  }
-
-  /* Katana Comms — layered surfaces and accents */
-  .comms-shell {
-    @apply relative overflow-hidden bg-background min-h-0;
-  }
-
-  .comms-main {
-    @apply min-h-0 overflow-hidden;
-    background-image:
-      radial-gradient(ellipse 80% 50% at 50% -10%, hsl(var(--primary) / 0.06), transparent),
-      linear-gradient(to bottom, hsl(var(--muted) / 0.35), hsl(var(--background)));
-  }
-
-  .comms-scroll-y {
-    @apply flex-1 min-h-0 basis-0 overflow-y-auto overscroll-y-contain;
-  }
-
-  .comms-sidebar {
-    @apply bg-card/90 backdrop-blur-md border-r border-border/60 shadow-sm min-h-0 overflow-hidden;
-  }
-
-  .comms-header {
-    @apply bg-card/80 backdrop-blur-md border-b border-border/60;
-  }
-
-  .comms-sidebar-active {
-    @apply bg-gradient-to-r from-primary to-primary/85 text-primary-foreground shadow-sm;
-  }
-
-  .comms-composer-shell {
-    @apply mx-4 mb-4 rounded-2xl border border-border/70 bg-card/95 backdrop-blur-sm shadow-md;
-  }
-
-  .comms-empty-icon {
-    @apply relative mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/20 via-primary/10 to-primary/5 ring-1 ring-primary/20 shadow-inner;
-  }
-
-  /* KYI Network Explorer — map canvas matches light/dark app background */
-  .kyi-network-map-bg {
-    background-image: radial-gradient(
-      ellipse 90% 80% at 50% 45%,
-      hsl(var(--muted) / 0.55) 0%,
-      hsl(var(--background)) 72%
-    );
-  }
-
-  /* Virtual Stockroom — isometric floor canvas on brand substrate */
-  .stockroom-canvas-bg {
-    background-image: radial-gradient(
-      ellipse 90% 70% at 50% 35%,
-      hsl(var(--muted) / 0.55) 0%,
-      hsl(var(--background)) 72%
-    );
-  }
-
-  .stockroom-canvas-vignette {
-    background: radial-gradient(
-      ellipse at center,
-      transparent 35%,
-      hsl(var(--foreground) / 0.06) 100%
-    );
-  }
-
-  .comms-date-pill {
-    @apply rounded-full bg-muted/80 px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm ring-1 ring-border/50 backdrop-blur-sm;
-  }
-
-  .comms-section-label {
-    @apply flex items-center gap-2 px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground;
-  }
-
-  .comms-message-hover {
-    @apply rounded-xl hover:bg-muted/50 transition-all duration-150;
-  }
-
-  .comms-own-message {
-    @apply rounded-xl bg-primary/[0.06] ring-1 ring-primary/10;
-  }
-
-  .comms-thread-panel {
-    @apply bg-card/95 backdrop-blur-md border-l border-border/60 shadow-lg min-h-0 overflow-hidden;
+  input,
+  textarea,
+  [contenteditable='true'] {
+    user-select: text;
   }
 }
 
-/* Katana Color Utilities */
-@layer utilities {
-  .bg-katana-blue { background-color: hsl(var(--katana-blue)); }
-  .text-katana-blue { color: hsl(var(--katana-blue)); }
-  .border-katana-blue { border-color: hsl(var(--katana-blue)); }
-  
-  .bg-katana-purple { background-color: hsl(var(--katana-purple)); }
-  .text-katana-purple { color: hsl(var(--katana-purple)); }
-  .border-katana-purple { border-color: hsl(var(--katana-purple)); }
-  
-  .bg-aqua { background-color: hsl(var(--aqua)); }
-  .text-aqua { color: hsl(var(--aqua)); }
-  .border-aqua { border-color: hsl(var(--aqua)); }
-  
-  .bg-silver { background-color: hsl(var(--silver)); }
-  .text-silver { color: hsl(var(--silver)); }
-  .border-silver { border-color: hsl(var(--silver)); }
-  
-  .bg-dark-gray { background-color: hsl(var(--dark-gray)); }
-  .text-dark-gray { color: hsl(var(--dark-gray)); }
-  .border-dark-gray { border-color: hsl(var(--dark-gray)); }
-}
-
-/* Overlay surfaces — solid readable backgrounds for dropdowns, popovers, and menus */
-[data-slot="select-content"],
-[data-slot="dropdown-menu-content"],
-[data-slot="dropdown-menu-sub-content"],
-[data-slot="popover-content"],
-[data-slot="context-menu-content"],
-[data-slot="context-menu-sub-content"],
-[data-slot="hover-card-content"],
-[data-slot="menubar-content"],
-[data-slot="menubar-sub-content"] {
-  background-color: hsl(var(--popover)) !important;
-  color: hsl(var(--popover-foreground)) !important;
-  opacity: 1 !important;
-  border-color: hsl(var(--border)) !important;
-  box-shadow:
-    0 10px 15px -3px rgb(0 0 0 / 0.12),
-    0 4px 6px -4px rgb(0 0 0 / 0.08) !important;
-}
-
-.dark [data-slot="select-content"],
-.dark [data-slot="dropdown-menu-content"],
-.dark [data-slot="dropdown-menu-sub-content"],
-.dark [data-slot="popover-content"],
-.dark [data-slot="context-menu-content"],
-.dark [data-slot="context-menu-sub-content"],
-.dark [data-slot="hover-card-content"],
-.dark [data-slot="menubar-content"],
-.dark [data-slot="menubar-sub-content"] {
-  background-color: hsl(0, 0%, 15%) !important;
-}
-
-/* Live notification toasts (top-right) */
-[data-sonner-toast][data-styled='true']:not([data-type='success']):not([data-type='error']):not([data-type='warning']):not([data-type='info']) {
-  background: hsl(var(--popover)) !important;
-  color: hsl(var(--popover-foreground)) !important;
-  border-color: hsl(var(--border)) !important;
-}
-
-.dark [data-sonner-toast][data-styled='true']:not([data-type='success']):not([data-type='error']):not([data-type='warning']):not([data-type='info']) {
-  background: hsl(0, 0%, 15%) !important;
-}
-
-[data-slot="select-item"]:hover,
-[data-slot="select-item"]:focus {
-  background-color: hsl(var(--accent)) !important;
-  color: hsl(var(--accent-foreground)) !important;
-}
-
-/* Enhanced UI/UX inspired by Monday.com, Jira, Workday */
 @layer components {
-  /* Fluid list rows: content + trailing actions stay inside bounds at any viewport */
-  .fluid-action-row {
-    @apply flex min-w-0 flex-col gap-4 rounded-lg border p-4 transition-colors sm:flex-row sm:items-center sm:justify-between;
+  .kp-surface {
+    @apply rounded-[1.25rem] border border-border/50 bg-card/70 shadow-[0_1px_2px_hsl(200_20%_10%/0.04),0_8px_24px_hsl(200_20%_10%/0.04)] backdrop-blur-md;
   }
 
-  .fluid-action-row__content {
-    @apply min-w-0 flex-1;
+  .kp-surface-soft {
+    @apply rounded-[1.25rem] bg-secondary/55 border border-transparent;
   }
 
-  .fluid-action-row__actions {
-    @apply flex shrink-0 flex-wrap items-center justify-between gap-4 sm:justify-end;
+  .kp-page {
+    @apply mx-auto w-full max-w-5xl px-4 py-7 sm:px-6 lg:px-8 lg:py-10;
   }
 
-  .fluid-title-row {
-    @apply mb-2 flex flex-wrap items-center gap-2 sm:gap-3;
+  .kp-chip {
+    @apply inline-flex items-center rounded-full border border-border/60 bg-card/80 px-3 py-1 text-xs font-medium text-muted-foreground backdrop-blur-sm;
   }
 
-  .fluid-meta-row {
-    @apply mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground;
-  }
-
-  .fluid-page-header {
-    @apply flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between;
-  }
-
-  .fluid-toolbar {
-    @apply flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between;
-  }
-
-  .fluid-toolbar__actions {
-    @apply flex flex-wrap gap-2;
-  }
-
-  /* Responsive KPI/stat bars — auto-wrap instead of cramming into one row */
-  .stat-bar {
-    @apply grid min-w-0 gap-px bg-border;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
-  }
-
-  .stat-bar-item {
-    @apply flex min-w-0 items-center gap-3 bg-card px-4 py-4 sm:gap-4 sm:px-5 sm:py-5;
-  }
-
-  .stat-bar-label {
-    @apply truncate text-sm font-medium text-muted-foreground;
-  }
-
-  .stat-bar-value {
-    @apply text-xl font-bold tabular-nums sm:text-2xl;
-  }
-
-  /* Large dialogs — fixed header/footer with scrollable body (matches Projects file preview) */
-  [data-slot='dialog-content'][data-size='lg'],
-  .dialog-content-lg {
-    width: min(calc(100vw - 2rem), 1280px) !important;
-    max-width: min(calc(100vw - 2rem), 1280px) !important;
-    height: min(92vh, 900px);
-    @apply flex flex-col gap-0 overflow-hidden p-0 overscroll-contain;
-  }
-
-  [data-slot='dialog-content'][data-size='md'],
-  .dialog-content-md {
-    width: min(calc(100vw - 2rem), 960px) !important;
-    max-width: min(calc(100vw - 2rem), 960px) !important;
-  }
-
-  [data-slot='dialog-content'][data-size='xl'],
-  .dialog-content-xl {
-    width: min(calc(100vw - 2rem), 1536px) !important;
-    max-width: min(calc(100vw - 2rem), 1536px) !important;
-    height: min(92vh, 900px);
-    @apply flex flex-col gap-0 overflow-hidden p-0 overscroll-contain;
-  }
-
-  .dialog-stat-grid {
-    @apply grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4;
-  }
-
-  .dialog-stat-value {
-    @apply text-lg font-bold leading-tight break-words xl:text-2xl;
-  }
-
-  /* Card enhancements - Elevated, modern shadows */
-  .card {
-    @apply shadow-sm hover:shadow-md transition-shadow duration-200;
-  }
-  
-  /* Status badges - More prominent like Monday.com */
-  .badge {
-    @apply font-semibold px-3 py-1 text-xs tracking-wide;
-  }
-  
-  /* Button enhancements - More prominent CTAs */
-  .btn-primary {
-    @apply shadow-sm hover:shadow-md transition-all duration-200 hover:scale-[1.02];
-  }
-  
-  /* Progress bars - More visual like Jira */
-  .progress-bar {
-    @apply relative overflow-hidden;
-  }
-  
-  .progress-bar::after {
-    content: '';
-    @apply absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent;
-    animation: shimmer 2s infinite;
-  }
-  
-  @keyframes shimmer {
-    0% { transform: translateX(-100%); }
-    100% { transform: translateX(100%); }
-  }
-  
-  /* Section dividers - Clear hierarchy like Workday */
-  .section-divider {
-    @apply border-t-2 border-border my-6;
-  }
-  
-  /* Hover states - Interactive feedback */
-  .interactive-card {
-    @apply transition-all duration-200 hover:scale-[1.01] hover:shadow-lg cursor-pointer;
-  }
-  
-  /* Status indicators - Color-coded like Monday.com */
-  .status-dot {
-    @apply inline-block w-2 h-2 rounded-full mr-2;
-  }
-  
-  /* Improved input focus - More visible */
-  input:focus, textarea:focus, select:focus {
-    @apply ring-2 ring-primary/20 border-primary;
-  }
-  
-  /* KPI Cards - Prominent metrics display */
-  .kpi-card {
-    @apply bg-gradient-to-br from-primary/5 to-primary/10 border-l-4 border-primary;
-  }
-  
-  /* Table row hover - Better interactivity */
-  .table-row-hover {
-    @apply hover:bg-accent/50 transition-colors duration-150 cursor-pointer;
-  }
-  
-  /* Accent borders for important items */
-  .accent-border-left {
-    @apply border-l-4 border-primary;
-  }
-  
-  /* Pill badges - Modern, rounded */
-  .pill-badge {
-    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary;
-  }
-  
-  /* Avatar groups - Team collaboration indicators */
-  .avatar-group {
-    @apply flex -space-x-2;
-  }
-  
-  .avatar-group .avatar {
-    @apply ring-2 ring-background;
-  }
-  
-  /* Priority indicators - Visual hierarchy */
-  .priority-high {
-    @apply bg-red-100 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800;
-  }
-  
-  .priority-medium {
-    @apply bg-yellow-100 text-yellow-700 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800;
-  }
-  
-  .priority-low {
-    @apply bg-green-100 text-green-700 border-green-300 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800;
-  }
-  
-  /* Quick action buttons - Prominent and accessible */
-  .quick-action {
-    @apply flex items-center gap-2 px-4 py-3 rounded-lg bg-gradient-to-r from-primary to-primary/80 text-primary-foreground font-medium shadow-md hover:shadow-lg transition-all duration-200 hover:scale-[1.02];
-  }
-  
-  /* Stats cards - Visual impact */
-  .stat-card {
-    @apply relative overflow-hidden bg-gradient-to-br from-background to-accent/20 border-2;
-  }
-  
-  .stat-card::before {
-    content: '';
-    @apply absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16;
-  }
-  
-  /* Loading states - Better feedback */
-  .skeleton {
-    @apply animate-pulse bg-muted rounded;
-  }
-  
-  /* Notification badges - Attention-grabbing */
-  .notification-badge {
-    @apply absolute -top-1 -right-1 flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-red-500 rounded-full ring-2 ring-background;
-  }
-  
-  /* Timeline items - Visual progress */
-  .timeline-item {
-    @apply relative pl-8 pb-8;
-  }
-  
-  .timeline-item::before {
-    content: '';
-    @apply absolute left-0 top-2 w-3 h-3 bg-primary rounded-full ring-4 ring-background;
-  }
-  
-  .timeline-item::after {
-    content: '';
-    @apply absolute left-[5px] top-5 bottom-0 w-0.5 bg-border;
-  }
-  
-  .timeline-item:last-child::after {
-    @apply hidden;
-  }
-  
-  /* Glassmorphism effect - Modern aesthetic */
-  .glass {
-    @apply bg-background/80 backdrop-blur-md border border-border/50;
-  }
-  
-  /* Micro-interactions - Delightful UX */
-  .bounce-in {
-    animation: bounceIn 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-  }
-  
-  @keyframes bounceIn {
-    0% { transform: scale(0.8); opacity: 0; }
-    50% { transform: scale(1.05); }
-    100% { transform: scale(1); opacity: 1; }
-  }
-  
-  /* Success states - Positive feedback */
-  .success-pulse {
-    animation: successPulse 2s ease-in-out infinite;
-  }
-  
-  @keyframes successPulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); }
-    50% { box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); }
-  }
-  
-  /* Drag and drop areas - Interactive zones */
-  .drop-zone {
-    @apply border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center transition-all duration-200;
-  }
-  
-  .drop-zone.active {
-    @apply border-primary bg-primary/5 scale-[1.02];
-  }
-  
-  /* Tooltip enhancements - Better readability */
-  .tooltip {
-    @apply absolute z-50 px-3 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg shadow-lg;
+  .kp-section-label {
+    @apply text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground;
   }
 }
 
-/* Leaflet map: the parent wrapper sets position:relative + z-index:1 to create
-   a stacking context that contains all Leaflet internal z-indices (up to 1000).
-   As a safety net, also cap the top/bottom controls so they can never escape. */
-.leaflet-top,
-.leaflet-bottom {
-  z-index: 999 !important;
-}
-
-/* Ensure dark mode is applied to root container */
-html.dark,
-html.dark body,
-.dark {
-  background-color: hsl(var(--black)) !important;
-  color: hsl(0, 0%, 98%) !important;
-}
-
-html.dark * {
-  border-color: hsl(var(--dark-gray));
-}
-
-/* Visible scrollbar for scrollable dropdowns/lists */
-.scrollbar-visible {
-  scrollbar-width: thin;
-  scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent;
-}
-.scrollbar-visible:hover {
-  scrollbar-color: hsl(var(--muted-foreground) / 0.5) transparent;
-}
-.scrollbar-visible::-webkit-scrollbar {
-  width: 6px;
-}
-.scrollbar-visible::-webkit-scrollbar-track {
-  background: transparent;
-  border-radius: 3px;
-}
-.scrollbar-visible::-webkit-scrollbar-thumb {
-  background-color: hsl(var(--muted-foreground) / 0.3);
-  border-radius: 3px;
-}
-.scrollbar-visible:hover::-webkit-scrollbar-thumb {
-  background-color: hsl(var(--muted-foreground) / 0.5);
+@layer utilities {
+  .kp-text-balance {
+    text-wrap: balance;
+  }
 }

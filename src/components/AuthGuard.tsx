@@ -1,32 +1,21 @@
-import { useEffect } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
-import { isSupabaseConfigured } from '@/lib/supabase'
 
-function isPublicPath(pathname: string): boolean {
-  return (
-    pathname === '/' ||
-    pathname.startsWith('/careers') ||
-    pathname.startsWith('/contact/') ||
-    pathname.startsWith('/sign/') ||
-    pathname === '/accept-invite'
-  )
-}
-
-/**
- * When Supabase is configured, redirects unauthenticated users to the landing page
- * unless they are on a public path. Does nothing when Supabase is not configured (auth disabled).
- */
-export function AuthGuard() {
-  const location = useLocation()
-  const navigate = useNavigate()
+export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
+  const location = useLocation()
 
-  useEffect(() => {
-    if (!isSupabaseConfigured || loading || user) return
-    if (isPublicPath(location.pathname)) return
-    navigate('/', { replace: true })
-  }, [isSupabaseConfigured, loading, user, location.pathname, navigate])
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    )
+  }
 
-  return null
+  if (!user) {
+    return <Navigate to="/auth" replace state={{ from: location.pathname }} />
+  }
+
+  return <>{children}</>
 }

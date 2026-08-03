@@ -1,16 +1,25 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ThemeProvider } from '@/components/theme-provider'
 import { AuthProvider } from '@/contexts/AuthContext'
-import { ModuleAccessProvider } from '@/contexts/ModuleAccessContext'
-import { PasswordGate } from '@/components/PasswordGate'
+import { CloudAuthProvider } from '@/contexts/CloudAuthContext'
+import { Toaster } from '@/components/ui/sonner'
+import { ReminderHost } from '@/components/ReminderHost'
 import App from './App'
 import 'sonner/dist/styles.css'
 import './index.css'
-import './styles/office.css'
 
-// Error boundary for production debugging
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      retry: 1,
+    },
+  },
+})
+
 class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
   { hasError: boolean; error: Error | null }
@@ -24,54 +33,55 @@ class ErrorBoundary extends React.Component<
     return { hasError: true, error }
   }
 
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('React Error:', error, errorInfo)
-  }
-
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ padding: '20px', fontFamily: 'sans-serif' }}>
-          <h1>Something went wrong.</h1>
-          <details style={{ whiteSpace: 'pre-wrap' }}>
-            {this.state.error && this.state.error.toString()}
-          </details>
+        <div className="flex min-h-screen items-center justify-center p-6">
+          <div className="kp-surface max-w-md p-6">
+            <h1 className="font-display text-2xl">Something went wrong</h1>
+            <p className="mt-2 text-sm text-muted-foreground">{this.state.error?.message}</p>
+          </div>
         </div>
       )
     }
-
     return this.props.children
   }
 }
 
-const root = document.getElementById('root')
-if (!root) {
-  throw new Error('Root element not found')
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {
+      // Offline shell is optional in local development
+    })
+  })
 }
 
-ReactDOM.createRoot(root).render(
+window.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    void import('@/lib/local-db').then(({ localDb }) => localDb.flush())
+  }
+})
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
   <ErrorBoundary>
-    <PasswordGate>
-      <BrowserRouter
-        future={{
-          v7_startTransition: true,
-          v7_relativeSplatPath: true,
-        }}
-      >
-        <ThemeProvider 
-          attribute="class" 
-          defaultTheme="system" 
-          enableSystem
-          storageKey="katana-theme"
-          disableTransitionOnChange={false}
+    <ThemeProvider attribute="class" defaultTheme="system" storageKey="katana-personal-theme" enableSystem>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter
+          future={{
+            v7_startTransition: true,
+            v7_relativeSplatPath: true,
+          }}
         >
           <AuthProvider>
-            <ModuleAccessProvider>
+            <CloudAuthProvider>
+              <ReminderHost />
               <App />
-            </ModuleAccessProvider>
+              <Toaster />
+            </CloudAuthProvider>
           </AuthProvider>
-        </ThemeProvider>
-      </BrowserRouter>
-    </PasswordGate>
+        </BrowserRouter>
+      </QueryClientProvider>
+    </ThemeProvider>
   </ErrorBoundary>,
 )
+

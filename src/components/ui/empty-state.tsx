@@ -1,4 +1,4 @@
-import { type LucideIcon, Inbox } from 'lucide-react'
+import { type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface EmptyStateProps {
@@ -6,16 +6,14 @@ interface EmptyStateProps {
   description?: string
   icon?: LucideIcon
   className?: string
-  /** Optional action (e.g. button) to show below description */
   action?: React.ReactNode
-  /** If true, use compact padding. Default false. */
   compact?: boolean
 }
 
 export function EmptyState({
-  title = 'No data yet',
+  title = 'Nothing here yet',
   description,
-  icon: Icon = Inbox,
+  icon: Icon,
   className,
   action,
   compact = false,
@@ -23,15 +21,21 @@ export function EmptyState({
   return (
     <div
       className={cn(
-        'flex flex-col items-center justify-center text-center text-muted-foreground',
-        compact ? 'py-8 px-4' : 'py-12 px-6',
-        className
+        'kp-surface flex flex-col items-center justify-center text-center',
+        compact ? 'px-4 py-10' : 'px-6 py-14',
+        className,
       )}
     >
-      <Icon className="h-12 w-12 mb-3 opacity-50" aria-hidden />
-      <h3 className="text-lg font-semibold text-foreground mb-1">{title}</h3>
-      {description && <p className="text-sm max-w-sm mb-4">{description}</p>}
-      {action}
+      {Icon ? (
+        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-accent text-primary">
+          <Icon className="h-5 w-5" aria-hidden />
+        </div>
+      ) : null}
+      <h3 className="font-display text-xl tracking-tight text-foreground">{title}</h3>
+      {description ? (
+        <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">{description}</p>
+      ) : null}
+      {action ? <div className="mt-5">{action}</div> : null}
     </div>
   )
 }
