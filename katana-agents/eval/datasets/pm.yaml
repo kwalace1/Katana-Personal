@@ -1,0 +1,70 @@
+agent: PM Agent
+agent_id: 7f94d552
+# Task status enum includes 'blocked' (supabase-projects-schema.sql) -- a value
+# the old prompts omitted, so this dataset explicitly exercises it.
+cases:
+  - id: pm-active-projects
+    type: data
+    question: How many active projects are there?
+    ground_truth_sql: select active_projects as n from ai_pm_summary
+    assert:
+      - {check: used_sql}
+      - {check: numeric_match, sql_field: n}
+      - {check: no_leak}
+    judge:
+      rubric: States the number of active projects.
+      min_score: 70
+
+  - id: pm-open-tasks
+    type: data
+    question: How many open tasks are there across all projects?
+    ground_truth_sql: select open_tasks as n from ai_pm_summary
+    assert:
+      - {check: used_sql}
+      - {check: numeric_match, sql_field: n}
+      - {check: no_leak}
+    judge:
+      rubric: States the number of open tasks.
+      min_score: 70
+
+  - id: pm-blocked-tasks
+    type: data
+    question: How many tasks are currently blocked?
+    ground_truth_sql: select count(*)::int as n from ai_tasks where status = 'blocked'
+    assert:
+      - {check: used_sql}
+      - {check: numeric_match, sql_field: n}
+      - {check: no_leak}
+    judge:
+      rubric: Reports the number of blocked tasks (status blocked); does not claim the status doesn't exist.
+      min_score: 65
+
+  - id: pm-completed-projects
+    type: data
+    question: How many projects have been completed?
+    ground_truth_sql: select completed_projects as n from ai_pm_summary
+    assert:
+      - {check: used_sql}
+      - {check: numeric_match, sql_field: n}
+      - {check: no_leak}
+    judge:
+      rubric: States the number of completed projects.
+      min_score: 65
+
+  - id: pm-view-modes
+    type: feature
+    question: When should I use the Grid, List, or Timeline view for a project?
+    assert:
+      - {check: no_leak}
+    judge:
+      rubric: Distinguishes the Grid/List/Timeline views and when each is useful (e.g. Timeline for deadline conflicts).
+      min_score: 60
+
+  - id: pm-new-project-flow
+    type: feature
+    question: What's the right way to set up a new project with tasks and milestones?
+    assert:
+      - {check: no_leak}
+    judge:
+      rubric: Describes creating the project shell first, then adding tasks/milestones; assignments feed the assignee's feed.
+      min_score: 60

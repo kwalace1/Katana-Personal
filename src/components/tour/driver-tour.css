@@ -1,0 +1,136 @@
+/* Katana tour — high-contrast popover on a clear spotlight dim (driver.js overlay) */
+
+/* Do NOT override .driver-overlay here — opacity comes from overlayOpacity in tour-provider */
+
+.katana-driver-popover.driver-popover {
+  box-sizing: border-box;
+  font-family: inherit;
+  position: fixed !important;
+  display: block !important;
+  min-width: 300px;
+  max-width: 420px;
+  padding: 1.25rem;
+  margin: 0;
+  border-radius: var(--radius, 0.75rem);
+  background-color: #fff;
+  color: hsl(0 0% 10%);
+  border: 1px solid hsl(0 0% 88%);
+  box-shadow:
+    0 4px 6px -1px rgb(0 0 0 / 0.2),
+    0 10px 24px -4px rgb(0 0 0 / 0.35);
+  z-index: 1000000000;
+}
+
+.katana-driver-popover.driver-popover * {
+  font-family: inherit;
+}
+
+.katana-driver-popover .driver-popover-title {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: hsl(0 0% 10%);
+  margin: 0 1.75rem 0.375rem 0;
+}
+
+.katana-driver-popover .driver-popover-description {
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: hsl(0 0% 35%);
+  margin: 0;
+  white-space: pre-line;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.katana-driver-popover .driver-popover-progress-text {
+  font-size: 0.8125rem;
+  color: hsl(0 0% 45%);
+}
+
+.katana-driver-popover .driver-popover-close-btn {
+  color: hsl(0 0% 55%);
+  width: 2rem;
+  height: 2rem;
+  font-size: 1.125rem;
+}
+
+.katana-driver-popover .driver-popover-close-btn:hover,
+.katana-driver-popover .driver-popover-close-btn:focus {
+  color: hsl(0 0% 10%);
+}
+
+.katana-driver-popover .driver-popover-footer {
+  margin-top: 1rem;
+}
+
+.katana-driver-popover .driver-popover-footer button {
+  border-radius: calc(var(--radius, 0.75rem) - 2px);
+  font-size: 0.875rem;
+  font-weight: 500;
+  padding: 0.375rem 0.875rem;
+  line-height: 1.25;
+  text-shadow: none;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.katana-driver-popover .driver-popover-prev-btn {
+  background-color: transparent;
+  color: hsl(0 0% 10%);
+  border: 1px solid hsl(0 0% 82%);
+}
+
+.katana-driver-popover .driver-popover-prev-btn:hover,
+.katana-driver-popover .driver-popover-prev-btn:focus {
+  background-color: hsl(0 0% 96%);
+}
+
+.katana-driver-popover .driver-popover-next-btn,
+.katana-driver-popover .driver-popover-done-btn {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border: 1px solid transparent;
+}
+
+.katana-driver-popover .driver-popover-next-btn:hover,
+.katana-driver-popover .driver-popover-next-btn:focus,
+.katana-driver-popover .driver-popover-done-btn:hover,
+.katana-driver-popover .driver-popover-done-btn:focus {
+  background-color: hsl(var(--primary) / 0.9);
+}
+
+.katana-driver-popover .driver-popover-navigation-btns button + button {
+  margin-left: 8px;
+}
+
+.katana-driver-popover .driver-popover-arrow {
+  border-color: #fff;
+}
+
+.katana-driver-popover .driver-popover-arrow-side-left {
+  border-right-color: transparent;
+  border-bottom-color: transparent;
+  border-top-color: transparent;
+}
+
+.katana-driver-popover .driver-popover-arrow-side-right {
+  border-left-color: transparent;
+  border-bottom-color: transparent;
+  border-top-color: transparent;
+}
+
+.katana-driver-popover .driver-popover-arrow-side-top {
+  border-right-color: transparent;
+  border-bottom-color: transparent;
+  border-left-color: transparent;
+}
+
+.katana-driver-popover .driver-popover-arrow-side-bottom {
+  border-left-color: transparent;
+  border-top-color: transparent;
+  border-right-color: transparent;
+}
+
+.driver-active-element {
+  border-radius: var(--radius, 0.75rem);
+}

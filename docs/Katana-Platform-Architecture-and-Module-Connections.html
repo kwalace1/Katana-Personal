@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Katana Platform — Architecture & Module Connections</title>
+<style>
+  @page { margin: 0.75in; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    font-size: 11pt;
+    line-height: 1.5;
+    color: #1a1a1a;
+    max-width: 8.5in;
+    margin: 0 auto;
+    padding: 24px;
+  }
+  h1 { font-size: 22pt; border-bottom: 2px solid #2563eb; padding-bottom: 8px; color: #0f172a; }
+  h2 { font-size: 15pt; margin-top: 28px; color: #1e40af; page-break-after: avoid; }
+  h3 { font-size: 12pt; margin-top: 20px; color: #334155; page-break-after: avoid; }
+  h4 { font-size: 11pt; margin-top: 16px; color: #475569; }
+  p, li { margin: 6px 0; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 10pt; }
+  th, td { border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: #f1f5f9; font-weight: 600; }
+  tr:nth-child(even) td { background: #f8fafc; }
+  code { background: #f1f5f9; padding: 1px 5px; border-radius: 3px; font-size: 9.5pt; }
+  pre {
+    background: #0f172a;
+    color: #e2e8f0;
+    padding: 14px 16px;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: 8.5pt;
+    line-height: 1.35;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    page-break-inside: avoid;
+  }
+  pre code { background: none; color: inherit; padding: 0; }
+  blockquote {
+    border-left: 4px solid #2563eb;
+    margin: 12px 0;
+    padding: 8px 16px;
+    background: #eff6ff;
+    color: #1e3a5f;
+  }
+  hr { border: none; border-top: 1px solid #e2e8f0; margin: 24px 0; }
+  ul, ol { padding-left: 22px; }
+  a { color: #2563eb; }
+</style>
+</head>
+<body>
+<h1>Katana Platform — Architecture &amp; Module Connections</h1>
+<p><strong>Document version:</strong> June 2026<br />
+<strong>Audience:</strong> Internal team (product, engineering, sales, customer success)<br />
+<strong>Purpose:</strong> How Katana modules connect, synchronize, and adapt to each client's plan.</p>
+<hr />
+<h2>Executive summary</h2>
+<p>Katana is a <strong>modular business platform</strong> with <strong>15 registered modules</strong>. Clients can run the full enterprise stack or pick and choose modules. The system:</p>
+<ol>
+<li>Knows <strong>what modules the organization has</strong> (org entitlements)</li>
+<li>Knows <strong>what each user can access</strong> (HR module assignment)</li>
+<li><strong>Automatically wires</strong> cross-module connections only where both modules exist</li>
+<li><strong>Aggregates everything</strong> into the Hub as mission control</li>
+</ol>
+<blockquote>
+<p><strong>One line for leadership:</strong> Add a module → connections appear. Remove a module → UI hides cleanly with no broken links.</p>
+</blockquote>
+<hr />
+<h2>1. Access control — three layers</h2>
+<p>Everything flows through a gating stack before any cross-module feature appears.</p>
+<pre><code>┌─────────────────────────────────────────────────────────────────┐
+│  LAYER 1 — ORG ENTITLEMENTS (what the client purchased)         │
+│                                                                 │
+│  organizations.enabled_modules  (explicit pick-and-choose)      │
+│  organizations.subscription_tier  (Free / Starter / Pro / Ent)  │
+│  organizations.settings.enabled_modules  (fallback)             │
+│                          ↓                                      │
+│                   orgEnabledModules                             │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  LAYER 2 — USER ASSIGNMENT (what this person can use)           │
+│                                                                 │
+│  hr_employees.module_access  (per-employee checkboxes in HR)    │
+│  owner / admin role  (gets all org modules)                     │
+│                          ↓                                      │
+│                   userAssignedModules                           │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  LAYER 3 — EFFECTIVE ACCESS (runtime)                           │
+│                                                                 │
+│  allowedModules = orgEnabledModules ∩ userAssignedModules       │
+│                          ↓                                      │
+│  Sidebar · Routes · Cross-module panels · Hub widgets           │
+└─────────────────────────────────────────────────────────────────┘
+</code></pre>
+<p><strong>Rules:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Question</th>
+<th>Answer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Does this integration exist for the org?</td>
+<td>Both modules must be in <code>orgEnabledModules</code></td>
+</tr>
+<tr>
+<td>Can this user use the integration?</td>
+<td>Both modules must be in <code>allowedModules</code></td>
+</tr>
+<tr>
+<td>Can HR assign a module to an employee?</td>
+<td>Only modules in <code>orgEnabledModules</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Source files:</strong> <code>src/lib/org-module-access.ts</code>, <code>src/contexts/ModuleAccessContext.tsx</code></p>
+<hr />
+<h2>2. All 15 modules</h2>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Product name</th>
+<th>Route</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>hub</code></td>
+<td>Hub</td>
+<td><code>/hub</code></td>
+</tr>
+<tr>
+<td><code>projects</code></td>
+<td>Katana PM</td>
+<td><code>/projects</code></td>
+</tr>
+<tr>
+<td><code>inventory</code></td>
+<td>Katana Inventory</td>
+<td><code>/inventory</code></td>
+</tr>
+<tr>
+<td><code>customer-success</code></td>
+<td>Katana Customers (CRM + KYC)</td>
+<td><code>/customer-success</code></td>
+</tr>
+<tr>
+<td><code>workforce</code></td>
+<td>WFM</td>
+<td><code>/workforce</code></td>
+</tr>
+<tr>
+<td><code>hr</code></td>
+<td>Katana HR</td>
+<td><code>/hr</code></td>
+</tr>
+<tr>
+<td><code>employee</code></td>
+<td>Employee Portal</td>
+<td><code>/employee</code></td>
+</tr>
+<tr>
+<td><code>careers</code></td>
+<td>Careers</td>
+<td><code>/careers</code></td>
+</tr>
+<tr>
+<td><code>manufacturing</code></td>
+<td>Katana Facilities</td>
+<td><code>/manufacturing</code></td>
+</tr>
+<tr>
+<td><code>automation</code></td>
+<td>Automation (Katana Sync)</td>
+<td><code>/automation</code></td>
+</tr>
+<tr>
+<td><code>kyi</code></td>
+<td>Know Your Investor</td>
+<td><code>/kyi</code></td>
+</tr>
+<tr>
+<td><code>comms</code></td>
+<td>Katana Comms</td>
+<td><code>/comms</code></td>
+</tr>
+<tr>
+<td><code>agents</code></td>
+<td>Agent Office</td>
+<td><code>/agents</code></td>
+</tr>
+<tr>
+<td><code>support</code></td>
+<td>Katana Support</td>
+<td><code>/support</code></td>
+</tr>
+<tr>
+<td><code>finance</code></td>
+<td>Katana Finance</td>
+<td><code>/finance</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Source file:</strong> <code>src/lib/module-access.ts</code></p>
+<hr />
+<h2>3. Plan tiers — default module bundles</h2>
+<table>
+<thead>
+<tr>
+<th>Tier</th>
+<th>Modules included</th>
+<th>Typical use case</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Free</strong></td>
+<td>Hub, Customers, Employee Portal, Support</td>
+<td>Core suite trial</td>
+</tr>
+<tr>
+<td><strong>Starter</strong></td>
+<td>Free + PM, HR, Careers</td>
+<td>Small team getting started</td>
+</tr>
+<tr>
+<td><strong>Professional</strong></td>
+<td>Starter + WFM, Inventory, Comms, Finance, Automation</td>
+<td>Full operations stack</td>
+</tr>
+<tr>
+<td><strong>Enterprise</strong></td>
+<td>All 15 modules</td>
+<td>Full platform</td>
+</tr>
+<tr>
+<td><strong>Custom</strong></td>
+<td><code>enabled_modules</code> array in database</td>
+<td>Pick-and-choose à la carte</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Core suite</strong> (included on every plan): Hub, Customers, Employee Portal, Support.</p>
+<p><strong>Source file:</strong> <code>src/lib/module-bundles.ts</code></p>
+<hr />
+<h2>4. Integration graph — how modules talk to each other</h2>
+<p>Connections only activate when <strong>both modules</strong> are in the org's entitlement list.</p>
+<h3>4.1 Visual map</h3>
+<pre><code>                    ┌──────────┐
+                    │    HR    │  ← Identity layer (people → all modules)
+                    └────┬─────┘
+         ┌───────────────┼───────────────┐
+         ↓               ↓               ↓
+    ┌─────────┐    ┌──────────┐   ┌───────────┐
+    │Projects │    │Customers │   │ Workforce │
+    └────┬────┘    └────┬─────┘   └─────┬─────┘
+         │              │    ↕           │
+         │         deal won /           │
+         │         client link          │
+         │              │    ↕           │
+         └──────────────┼───────────────┘
+                        │
+              timesheets → invoices
+              jobs → project tasks
+              job parts → inventory
+                        │
+         ┌──────────────┼──────────────┐
+         ↓              ↓              ↓
+    ┌──────────┐  ┌──────────┐  ┌──────────┐
+    │ Inventory│  │ Finance  │  │ Support  │
+    └────┬─────┘  └────┬─────┘  └──────────┘
+         │             │
+         └──── PO / invoice bank matching ────┘
+
+    Comms ──embedded discussions──→ Projects, Customers, WFM, HR
+
+    Hub ──KPIs + activity feed──→ all enabled modules above
+</code></pre>
+<h3>4.2 Connection reference table</h3>
+<table>
+<thead>
+<tr>
+<th>From</th>
+<th>To</th>
+<th>What syncs</th>
+<th>Implementation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Customers</strong></td>
+<td><strong>WFM</strong></td>
+<td>Client on work order; deal won → work order</td>
+<td><code>crm-workflows.ts</code>, <code>wfm-integrations.ts</code></td>
+</tr>
+<tr>
+<td><strong>WFM</strong></td>
+<td><strong>Customers</strong></td>
+<td>Approved timesheets → draft invoice</td>
+<td><code>createDraftInvoiceFromJob()</code></td>
+</tr>
+<tr>
+<td><strong>WFM</strong></td>
+<td><strong>Projects</strong></td>
+<td><code>project_id</code>, <code>task_id</code> on jobs</td>
+<td><code>wfm-integrations.ts</code>, <code>PmProjectLinkedRecords</code></td>
+</tr>
+<tr>
+<td><strong>WFM</strong></td>
+<td><strong>Inventory</strong></td>
+<td>Job parts; checkout on completion</td>
+<td><code>wfm_job_parts</code>, <code>checkoutJobPartsOnCompletion()</code></td>
+</tr>
+<tr>
+<td><strong>WFM</strong></td>
+<td><strong>Finance</strong></td>
+<td>Billable time → receivables path</td>
+<td>WFM panel + Finance matching</td>
+</tr>
+<tr>
+<td><strong>Customers</strong></td>
+<td><strong>Finance</strong></td>
+<td>Invoices ↔ bank deposit matching</td>
+<td><code>finance-match-suggestions.ts</code></td>
+</tr>
+<tr>
+<td><strong>Inventory</strong></td>
+<td><strong>Finance</strong></td>
+<td>POs ↔ bank outflow matching</td>
+<td><code>finance-match-suggestions.ts</code></td>
+</tr>
+<tr>
+<td><strong>Customers</strong></td>
+<td><strong>Support</strong></td>
+<td><code>client_id</code> on support tickets</td>
+<td><code>customer-linked-records.ts</code></td>
+</tr>
+<tr>
+<td><strong>HR</strong></td>
+<td><strong>Projects</strong></td>
+<td>Employee assignees on tasks</td>
+<td><code>notification-recipients.ts</code></td>
+</tr>
+<tr>
+<td><strong>HR</strong></td>
+<td><strong>WFM</strong></td>
+<td>Technician roster</td>
+<td><code>wfm-api.ts</code></td>
+</tr>
+<tr>
+<td><strong>HR</strong></td>
+<td><strong>Customers</strong></td>
+<td>CSM → auth user link</td>
+<td><code>notification-recipients.ts</code></td>
+</tr>
+<tr>
+<td><strong>Comms</strong></td>
+<td><strong>Projects</strong></td>
+<td>Task discussion threads</td>
+<td><code>ModuleDiscussion</code> component</td>
+</tr>
+<tr>
+<td><strong>Comms</strong></td>
+<td><strong>Customers</strong></td>
+<td>Client discussion threads</td>
+<td><code>ModuleDiscussion</code> component</td>
+</tr>
+<tr>
+<td><strong>Comms</strong></td>
+<td><strong>WFM</strong></td>
+<td>Job discussion threads</td>
+<td><code>ModuleDiscussion</code> component</td>
+</tr>
+<tr>
+<td><strong>Comms</strong></td>
+<td><strong>HR</strong></td>
+<td>Employee discussion threads</td>
+<td><code>ModuleDiscussion</code> component</td>
+</tr>
+<tr>
+<td><strong>Hub</strong></td>
+<td><strong>All enabled</strong></td>
+<td>KPIs, activity feed, quick search/create</td>
+<td><code>hub-metrics.ts</code>, <code>hub-activity.ts</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Source file:</strong> <code>src/lib/module-integrations.ts</code></p>
+<hr />
+<h2>5. Hub — the synchronization layer</h2>
+<p>Hub does not own data. It <strong>aggregates</strong> from every module the org has enabled, then <strong>filters</strong> what each user can see.</p>
+<pre><code>  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
+  │  Projects   │  │  Customers  │  │     HR      │  │     WFM     │
+  │    API      │  │    API      │  │    API      │  │    API      │
+  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘
+         │                 │                 │                 │
+  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
+  │  Inventory  │  │   Finance   │  │   Support   │  │     KYI     │
+  │    API      │  │    API      │  │    API      │  │    API      │
+  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘
+         │                 │                 │                 │
+         └─────────────────┴────────┬────────┴─────────────────┘
+                                    ↓
+                    ┌───────────────────────────────┐
+                    │  buildIntegrationPlan()       │
+                    │  (which modules to pull)      │
+                    └───────────────┬───────────────┘
+                                    ↓
+              ┌─────────────────────┴─────────────────────┐
+              ↓                     ↓                     ↓
+     ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+     │  KPI cards      │  │  Activity feed  │  │  Module cards   │
+     │  hub-metrics    │  │  hub-activity   │  │  + quick create │
+     └─────────────────┘  └─────────────────┘  └─────────────────┘
+                                    ↓
+                    Filtered by user's allowedModules
+</code></pre>
+<p><strong>Hub aggregates from:</strong> Projects, Customers, HR, Careers, Inventory, WFM, Support, KYI, Finance, Facilities, Automation.</p>
+<p><strong>Source files:</strong> <code>src/pages/HubPage.tsx</code>, <code>src/lib/hub-metrics.ts</code>, <code>src/lib/hub-activity.ts</code></p>
+<hr />
+<h2>6. Shared platform services (glue)</h2>
+<p>These run across modules and are not separate sidebar items:</p>
+<table>
+<thead>
+<tr>
+<th>Service</th>
+<th>Role</th>
+<th>Key file</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>HR identity</strong></td>
+<td>Maps employees → auth users for assignments &amp; notifications</td>
+<td><code>notification-recipients.ts</code></td>
+</tr>
+<tr>
+<td><strong>Notifications</strong></td>
+<td>Event bus per module (PM, HR, CS, WFM, Finance, etc.)</td>
+<td><code>notification-modules.ts</code></td>
+</tr>
+<tr>
+<td><strong>Comms context links</strong></td>
+<td>Messages linked to client / project / task / job / employee</td>
+<td><code>comms-api.ts</code>, <code>ModuleDiscussion.tsx</code></td>
+</tr>
+<tr>
+<td><strong>Storage</strong></td>
+<td>File buckets per module (projects, hr, inventory, wfm, customers)</td>
+<td><code>storage-api.ts</code></td>
+</tr>
+<tr>
+<td><strong>Katana Sync / Agents</strong></td>
+<td>AI context per module</td>
+<td><code>ksync-context.ts</code>, Agent Office</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>7. Example scenarios</h2>
+<h3>Scenario A — Client has Customers + WFM only</h3>
+<ul>
+<li>Deal won in CRM → creates work order in WFM ✓</li>
+<li>Timesheet on job → draft invoice in Customers Commerce ✓</li>
+<li>Finance bank matching links → hidden (no Finance module)</li>
+<li>Inventory parts on jobs → hidden (no Inventory module)</li>
+<li>Hub shows Customers + WFM KPIs only</li>
+</ul>
+<h3>Scenario B — Professional plan (no KYI, Agents, Facilities)</h3>
+<ul>
+<li>Full CS ↔ WFM ↔ PM ↔ Inventory ↔ Finance ↔ Comms stack ✓</li>
+<li>Hub shows all professional-tier KPIs ✓</li>
+<li>KYI, Agents, Facilities not in sidebar</li>
+</ul>
+<h3>Scenario C — Enterprise</h3>
+<ul>
+<li>All 15 modules, all integrations active</li>
+<li>Hub = full mission control</li>
+</ul>
+<h3>Scenario D — User has WFM but not Customers</h3>
+<ul>
+<li>Can see their jobs</li>
+<li>Client name visible on job (read-only)</li>
+<li>Cannot open Customers tab or create invoices (no CS access)</li>
+<li>Manager with both modules sees full link</li>
+</ul>
+<hr />
+<h2>8. Where to view this in the app</h2>
+<table>
+<thead>
+<tr>
+<th>Location</th>
+<th>What it shows</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Settings → Organization</strong></td>
+<td>"Modules &amp; connections" card — enabled modules, active integrations, unlock hints</td>
+</tr>
+<tr>
+<td><strong>Hub</strong></td>
+<td>Live KPIs and activity from connected modules</td>
+</tr>
+<tr>
+<td><strong>Customer detail</strong></td>
+<td>Linked WFM jobs, invoices, support tickets</td>
+</tr>
+<tr>
+<td><strong>Project detail</strong></td>
+<td>Linked WFM jobs</td>
+</tr>
+<tr>
+<td><strong>WFM job panel</strong></td>
+<td>Cross-module links (invoice, project, parts)</td>
+</tr>
+<tr>
+<td><strong>HR → Employee profile</strong></td>
+<td>Module access assignment (clamped to org entitlements)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>9. Database &amp; configuration</h2>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Table / column</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Org module list</td>
+<td><code>organizations.enabled_modules</code></td>
+<td>Explicit pick-and-choose entitlements</td>
+</tr>
+<tr>
+<td>Plan tier</td>
+<td><code>organizations.subscription_tier</code></td>
+<td>Default bundle when <code>enabled_modules</code> is null</td>
+</tr>
+<tr>
+<td>User modules</td>
+<td><code>hr_employees.module_access</code></td>
+<td>Per-user sidebar access</td>
+</tr>
+<tr>
+<td>Comms links</td>
+<td><code>comms_context_links</code></td>
+<td>Discussion context types: task, client, employee, project, job, invoice</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Migrations to run in Supabase:</strong></p>
+<ul>
+<li><code>supabase-org-modules-migration.sql</code> — org entitlements column</li>
+<li><code>supabase-comms-context-expansion-migration.sql</code> — job + invoice comms contexts</li>
+<li><code>supabase-finance-notifications-migration.sql</code> — finance notification source</li>
+<li><code>supabase-localhost-owner-full-modules.sql</code> — restore full access for dev owners</li>
+</ul>
+<hr />
+<h2>10. Engineering reference — key source files</h2>
+<table>
+<thead>
+<tr>
+<th>Concern</th>
+<th>Path</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Module registry</td>
+<td><code>src/lib/module-access.ts</code></td>
+</tr>
+<tr>
+<td>Tier bundles</td>
+<td><code>src/lib/module-bundles.ts</code></td>
+</tr>
+<tr>
+<td>Org entitlements resolver</td>
+<td><code>src/lib/org-module-access.ts</code></td>
+</tr>
+<tr>
+<td>Integration graph</td>
+<td><code>src/lib/module-integrations.ts</code></td>
+</tr>
+<tr>
+<td>User access context</td>
+<td><code>src/contexts/ModuleAccessContext.tsx</code></td>
+</tr>
+<tr>
+<td>Integration hook</td>
+<td><code>src/hooks/use-module-integration.ts</code></td>
+</tr>
+<tr>
+<td>WFM cross-links</td>
+<td><code>src/lib/wfm-integrations.ts</code></td>
+</tr>
+<tr>
+<td>CRM workflows</td>
+<td><code>src/lib/crm-workflows.ts</code></td>
+</tr>
+<tr>
+<td>Finance matching</td>
+<td><code>src/lib/finance-match-suggestions.ts</code></td>
+</tr>
+<tr>
+<td>Customer linked records</td>
+<td><code>src/lib/customer-linked-records.ts</code></td>
+</tr>
+<tr>
+<td>Hub metrics</td>
+<td><code>src/lib/hub-metrics.ts</code></td>
+</tr>
+<tr>
+<td>Hub activity</td>
+<td><code>src/lib/hub-activity.ts</code></td>
+</tr>
+<tr>
+<td>Org settings UI</td>
+<td><code>src/components/settings/OrgModulesIntegrationCard.tsx</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>11. Mermaid diagrams (for presentations)</h2>
+<p>Paste any block below into <a href="https://mermaid.live">https://mermaid.live</a> to export as PNG/SVG for PowerPoint or Word.</p>
+<h3>Access control flow</h3>
+<pre><code class="language-mermaid">flowchart TB
+  subgraph provisioning [Org entitlements]
+    DB[enabled_modules]
+    Tier[subscription_tier]
+    DB --&gt; OrgMods[orgEnabledModules]
+    Tier --&gt; OrgMods
+  end
+  subgraph users [User assignment]
+    HR[module_access]
+    Role[owner/admin]
+    HR --&gt; UserMods[userAssignedModules]
+    Role --&gt; UserMods
+  end
+  subgraph effective [Runtime]
+    Intersect[&quot;allowedModules = org ∩ user&quot;]
+    OrgMods --&gt; Intersect
+    UserMods --&gt; Intersect
+    Intersect --&gt; UI[Sidebar + integrations + Hub]
+  end
+</code></pre>
+<h3>Module integration graph</h3>
+<pre><code class="language-mermaid">flowchart TB
+  HR[HR]
+  PM[Projects]
+  CS[Customers]
+  WFM[WFM]
+  INV[Inventory]
+  FIN[Finance]
+  SUP[Support]
+  COM[Comms]
+  HUB[Hub]
+
+  HR --&gt; PM
+  HR --&gt; WFM
+  HR --&gt; CS
+  CS &lt;--&gt; WFM
+  WFM --&gt; PM
+  WFM --&gt; INV
+  WFM --&gt; FIN
+  CS --&gt; FIN
+  INV --&gt; FIN
+  CS --&gt; SUP
+  COM -.-&gt; PM
+  COM -.-&gt; CS
+  COM -.-&gt; WFM
+  COM -.-&gt; HR
+  HUB --&gt; PM
+  HUB --&gt; CS
+  HUB --&gt; WFM
+  HUB --&gt; INV
+  HUB --&gt; FIN
+  HUB --&gt; SUP
+</code></pre>
+<hr />
+<p><em>Katana vv2 — Internal architecture document. Update when new modules or integration edges are added to <code>module-integrations.ts</code>.</em></p>
+</body>
+</html>

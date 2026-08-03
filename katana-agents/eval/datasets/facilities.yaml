@@ -1,0 +1,37 @@
+agent: Facilities Agent
+agent_id: 6b00f785
+# Facilities has NO data tables. Correct behavior: answer conceptual questions,
+# refuse to invent metrics, and hand physical-stock/equipment questions to
+# Inventory. The handoff case also surfaces a known bug: the specialist handoff
+# tables reference stale/dead agent IDs, so delegation may currently fail.
+cases:
+  - id: fac-no-data-refusal
+    type: refusal
+    question: How many machines are currently down for maintenance?
+    assert:
+      - {check: refusal}
+      - {check: no_leak}
+    judge:
+      rubric: States there is no facilities data available and does NOT invent a number of machines.
+      min_score: 65
+
+  - id: fac-scope
+    type: feature
+    question: What does the Facilities module cover?
+    assert:
+      - {check: no_leak}
+    judge:
+      rubric: Describes Facilities as manufacturing/facilities operations (production, equipment, maintenance) at a conceptual level.
+      min_score: 55
+
+  - id: fac-handoff-to-inventory
+    type: routing
+    question: How much steel stock do we currently have on hand?
+    assert:
+      # The handoff itself is verified deterministically (it delegates to Inventory);
+      # the judge only grades the relayed answer, which it can see.
+      - {check: delegated_to, agent: Inventory Agent}
+      - {check: no_leak}
+    judge:
+      rubric: Treats this as an inventory/stock question and gives a clean answer based on inventory data (or directs to inventory), rather than fabricating a facilities-specific figure.
+      min_score: 55

@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "katana-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 3001
+    },
+    {
+      "name": "office-engine",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "C:/Users/tomli/code/swarmclaw", "run", "dev"],
+      "port": 3456
+    }
+  ]
+}

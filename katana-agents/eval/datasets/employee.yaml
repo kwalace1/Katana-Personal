@@ -1,0 +1,57 @@
+agent: Employee Agent
+agent_id: 7261ba0a
+# The Employee (self-service) agent must resolve "me" from the signed-in user's
+# email (auth.jwt()->>'email'), NOT ask for an employee ID. If the user has no
+# linked employee record, it should say so plainly. These cases test that
+# self-scoping behavior more than exact numbers.
+cases:
+  - id: emp-my-goals
+    type: data
+    question: What are my current goals?
+    assert:
+      - {check: no_leak}
+      - {check: regex, pattern: "(your|my|no (linked )?(employee )?(profile|record)|not.*linked)"}
+    judge:
+      rubric: Answers for the signed-in user's own goals, or clearly says there is no linked employee profile. Must NOT ask the user to supply an employee ID, and must not answer org-wide.
+      min_score: 60
+
+  - id: emp-my-reviews
+    type: data
+    question: Show me my performance reviews.
+    assert:
+      - {check: used_sql}          # must look the user up in the data
+      - {check: no_leak}
+      - {check: not_contains, value: employee id}
+    judge:
+      # The signed-in user may or may not have review rows. BOTH are valid: report
+      # their actual review(s) from the data, or say there's no linked profile.
+      # Do not assume a confident, specific review is fabricated -- it may be real.
+      rubric: Resolves the signed-in user and either reports their actual review(s) from the data or clearly says there is no linked profile. Does not demand an employee ID.
+      min_score: 55
+
+  - id: emp-timeoff-flow
+    type: feature
+    question: How do I request time off?
+    assert:
+      - {check: no_leak}
+    judge:
+      rubric: Describes the time-off request flow (from the HR notices card, pick dates/reason, manager+HR approve; status pending/approved/denied).
+      min_score: 60
+
+  - id: emp-launchpad
+    type: feature
+    question: What is the Launchpad and how is it different from the Hub?
+    assert:
+      - {check: no_leak}
+    judge:
+      rubric: Explains the Launchpad is the employee's "my stuff" home vs the Hub's company/admin view.
+      min_score: 60
+
+  - id: emp-feed-filters
+    type: feature
+    question: How do the feed filters (Active vs History, For you vs Company) work?
+    assert:
+      - {check: no_leak}
+    judge:
+      rubric: Explains Active vs History and For-you vs Company filters, and that seen items move to History.
+      min_score: 55

@@ -1,0 +1,114 @@
+# Daily full-database backup via pg_dump, stored as a GitHub Actions artifact.
+#
+# INACTIVE until the SUPABASE_DB_URL repo secret is set. Use the SESSION POOLER
+# connection string (Dashboard -> Connect -> Session pooler, port 5432):
+#   postgresql://postgres.<ref>:<password>@aws-0-us-west-2.pooler.supabase.com:5432/postgres
+# The direct connection (db.<ref>.supabase.co) is IPv6-only and unreachable from
+# GitHub-hosted runners. See docs/BACKUP_DISASTER_RECOVERY.md.
+#
+# Note: backup artifacts contain production data (PII). Keep this repo private.
+
+name: Database Backup
+
+on:
+  schedule:
+    - cron: '0 8 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check configuration
+        id: check
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$DB_URL" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::SUPABASE_DB_URL secret not set — skipping backup. See docs/BACKUP_DISASTER_RECOVERY.md."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install PostgreSQL 17 client
+        if: steps.check.outputs.configured == 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y -qq postgresql-client-17
+
+      - name: Dump database
+        if: steps.check.outputs.configured == 'true'
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          STAMP=$(date -u +%Y%m%d_%H%M)
+          /usr/lib/postgresql/17/bin/pg_dump "$DB_URL" \
+            --no-owner --no-acl -F c \
+            -f "katana_backup_${STAMP}.dump"
+          ls -lh katana_backup_*.dump
+
+      - name: Upload backup artifact
+        if: steps.check.outputs.configured == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-${{ github.run_number }}
+          path: katana_backup_*.dump
+          retention-days: 30
+          if-no-files-found: error
+
+      # Storage objects (employee-photos, project-files, …) live in S3, not Postgres —
+      # the pg_dump above only captures their metadata. This step downloads the actual
+      # files. Skipped with a warning until SUPABASE_SERVICE_ROLE_KEY is set.
+      - name: Backup storage buckets
+        if: steps.check.outputs.configured == 'true'
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          if [ -z "$SERVICE_KEY" ]; then
+            echo "::warning::SUPABASE_SERVICE_ROLE_KEY secret not set — skipping storage bucket backup."
+            exit 0
+          fi
+          python3 - <<'EOF'
+          import os, subprocess, urllib.request, urllib.parse, pathlib
+          db = os.environ["DB_URL"]
+          url = os.environ["SUPABASE_URL"].rstrip("/")
+          key = os.environ["SERVICE_KEY"]
+          rows = subprocess.run(
+              ["/usr/lib/postgresql/17/bin/psql", db, "-At", "-c",
+               "select bucket_id || '|' || name from storage.objects order by 1"],
+              capture_output=True, text=True, check=True).stdout.splitlines()
+          count = 0
+          for row in rows:
+              bucket, name = row.split("|", 1)
+              dest = pathlib.Path("storage-backup") / bucket / name
+              dest.parent.mkdir(parents=True, exist_ok=True)
+              obj_url = (f"{url}/storage/v1/object/authenticated/"
+                         f"{urllib.parse.quote(bucket)}/{urllib.parse.quote(name, safe='/')}")
+              req = urllib.request.Request(obj_url, headers={"apikey": key, "Authorization": f"Bearer {key}"})
+              with urllib.request.urlopen(req) as r, open(dest, "wb") as f:
+                  f.write(r.read())
+              count += 1
+          print(f"downloaded {count} storage objects")
+          EOF
+
+      - name: Upload storage backup artifact
+        if: steps.check.outputs.configured == 'true' && hashFiles('storage-backup/**') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: storage-backup-${{ github.run_number }}
+          path: storage-backup/
+          retention-days: 30

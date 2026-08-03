@@ -1,0 +1,66 @@
+agent: KYI Agent
+agent_id: 9e5b585a
+# ai_kyi_leads is a GLOBAL market-intelligence dataset (no org column) by design;
+# ai_kyi_investors/companies are per-org.
+cases:
+  - id: kyi-total-leads
+    type: data
+    question: How many investor leads are in the database?
+    ground_truth_sql: select total_leads as n from ai_kyi_summary
+    assert:
+      - {check: used_sql}
+      - {check: numeric_match, sql_field: n}
+      - {check: no_leak}
+    judge:
+      rubric: States the total number of investor leads.
+      min_score: 70
+
+  - id: kyi-companies
+    type: data
+    question: How many companies (raise entities) are set up in KYI?
+    ground_truth_sql: select total_companies as n from ai_kyi_summary
+    assert:
+      - {check: used_sql}
+      - {check: numeric_match, sql_field: n}
+      - {check: no_leak}
+    judge:
+      rubric: States the number of companies/raise entities.
+      min_score: 65
+
+  - id: kyi-top-leads
+    type: data
+    question: Who are the top 5 investor leads by score?
+    ground_truth_sql: select count(*)::int as n from (select id from ai_kyi_leads order by raw_score desc nulls last limit 5) t
+    assert:
+      - {check: used_sql}
+      - {check: no_leak}
+    judge:
+      rubric: Lists up to five leads ranked by score (raw_score), highest first, from real data.
+      min_score: 60
+
+  - id: kyi-raise-workflow
+    type: feature
+    question: What is the 4-step workflow for running a raise in KYI?
+    assert:
+      - {check: no_leak}
+    judge:
+      rubric: Describes the Geo -> Leads -> Access Map -> Contacts workflow, repeated per company.
+      min_score: 60
+
+  - id: kyi-access-map
+    type: feature
+    question: What is the Access Map and why does it matter?
+    assert:
+      - {check: no_leak}
+    judge:
+      rubric: Explains the Access Map is the warm-intro network and warm intros beat cold outreach.
+      min_score: 60
+
+  - id: kyi-one-company-per-raise
+    type: feature
+    question: Why should each raise use its own company workspace?
+    assert:
+      - {check: no_leak}
+    judge:
+      rubric: Explains one workspace per raise/legal entity to avoid mixing investor lists (compliance).
+      min_score: 55

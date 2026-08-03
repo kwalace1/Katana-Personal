@@ -1,0 +1,70 @@
+agent: Careers Agent
+agent_id: 007ec8cf
+# job_applications.status enum: new|reviewing|interview-scheduled|interviewed|offer|rejected|withdrawn
+cases:
+  - id: careers-active-postings
+    type: data
+    question: How many job postings are currently active?
+    ground_truth_sql: select active_postings as n from ai_careers_summary
+    assert:
+      - {check: used_sql}
+      - {check: numeric_match, sql_field: n}
+      - {check: no_leak}
+    judge:
+      rubric: States the number of active/open job postings.
+      min_score: 70
+
+  - id: careers-total-applications
+    type: data
+    question: How many job applications have we received in total?
+    ground_truth_sql: select total_applications as n from ai_careers_summary
+    assert:
+      - {check: used_sql}
+      - {check: numeric_match, sql_field: n}
+      - {check: no_leak}
+    judge:
+      rubric: States the total number of applications.
+      min_score: 70
+
+  - id: careers-interviews-scheduled
+    type: data
+    question: How many candidates have interviews scheduled?
+    ground_truth_sql: select count(*)::int as n from ai_job_applications where status = 'interview-scheduled'
+    assert:
+      - {check: used_sql}
+      - {check: numeric_match, sql_field: n}
+      - {check: no_leak}
+    judge:
+      rubric: Reports how many applications are at interview-scheduled status.
+      min_score: 65
+
+  - id: careers-talent-pool
+    type: data
+    question: How many candidates are in our talent pool?
+    ground_truth_sql: select talent_pool_size as n from ai_careers_summary
+    assert:
+      - {check: used_sql}
+      - {check: numeric_match, sql_field: n}
+      - {check: no_leak}
+    judge:
+      rubric: States the size of the talent pool.
+      min_score: 65
+
+  - id: careers-anonymized-apps
+    type: feature
+    question: How does the anonymized application feature help reduce hiring bias?
+    assert:
+      - {check: no_leak}
+    judge:
+      rubric: Explains applications stay anonymized until revealed, to reduce bias.
+      min_score: 60
+
+  - id: careers-application-flow
+    type: feature
+    question: What are the stages an application moves through?
+    assert:
+      - {check: contains_any, values: [interview, interviewed, rejected, new]}
+      - {check: no_leak}
+    judge:
+      rubric: Describes the application status flow (new -> interview-scheduled -> interviewed -> offer/rejected).
+      min_score: 60

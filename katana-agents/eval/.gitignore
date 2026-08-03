@@ -1,0 +1,3 @@
+# Run outputs are local artifacts; keep the baseline out of git too (it depends
+# on the live data snapshot). Commit datasets + code, not results.
+results/

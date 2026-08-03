@@ -1,0 +1,130 @@
+/* ============================================================================
+   Agent Office module — design-token extensions and animations.
+
+   The module renders inside Katana's shell and follows the active light/dark
+   theme. Everything here derives from Katana's HSL tokens (src/index.css);
+   the literal triples below are module-level status-color extensions defined
+   once as tokens, never inline in components.
+   ========================================================================== */
+@import "highlight.js/styles/github-dark-dimmed.min.css";
+
+:root {
+  --office-success: 160 64% 40%;
+  --office-warning: 38 92% 44%;
+  --office-info: 199 89% 45%;
+  --office-pink: 330 81% 52%;
+  --office-orange: 27 96% 50%;
+}
+
+.dark {
+  --office-success: 160 64% 51%;
+  --office-warning: 45 96% 56%;
+  --office-info: 199 89% 60%;
+  --office-pink: 330 81% 60%;
+  --office-orange: 27 96% 61%;
+}
+
+/* ============================ Animations ================================= */
+/* Streaming/typing dots */
+@keyframes office-dot-bounce {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.25; }
+  40% { transform: translateY(-6px); opacity: 1; }
+}
+/* Message entrance (used alongside framer-motion for lightweight rows) */
+@keyframes office-msg-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+/* Org chart: glow pulse on nodes with active delegations */
+@keyframes delegation-glow-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+/* Org chart: edge snippet fade in, hold, fade out */
+@keyframes fadeInHold {
+  0% { opacity: 0; transform: translateY(4px); }
+  5% { opacity: 1; transform: translateY(0); }
+  85% { opacity: 1; }
+  100% { opacity: 0; }
+}
+/* Org chart: delegation bubble above nodes — pop-in, hold, fade-out */
+@keyframes delegationBubbleFade {
+  0% { opacity: 0; transform: translateY(6px) scale(0.95); }
+  6% { opacity: 1; transform: translateY(0) scale(1); }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-2px); }
+}
+/* Skeleton shimmer */
+@keyframes office-shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+/* ========================= Chat markdown body ============================ */
+.agent-office-md { line-height: 1.7; }
+.agent-office-md pre {
+  background: hsl(222 18% 10%);
+  padding: 0;
+  border-radius: calc(var(--radius) - 2px);
+  overflow: hidden;
+  margin: 12px 0;
+  border: 1px solid hsl(var(--border) / 0.6);
+}
+.agent-office-md pre code {
+  display: block;
+  padding: 14px 16px;
+  overflow-x: auto;
+  font-size: 12.5px;
+  line-height: 1.6;
+  background: transparent;
+  color: hsl(0 0% 88%);
+}
+.agent-office-md code {
+  font-family: 'Cascadia Code', 'SF Mono', Consolas, monospace;
+  font-size: 12.5px;
+}
+.agent-office-md :not(pre) > code {
+  background: hsl(var(--primary) / 0.1);
+  padding: 2px 6px;
+  border-radius: 5px;
+  font-size: 0.87em;
+  color: hsl(var(--primary));
+}
+.agent-office-md h1, .agent-office-md h2, .agent-office-md h3, .agent-office-md h4 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 16px 0 6px;
+}
+.agent-office-md h1:first-child, .agent-office-md h2:first-child, .agent-office-md h3:first-child { margin-top: 0; }
+.agent-office-md p { margin-bottom: 10px; }
+.agent-office-md p:last-child { margin-bottom: 0; }
+.agent-office-md ul, .agent-office-md ol { margin: 8px 0 10px; padding-left: 1.25rem; }
+.agent-office-md ul { list-style-type: disc; }
+.agent-office-md ol { list-style-type: decimal; }
+.agent-office-md li { margin-bottom: 4px; }
+.agent-office-md li::marker { color: hsl(var(--primary)); }
+.agent-office-md a {
+  color: hsl(var(--primary));
+  text-decoration: none;
+  border-bottom: 1px solid hsl(var(--primary) / 0.3);
+  transition: border-color 0.15s;
+}
+.agent-office-md a:hover { border-color: hsl(var(--primary)); }
+.agent-office-md table { border-collapse: collapse; margin: 10px 0; font-size: 12.5px; width: 100%; }
+.agent-office-md th, .agent-office-md td { border: 1px solid hsl(var(--border)); padding: 8px 12px; text-align: left; }
+.agent-office-md th {
+  background: hsl(var(--muted) / 0.5);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: hsl(var(--muted-foreground));
+}
+.agent-office-md blockquote {
+  border-left: 2px solid hsl(var(--primary));
+  padding-left: 16px;
+  margin: 10px 0;
+  color: hsl(var(--muted-foreground));
+}
+.agent-office-md hr { border: none; height: 1px; background: hsl(var(--border)); margin: 16px 0; }
+.agent-office-md img { max-width: 100%; border-radius: calc(var(--radius) - 2px); margin: 8px 0; border: 1px solid hsl(var(--border)); }

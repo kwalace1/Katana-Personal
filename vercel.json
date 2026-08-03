@@ -1,0 +1,28 @@
+{
+  "rewrites": [
+    {
+      "source": "/switch/oauth/token",
+      "destination": "/api/switch/oauth/token"
+    },
+    {
+      "source": "/switch/ingest/files",
+      "destination": "/api/switch/ingest/files"
+    },
+    {
+      "source": "/switch/ingest/records",
+      "destination": "/api/switch/ingest/records"
+    },
+    {
+      "source": "/switch/schema",
+      "destination": "/api/switch/schema"
+    },
+    {
+      "source": "/api/office/(.*)",
+      "destination": "/api/office/[...path]?...path=$1"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
+  ]
+}

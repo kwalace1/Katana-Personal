@@ -1,0 +1,3 @@
+# Eval harness deps. Everything else is Python stdlib (urllib/json) so the runner
+# stays portable, matching the sibling overhaul/ scripts.
+pyyaml>=6.0

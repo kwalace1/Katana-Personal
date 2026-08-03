@@ -1,0 +1,70 @@
+agent: WFM Agent
+agent_id: 00f13875
+# ai_wfm_jobs.status enum is assigned|in-progress|completed|on-hold|cancelled
+# (NOT "Scheduled" as the training manual's UI copy implies) -- a known trap.
+cases:
+  - id: wfm-inprogress-jobs
+    type: data
+    question: How many field jobs are currently in progress?
+    ground_truth_sql: select in_progress_jobs as n from ai_wfm_summary
+    assert:
+      - {check: used_sql}
+      - {check: numeric_match, sql_field: n}
+      - {check: no_leak}
+    judge:
+      rubric: States the number of in-progress jobs.
+      min_score: 70
+
+  - id: wfm-active-technicians
+    type: data
+    question: How many active technicians do we have?
+    ground_truth_sql: select active_technicians as n from ai_wfm_summary
+    assert:
+      - {check: used_sql}
+      - {check: numeric_match, sql_field: n}
+      - {check: no_leak}
+    judge:
+      rubric: States the number of active technicians.
+      min_score: 70
+
+  - id: wfm-pending-timesheets
+    type: data
+    question: How many timesheets are pending approval?
+    ground_truth_sql: select pending_timesheets as n from ai_wfm_summary
+    assert:
+      - {check: used_sql}
+      - {check: numeric_match, sql_field: n}
+      - {check: no_leak}
+    judge:
+      rubric: States the number of pending timesheets.
+      min_score: 65
+
+  - id: wfm-assigned-jobs
+    type: data
+    question: How many jobs are assigned but not yet started?
+    ground_truth_sql: select count(*)::int as n from ai_wfm_jobs where status = 'assigned'
+    assert:
+      - {check: used_sql}
+      - {check: numeric_match, sql_field: n}
+      - {check: no_leak}
+    judge:
+      rubric: Reports the count of assigned (not-yet-started) jobs.
+      min_score: 65
+
+  - id: wfm-timesheet-billable
+    type: feature
+    question: How does the system decide whether a timesheet entry is billable?
+    assert:
+      - {check: no_leak}
+    judge:
+      rubric: Explains that selecting a job makes time billable/job-costed while no job selected is overhead.
+      min_score: 60
+
+  - id: wfm-console-vs-portal
+    type: feature
+    question: What's the difference between the WFM Admin Console and the Technician Portal?
+    assert:
+      - {check: no_leak}
+    judge:
+      rubric: Distinguishes the admin console (dispatch/scheduling) from the technician portal (a tech's own jobs/timesheets).
+      min_score: 60

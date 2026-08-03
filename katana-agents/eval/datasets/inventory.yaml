@@ -1,0 +1,72 @@
+agent: Inventory Agent
+agent_id: 09cd8d63
+# Ground truth is resolved at run time via ai_query with the eval user's JWT, so
+# every count is scoped to exactly the org the agent sees. Enum values match the
+# real CHECK constraints (see supabase-inventory-schema.sql).
+cases:
+  - id: inv-low-stock-count
+    type: data
+    question: How many inventory items are at or below their reorder threshold?
+    ground_truth_sql: select count(*)::int as n from ai_inventory_low_stock
+    assert:
+      - {check: used_sql}
+      - {check: numeric_match, sql_field: n}
+      - {check: no_leak}
+    judge:
+      rubric: States the number of items at/below reorder point and leads with the count.
+      min_score: 70
+
+  - id: inv-total-value
+    type: data
+    question: What is the total value of our current inventory?
+    ground_truth_sql: select round(total_inventory_value::numeric, 2) as v from ai_inventory_summary
+    assert:
+      - {check: used_sql}
+      - {check: numeric_match, sql_field: v, tolerance: 1}
+      - {check: no_leak}
+    judge:
+      rubric: Reports the total inventory value as a dollar figure.
+      min_score: 70
+
+  - id: inv-supplier-count
+    type: data
+    question: How many suppliers do we have on file?
+    ground_truth_sql: select count(*)::int as n from ai_suppliers
+    assert:
+      - {check: used_sql}
+      - {check: numeric_match, sql_field: n}
+      - {check: no_leak}
+    judge:
+      rubric: States the supplier count.
+      min_score: 70
+
+  - id: inv-open-pos
+    type: data
+    question: How many purchase orders are currently open, draft, or pending?
+    ground_truth_sql: select count(*)::int as n from ai_purchase_orders where status in ('open','draft','pending')
+    assert:
+      - {check: used_sql}
+      - {check: numeric_match, sql_field: n}
+      - {check: no_leak}
+    judge:
+      rubric: States how many POs are open/draft/pending.
+      min_score: 65
+
+  - id: inv-virtual-stockroom
+    type: feature
+    question: What is the Virtual Stockroom and what view modes does it offer?
+    assert:
+      - {check: contains_any, values: [Status, Heatmap, X-ray, X-Ray]}
+      - {check: no_leak}
+    judge:
+      rubric: Explains the 3D Virtual Stockroom and names its view modes (Status, Heatmap, X-ray).
+      min_score: 70
+
+  - id: inv-scan-vs-checkout
+    type: feature
+    question: What is the difference between scanning an item in and checking it out?
+    assert:
+      - {check: no_leak}
+    judge:
+      rubric: Explains scan-in increases on-hand (receiving) while check-out decreases it (with an audit trail of who took it).
+      min_score: 65

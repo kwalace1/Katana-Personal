@@ -1,0 +1,72 @@
+agent: Customer Agent
+agent_id: 15e15dd4
+# ai_clients.status enum includes 'at-risk'; the Customer module reads ai_clients
+# (<- cs_clients), NOT cs_contacts. avg_health_score is 0-100.
+cases:
+  - id: cs-client-count
+    type: data
+    question: How many clients do we have?
+    ground_truth_sql: select total_clients as n from ai_cs_summary
+    assert:
+      - {check: used_sql}
+      - {check: numeric_match, sql_field: n}
+      - {check: no_leak}
+    judge:
+      rubric: States the number of clients.
+      min_score: 70
+
+  - id: cs-avg-health
+    type: data
+    question: What is our average client health score?
+    ground_truth_sql: select round(avg_health_score::numeric, 1) as v from ai_cs_summary
+    assert:
+      - {check: used_sql}
+      - {check: numeric_match, sql_field: v, tolerance: 0.6}
+      - {check: no_leak}
+    judge:
+      rubric: Reports the average client health score (a 0-100 number).
+      min_score: 70
+
+  - id: cs-total-arr
+    type: data
+    question: What is our total ARR across all clients?
+    ground_truth_sql: select round(total_arr::numeric, 0) as v from ai_cs_summary
+    assert:
+      - {check: used_sql}
+      - {check: numeric_match, sql_field: v, tolerance: 1}
+      - {check: no_leak}
+    judge:
+      rubric: Reports total ARR as a dollar figure.
+      min_score: 65
+
+  - id: cs-at-risk-clients
+    type: data
+    question: Which clients are currently at risk, based on their health?
+    ground_truth_sql: select count(*)::int as n from ai_clients where status = 'at-risk'
+    assert:
+      - {check: used_sql}
+      - {check: no_leak}
+    judge:
+      rubric: Accurately reflects the at-risk client situation from the data; if there are none at-risk, says so plainly instead of inventing clients.
+      min_score: 65
+
+  - id: cs-health-buckets
+    type: feature
+    question: How are the client health buckets (Healthy, Moderate, At-Risk) defined?
+    assert:
+      - {check: contains_any, values: [health, engagement, risk]}
+      - {check: no_leak}
+    judge:
+      rubric: Explains the health buckets derive from engagement/health signals and how they guide the weekly workflow.
+      min_score: 60
+
+  - id: cs-interactions-discipline
+    type: feature
+    question: Why does the Customer Success module stress logging every interaction?
+    assert:
+      - {check: no_leak}
+    judge:
+      # Multiple correct reasons exist; accept any sound one (churn signal from a
+      # stale last-touch, OR continuity/context so anyone can pick up the account).
+      rubric: Gives a sound reason logging every interaction matters -- e.g. a stale last-touch is a churn signal, or it preserves context/continuity so any CSM can pick up the account.
+      min_score: 60

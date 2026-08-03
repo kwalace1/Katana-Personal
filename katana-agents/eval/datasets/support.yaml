@@ -1,0 +1,60 @@
+agent: Support Agent
+agent_id: a02daa66
+# support_submissions.status enum: open|in_progress|resolved|closed (the old
+# prompts only knew open|closed). Support is the help desk for the Katana
+# PLATFORM itself, not customers' tickets.
+cases:
+  - id: support-open-count
+    type: data
+    question: How many support submissions are currently open?
+    ground_truth_sql: select open_submissions as n from ai_support_summary
+    assert:
+      - {check: used_sql}
+      - {check: numeric_match, sql_field: n}
+      - {check: no_leak}
+    judge:
+      rubric: States how many submissions are open.
+      min_score: 70
+
+  - id: support-in-progress
+    type: data
+    question: How many support items are in progress right now?
+    ground_truth_sql: select count(*)::int as n from ai_support_submissions where status = 'in_progress'
+    assert:
+      - {check: used_sql}
+      - {check: numeric_match, sql_field: n}
+      - {check: no_leak}
+    judge:
+      rubric: Reports the count of in-progress submissions (status in_progress); does not claim only open/closed exist.
+      min_score: 65
+
+  - id: support-issues-vs-feedback
+    type: data
+    question: How many submissions are issues versus feedback?
+    ground_truth_sql: select issues, feedback from ai_support_summary
+    assert:
+      - {check: used_sql}
+      - {check: numeric_match, sql_field: issues}
+      - {check: no_leak}
+    judge:
+      rubric: Breaks down submissions into issues vs feedback with numbers.
+      min_score: 60
+
+  - id: support-scope
+    type: feature
+    question: Is the Support module for our customers' tickets or for the Katana platform itself?
+    assert:
+      - {check: not_contains, value: customer tickets}
+      - {check: no_leak}
+    judge:
+      rubric: Correctly clarifies Support is the help desk for the Katana platform itself, not customers' tickets.
+      min_score: 70
+
+  - id: support-status-meanings
+    type: feature
+    question: What do the Open, In Progress, and Resolved statuses mean for a submission?
+    assert:
+      - {check: no_leak}
+    judge:
+      rubric: Explains Open = triaged not started, In Progress = being worked, Resolved = shipped/answered.
+      min_score: 60

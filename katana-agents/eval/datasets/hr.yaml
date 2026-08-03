@@ -1,0 +1,71 @@
+agent: HR Agent
+agent_id: e41e7b68
+# HR base tables are org-RLS'd; enum values are capitalized (Active, Behind,
+# Approved) per supabase-hr-schema.sql / hr-full-schema.sql.
+cases:
+  - id: hr-active-employees
+    type: data
+    question: How many active employees do we have?
+    ground_truth_sql: select active_employees as n from ai_hr_summary
+    assert:
+      - {check: used_sql}
+      - {check: numeric_match, sql_field: n}
+      - {check: no_leak}
+    judge:
+      rubric: States the number of active employees.
+      min_score: 70
+
+  - id: hr-department-count
+    type: data
+    question: How many departments does the company have?
+    ground_truth_sql: select departments as n from ai_hr_summary
+    assert:
+      - {check: used_sql}
+      - {check: numeric_match, sql_field: n}
+      - {check: no_leak}
+    judge:
+      rubric: States the number of departments.
+      min_score: 70
+
+  - id: hr-goals-behind
+    type: data
+    question: How many employee goals are currently behind schedule?
+    ground_truth_sql: select count(*)::int as n from ai_hr_goals where status = 'Behind'
+    assert:
+      - {check: used_sql}
+      - {check: numeric_match, sql_field: n}
+      - {check: no_leak}
+    judge:
+      rubric: States how many goals are behind schedule (status Behind).
+      min_score: 65
+
+  - id: hr-approved-timeoff
+    type: data
+    question: How many time-off requests have been approved?
+    ground_truth_sql: select count(*)::int as n from ai_hr_time_off where status = 'Approved'
+    assert:
+      - {check: used_sql}
+      - {check: numeric_match, sql_field: n}
+      - {check: no_leak}
+    judge:
+      rubric: States the count of approved time-off requests.
+      min_score: 65
+
+  - id: hr-retention-risk-meaning
+    type: feature
+    question: What does the "Retention Risk" metric on the HR dashboard actually measure?
+    assert:
+      - {check: contains_any, values: [review, overdue]}
+      - {check: no_leak}
+    judge:
+      rubric: Correctly explains Retention Risk is based on overdue performance reviews, not a guess.
+      min_score: 65
+
+  - id: hr-onboarding-flow
+    type: feature
+    question: How do I onboard a new employee in Katana HR?
+    assert:
+      - {check: no_leak}
+    judge:
+      rubric: Describes adding an employee (name/email/department/manager) and that the record controls module access.
+      min_score: 60

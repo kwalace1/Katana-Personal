@@ -1,0 +1,89 @@
+# Cursor Rules for TypeScript Error Fixing
+
+## Pre-Push Type Error Fixing
+
+**CRITICAL**: Before any code push (including `--force` pushes), automatically check for and fix all TypeScript errors.
+
+### Workflow
+1. When user attempts to push or mentions pushing code (including `git push --force`):
+   - First run: `pnpm run build` or `npm run build` to detect type errors
+   - If errors found, fix them immediately before proceeding
+   - Verify build succeeds before allowing push
+   - **Note**: The git pre-push hook runs for ALL push operations, including force pushes
+
+2. **Always fix type errors automatically** before allowing code to be pushed
+
+### TypeScript Error Fixing Patterns
+
+**Use proper TypeScript patterns**:
+- Use optional chaining (`?.`) for potentially undefined values
+- Use nullish coalescing (`??`) or logical OR (`||`) for default values
+- Add type guards when necessary
+- Use non-null assertion (`!`) only when absolutely certain a value exists
+
+### Common TypeScript Error Fixes
+
+- **TS18048: 'X' is possibly 'undefined'**
+  - Fix: Add optional chaining (`?.`) or provide default value (`|| ''`, `?? 0`, etc.)
+  - Example: `name.split(' ')` → `name?.split(' ') || []`
+  - Example: `percent * 100` → `(percent || 0) * 100`
+
+- **TS2532: Object is possibly 'undefined'**
+  - Fix: Add conditional check or optional chaining
+  - Example: `obj.property` → `obj?.property` or `obj ? obj.property : defaultValue`
+  - Example: `user.role.charAt(0)` → `user?.role ? user.role.charAt(0) : ''`
+
+- **TS2345: Argument of type 'X' is not assignable**
+  - Fix: Correct type mismatches, add type assertions if necessary
+  - Ensure function signatures match expected types
+
+- **TS2304: Cannot find name 'X'**
+  - Fix: Add missing imports or fix variable names
+  - Check for typos in variable/function names
+
+- **TS2322: Type 'X' is not assignable to type 'Y'**
+  - Fix: Ensure types match, use type assertions only when safe
+  - Prefer fixing the source type over using assertions
+
+### Pre-Push Checklist
+
+Before pushing code:
+1. ✅ Run `pnpm run build` or `npm run build` to check for type errors
+2. ✅ Fix all TypeScript compilation errors
+3. ✅ Ensure no new `any` types are introduced unless absolutely necessary
+4. ✅ Verify that fixes don't break runtime behavior
+5. ✅ Ensure build completes successfully with exit code 0
+
+### When Fixing Type Errors
+
+- Preserve the original functionality
+- Use the most type-safe approach
+- Add comments if a fix requires non-obvious type assertions
+- Prefer explicit type guards over type assertions
+- Test that the fix works correctly
+
+### TypeScript Best Practices
+
+- Always use strict null checks
+- Prefer `const` assertions for literal types
+- Use discriminated unions for state management
+- Avoid `any` - use `unknown` if type is truly unknown
+- Use type narrowing instead of type assertions when possible
+- Prefer type guards: `if (value !== undefined) { ... }`
+
+### Example Fixes
+
+```typescript
+// ❌ Bad: TS18048 error
+label={({ name, percent }) => `${name.split(' ')[0]}: ${(percent * 100).toFixed(0)}%`}
+
+// ✅ Good: Fixed with optional chaining and defaults
+label={({ name, percent }) => `${name?.split(' ')[0] || ''}: ${((percent || 0) * 100).toFixed(0)}%`}
+
+// ❌ Bad: TS2532 error
+{selectedUser.role.charAt(0).toUpperCase() + selectedUser.role.slice(1)}
+
+// ✅ Good: Fixed with conditional check
+{selectedUser?.role ? selectedUser.role.charAt(0).toUpperCase() + selectedUser.role.slice(1) : ''}
+```
+

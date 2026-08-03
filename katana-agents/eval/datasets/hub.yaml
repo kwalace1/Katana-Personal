@@ -1,0 +1,78 @@
+agent: Hub Agent
+agent_id: 116c3cfa
+# The Hub is a router: it must call spawn_subagent to the correct specialist and
+# relay a clean answer. delegated_to checks read the actual spawn_subagent target
+# from the execution log. no_leak is critical here (the Hub historically leaked
+# reflection/working-state JSON into answers).
+#
+# IMPORTANT: the LLM judge only sees the final answer text, NOT the tool calls, so
+# a correctly-relayed answer looks identical to a direct answer. Routing is therefore
+# graded by the deterministic delegated_to checks; the judge rubrics grade ONLY the
+# visible answer's cleanliness/correctness and must not require "routes to X".
+cases:
+  - id: hub-route-inventory
+    type: routing
+    question: How many inventory items are low on stock?
+    ground_truth_sql: select count(*)::int as n from ai_inventory_low_stock
+    assert:
+      - {check: delegated_to, agent: Inventory Agent}
+      - {check: numeric_match, sql_field: n}
+      - {check: no_leak}
+    judge:
+      rubric: The final answer states the low-stock count as clean markdown, with no JSON or internal metadata.
+      min_score: 65
+
+  - id: hub-route-pm
+    type: routing
+    question: What are our active projects and how many tasks are still open?
+    assert:
+      - {check: delegated_to, agent: PM Agent}
+      - {check: no_leak}
+    judge:
+      rubric: The final answer describes active projects and open tasks as clean prose, with no JSON or internal metadata.
+      min_score: 60
+
+  - id: hub-route-finance
+    type: routing
+    question: What's the status of our month-end close in finance?
+    assert:
+      - {check: delegated_to, agent: Finance Agent}
+      - {check: no_leak}
+    judge:
+      # Finance is legitimately empty in this org, so an honest "no month-end
+      # close / no financial periods set up yet" IS the correct answer -- accept it.
+      # Routing to Finance is already checked deterministically by delegated_to.
+      rubric: The final answer cleanly reports the month-end close status from the data. Since Finance may have no periods set up, an honest "no financial periods / not set up yet" is a fully correct answer. No JSON or internal metadata.
+      min_score: 55
+
+  - id: hub-route-hr
+    type: routing
+    question: How many active employees do we have?
+    ground_truth_sql: select active_employees as n from ai_hr_summary
+    assert:
+      - {check: delegated_to, agent: HR Agent}
+      - {check: numeric_match, sql_field: n}
+      - {check: no_leak}
+    judge:
+      rubric: The final answer states the active-employee count cleanly, with no JSON or internal metadata.
+      min_score: 60
+
+  - id: hub-multi-module
+    type: routing
+    question: Give me a quick overview of our headcount and our open support tickets.
+    assert:
+      - {check: delegated_to_all, agents: [HR Agent, Support Agent]}
+      - {check: no_leak}
+    judge:
+      rubric: The final answer is one combined summary covering both headcount and open support tickets, with no leaked JSON or internal metadata (minor restatement is acceptable).
+      min_score: 55
+
+  - id: hub-greeting
+    type: feature
+    question: Hi there, what can you help me with?
+    assert:
+      - {check: no_delegation}
+      - {check: no_leak}
+    judge:
+      rubric: Greets and briefly explains it can answer questions across the Katana modules, without inventing data or delegating.
+      min_score: 60

@@ -1,0 +1,3 @@
+source,entity_name,release_number,filing_date,date,link,summary,node_type,relationship_type
+SEC_ENFORCEMENT,"GROOVY COMPANY, INC.  (GROO)  (CIK 0001499275)",0001499275-26-000007,2026-05-13,2026-05-13,,8-K,entity,enforcement_action
+SEC_ENFORCEMENT,"SolarWindow Technologies, Inc.  (WNDW)  (CIK 0001071840)",0001171843-26-002824,2026-04-29,2026-04-29,,S-1/A,entity,enforcement_action
