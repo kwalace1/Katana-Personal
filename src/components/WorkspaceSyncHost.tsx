@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { Cloud, Download, Merge, Upload } from 'lucide-react'
+import { Cloud, Download, Loader2, Merge, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
@@ -27,6 +27,8 @@ export function WorkspaceSyncHost() {
   const { refresh } = useLocalRefresh()
   const [choice, setChoice] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [progress, setProgress] = useState<string | null>(null)
 
   useEffect(() => {
     if (!cloudUser || !user) {
@@ -63,8 +65,14 @@ export function WorkspaceSyncHost() {
         } else {
           markWorkspaceMergeDone(cloudUser.uid)
         }
-      } catch {
-        // offline / rules not published yet
+      } catch (err) {
+        if (!cancelled) {
+          const msg = err instanceof Error ? err.message : 'Couldn’t link cloud sync'
+          setError(msg)
+          // Still offer the chooser if local has data so the user can retry explicitly
+          if (localWorkspaceHasData(user.id)) setChoice(true)
+          toast.error(msg)
+        }
       }
     })()
 
@@ -86,6 +94,10 @@ export function WorkspaceSyncHost() {
 
   async function run(kind: 'upload' | 'download' | 'merge') {
     setBusy(true)
+    setError(null)
+    setProgress(
+      kind === 'merge' ? 'Merging…' : kind === 'upload' ? 'Uploading…' : 'Downloading…',
+    )
     try {
       if (kind === 'upload') await pushWorkspaceToCloud()
       else if (kind === 'download') {
@@ -96,6 +108,7 @@ export function WorkspaceSyncHost() {
         broadcastLocalRefresh()
       }
       setChoice(false)
+      setProgress(null)
       toast.success(
         kind === 'upload'
           ? 'Uploaded this device'
@@ -105,7 +118,10 @@ export function WorkspaceSyncHost() {
       )
       refresh()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Sync failed — publish Firestore rules?')
+      const msg = err instanceof Error ? err.message : 'Sync failed — publish Firestore rules?'
+      setError(msg)
+      setProgress(null)
+      toast.error(msg)
     } finally {
       setBusy(false)
     }
@@ -122,13 +138,24 @@ export function WorkspaceSyncHost() {
               Both this device and the cloud already have personal data. Choose how to combine them
               so phone and computer stay in sync.
             </p>
+            {progress ? (
+              <p className="mt-2 flex items-center gap-2 text-sm font-medium text-primary">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {progress}
+              </p>
+            ) : null}
+            {error ? (
+              <p className="mt-2 rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {error}
+              </p>
+            ) : null}
             <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
               <Button
                 className="min-h-11 gap-1.5"
                 disabled={busy}
                 onClick={() => void run('merge')}
               >
-                <Merge className="h-4 w-4" />
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Merge className="h-4 w-4" />}
                 Smart merge
               </Button>
               <Button
