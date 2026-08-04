@@ -1,3 +1,5 @@
+import type { EventCategory } from './categories'
+
 export interface CalendarEvent {
   id: string
   user_id: string
@@ -9,6 +11,11 @@ export interface CalendarEvent {
   location: string
   recurrence: 'none' | 'daily' | 'weekly' | 'monthly'
   reminder_minutes: number | null
+  category: EventCategory
+  /** Optional hex override; otherwise category palette */
+  color: string | null
   created_at: string
   updated_at: string
 }
+
+export type { EventCategory }

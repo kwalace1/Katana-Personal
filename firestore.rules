@@ -86,6 +86,23 @@ service cloud.firestore {
       allow delete: if signedIn() && resource.data.ownerId == request.auth.uid;
     }
 
+    function isCircleMember(circleId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/circles/$(circleId))
+        && request.auth.uid in get(/databases/$(database)/documents/circles/$(circleId)).data.memberIds;
+    }
+
+    match /circleEvents/{id} {
+      allow read: if isCircleMember(resource.data.circleId);
+      allow create: if isCircleMember(request.resource.data.circleId)
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.keys().hasAll([
+          'circleId', 'title', 'notes', 'startsAt', 'endsAt', 'allDay',
+          'category', 'color', 'createdBy', 'assigneeId', 'createdAt', 'updatedAt'
+        ]);
+      allow update, delete: if isCircleMember(resource.data.circleId);
+    }
+
     match /circleInvites/{token} {
       // Invitees need get-by-token; list only for creator.
       allow get: if signedIn();

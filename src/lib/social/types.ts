@@ -87,3 +87,20 @@ export interface CircleGroup {
   createdAt: string
   updatedAt: string
 }
+
+/** Shared schedule item inside a circle */
+export interface CircleEvent {
+  id: string
+  circleId: string
+  title: string
+  notes: string
+  startsAt: string
+  endsAt: string
+  allDay: boolean
+  category: string
+  color: string
+  createdBy: string
+  assigneeId: string | null
+  createdAt: string
+  updatedAt: string
+}

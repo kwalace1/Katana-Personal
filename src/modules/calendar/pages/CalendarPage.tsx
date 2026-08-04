@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ChevronDown, ChevronLeft, ChevronRight, Plus, Trash2 } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, Plus, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,7 +10,14 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { EmptyState } from '@/components/ui/empty-state'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { useAuth } from '@/contexts/AuthContext'
+import { useCloudAuth } from '@/contexts/CloudAuthContext'
 import { pageEnterSubtle } from '@/lib/motion-ui'
 import { useLocalRefresh } from '@/hooks/useLocalRefresh'
 import {
@@ -29,9 +36,24 @@ import {
 import { cn } from '@/lib/utils'
 import { calendarApi } from '../api'
 import { ShareWithFriendsButton } from '@/components/ShareWithFriendsButton'
+import { tasksApi } from '@/modules/tasks/api'
+import { goalsApi } from '@/modules/goals/api'
+import { listMyCircles } from '@/lib/social/circles'
+import { listCircleEventsForCircles } from '@/lib/social/circle-events'
+import type { CircleEvent, CircleGroup } from '@/lib/social/types'
 import type { CalendarEvent } from '../types'
+import type { EventCategory } from '../categories'
+import { EVENT_CATEGORIES, categoryColor } from '../categories'
+import {
+  agendaForDay,
+  buildAgenda,
+  DEFAULT_AGENDA_FILTER,
+  type AgendaFilter,
+  type AgendaItem,
+} from '../agenda'
 
 type View = 'day' | 'week' | 'month'
+type AddKind = 'event' | 'task' | 'goal'
 
 function toLocalInput(iso: string) {
   const d = parseISO(iso)
@@ -39,8 +61,66 @@ function toLocalInput(iso: string) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
+function defaultStartLocal(day?: Date) {
+  const start = day ? new Date(day) : new Date()
+  if (!day) {
+    start.setMinutes(0, 0, 0)
+    start.setHours(start.getHours() + 1)
+  } else {
+    start.setHours(9, 0, 0, 0)
+  }
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}T${pad(start.getHours())}:${pad(start.getMinutes())}`
+}
+
+function AgendaChip({
+  item,
+  compact,
+  selected,
+  onSelect,
+}: {
+  item: AgendaItem
+  compact?: boolean
+  selected?: boolean
+  onSelect?: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation()
+        onSelect?.()
+      }}
+      className={cn(
+        'w-full rounded-lg text-left transition',
+        compact ? 'px-2 py-1 text-xs' : 'px-4 py-3 text-sm',
+        selected && 'ring-2 ring-primary/40',
+      )}
+      style={{
+        backgroundColor: `${item.color}22`,
+        borderLeft: `3px solid ${item.color}`,
+      }}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <span className={cn('font-medium leading-snug', compact && 'line-clamp-2')}>{item.title}</span>
+        {!compact ? (
+          <span className="shrink-0 text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">
+            {item.sourceLabel}
+          </span>
+        ) : null}
+      </div>
+      <p className={cn('text-muted-foreground', compact ? 'text-[0.65rem]' : 'mt-0.5 text-xs')}>
+        {item.all_day ? 'All day' : formatTime(item.starts_at)}
+        {compact ? ` · ${item.sourceLabel}` : item.kind === 'event' && !item.all_day ? ` – ${formatTime(item.ends_at)}` : ''}
+      </p>
+    </button>
+  )
+}
+
 export default function CalendarPage() {
   const { user } = useAuth()
+  const { cloudEnabled, cloudUser } = useCloudAuth()
+  const navigate = useNavigate()
   const userId = user!.id
   const { tick, refresh } = useLocalRefresh()
   const [params, setParams] = useSearchParams()
@@ -49,16 +129,22 @@ export default function CalendarPage() {
   const [cursor, setCursor] = useState(() => (initialDate ? parseISO(initialDate) : new Date()))
   const [view, setView] = useState<View>(params.get('date') ? 'day' : 'week')
   const [selectedId, setSelectedId] = useState<string | null>(params.get('id'))
-
+  const [filter, setFilter] = useState<AgendaFilter>(DEFAULT_AGENDA_FILTER)
+  const [addOpen, setAddOpen] = useState(false)
+  const [addKind, setAddKind] = useState<AddKind>('event')
   const [title, setTitle] = useState('')
   const [startsAt, setStartsAt] = useState('')
-  const [showMore, setShowMore] = useState(false)
   const [endsAt, setEndsAt] = useState('')
   const [allDay, setAllDay] = useState(false)
+  const [notes, setNotes] = useState('')
+  const [category, setCategory] = useState<EventCategory>('personal')
   const [location, setLocation] = useState('')
   const [recurrence, setRecurrence] = useState<CalendarEvent['recurrence']>('none')
   const [reminder, setReminder] = useState('30')
-  const [notes, setNotes] = useState('')
+
+  const [circles, setCircles] = useState<CircleGroup[]>([])
+  const [circleEvents, setCircleEvents] = useState<CircleEvent[]>([])
+  const [circleEnabled, setCircleEnabled] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     const date = params.get('date')
@@ -70,12 +156,87 @@ export default function CalendarPage() {
     if (id) setSelectedId(id)
   }, [params])
 
+  useEffect(() => {
+    if (!cloudEnabled || !cloudUser) {
+      setCircles([])
+      setCircleEvents([])
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      try {
+        const list = await listMyCircles(cloudUser.uid)
+        if (cancelled) return
+        setCircles(list)
+        setCircleEnabled((prev) => {
+          const next = { ...prev }
+          for (const c of list) {
+            if (next[c.id] === undefined) next[c.id] = true
+          }
+          return next
+        })
+        const events = await listCircleEventsForCircles(list.map((c) => c.id))
+        if (!cancelled) setCircleEvents(events)
+      } catch {
+        // optional overlay
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [cloudEnabled, cloudUser?.uid])
+
   const events = useMemo(() => {
     void tick
     return calendarApi.list(userId)
   }, [userId, tick])
 
+  const tasks = useMemo(() => {
+    void tick
+    return tasksApi.listTasks(userId)
+  }, [userId, tick])
+
+  const goals = useMemo(() => {
+    void tick
+    return goalsApi.list(userId)
+  }, [userId, tick])
+
+  const lists = useMemo(() => {
+    void tick
+    return tasksApi.listLists(userId)
+  }, [userId, tick])
+
+  const circleIdsEnabled = useMemo(() => {
+    const set = new Set<string>()
+    for (const c of circles) {
+      if (circleEnabled[c.id] !== false) set.add(c.id)
+    }
+    return set
+  }, [circles, circleEnabled])
+
+  const agenda = useMemo(() => {
+    return buildAgenda({
+      events,
+      tasks,
+      goals,
+      lists,
+      filter,
+      circleEvents: circleEvents.map((event) => ({
+        event,
+        circleName: circles.find((c) => c.id === event.circleId)?.name || 'Circle',
+      })),
+      circleIdsEnabled,
+    })
+  }, [events, tasks, goals, lists, filter, circleEvents, circles, circleIdsEnabled])
+
   const selected = selectedId ? events.find((e) => e.id === selectedId) ?? null : null
+  const selectedAgenda =
+    selectedId && !selected
+      ? agenda.find((a) => a.id === selectedId) ?? null
+      : selected
+        ? agenda.find((a) => a.kind === 'event' && a.id === selectedId) ?? null
+        : null
+
   const conflicts = useMemo(() => {
     void tick
     return calendarApi.conflicts(userId, cursor)
@@ -96,45 +257,68 @@ export default function CalendarPage() {
     return eachDayOfInterval({ start: gridStart, end: gridEnd })
   }, [cursor, view])
 
+  function openAdd(day?: Date) {
+    setStartsAt(defaultStartLocal(day))
+    setEndsAt('')
+    setTitle('')
+    setNotes('')
+    setLocation('')
+    setAllDay(false)
+    setCategory('personal')
+    setRecurrence('none')
+    setReminder('30')
+    setAddKind('event')
+    setAddOpen(true)
+  }
+
   function onCreate(e: FormEvent) {
     e.preventDefault()
     if (!title.trim() || !startsAt) return
     const start = new Date(startsAt)
     const end = endsAt ? new Date(endsAt) : new Date(start.getTime() + 60 * 60 * 1000)
-    const event = calendarApi.create(userId, {
-      title: title.trim(),
-      notes,
-      starts_at: (allDay ? startOfDay(start) : start).toISOString(),
-      ends_at: (allDay ? endOfDay(end) : end).toISOString(),
-      all_day: allDay,
-      location,
-      recurrence,
-      reminder_minutes: Number(reminder) || null,
-    })
-    setTitle('')
-    setStartsAt('')
-    setEndsAt('')
-    setLocation('')
-    setNotes('')
-    setAllDay(false)
-    setRecurrence('none')
-    setReminder('30')
-    setShowMore(false)
-    setSelectedId(event.id)
-    setParams({ date: event.starts_at.slice(0, 10), id: event.id })
-    refresh()
-  }
 
-  function addForToday() {
-    const start = new Date()
-    start.setMinutes(0, 0, 0)
-    start.setHours(start.getHours() + 1)
-    const pad = (n: number) => String(n).padStart(2, '0')
-    setStartsAt(
-      `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}T${pad(start.getHours())}:${pad(start.getMinutes())}`,
-    )
-    setCursor(new Date())
-    setView('day')
+    if (addKind === 'event') {
+      const event = calendarApi.create(userId, {
+        title: title.trim(),
+        notes,
+        starts_at: (allDay ? startOfDay(start) : start).toISOString(),
+        ends_at: (allDay ? endOfDay(end) : end).toISOString(),
+        all_day: allDay,
+        location,
+        recurrence,
+        reminder_minutes: Number(reminder) || null,
+        category,
+        color: null,
+      })
+      setSelectedId(event.id)
+      setParams({ date: event.starts_at.slice(0, 10), id: event.id })
+      setCursor(parseISO(event.starts_at))
+      setView('day')
+    } else if (addKind === 'task') {
+      const task = tasksApi.createTask(userId, {
+        title: title.trim(),
+        notes,
+        due_at: (allDay ? startOfDay(start) : start).toISOString(),
+        list_id: lists[0]?.id ?? null,
+      })
+      setParams({ date: (task.due_at || startsAt).slice(0, 10) })
+      setCursor(start)
+      setView('day')
+      setSelectedId(null)
+    } else {
+      const goal = goalsApi.create(userId, {
+        title: title.trim(),
+        description: notes,
+        target_date: todayKey(start),
+      })
+      setParams({ date: todayKey(start) })
+      setCursor(start)
+      setView('day')
+      navigate(`/goals?id=${goal.id}`)
+    }
+
+    setAddOpen(false)
+    refresh()
   }
 
   function shift(delta: number) {
@@ -143,18 +327,40 @@ export default function CalendarPage() {
     else setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + delta, 1))
   }
 
-  const dayAgenda = view === 'day' ? calendarApi.forDay(userId, cursor) : []
+  function selectItem(item: AgendaItem) {
+    if (item.kind === 'event') {
+      setSelectedId(item.id)
+      setParams({ date: item.starts_at.slice(0, 10), id: item.id })
+      return
+    }
+    setSelectedId(item.id)
+    if (item.kind === 'task' || item.kind === 'goal' || item.kind === 'circle') {
+      navigate(item.href)
+    }
+  }
+
+  const dayAgenda = view === 'day' ? agendaForDay(agenda, cursor) : []
+  const hasAnything =
+    events.length > 0 ||
+    tasks.some((t) => t.due_at && t.status !== 'done') ||
+    goals.some((g) => g.target_date) ||
+    circleEvents.length > 0
+
+  function toggleFilter(key: keyof AgendaFilter) {
+    setFilter((f) => ({ ...f, [key]: !f[key] }))
+  }
 
   return (
     <motion.div {...pageEnterSubtle} className="kp-page">
       <PageHeader
         title="Calendar"
-        description="Your days, at a glance."
+        description="Events, due tasks, goals, and circle plans — one board."
         eyebrow="Plan"
         actions={
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" onClick={addForToday}>
-              Add for today
+            <Button size="sm" className="gap-1.5" onClick={() => openAdd()}>
+              <Plus className="h-4 w-4" />
+              Add
             </Button>
             <Button size="icon" variant="outline" onClick={() => shift(-1)}>
               <ChevronLeft className="h-4 w-4" />
@@ -169,7 +375,7 @@ export default function CalendarPage() {
         }
       />
 
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div className="mb-3 flex flex-wrap gap-2">
         {([
           ['day', 'Day'],
           ['week', 'Week'],
@@ -187,105 +393,95 @@ export default function CalendarPage() {
         ))}
       </div>
 
-      <form onSubmit={onCreate} className="kp-surface mb-6 space-y-3 p-4 sm:p-5">
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <Input
-            className="flex-1"
-            placeholder="What’s happening?"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-          />
-          <Input
-            type="datetime-local"
-            value={startsAt}
-            onChange={(e) => setStartsAt(e.target.value)}
-            className="sm:w-[220px]"
-          />
-          <Button type="submit" size="icon" aria-label="Add">
-            <Plus className="h-4 w-4" />
+      <div className="mb-4 flex flex-wrap gap-2">
+        {(
+          [
+            ['events', 'Events'],
+            ['tasks', 'Tasks'],
+            ['goals', 'Goals'],
+            ...(cloudEnabled && circles.length > 0 ? ([['circles', 'Circles']] as const) : []),
+          ] as const
+        ).map(([key, label]) => (
+          <Button
+            key={key}
+            size="sm"
+            variant={filter[key] ? 'secondary' : 'outline'}
+            className="rounded-full text-xs"
+            onClick={() => toggleFilter(key)}
+          >
+            {filter[key] ? <Check className="mr-1 h-3 w-3" /> : null}
+            {label}
           </Button>
+        ))}
+      </div>
+
+      {circles.length > 0 && filter.circles ? (
+        <div className="mb-4 flex flex-wrap gap-2">
+          {circles.map((c) => (
+            <Button
+              key={c.id}
+              size="sm"
+              variant={circleEnabled[c.id] !== false ? 'outline' : 'ghost'}
+              className="rounded-full text-xs"
+              onClick={() =>
+                setCircleEnabled((prev) => ({
+                  ...prev,
+                  [c.id]: prev[c.id] === false,
+                }))
+              }
+            >
+              {c.name}
+            </Button>
+          ))}
         </div>
-        <button
-          type="button"
-          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-          onClick={() => setShowMore((v) => !v)}
-        >
-          <ChevronDown className={cn('h-3.5 w-3.5 transition', showMore && 'rotate-180')} />
-          {showMore ? 'Less' : 'Details'}
-        </button>
-        {showMore && (
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Ends</Label>
-              <Input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Where</Label>
-              <Input placeholder="Optional" value={location} onChange={(e) => setLocation(e.target.value)} />
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch checked={allDay} onCheckedChange={setAllDay} id="all-day" />
-              <Label htmlFor="all-day">All day</Label>
-            </div>
-            <Select value={recurrence} onValueChange={(v) => setRecurrence(v as CalendarEvent['recurrence'])}>
-              <SelectTrigger>
-                <SelectValue placeholder="Repeat" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Once</SelectItem>
-                <SelectItem value="daily">Every day</SelectItem>
-                <SelectItem value="weekly">Every week</SelectItem>
-                <SelectItem value="monthly">Every month</SelectItem>
-              </SelectContent>
-            </Select>
-            <Input
-              type="number"
-              min={0}
-              placeholder="Reminder (minutes)"
-              value={reminder}
-              onChange={(e) => setReminder(e.target.value)}
-            />
-            <Textarea placeholder="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
-          </div>
-        )}
-      </form>
+      ) : null}
+
+      <p className="mb-4 flex flex-wrap gap-3 text-[0.7rem] text-muted-foreground">
+        {EVENT_CATEGORIES.slice(0, 4).map((c) => (
+          <span key={c.id} className="inline-flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full" style={{ background: c.color }} />
+            {c.label}
+          </span>
+        ))}
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-amber-500" />
+          Tasks
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-emerald-600" />
+          Goals
+        </span>
+      </p>
 
       {view === 'day' ? (
         <div className="mb-6 grid gap-4 lg:grid-cols-[1fr_320px]">
           <div className="kp-surface p-4 sm:p-5">
-            <p className="kp-section-label">{format(cursor, 'EEEE')}</p>
-            <h2 className="mt-1 font-display text-2xl tracking-tight">{format(cursor, 'MMMM d')}</h2>
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="kp-section-label">{format(cursor, 'EEEE')}</p>
+                <h2 className="mt-1 font-display text-2xl tracking-tight">{format(cursor, 'MMMM d')}</h2>
+              </div>
+              <Button size="sm" variant="outline" className="gap-1" onClick={() => openAdd(cursor)}>
+                <Plus className="h-3.5 w-3.5" />
+                Add
+              </Button>
+            </div>
             {dayAgenda.length === 0 ? (
               <p className="mt-4 text-sm text-muted-foreground">Nothing on this day yet.</p>
             ) : (
               <ul className="mt-4 space-y-2">
-                {dayAgenda.map((event) => (
-                  <li key={event.id}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedId(event.id)
-                        setParams({ date: todayKey(cursor), id: event.id })
-                      }}
-                      className={cn(
-                        'w-full rounded-2xl px-4 py-3 text-left transition',
-                        conflicts.has(event.id) ? 'bg-destructive/10 ring-1 ring-destructive/30' : 'bg-secondary/60',
-                        selectedId === event.id && 'ring-2 ring-primary/40',
-                      )}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <span className="font-medium">{event.title}</span>
-                        {conflicts.has(event.id) ? (
-                          <span className="text-[0.65rem] font-semibold uppercase tracking-wide text-destructive">
-                            Conflict
-                          </span>
-                        ) : null}
-                      </div>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        {event.all_day ? 'All day' : `${formatTime(event.starts_at)} – ${formatTime(event.ends_at)}`}
-                        {event.location ? ` · ${event.location}` : ''}
+                {dayAgenda.map((item) => (
+                  <li key={`${item.kind}-${item.id}`}>
+                    <AgendaChip
+                      item={item}
+                      selected={selectedId === item.id}
+                      onSelect={() => selectItem(item)}
+                    />
+                    {item.kind === 'event' && conflicts.has(item.id) ? (
+                      <p className="mt-1 px-1 text-[0.65rem] font-semibold uppercase tracking-wide text-destructive">
+                        Time conflict
                       </p>
-                    </button>
+                    ) : null}
                   </li>
                 ))}
               </ul>
@@ -315,6 +511,27 @@ export default function CalendarPage() {
                   refresh()
                 }}
               />
+              <Select
+                value={selected.category}
+                onValueChange={(v) => {
+                  calendarApi.update(userId, selected.id, {
+                    category: v as EventCategory,
+                    color: null,
+                  })
+                  refresh()
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {EVENT_CATEGORIES.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Input
                 type="datetime-local"
                 value={toLocalInput(selected.starts_at)}
@@ -395,6 +612,19 @@ export default function CalendarPage() {
                 Delete
               </Button>
             </aside>
+          ) : selectedAgenda ? (
+            <aside className="kp-surface h-fit space-y-3 p-4">
+              <p className="kp-section-label">{selectedAgenda.sourceLabel}</p>
+              <h3 className="font-display text-xl">{selectedAgenda.title}</h3>
+              <p className="text-sm text-muted-foreground">
+                {selectedAgenda.all_day
+                  ? 'All day'
+                  : `${formatTime(selectedAgenda.starts_at)} – ${formatTime(selectedAgenda.ends_at)}`}
+              </p>
+              <Button asChild className="w-full">
+                <Link to={selectedAgenda.href}>Open</Link>
+              </Button>
+            </aside>
           ) : null}
         </div>
       ) : (
@@ -406,8 +636,7 @@ export default function CalendarPage() {
           )}
         >
           {days.map((day) => {
-            const dayEvents = calendarApi.forDay(userId, day)
-            const dayConflicts = calendarApi.conflicts(userId, day)
+            const dayItems = agendaForDay(agenda, day)
             return (
               <button
                 type="button"
@@ -423,24 +652,47 @@ export default function CalendarPage() {
                   view === 'month' && day.getMonth() !== cursor.getMonth() && 'opacity-45',
                 )}
               >
-                <p className="text-xs font-semibold text-muted-foreground">
-                  {format(day, view === 'month' ? 'd' : 'EEE d')}
-                </p>
+                <div className="flex items-center justify-between gap-1">
+                  <p className="text-xs font-semibold text-muted-foreground">
+                    {format(day, view === 'month' ? 'd' : 'EEE d')}
+                  </p>
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    className="rounded-full p-0.5 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      openAdd(day)
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.stopPropagation()
+                        openAdd(day)
+                      }
+                    }}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </span>
+                </div>
                 <ul className="mt-2 space-y-1">
-                  {dayEvents.map((event) => (
-                    <li
-                      key={event.id}
-                      className={cn(
-                        'rounded-lg px-2 py-1 text-xs',
-                        dayConflicts.has(event.id) ? 'bg-destructive/15' : 'bg-secondary/60',
-                      )}
-                    >
-                      <span className="font-medium leading-snug">{event.title}</span>
-                      <div className="text-muted-foreground">
-                        {event.all_day ? 'All day' : formatTime(event.starts_at)}
-                      </div>
+                  {dayItems.slice(0, view === 'month' ? 3 : 6).map((item) => (
+                    <li key={`${item.kind}-${item.id}`}>
+                      <AgendaChip
+                        item={item}
+                        compact
+                        onSelect={() => {
+                          setCursor(day)
+                          setView('day')
+                          selectItem(item)
+                        }}
+                      />
                     </li>
                   ))}
+                  {dayItems.length > (view === 'month' ? 3 : 6) ? (
+                    <li className="px-1 text-[0.65rem] text-muted-foreground">
+                      +{dayItems.length - (view === 'month' ? 3 : 6)} more
+                    </li>
+                  ) : null}
                 </ul>
               </button>
             )
@@ -448,11 +700,152 @@ export default function CalendarPage() {
         </div>
       )}
 
-      {events.length === 0 ? (
+      {!hasAnything ? (
         <div className="mt-6">
-          <EmptyState title="Nothing planned" description="Add something above when you know what’s next." />
+          <EmptyState
+            title="Nothing planned"
+            description="Add an event, a task due date, or a goal target — or open a Circle Schedule with friends."
+            action={
+              <Button onClick={() => openAdd()}>
+                <Plus className="mr-1 h-4 w-4" />
+                Add something
+              </Button>
+            }
+          />
         </div>
       ) : null}
+
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="font-display text-xl">Add to calendar</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={onCreate} className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              {(
+                [
+                  ['event', 'Event'],
+                  ['task', 'Task due'],
+                  ['goal', 'Goal target'],
+                ] as const
+              ).map(([k, label]) => (
+                <Button
+                  key={k}
+                  type="button"
+                  size="sm"
+                  variant={addKind === k ? 'default' : 'outline'}
+                  className="rounded-full"
+                  onClick={() => setAddKind(k)}
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
+            <Input
+              autoFocus
+              placeholder={
+                addKind === 'event' ? 'What’s happening?' : addKind === 'task' ? 'Task title' : 'Goal title'
+              }
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">
+                  {addKind === 'goal' ? 'Target date' : 'Starts'}
+                </Label>
+                <Input
+                  type={addKind === 'goal' || allDay ? 'date' : 'datetime-local'}
+                  value={
+                    addKind === 'goal' || allDay ? startsAt.slice(0, 10) : startsAt
+                  }
+                  onChange={(e) => {
+                    const v = e.target.value
+                    if (addKind === 'goal' || allDay) {
+                      setStartsAt(`${v}T09:00`)
+                    } else {
+                      setStartsAt(v)
+                    }
+                  }}
+                />
+              </div>
+              {addKind === 'event' && !allDay ? (
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Ends</Label>
+                  <Input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />
+                </div>
+              ) : null}
+            </div>
+            {addKind !== 'goal' ? (
+              <div className="flex items-center gap-2">
+                <Switch checked={allDay} onCheckedChange={setAllDay} id="add-all-day" />
+                <Label htmlFor="add-all-day">All day</Label>
+              </div>
+            ) : null}
+            {addKind === 'event' ? (
+              <>
+                <Select value={category} onValueChange={(v) => setCategory(v as EventCategory)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {EVENT_CATEGORIES.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        <span className="inline-flex items-center gap-2">
+                          <span
+                            className="h-2.5 w-2.5 rounded-full"
+                            style={{ background: categoryColor(c.id) }}
+                          />
+                          {c.label}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  placeholder="Location (optional)"
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                />
+                <Select
+                  value={recurrence}
+                  onValueChange={(v) => setRecurrence(v as CalendarEvent['recurrence'])}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Repeat" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Once</SelectItem>
+                    <SelectItem value="daily">Every day</SelectItem>
+                    <SelectItem value="weekly">Every week</SelectItem>
+                    <SelectItem value="monthly">Every month</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="number"
+                  min={0}
+                  placeholder="Reminder (minutes)"
+                  value={reminder}
+                  onChange={(e) => setReminder(e.target.value)}
+                />
+              </>
+            ) : null}
+            <Textarea
+              placeholder="Notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+            {addKind === 'event' ? (
+              <p className="text-xs text-muted-foreground">
+                Circle plans stay in Circles → Schedule so nothing private is shared by accident.
+              </p>
+            ) : null}
+            <Button type="submit" className="w-full" disabled={!title.trim() || !startsAt}>
+              {addKind === 'event' ? 'Create event' : addKind === 'task' ? 'Add task' : 'Add goal'}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
     </motion.div>
   )
 }

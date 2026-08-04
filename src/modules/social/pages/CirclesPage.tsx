@@ -19,6 +19,7 @@ import {
   Zap,
   Crown,
   Medal,
+  CalendarDays,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -49,6 +50,7 @@ import { listFriendProfiles } from '@/lib/social/friends'
 import type { CircleGroup, CloudProfile, StreakSnapshot } from '@/lib/social/types'
 import { cn } from '@/lib/utils'
 import { formatShortDate } from '@/lib/dates'
+import { CircleSchedule } from '../components/CircleSchedule'
 
 type BoardMetric = 'water' | 'sleep' | 'nutrition' | 'workout' | 'habit'
 
@@ -182,6 +184,7 @@ export default function CirclesPage() {
   const [editMembers, setEditMembers] = useState<Record<string, boolean>>({})
 
   const activeId = params.get('id')
+  const detailTab = (params.get('tab') === 'schedule' ? 'schedule' : 'board') as 'board' | 'schedule'
   const active = circles.find((c) => c.id === activeId) ?? null
   const entered = Boolean(active)
 
@@ -309,8 +312,13 @@ export default function CirclesPage() {
     return activity.filter((a) => members.has(a.uid)).slice(0, 12)
   }, [activity, active])
 
-  function enterCircle(id: string) {
-    setParams({ id })
+  function enterCircle(id: string, tab: 'board' | 'schedule' = 'board') {
+    setParams(tab === 'schedule' ? { id, tab: 'schedule' } : { id })
+  }
+
+  function setDetailTab(tab: 'board' | 'schedule') {
+    if (!activeId) return
+    setParams(tab === 'schedule' ? { id: activeId, tab: 'schedule' } : { id: activeId })
   }
 
   function exitCircle() {
@@ -416,20 +424,24 @@ export default function CirclesPage() {
                 <h1 className="font-display mt-2 text-3xl tracking-tight sm:text-4xl">{active.name}</h1>
                 <p className="mt-1.5 text-sm text-muted-foreground">
                   {active.memberIds.length} member{active.memberIds.length === 1 ? '' : 's'}
-                  {yourRank > 0 ? ` · You’re #${yourRank} in ${metricDef.short.toLowerCase()}` : ''}
+                  {detailTab === 'board' && yourRank > 0
+                    ? ` · You’re #${yourRank} in ${metricDef.short.toLowerCase()}`
+                    : ''}
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1.5"
-                  disabled={busy}
-                  onClick={() => void reloadBoard(active)}
-                >
-                  <RefreshCw className={cn('h-3.5 w-3.5', busy && 'animate-spin')} />
-                  Sync
-                </Button>
+                {detailTab === 'board' ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5"
+                    disabled={busy}
+                    onClick={() => void reloadBoard(active)}
+                  >
+                    <RefreshCw className={cn('h-3.5 w-3.5', busy && 'animate-spin')} />
+                    Sync
+                  </Button>
+                ) : null}
                 <Button size="sm" variant="outline" className="gap-1.5" onClick={openManage}>
                   <Settings2 className="h-3.5 w-3.5" />
                   Manage
@@ -437,7 +449,7 @@ export default function CirclesPage() {
               </div>
             </div>
 
-            {yourRank > 0 ? (
+            {detailTab === 'board' && yourRank > 0 ? (
               <div className="mt-5 flex flex-wrap items-center gap-3 rounded-2xl bg-background/70 px-4 py-3 backdrop-blur-sm">
                 <Zap className="h-4 w-4 text-primary" />
                 <p className="text-sm font-medium">
@@ -464,6 +476,36 @@ export default function CirclesPage() {
           </div>
         ) : null}
 
+        <div className="mb-6 flex gap-2">
+          <Button
+            size="sm"
+            variant={detailTab === 'board' ? 'default' : 'outline'}
+            className="rounded-full gap-1.5"
+            onClick={() => setDetailTab('board')}
+          >
+            <Trophy className="h-3.5 w-3.5" />
+            Board
+          </Button>
+          <Button
+            size="sm"
+            variant={detailTab === 'schedule' ? 'default' : 'outline'}
+            className="rounded-full gap-1.5"
+            onClick={() => setDetailTab('schedule')}
+          >
+            <CalendarDays className="h-3.5 w-3.5" />
+            Schedule
+          </Button>
+        </div>
+
+        {detailTab === 'schedule' ? (
+          <CircleSchedule
+            circle={active}
+            selfUid={cloudUser.uid}
+            selfName={cloudProfile?.displayName}
+            friends={friends}
+          />
+        ) : (
+          <>
         {/* Metric chips */}
         <div className="mb-6 flex gap-2 overflow-x-auto pb-1">
           {METRICS.map(({ id, short, icon: Icon }) => (
@@ -642,6 +684,8 @@ export default function CirclesPage() {
             </ul>
           )}
         </section>
+          </>
+        )}
 
         <div className="flex flex-wrap gap-2 border-t border-border/40 pt-4">
           <Button
@@ -786,6 +830,9 @@ export default function CirclesPage() {
                         <Users className="h-3.5 w-3.5" />
                         {c.memberIds.length} member{c.memberIds.length === 1 ? '' : 's'}
                         {c.ownerId === cloudUser.uid ? ' · you own' : ''}
+                      </p>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        Leaderboard · shared schedule
                       </p>
                     </div>
                     <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">

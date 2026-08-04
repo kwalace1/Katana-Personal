@@ -8,9 +8,19 @@ function now() {
   return new Date().toISOString()
 }
 
+function normalizeGoal(goal: Goal): Goal {
+  return {
+    ...goal,
+    target_date: goal.target_date ?? null,
+  }
+}
+
 export const goalsApi = {
   list(userId: string): Goal[] {
-    return localDb.list<Goal>(GOALS, userId).sort((a, b) => a.title.localeCompare(b.title))
+    return localDb
+      .list<Goal>(GOALS, userId)
+      .map(normalizeGoal)
+      .sort((a, b) => a.title.localeCompare(b.title))
   },
 
   create(
@@ -22,6 +32,7 @@ export const goalsApi = {
       target?: number
       progress?: number
       parent_id?: string | null
+      target_date?: string | null
     },
   ): Goal {
     const ts = now()
@@ -34,13 +45,15 @@ export const goalsApi = {
       target: input.target ?? 100,
       progress: input.progress ?? 0,
       parent_id: input.parent_id ?? null,
+      target_date: input.target_date ?? null,
       created_at: ts,
       updated_at: ts,
     })
   },
 
   update(userId: string, id: string, patch: Partial<Goal>): Goal | null {
-    return localDb.update<Goal>(GOALS, userId, id, { ...patch, updated_at: now() })
+    const updated = localDb.update<Goal>(GOALS, userId, id, { ...patch, updated_at: now() })
+    return updated ? normalizeGoal(updated) : null
   },
 
   remove(userId: string, id: string): boolean {
@@ -55,7 +68,8 @@ export const goalsApi = {
   },
 
   get(userId: string, id: string): Goal | null {
-    return localDb.getById<Goal>(GOALS, userId, id)
+    const goal = localDb.getById<Goal>(GOALS, userId, id)
+    return goal ? normalizeGoal(goal) : null
   },
 
   milestones(userId: string, parentId: string): Goal[] {

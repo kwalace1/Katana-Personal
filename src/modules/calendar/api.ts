@@ -2,6 +2,7 @@ import { localDb } from '@/lib/local-db'
 import { createId } from '@/lib/id'
 import { isWithinInterval, parseISO, startOfDay, endOfDay } from '@/lib/dates'
 import type { CalendarEvent } from './types'
+import type { EventCategory } from './categories'
 
 const EVENTS = 'events'
 
@@ -9,29 +10,52 @@ function now() {
   return new Date().toISOString()
 }
 
+function normalizeEvent(event: CalendarEvent): CalendarEvent {
+  return {
+    ...event,
+    category: (event.category as EventCategory) || 'personal',
+    color: event.color ?? null,
+    notes: event.notes ?? '',
+    location: event.location ?? '',
+  }
+}
+
 export const calendarApi = {
   list(userId: string): CalendarEvent[] {
     return localDb
       .list<CalendarEvent>(EVENTS, userId)
+      .map(normalizeEvent)
       .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
   },
 
   create(
     userId: string,
-    input: Omit<CalendarEvent, 'id' | 'user_id' | 'created_at' | 'updated_at'>,
+    input: Omit<
+      CalendarEvent,
+      'id' | 'user_id' | 'created_at' | 'updated_at' | 'category' | 'color'
+    > & {
+      category?: EventCategory
+      color?: string | null
+    },
   ): CalendarEvent {
     const ts = now()
     return localDb.insert(EVENTS, userId, {
       id: createId(),
       user_id: userId,
       ...input,
+      category: input.category || 'personal',
+      color: input.color ?? null,
       created_at: ts,
       updated_at: ts,
     })
   },
 
   update(userId: string, id: string, patch: Partial<CalendarEvent>): CalendarEvent | null {
-    return localDb.update<CalendarEvent>(EVENTS, userId, id, { ...patch, updated_at: now() })
+    const updated = localDb.update<CalendarEvent>(EVENTS, userId, id, {
+      ...patch,
+      updated_at: now(),
+    })
+    return updated ? normalizeEvent(updated) : null
   },
 
   remove(userId: string, id: string): boolean {
@@ -56,7 +80,8 @@ export const calendarApi = {
   },
 
   get(userId: string, id: string): CalendarEvent | null {
-    return localDb.getById<CalendarEvent>(EVENTS, userId, id)
+    const event = localDb.getById<CalendarEvent>(EVENTS, userId, id)
+    return event ? normalizeEvent(event) : null
   },
 
   /** Events on the same day that overlap in time (ignores all-day). */

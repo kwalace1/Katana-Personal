@@ -219,6 +219,19 @@ export default function GoalsPage() {
                   ))}
                 </SelectContent>
               </Select>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Target date (shows on Calendar)</p>
+                <Input
+                  type="date"
+                  value={selected.target_date?.slice(0, 10) || ''}
+                  onChange={(e) => {
+                    goalsApi.update(userId, selected.id, {
+                      target_date: e.target.value || null,
+                    })
+                    refresh()
+                  }}
+                />
+              </div>
               <div className="flex gap-2">
                 <Button
                   size="sm"
