@@ -49,8 +49,8 @@ import { createCircleInvite } from '@/lib/social/invites'
 import { listFriendProfiles } from '@/lib/social/friends'
 import type { CircleGroup, CloudProfile, StreakSnapshot } from '@/lib/social/types'
 import { cn } from '@/lib/utils'
-import { formatShortDate } from '@/lib/dates'
 import { CircleSchedule } from '../components/CircleSchedule'
+import { CircleBoardExtras } from '../components/CircleBoardExtras'
 
 type BoardMetric = 'water' | 'sleep' | 'nutrition' | 'workout' | 'habit'
 
@@ -157,17 +157,6 @@ function RankBadge({ rank }: { rank: number }) {
   )
 }
 
-function relativeWhen(iso: string) {
-  const t = new Date(iso).getTime()
-  if (Number.isNaN(t)) return formatShortDate(iso)
-  const mins = Math.round((Date.now() - t) / 60_000)
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins}m ago`
-  const hrs = Math.round(mins / 60)
-  if (hrs < 24) return `${hrs}h ago`
-  return formatShortDate(iso)
-}
-
 export default function CirclesPage() {
   const { cloudEnabled, cloudUser, cloudProfile, syncStreaksToCloud } = useCloudAuth()
   const [params, setParams] = useSearchParams()
@@ -251,7 +240,10 @@ export default function CirclesPage() {
         }
 
         try {
-          const feed = await listFriendActivity(friendList.map((f) => f.uid))
+          const feed = await listFriendActivity([
+            cloudUser.uid,
+            ...friendList.map((f) => f.uid),
+          ])
           if (!cancelled) {
             setActivity(feed.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 20))
           }
@@ -280,8 +272,7 @@ export default function CirclesPage() {
     void reloadBoard(circle)
     void (async () => {
       try {
-        const memberIds = circle.memberIds.filter((id) => id !== cloudUser.uid)
-        const feed = await listFriendActivity(memberIds)
+        const feed = await listFriendActivity(circle.memberIds)
         setActivity((prev) => {
           const byUid = new Map(prev.map((a) => [a.uid, a]))
           for (const a of feed) byUid.set(a.uid, a)
@@ -618,10 +609,13 @@ export default function CirclesPage() {
                             {row.displayName}
                             {row.uid === cloudUser.uid ? ' · you' : ''}
                           </p>
-                          <p className="text-xs text-muted-foreground">
+                            <p className="text-xs text-muted-foreground">
                             {score} day{score === 1 ? '' : 's'}
                             {metric === 'water' && row.waterGlassesToday
                               ? ` · ${row.waterGlassesToday} glasses today`
+                              : ''}
+                            {metric === 'sleep' && row.sleepHoursLast
+                              ? ` · last ${row.sleepHoursLast}h`
                               : ''}
                           </p>
                         </div>
@@ -641,49 +635,29 @@ export default function CirclesPage() {
           />
         )}
 
-        {/* Timeline */}
-        <section className="mb-8">
-          <div className="mb-3 flex items-center justify-between">
-            <p className="kp-section-label">Activity timeline</p>
-            <span className="text-xs text-muted-foreground">What people are up to</span>
-          </div>
-          {circleActivity.length === 0 ? (
-            <div className="kp-surface p-5 text-sm text-muted-foreground">
-              No shared activity yet. When friends share or check in with activity pings on, it shows up
-              here.
-            </div>
-          ) : (
-            <ul className="relative space-y-0 border-l border-border/60 ml-3">
-              {circleActivity.map((a) => {
-                const name =
-                  a.uid === cloudUser.uid
-                    ? 'You'
-                    : friends.find((f) => f.uid === a.uid)?.displayName ||
-                      board.find((b) => b.uid === a.uid)?.displayName ||
-                      'Member'
-                return (
-                  <li key={`${a.uid}-${a.updatedAt}`} className="relative pb-5 pl-6 last:pb-0">
-                    <span className="absolute -left-[5px] top-1.5 h-2.5 w-2.5 rounded-full bg-primary ring-4 ring-background" />
-                    <div className="kp-surface p-3.5">
-                      <div className="flex items-start gap-3">
-                        <Avatar name={name} you={a.uid === cloudUser.uid} size="sm" />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm">
-                            <span className="font-semibold">{name}</span>
-                            <span className="text-muted-foreground"> — {a.message}</span>
-                          </p>
-                          <p className="mt-0.5 text-[0.7rem] text-muted-foreground">
-                            {relativeWhen(a.updatedAt)}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </section>
+        {/* Timeline + posts + water check-in */}
+        <div className="mb-8">
+          <CircleBoardExtras
+            circleId={active.id}
+            selfUid={cloudUser.uid}
+            selfName={cloudProfile?.displayName}
+            friends={friends}
+            board={board}
+            metric={metric}
+            activity={circleActivity}
+            onAfterCheckIn={() => {
+              void reloadBoard(active)
+              void (async () => {
+                try {
+                  const feed = await listFriendActivity(active.memberIds)
+                  setActivity(feed.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 20))
+                } catch {
+                  // optional
+                }
+              })()
+            }}
+          />
+        </div>
           </>
         )}
 

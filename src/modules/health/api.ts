@@ -1,13 +1,16 @@
 import { localDb } from '@/lib/local-db'
 import { createId } from '@/lib/id'
 import { todayKey } from '@/lib/dates'
-import { notifyLocalProgress } from '@/lib/social/streak-sync'
+import { notifyCheckIn, notifyLocalProgress } from '@/lib/social/streak-sync'
 import type { Workout, WaterLog, NutritionLog, SleepLog } from './types'
 
 const WORKOUTS = 'workouts'
 const WATER = 'water_logs'
 const NUTRITION = 'nutrition_logs'
 const SLEEP = 'sleep_logs'
+
+/** Daily goal used for Circles hydration streaks */
+export const WATER_GOAL_GLASSES = 6
 
 function now() {
   return new Date().toISOString()
@@ -22,7 +25,7 @@ export const healthApi = {
     userId: string,
     input: { activity: string; duration_minutes: number; notes?: string; date?: string },
   ): Workout {
-    return localDb.insert(WORKOUTS, userId, {
+    const row = localDb.insert(WORKOUTS, userId, {
       id: createId(),
       user_id: userId,
       date: input.date || todayKey(),
@@ -31,6 +34,8 @@ export const healthApi = {
       notes: input.notes || '',
       created_at: now(),
     })
+    notifyCheckIn(`Logged a workout: ${row.activity}`)
+    return row
   },
 
   removeWorkout(userId: string, id: string) {
@@ -51,13 +56,28 @@ export const healthApi = {
 
   setWater(userId: string, glasses: number, date = todayKey()): WaterLog {
     const current = healthApi.getWater(userId, date)
+    const next = Math.max(0, glasses)
     const updated =
       localDb.update<WaterLog>(WATER, userId, current.id, {
-        glasses: Math.max(0, glasses),
+        glasses: next,
         updated_at: now(),
       }) || current
-    notifyLocalProgress()
+    if (date === todayKey()) {
+      notifyCheckIn(
+        next === 0
+          ? 'Reset water for today'
+          : `Logged water — ${next} glass${next === 1 ? '' : 'es'} today`,
+      )
+    } else {
+      notifyLocalProgress()
+    }
     return updated
+  },
+
+  /** Add one glass (today by default). */
+  addGlass(userId: string, date = todayKey()): WaterLog {
+    const current = healthApi.getWater(userId, date)
+    return healthApi.setWater(userId, current.glasses + 1, date)
   },
 
   listNutrition(userId: string): NutritionLog[] {
@@ -68,7 +88,7 @@ export const healthApi = {
     userId: string,
     input: { meal: string; calories: number; notes?: string; date?: string },
   ): NutritionLog {
-    return localDb.insert(NUTRITION, userId, {
+    const row = localDb.insert(NUTRITION, userId, {
       id: createId(),
       user_id: userId,
       date: input.date || todayKey(),
@@ -77,6 +97,8 @@ export const healthApi = {
       notes: input.notes || '',
       created_at: now(),
     })
+    notifyCheckIn(`Logged a meal: ${row.meal}`)
+    return row
   },
 
   removeNutrition(userId: string, id: string) {
@@ -91,7 +113,7 @@ export const healthApi = {
     userId: string,
     input: { hours: number; quality: SleepLog['quality']; notes?: string; date?: string },
   ): SleepLog {
-    return localDb.insert(SLEEP, userId, {
+    const row = localDb.insert(SLEEP, userId, {
       id: createId(),
       user_id: userId,
       date: input.date || todayKey(),
@@ -100,6 +122,8 @@ export const healthApi = {
       notes: input.notes || '',
       created_at: now(),
     })
+    notifyCheckIn(`Logged sleep — ${row.hours}h`)
+    return row
   },
 
   removeSleep(userId: string, id: string) {

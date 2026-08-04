@@ -1,7 +1,7 @@
 import { localDb } from '@/lib/local-db'
 import { createId } from '@/lib/id'
 import { todayKey, addDays } from '@/lib/dates'
-import { notifyLocalProgress } from '@/lib/social/streak-sync'
+import { notifyCheckIn } from '@/lib/social/streak-sync'
 import type { Habit, HabitLog } from './types'
 
 const HABITS = 'habits'
@@ -88,7 +88,12 @@ export const habitsApi = {
         created_at: now(),
       })
     }
-    notifyLocalProgress()
+    const habit = habitsApi.get(userId, habitId)
+    if (result.completed) {
+      notifyCheckIn(`Checked in on ${habit?.title || 'a habit'}`)
+    } else {
+      notifyCheckIn(`Unchecked ${habit?.title || 'a habit'}`)
+    }
     return result
   },
 

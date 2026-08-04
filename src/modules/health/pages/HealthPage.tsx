@@ -13,8 +13,9 @@ import { useCloudAuth } from '@/contexts/CloudAuthContext'
 import { pageEnterSubtle } from '@/lib/motion-ui'
 import { useLocalRefresh } from '@/hooks/useLocalRefresh'
 import { todayKey } from '@/lib/dates'
-import { healthApi } from '../api'
+import { healthApi, WATER_GOAL_GLASSES } from '../api'
 import type { SleepLog } from '../types'
+import { cn } from '@/lib/utils'
 
 export default function HealthPage() {
   const { user } = useAuth()
@@ -130,14 +131,63 @@ export default function HealthPage() {
         </div>
       </div>
 
-      <div className="kp-surface mb-6 flex items-center justify-between gap-4 p-5">
-        <div>
-          <p className="text-sm text-muted-foreground">Water · {logDate === todayKey() ? 'today' : logDate}</p>
-          <p className="font-display text-3xl">{water.glasses} glasses</p>
-        </div>
-        <div className="flex gap-2">
+      <div className="kp-surface mb-6 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-sm text-muted-foreground">
+              Water · {logDate === todayKey() ? 'today' : logDate}
+            </p>
+            <p className="font-display text-3xl tracking-tight">
+              {water.glasses}
+              <span className="ml-1 text-lg font-sans font-medium text-muted-foreground">
+                / {WATER_GOAL_GLASSES} glasses
+              </span>
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Hit {WATER_GOAL_GLASSES} glasses to keep your hydration streak for Circles.
+            </p>
+          </div>
           <Button
-            size="icon"
+            size="lg"
+            className="gap-2"
+            onClick={() => {
+              healthApi.addGlass(userId, logDate)
+              refresh()
+            }}
+          >
+            <Plus className="h-4 w-4" />
+            Log a glass
+          </Button>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {Array.from({ length: Math.max(WATER_GOAL_GLASSES, water.glasses) }, (_, i) => (
+            <button
+              key={i}
+              type="button"
+              title={i < water.glasses ? 'Filled — click to set count' : 'Empty — log up to here'}
+              onClick={() => {
+                healthApi.setWater(userId, i + 1, logDate)
+                refresh()
+              }}
+              className={cn(
+                'flex h-10 w-8 items-end justify-center rounded-b-md rounded-t-lg border-2 transition',
+                i < water.glasses
+                  ? 'border-sky-500/50 bg-sky-400/40'
+                  : 'border-border/60 bg-secondary/40 hover:border-sky-400/40',
+              )}
+            >
+              <span
+                className={cn(
+                  'mb-1 h-5 w-4 rounded-sm',
+                  i < water.glasses ? 'bg-sky-500/80' : 'bg-transparent',
+                )}
+              />
+            </button>
+          ))}
+        </div>
+        <div className="mt-3 flex items-center gap-2">
+          <Button
+            size="sm"
             variant="outline"
             onClick={() => {
               healthApi.setWater(userId, water.glasses - 1, logDate)
@@ -146,8 +196,10 @@ export default function HealthPage() {
           >
             <Minus className="h-4 w-4" />
           </Button>
+          <span className="text-xs text-muted-foreground">Adjust count</span>
           <Button
-            size="icon"
+            size="sm"
+            variant="outline"
             onClick={() => {
               healthApi.setWater(userId, water.glasses + 1, logDate)
               refresh()

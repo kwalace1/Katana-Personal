@@ -16,6 +16,7 @@ import { seedDemoWorkspace } from '@/lib/seed-demo'
 import { DEFAULT_SHARE_PREFS, type SharePrefs } from '@/lib/social/types'
 
 const SHARE_TOGGLES: { key: keyof SharePrefs; label: string; hint: string }[] = [
+  { key: 'activityFeed', label: 'Activity pings', hint: 'Check-ins & shares show on Circles timelines' },
   { key: 'healthWater', label: 'Hydration streaks', hint: 'Glasses & water streaks on Circles' },
   { key: 'healthSleep', label: 'Sleep streaks', hint: 'Sleep days on Circles' },
   { key: 'healthNutrition', label: 'Nutrition streaks', hint: 'Logged meals streak' },
@@ -25,7 +26,7 @@ const SHARE_TOGGLES: { key: keyof SharePrefs; label: string; hint: string }[] = 
   { key: 'journalMood', label: 'Journal mood', hint: 'Mood only — never full entries' },
   { key: 'notes', label: 'Notes', hint: 'Allow sharing notes with friends' },
   { key: 'files', label: 'Files', hint: 'Allow sharing files with friends' },
-  { key: 'activityFeed', label: 'Activity pings', hint: '“Shared a task” style updates' },
+  { key: 'activityFeed', label: 'Activity pings', hint: 'Check-ins & shares show on Circles timelines' },
 ]
 
 export default function SettingsPage() {

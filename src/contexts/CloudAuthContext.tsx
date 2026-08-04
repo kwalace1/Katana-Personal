@@ -24,8 +24,8 @@ import {
   updateCloudProfile,
 } from '@/lib/social/friends'
 import { DEFAULT_SHARE_PREFS, type CloudProfile, type SharePrefs } from '@/lib/social/types'
-import { publishStreaks } from '@/lib/social/streaks'
-import { registerStreakSync } from '@/lib/social/streak-sync'
+import { publishActivity, publishStreaks } from '@/lib/social/streaks'
+import { registerActivityPing, registerStreakSync } from '@/lib/social/streak-sync'
 import { useAuth } from '@/contexts/AuthContext'
 
 interface CloudAuthContextType {
@@ -157,10 +157,19 @@ export function CloudAuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!cloudUser || !cloudProfile || !localUser) {
       registerStreakSync(null)
+      registerActivityPing(null)
       return
     }
     registerStreakSync(syncStreaksToCloud)
-    return () => registerStreakSync(null)
+    registerActivityPing(async (message) => {
+      const prefs = cloudProfile.sharePrefs || DEFAULT_SHARE_PREFS
+      if (!prefs.activityFeed) return
+      await publishActivity(cloudUser.uid, message)
+    })
+    return () => {
+      registerStreakSync(null)
+      registerActivityPing(null)
+    }
   }, [cloudUser, cloudProfile, localUser, syncStreaksToCloud])
 
   const enablePushNotifications = useCallback(async () => {

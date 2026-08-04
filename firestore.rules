@@ -103,6 +103,19 @@ service cloud.firestore {
       allow update, delete: if isCircleMember(resource.data.circleId);
     }
 
+    match /circlePosts/{id} {
+      allow read: if isCircleMember(resource.data.circleId);
+      allow create: if isCircleMember(request.resource.data.circleId)
+        && request.resource.data.authorId == request.auth.uid
+        && request.resource.data.keys().hasAll(['circleId', 'authorId', 'message', 'createdAt'])
+        && request.resource.data.message is string
+        && request.resource.data.message.size() > 0
+        && request.resource.data.message.size() <= 500;
+      allow delete: if isCircleMember(resource.data.circleId)
+        && resource.data.authorId == request.auth.uid;
+      allow update: if false;
+    }
+
     match /circleInvites/{token} {
       // Invitees need get-by-token; list only for creator.
       allow get: if signedIn();
