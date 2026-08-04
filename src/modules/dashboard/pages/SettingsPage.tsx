@@ -44,6 +44,7 @@ export default function SettingsPage() {
     signInCloud,
     signInWithApple,
     signOutCloud,
+    saveDisplayName,
     saveSharePrefs,
     syncStreaksToCloud,
     enablePushNotifications,
@@ -62,6 +63,10 @@ export default function SettingsPage() {
   const [syncError, setSyncError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (profile?.display_name) setName(profile.display_name)
+  }, [profile?.display_name])
+
+  useEffect(() => {
     if (cloudProfile?.sharePrefs) setPrefs({ ...DEFAULT_SHARE_PREFS, ...cloudProfile.sharePrefs })
   }, [cloudProfile])
 
@@ -73,10 +78,17 @@ export default function SettingsPage() {
     })
   }, [])
 
-  function onSaveName(e: FormEvent) {
+  async function onSaveName(e: FormEvent) {
     e.preventDefault()
-    updateDisplayName(name)
-    toast.success('Saved')
+    setBusy(true)
+    try {
+      await saveDisplayName(name)
+      toast.success(cloudUser ? 'Name saved everywhere' : 'Saved')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Couldn’t save name')
+    } finally {
+      setBusy(false)
+    }
   }
 
   async function onSaveCopy() {
@@ -153,12 +165,18 @@ export default function SettingsPage() {
     <motion.div {...pageEnterSubtle} className="kp-page max-w-2xl">
       <PageHeader title="Settings" description="A few simple preferences for your space." eyebrow="You" />
 
-      <form onSubmit={onSaveName} className="kp-surface mb-4 space-y-3 p-5">
+      <form onSubmit={(e) => void onSaveName(e)} className="kp-surface mb-4 space-y-3 p-5">
         <Label htmlFor="display-name">Your name</Label>
         <div className="flex gap-2">
           <Input id="display-name" value={name} onChange={(e) => setName(e.target.value)} />
-          <Button type="submit">Save</Button>
+          <Button type="submit" disabled={busy}>
+            Save
+          </Button>
         </div>
+        <p className="text-xs text-muted-foreground">
+          This is how friends see you
+          {cloudUser ? ' in Cloud, Circles, and invites.' : '.'}
+        </p>
       </form>
 
       <section className="kp-surface mb-4 space-y-4 p-5">
@@ -178,7 +196,10 @@ export default function SettingsPage() {
           <div className="space-y-3">
             <p className="text-sm">
               Signed in as{' '}
-              <span className="font-medium">{cloudProfile.email || cloudProfile.displayName}</span>
+              <span className="font-medium">{cloudProfile.displayName}</span>
+              {cloudProfile.email ? (
+                <span className="text-muted-foreground"> ({cloudProfile.email})</span>
+              ) : null}
             </p>
             <div className="rounded-2xl bg-primary/10 px-4 py-3">
               <p className="text-xs font-medium uppercase tracking-wide text-primary">Share your code</p>

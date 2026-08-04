@@ -22,7 +22,7 @@ import type { CloudProfile, Friendship } from '@/lib/social/types'
 import { Link } from 'react-router-dom'
 
 export default function FriendsPage() {
-  const { cloudEnabled, cloudUser, cloudProfile, cloudLoading } = useCloudAuth()
+  const { cloudEnabled, cloudUser, cloudProfile, cloudLoading, refreshCloudProfile } = useCloudAuth()
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [friendships, setFriendships] = useState<Friendship[]>([])
@@ -117,11 +117,44 @@ export default function FriendsPage() {
     )
   }
 
-  if (!cloudUser || !cloudProfile) {
+  if (!cloudUser) {
     return (
       <motion.div {...pageEnterSubtle} className="kp-page">
         <PageHeader title="Friends" description="People you trust." eyebrow="Together" />
-        <TogetherSetup highlight="friends" />
+        <TogetherSetup highlight="friends" cloudConnected={false} />
+        <p className="mt-4 text-center text-sm text-muted-foreground">
+          Already have an account?{' '}
+          <Link to="/" className="font-medium text-primary underline">
+            Sign in on the home screen
+          </Link>{' '}
+          or in{' '}
+          <Link to="/settings" className="font-medium text-primary underline">
+            Settings
+          </Link>
+          .
+        </p>
+      </motion.div>
+    )
+  }
+
+  if (!cloudProfile) {
+    return (
+      <motion.div {...pageEnterSubtle} className="kp-page">
+        <PageHeader title="Friends" description="People you trust." eyebrow="Together" />
+        <EmptyState
+          title="Finishing Cloud setup…"
+          description="You’re signed in, but your friend profile hasn’t loaded yet. Pull to refresh or open Settings."
+          action={
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button onClick={() => void refreshCloudProfile().then(() => refresh())}>
+                Retry
+              </Button>
+              <Button asChild variant="outline">
+                <Link to="/settings">Settings</Link>
+              </Button>
+            </div>
+          }
+        />
       </motion.div>
     )
   }
@@ -130,7 +163,7 @@ export default function FriendsPage() {
     <motion.div {...pageEnterSubtle} className="kp-page">
       <PageHeader title="Friends" description="Invite people you trust." eyebrow="Together" />
 
-      <TogetherSetup highlight="friends" compact className="mb-6" />
+      <TogetherSetup highlight="friends" compact cloudConnected className="mb-6" />
 
       <section className="kp-surface mb-6 p-5">
         <p className="kp-section-label">Your code</p>

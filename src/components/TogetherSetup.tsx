@@ -32,11 +32,14 @@ export function TogetherSetup({
   highlight,
   className,
   compact,
+  cloudConnected = false,
 }: {
   /** Which chapter this page is — dims the others slightly */
   highlight?: 'friends' | 'shared' | 'circles'
   className?: string
   compact?: boolean
+  /** When true, don’t push “Connect cloud” — they’re already signed in */
+  cloudConnected?: boolean
 }) {
   return (
     <div className={cn('kp-surface p-5 sm:p-6', className)}>
@@ -87,10 +90,15 @@ export function TogetherSetup({
           so friends can see your board.
         </p>
       ) : null}
-      {highlight === 'friends' ? (
-        <Button asChild size="sm" className="mt-4">
-          <Link to="/settings">Connect cloud to invite</Link>
+      {highlight === 'friends' && !cloudConnected ? (
+        <Button asChild size="sm" className="mt-4 min-h-11">
+          <Link to="/">Sign in to Cloud to invite</Link>
         </Button>
+      ) : null}
+      {highlight === 'friends' && cloudConnected ? (
+        <p className="mt-4 text-xs text-muted-foreground">
+          You’re connected — share your code or invite link below to add people.
+        </p>
       ) : null}
     </div>
   )

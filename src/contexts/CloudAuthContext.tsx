@@ -23,6 +23,7 @@ import {
   getCloudProfile,
   updateCloudProfile,
 } from '@/lib/social/friends'
+import { isPlaceholderDisplayName, pickBestDisplayName, upgradePlaceholderName } from '@/lib/social/display-name'
 import { DEFAULT_SHARE_PREFS, type CloudProfile, type SharePrefs } from '@/lib/social/types'
 import { publishActivity, publishStreaks } from '@/lib/social/streaks'
 import { registerActivityPing, registerStreakSync } from '@/lib/social/streak-sync'
@@ -38,6 +39,7 @@ interface CloudAuthContextType {
   signInWithApple: () => Promise<void>
   signOutCloud: () => Promise<void>
   refreshCloudProfile: () => Promise<void>
+  saveDisplayName: (name: string) => Promise<void>
   saveSharePrefs: (prefs: SharePrefs) => Promise<void>
   syncStreaksToCloud: () => Promise<void>
   enablePushNotifications: () => Promise<boolean>
@@ -50,6 +52,8 @@ export function CloudAuthProvider({ children }: { children: React.ReactNode }) {
   const [cloudUser, setCloudUser] = useState<User | null>(null)
   const [cloudProfile, setCloudProfile] = useState<CloudProfile | null>(null)
   const [cloudLoading, setCloudLoading] = useState(firebaseConfigured)
+  const localNameRef = React.useRef(localProfile?.display_name)
+  localNameRef.current = localProfile?.display_name
 
   useEffect(() => {
     if (!firebaseConfigured) {
@@ -65,14 +69,44 @@ export function CloudAuthProvider({ children }: { children: React.ReactNode }) {
         return
       }
       try {
-        const profile = await ensureCloudProfile({
-          uid: u.uid,
-          email: u.email || '',
-          displayName: u.displayName || localProfile?.display_name || 'Friend',
+        const email = u.email || ''
+        const localName = localNameRef.current
+        const seedName = pickBestDisplayName({
+          authName: u.displayName,
+          localName,
+          email,
+          fallback: 'Friend',
         })
+        let profile = await ensureCloudProfile({
+          uid: u.uid,
+          email,
+          displayName: seedName,
+        })
+
+        // Only upgrade placeholder cloud names (e.g. email local-part) to a real name
+        const cloudUpgrade = upgradePlaceholderName(
+          profile.displayName,
+          pickBestDisplayName({ authName: u.displayName, localName, email }),
+          email,
+        )
+        if (cloudUpgrade) {
+          await updateCloudProfile(u.uid, { displayName: cloudUpgrade })
+          profile = { ...profile, displayName: cloudUpgrade }
+        }
+
+        if (
+          profile.displayName &&
+          u.displayName !== profile.displayName &&
+          (isPlaceholderDisplayName(u.displayName, email) || !u.displayName)
+        ) {
+          await updateProfile(u, { displayName: profile.displayName })
+        }
+
         setCloudProfile(profile)
-        if (profile.displayName && localProfile && !localProfile.display_name) {
-          updateDisplayName(profile.displayName)
+
+        const localUpgrade = upgradePlaceholderName(localName, profile.displayName, email)
+        if (localUpgrade) {
+          updateDisplayName(localUpgrade)
         }
       } catch (err) {
         console.warn('Cloud profile error', err)
@@ -81,7 +115,7 @@ export function CloudAuthProvider({ children }: { children: React.ReactNode }) {
       }
     })
     return () => unsub()
-  }, [localProfile, updateDisplayName])
+  }, [updateDisplayName])
 
   const signUpCloud = useCallback(async (email: string, password: string, displayName: string) => {
     const auth = getFirebaseAuth()
@@ -106,19 +140,25 @@ export function CloudAuthProvider({ children }: { children: React.ReactNode }) {
     provider.addScope('email')
     provider.addScope('name')
     const cred = await signInWithPopup(auth, provider)
-    const name =
-      cred.user.displayName ||
-      localProfile?.display_name ||
-      cred.user.email?.split('@')[0] ||
-      'Friend'
-    if (!cred.user.displayName) {
+    const email = cred.user.email || ''
+    const name = pickBestDisplayName({
+      authName: cred.user.displayName,
+      localName: localProfile?.display_name,
+      email,
+      fallback: 'Friend',
+    })
+    if (cred.user.displayName !== name) {
       await updateProfile(cred.user, { displayName: name })
     }
-    const profile = await ensureCloudProfile({
+    let profile = await ensureCloudProfile({
       uid: cred.user.uid,
-      email: cred.user.email || '',
+      email,
       displayName: name,
     })
+    if (profile.displayName !== name && !isPlaceholderDisplayName(name, email)) {
+      await updateCloudProfile(cred.user.uid, { displayName: name })
+      profile = { ...profile, displayName: name }
+    }
     setCloudProfile(profile)
     updateDisplayName(profile.displayName)
   }, [localProfile?.display_name, updateDisplayName])
@@ -134,6 +174,18 @@ export function CloudAuthProvider({ children }: { children: React.ReactNode }) {
     const profile = await getCloudProfile(cloudUser.uid)
     if (profile) setCloudProfile(profile)
   }, [cloudUser])
+
+  const saveDisplayName = useCallback(
+    async (raw: string) => {
+      const next = raw.trim() || 'Friend'
+      updateDisplayName(next)
+      if (!cloudUser) return
+      await updateProfile(cloudUser, { displayName: next })
+      await updateCloudProfile(cloudUser.uid, { displayName: next })
+      setCloudProfile((p) => (p ? { ...p, displayName: next } : p))
+    },
+    [cloudUser, updateDisplayName],
+  )
 
   const saveSharePrefs = useCallback(
     async (prefs: SharePrefs) => {
@@ -200,6 +252,7 @@ export function CloudAuthProvider({ children }: { children: React.ReactNode }) {
       signInWithApple,
       signOutCloud,
       refreshCloudProfile,
+      saveDisplayName,
       saveSharePrefs,
       syncStreaksToCloud,
       enablePushNotifications,
@@ -213,6 +266,7 @@ export function CloudAuthProvider({ children }: { children: React.ReactNode }) {
       signInWithApple,
       signOutCloud,
       refreshCloudProfile,
+      saveDisplayName,
       saveSharePrefs,
       syncStreaksToCloud,
       enablePushNotifications,

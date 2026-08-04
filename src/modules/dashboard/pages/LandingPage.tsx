@@ -88,12 +88,19 @@ export default function LandingPage() {
     }
     setBusy(true)
     try {
-      const display = name.trim() || email.split('@')[0] || 'You'
-      await startWorkspace(display)
       if (mode === 'signup') {
+        const display = name.trim()
+        if (!display) {
+          toast.error('Enter the name friends should see')
+          setBusy(false)
+          return
+        }
+        await startWorkspace(display)
         await signUpCloud(email, password, display)
         toast.success('Account created — you’re in')
       } else {
+        // Don’t invent a name from the email — use Cloud profile after sign-in
+        await startWorkspace(name.trim() || 'You')
         await signInCloud(email, password)
         toast.success('Signed in')
       }
