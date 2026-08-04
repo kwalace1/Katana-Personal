@@ -50,8 +50,31 @@ class ErrorBoundary extends React.Component<
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {
-      // Offline shell is optional in local development
+    void navigator.serviceWorker
+      .register('/sw.js')
+      .then((reg) => {
+        // Pick up new deploys without waiting for a long idle period
+        void reg.update()
+        setInterval(() => void reg.update(), 60_000)
+        reg.addEventListener('updatefound', () => {
+          const worker = reg.installing
+          if (!worker) return
+          worker.addEventListener('statechange', () => {
+            if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+              worker.postMessage('SKIP_WAITING')
+            }
+          })
+        })
+      })
+      .catch(() => {
+        // Offline shell is optional in local development
+      })
+
+    let refreshing = false
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (refreshing) return
+      refreshing = true
+      window.location.reload()
     })
   })
 }
