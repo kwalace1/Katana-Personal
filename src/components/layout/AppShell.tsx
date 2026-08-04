@@ -29,6 +29,7 @@ import { Button } from '@/components/ui/button'
 import { CommandPalette } from '@/components/CommandPalette'
 import { NotificationBell, useNotificationToasts } from '@/components/NotificationBell'
 import { BackupNudge } from '@/components/BackupNudge'
+import { PwaInstallNudge } from '@/components/PwaInstallNudge'
 import { WorkspaceSyncHost } from '@/components/WorkspaceSyncHost'
 import {
   Sheet,
@@ -238,6 +239,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <main id="main-content" className="flex-1" tabIndex={-1}>
           {children}
           <BackupNudge />
+          <PwaInstallNudge />
           <WorkspaceSyncHost />
         </main>
       </div>

@@ -23,10 +23,19 @@ Use this before putting the app in front of 10–20 real busy people.
 
 ## Honest limits (do not promise)
 
-- No paid LLM yet — Ask is a day guide with actions
+- No paid LLM yet — Ask is a day guide with actions (close day, park tasks, week review, create)
 - No App Store build yet — Web/PWA only
 - No FCM background push on Spark — in-app + open-tab reminders
 - No collaborative editing — Shared is plans/accountability, not multiplayer docs
+
+## Recently shipped (A + B + beauty)
+
+- Brand-first landing story (browser) + lean PWA entrance
+- Weekly review on Today; Ask intents: close day, prep tomorrow, clear morning, journal
+- Briefing action chips on Today; PWA nudge after evening close
+- Circles 7-day challenges; Together empty-state polish
+
+See [PERSONAL_NEXT_PLAN.md](./PERSONAL_NEXT_PLAN.md).
 
 ## Demo script (~5 min)
 

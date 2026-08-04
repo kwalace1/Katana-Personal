@@ -44,11 +44,13 @@ import {
   listMyCircles,
   renameCircle,
   setCircleMembers,
+  setCircleChallenge,
 } from '@/lib/social/circles'
 import { createCircleInvite } from '@/lib/social/invites'
 import { listFriendProfiles } from '@/lib/social/friends'
-import type { CircleGroup, CloudProfile, StreakSnapshot } from '@/lib/social/types'
+import type { CircleChallengeMetric, CircleGroup, CloudProfile, StreakSnapshot } from '@/lib/social/types'
 import { cn } from '@/lib/utils'
+import { addDays } from '@/lib/dates'
 import { CircleSchedule } from '../components/CircleSchedule'
 import { CircleBoardExtras } from '../components/CircleBoardExtras'
 
@@ -171,11 +173,25 @@ export default function CirclesPage() {
   const [manageOpen, setManageOpen] = useState(false)
   const [editName, setEditName] = useState('')
   const [editMembers, setEditMembers] = useState<Record<string, boolean>>({})
+  const [challengeOpen, setChallengeOpen] = useState(false)
+  const [challengeTitle, setChallengeTitle] = useState('7-day streak')
+  const [challengeMetric, setChallengeMetric] = useState<CircleChallengeMetric>('habit')
 
   const activeId = params.get('id')
   const detailTab = (params.get('tab') === 'schedule' ? 'schedule' : 'board') as 'board' | 'schedule'
   const active = circles.find((c) => c.id === activeId) ?? null
   const entered = Boolean(active)
+
+  const activeChallenge =
+    active?.challenge && new Date(active.challenge.endsAt).getTime() > Date.now()
+      ? active.challenge
+      : null
+
+  useEffect(() => {
+    if (activeChallenge?.metric) {
+      setMetric(activeChallenge.metric)
+    }
+  }, [activeChallenge?.metric, activeId])
 
   async function loadCirclesList() {
     if (!cloudUser) return
@@ -459,13 +475,66 @@ export default function CirclesPage() {
           <div className="mb-6 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
             <p className="font-medium">Only you are in this circle</p>
             <p className="mt-0.5 text-muted-foreground">
-              Friends won’t see it until you add them in Manage.
+              Friends won’t see it until you add them in Manage — or share an invite link below.
             </p>
             <Button size="sm" className="mt-2" onClick={openManage}>
               Add friends
             </Button>
           </div>
         ) : null}
+
+        {activeChallenge ? (
+          <div className="mb-6 overflow-hidden rounded-2xl border border-primary/25 bg-primary/5 px-4 py-4 sm:px-5">
+            <p className="kp-section-label">Active challenge</p>
+            <p className="mt-1 font-display text-xl tracking-tight">{activeChallenge.title}</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {METRICS.find((m) => m.id === activeChallenge.metric)?.label ?? 'Streak'} · ends{' '}
+              {new Date(activeChallenge.endsAt).toLocaleDateString(undefined, {
+                weekday: 'short',
+                month: 'short',
+                day: 'numeric',
+              })}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setMetric(activeChallenge.metric)}
+              >
+                Show board
+              </Button>
+              {active.ownerId === cloudUser.uid ? (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={async () => {
+                    try {
+                      await setCircleChallenge(active.id, null)
+                      toast.message('Challenge cleared')
+                      await loadCirclesList()
+                    } catch (err) {
+                      toast.error(err instanceof Error ? err.message : 'Couldn’t clear')
+                    }
+                  }}
+                >
+                  End early
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        ) : (
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-secondary/50 px-4 py-3.5">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold">Start a 7-day challenge</p>
+              <p className="text-xs text-muted-foreground">
+                Pick a metric. Climb together. Ends automatically.
+              </p>
+            </div>
+            <Button size="sm" onClick={() => setChallengeOpen(true)}>
+              Start
+            </Button>
+          </div>
+        )}
 
         <div className="mb-6 flex gap-2">
           <Button
@@ -730,6 +799,71 @@ export default function CirclesPage() {
           setEditMembers={setEditMembers}
           onSave={saveManage}
         />
+
+        <Dialog open={challengeOpen} onOpenChange={setChallengeOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>7-day challenge</DialogTitle>
+            </DialogHeader>
+            <form
+              className="space-y-4"
+              onSubmit={async (e) => {
+                e.preventDefault()
+                if (!active || !cloudUser) return
+                try {
+                  const startsAt = new Date().toISOString()
+                  const endsAt = addDays(new Date(), 7).toISOString()
+                  await setCircleChallenge(active.id, {
+                    title: challengeTitle.trim() || '7-day streak',
+                    metric: challengeMetric,
+                    startsAt,
+                    endsAt,
+                    startedBy: cloudUser.uid,
+                  })
+                  setMetric(challengeMetric)
+                  setChallengeOpen(false)
+                  toast.success('Challenge started — climb the board')
+                  await loadCirclesList()
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : 'Couldn’t start challenge')
+                }
+              }}
+            >
+              <div className="space-y-2">
+                <label className="text-sm font-medium" htmlFor="challenge-title">
+                  Name
+                </label>
+                <Input
+                  id="challenge-title"
+                  value={challengeTitle}
+                  onChange={(e) => setChallengeTitle(e.target.value)}
+                  placeholder="Morning walk week"
+                />
+              </div>
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Metric</p>
+                <div className="flex flex-wrap gap-2">
+                  {METRICS.map(({ id, short, icon: Icon }) => (
+                    <Button
+                      key={id}
+                      type="button"
+                      size="sm"
+                      variant={challengeMetric === id ? 'default' : 'outline'}
+                      className="rounded-full gap-1.5"
+                      onClick={() => setChallengeMetric(id)}
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                      {short}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <Button type="submit" className="w-full min-h-11">
+                Start challenge
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
       </motion.div>
     )
   }
@@ -762,12 +896,12 @@ export default function CirclesPage() {
           <TogetherSetup highlight="circles" className="mb-4" />
           <EmptyState
             title="No circles yet"
-            description="Create one for gym, family, or roommates — then enter it for leaderboards and a live timeline."
+            description="Create one for gym buddies, family, or roommates. Enter it for leaderboards, a live timeline, and optional 7-day challenges."
             action={
               <div className="flex flex-wrap justify-center gap-2">
                 <Button onClick={() => setCreateOpen(true)}>Create a circle</Button>
                 <Button asChild variant="outline">
-                  <Link to="/friends">Add friends</Link>
+                  <Link to="/friends">Add friends first</Link>
                 </Button>
               </div>
             }

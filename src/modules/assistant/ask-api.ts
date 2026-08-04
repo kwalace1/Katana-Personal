@@ -8,7 +8,16 @@ export type AskRole = 'you' | 'katana'
 export interface AskAction {
   id: string
   label: string
-  kind: 'complete_task' | 'toggle_habit' | 'log_water' | 'open_route' | 'create_task' | 'create_event'
+  kind:
+    | 'complete_task'
+    | 'toggle_habit'
+    | 'log_water'
+    | 'open_route'
+    | 'create_task'
+    | 'create_event'
+    | 'park_tasks'
+    | 'upsert_journal'
+    | 'close_day'
   taskId?: string
   habitId?: string
   route?: string
@@ -16,6 +25,8 @@ export interface AskAction {
   dueAt?: string | null
   startsAt?: string
   endsAt?: string
+  /** Journal body for upsert_journal / close_day */
+  body?: string
 }
 
 export interface AskMessage {

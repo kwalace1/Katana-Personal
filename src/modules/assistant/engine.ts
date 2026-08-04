@@ -8,6 +8,7 @@ import { notesApi } from '@/modules/notes/api'
 import { parseCapture } from '@/lib/capture'
 import { addDays, format, formatShortDate, formatTime, todayKey } from '@/lib/dates'
 import { createId } from '@/lib/id'
+import { weekLabel } from '@/lib/week-review'
 import type { Task } from '@/modules/tasks/types'
 import type { CalendarEvent } from '@/modules/calendar/types'
 import type { Habit } from '@/modules/habits/types'
@@ -132,7 +133,7 @@ export function buildDailyBriefing(snap: LifeSnapshot): string {
   return parts.join(' ')
 }
 
-function briefingActions(snap: LifeSnapshot): AskAction[] {
+export function buildBriefingActions(snap: LifeSnapshot): AskAction[] {
   const actions: AskAction[] = []
   const top = snap.priorityTasks[0]
   if (top) {
@@ -152,8 +153,23 @@ function briefingActions(snap: LifeSnapshot): AskAction[] {
       habitId: pendingHabit.id,
     })
   }
-  actions.push({ id: createId(), label: 'Log water', kind: 'log_water' })
+  if (snap.waterGlasses < 6) {
+    actions.push({ id: createId(), label: 'Log water', kind: 'log_water' })
+  }
+  if (!snap.journalToday) {
+    actions.push({
+      id: createId(),
+      label: 'Open journal',
+      kind: 'open_route',
+      route: '/journal',
+    })
+  }
   return actions
+}
+
+/** @deprecated use buildBriefingActions */
+function briefingActions(snap: LifeSnapshot): AskAction[] {
+  return buildBriefingActions(snap)
 }
 
 function answerFocus(snap: LifeSnapshot): AskReply {
@@ -216,7 +232,8 @@ function answerWorkout(snap: LifeSnapshot): AskReply {
 
 function answerWeek(snap: LifeSnapshot): AskReply {
   const bits: string[] = []
-  bits.push(`This week so far: ${snap.openTasks.length} open task${snap.openTasks.length === 1 ? '' : 's'}.`)
+  bits.push(`Week of ${weekLabel()}.`)
+  bits.push(`${snap.openTasks.length} open task${snap.openTasks.length === 1 ? '' : 's'}.`)
   bits.push(
     snap.upcomingEvents.length > 0
       ? `Coming up: ${listTitles(snap.upcomingEvents, 4)}.`
@@ -239,9 +256,153 @@ function answerWeek(snap: LifeSnapshot): AskReply {
       ? `You’ve logged ${snap.recentWorkouts} workout${snap.recentWorkouts === 1 ? '' : 's'} in the last week.`
       : 'No workouts logged this week yet.',
   )
+
+  const actions: AskAction[] = []
+  const top = snap.priorityTasks[0]
+  if (top) {
+    actions.push({
+      id: createId(),
+      label: `Finish “${top.title}”`,
+      kind: 'complete_task',
+      taskId: top.id,
+    })
+  }
+  if (snap.todayTasks.length > 0) {
+    actions.push({
+      id: createId(),
+      label: 'Park today’s unfinished',
+      kind: 'park_tasks',
+    })
+  }
+  if (snap.behindGoals[0]) {
+    actions.push({
+      id: createId(),
+      label: `Open “${snap.behindGoals[0].title}”`,
+      kind: 'open_route',
+      route: `/goals?id=${snap.behindGoals[0].id}`,
+    })
+  }
+  actions.push({ id: createId(), label: 'Open Today', kind: 'open_route', route: '/dashboard' })
+
+  return { text: bits.join(' '), actions }
+}
+
+function answerCloseDay(snap: LifeSnapshot): AskReply {
+  const unfinished = snap.todayTasks.length
+  const habitsLeft = snap.habitsDue.length - snap.habitsDoneIds.length
+  const parts = [
+    'Let’s close the day gently.',
+    unfinished > 0
+      ? `${unfinished} unfinished task${unfinished === 1 ? '' : 's'} can move to tomorrow.`
+      : 'No unfinished tasks due today.',
+    habitsLeft > 0
+      ? `${habitsLeft} habit${habitsLeft === 1 ? '' : 's'} still open — check in if you can.`
+      : 'Habits look settled.',
+  ]
+
+  const actions: AskAction[] = []
+  const pendingHabit = snap.habitsDue.find((h) => !snap.habitsDoneIds.includes(h.id))
+  if (pendingHabit) {
+    actions.push({
+      id: createId(),
+      label: `Check in “${pendingHabit.title}”`,
+      kind: 'toggle_habit',
+      habitId: pendingHabit.id,
+    })
+  }
+  if (unfinished > 0) {
+    actions.push({ id: createId(), label: 'Park unfinished for tomorrow', kind: 'park_tasks' })
+  }
+  actions.push({
+    id: createId(),
+    label: 'Close day',
+    kind: 'close_day',
+    body: '',
+  })
+  if (!snap.journalToday) {
+    actions.push({ id: createId(), label: 'Write in journal', kind: 'open_route', route: '/journal' })
+  }
+
+  return { text: parts.join(' '), actions }
+}
+
+function answerTomorrow(snap: LifeSnapshot): AskReply {
+  const tomorrowEvents = snap.upcomingEvents.filter((e) => {
+    const d = new Date(e.starts_at)
+    const tmr = addDays(new Date(), 1)
+    return (
+      d.getFullYear() === tmr.getFullYear() &&
+      d.getMonth() === tmr.getMonth() &&
+      d.getDate() === tmr.getDate()
+    )
+  })
+  const bits = [
+    'Prep for tomorrow:',
+    tomorrowEvents.length > 0
+      ? `On the calendar: ${listTitles(tomorrowEvents, 4)}.`
+      : 'Nothing on the calendar yet — keep it light or add one anchor.',
+    snap.priorityTasks[0]
+      ? `Carry forward: ${snap.priorityTasks[0].title}.`
+      : 'No priority task waiting — nice.',
+  ]
   return {
     text: bits.join(' '),
-    actions: [{ id: createId(), label: 'Open Today', kind: 'open_route', route: '/dashboard' }],
+    actions: [
+      ...(snap.todayTasks.length > 0
+        ? [{ id: createId(), label: 'Park today’s unfinished', kind: 'park_tasks' as const }]
+        : []),
+      { id: createId(), label: 'Add for tomorrow', kind: 'open_route', route: '/tasks' },
+      { id: createId(), label: 'Open calendar', kind: 'open_route', route: '/calendar' },
+    ],
+  }
+}
+
+function answerClearMorning(snap: LifeSnapshot): AskReply {
+  const morningEvents = snap.todayEvents.filter((e) => {
+    if (e.all_day) return true
+    return new Date(e.starts_at).getHours() < 12
+  })
+  const morningTasks = snap.priorityTasks.slice(0, 2)
+  if (morningEvents.length === 0 && morningTasks.length === 0) {
+    return {
+      text: 'Your morning looks open. Protect an hour of quiet focus, or start with one habit check-in.',
+      actions: buildBriefingActions(snap),
+    }
+  }
+  const lines: string[] = ['Clear the morning:']
+  if (morningEvents.length > 0) lines.push(`Calendar: ${listTitles(morningEvents, 3)}.`)
+  if (morningTasks.length > 0) lines.push(`Then: ${listTitles(morningTasks, 2)}.`)
+  const actions: AskAction[] = []
+  if (morningTasks[0]) {
+    actions.push({
+      id: createId(),
+      label: `Mark “${morningTasks[0].title}” done`,
+      kind: 'complete_task',
+      taskId: morningTasks[0].id,
+    })
+  }
+  actions.push(...buildBriefingActions(snap).filter((a) => a.kind === 'toggle_habit' || a.kind === 'log_water'))
+  return { text: lines.join(' '), actions }
+}
+
+function answerJournal(snap: LifeSnapshot): AskReply {
+  if (snap.journalToday) {
+    return {
+      text: 'You’ve already written today. You can open the journal to add more, or save the page for evening close.',
+      actions: [{ id: createId(), label: 'Open journal', kind: 'open_route', route: '/journal' }],
+    }
+  }
+  return {
+    text: 'A single honest line is enough. Tap below to jot “One thing I’m carrying” into today’s journal, or open the full page.',
+    actions: [
+      {
+        id: createId(),
+        label: 'Save a one-line journal',
+        kind: 'upsert_journal',
+        body: 'One thing I’m carrying from today.',
+      },
+      { id: createId(), label: 'Open journal', kind: 'open_route', route: '/journal' },
+    ],
   }
 }
 
@@ -318,7 +479,7 @@ function answerHealth(snap: LifeSnapshot): AskReply {
 
 function answerDefault(snap: LifeSnapshot): AskReply {
   return {
-    text: `${buildDailyBriefing(snap)}\n\nYou can also ask things like “What should I work on today?”, “When should I work out?”, “Summarize my week,” or “What goals am I falling behind on?”`,
+    text: `${buildDailyBriefing(snap)}\n\nYou can also ask things like “What should I work on today?”, “Close my day,” “Prep for tomorrow,” “Summarize my week,” or “Add gym tomorrow.”`,
     actions: briefingActions(snap),
   }
 }
@@ -326,6 +487,78 @@ function answerDefault(snap: LifeSnapshot): AskReply {
 export function answerQuestion(userId: string, question: string, displayName?: string): string {
   return answerQuestionWithActions(userId, question, displayName).text
 }
+
+type Intent = { test: (q: string) => boolean; answer: (snap: LifeSnapshot) => AskReply }
+
+const INTENTS: Intent[] = [
+  {
+    test: (q) =>
+      q.includes('close') ||
+      q.includes('evening') ||
+      q.includes('wrap up') ||
+      q.includes('end my day') ||
+      q.includes('end the day'),
+    answer: answerCloseDay,
+  },
+  {
+    test: (q) =>
+      q.includes('tomorrow') ||
+      q.includes('prep') ||
+      q.includes('prepare') ||
+      (q.includes('ahead') && !q.includes('behind')),
+    answer: answerTomorrow,
+  },
+  {
+    test: (q) =>
+      q.includes('clear my morning') ||
+      q.includes('morning') ||
+      (q.includes('clear') && q.includes('am')),
+    answer: answerClearMorning,
+  },
+  {
+    test: (q) =>
+      q.includes('journal') ||
+      q.includes('reflect') ||
+      q.includes('write in') ||
+      q.includes('diary'),
+    answer: answerJournal,
+  },
+  {
+    test: (q) =>
+      q.includes('work out') || q.includes('workout') || q.includes('exercise') || q.includes('gym'),
+    answer: answerWorkout,
+  },
+  {
+    test: (q) =>
+      q.includes('work on') ||
+      q.includes('focus') ||
+      q.includes('priorit') ||
+      q.includes('should i do') ||
+      (q.includes('today') && (q.includes('what') || q.includes('should'))),
+    answer: answerFocus,
+  },
+  {
+    test: (q) => q.includes('week') || q.includes('summar') || q.includes('review'),
+    answer: answerWeek,
+  },
+  {
+    test: (q) => q.includes('goal') || q.includes('behind') || q.includes('falling'),
+    answer: answerGoals,
+  },
+  {
+    test: (q) => q.includes('habit'),
+    answer: answerHabits,
+  },
+  {
+    test: (q) =>
+      q.includes('health') || q.includes('water') || q.includes('sleep') || q.includes('nutrition'),
+    answer: answerHealth,
+  },
+  {
+    test: (q) => q.includes('brief') || q.includes('overview') || q.includes('how am i') || q.includes('status'),
+    answer: (snap) => ({ text: buildDailyBriefing(snap), actions: briefingActions(snap) }),
+  },
+]
 
 export function answerQuestionWithActions(
   userId: string,
@@ -342,27 +575,10 @@ export function answerQuestionWithActions(
   const created = tryParseCreate(question.trim())
   if (created) return created
 
-  if (q.includes('work out') || q.includes('workout') || q.includes('exercise') || q.includes('gym')) {
-    return answerWorkout(snap)
+  for (const intent of INTENTS) {
+    if (intent.test(q)) return intent.answer(snap)
   }
-  if (
-    q.includes('work on') ||
-    q.includes('focus') ||
-    q.includes('priorit') ||
-    q.includes('should i do') ||
-    (q.includes('today') && (q.includes('what') || q.includes('should')))
-  ) {
-    return answerFocus(snap)
-  }
-  if (q.includes('week') || q.includes('summar')) return answerWeek(snap)
-  if (q.includes('goal') || q.includes('behind') || q.includes('falling')) return answerGoals(snap)
-  if (q.includes('habit')) return answerHabits(snap)
-  if (q.includes('health') || q.includes('water') || q.includes('sleep') || q.includes('nutrition')) {
-    return answerHealth(snap)
-  }
-  if (q.includes('brief') || q.includes('overview') || q.includes('how am i') || q.includes('status')) {
-    return { text: buildDailyBriefing(snap), actions: briefingActions(snap) }
-  }
+
   return answerDefault(snap)
 }
 
@@ -402,14 +618,54 @@ export function runAskAction(userId: string, action: AskAction): string {
     })
     return `Scheduled “${action.title}”.`
   }
+  if (action.kind === 'park_tasks') {
+    const tomorrow = addDays(new Date(), 1)
+    tomorrow.setHours(17, 0, 0, 0)
+    const unfinished = tasksApi.todayTasks(userId)
+    for (const task of unfinished) {
+      tasksApi.updateTask(userId, task.id, { due_at: tomorrow.toISOString() })
+    }
+    return unfinished.length
+      ? `Parked ${unfinished.length} task${unfinished.length === 1 ? '' : 's'} for tomorrow.`
+      : 'Nothing to park.'
+  }
+  if (action.kind === 'upsert_journal') {
+    journalApi.upsert(userId, {
+      mood: 'okay',
+      body: action.body?.trim() || 'Noted from Ask.',
+      reflection: 'Ask',
+    })
+    return 'Journal updated.'
+  }
+  if (action.kind === 'close_day') {
+    const tomorrow = addDays(new Date(), 1)
+    tomorrow.setHours(17, 0, 0, 0)
+    const unfinished = tasksApi.todayTasks(userId)
+    for (const task of unfinished) {
+      tasksApi.updateTask(userId, task.id, { due_at: tomorrow.toISOString() })
+    }
+    if (action.body?.trim()) {
+      journalApi.upsert(userId, {
+        mood: 'okay',
+        body: action.body.trim(),
+        reflection: 'Evening close',
+      })
+    }
+    localStorage.setItem('katana-personal:day-close', todayKey())
+    return unfinished.length
+      ? `Day closed — parked ${unfinished.length} for tomorrow.`
+      : 'Day closed. Rest well.'
+  }
   return ''
 }
 
 export const SUGGESTED_ASKS = [
   'What should I work on today?',
+  'Clear my morning',
   'When should I work out?',
-  'Summarize my week.',
-  'What goals am I falling behind on?',
+  'Review my week',
+  'Prep for tomorrow',
+  'Close my day',
   'Add gym tomorrow',
 ] as const
 
@@ -419,7 +675,6 @@ function tryParseCreate(question: string): AskReply | null {
   const addMatch = lower.match(/^(?:add|remind me to|create|schedule)\s+(.+)$/i)
   if (!addMatch) return null
 
-  // Prefer capture parser for dates/times
   const raw = addMatch[1]
   const isEvent =
     lower.startsWith('schedule') ||

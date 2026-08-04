@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useRef, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Sparkles, Users, CalendarCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -12,7 +12,7 @@ import { useCloudAuth } from '@/contexts/CloudAuthContext'
 import { parseBackup, restoreBackup } from '@/lib/backup'
 import { createId } from '@/lib/id'
 import { ensureUserLoaded, localDb } from '@/lib/local-db'
-import { pageEnterSubtle } from '@/lib/motion-ui'
+import { pageEnterSubtle, staggerContainer, staggerItem } from '@/lib/motion-ui'
 import { cn } from '@/lib/utils'
 
 type Mode = 'open' | 'signin' | 'signup'
@@ -24,9 +24,28 @@ function isStandaloneApp() {
   return mq || ios
 }
 
+const STORY = [
+  {
+    icon: CalendarCheck,
+    title: 'Today',
+    body: 'One next step. Capture what matters. Close the day when you’re done.',
+  },
+  {
+    icon: Sparkles,
+    title: 'Ask',
+    body: 'A quiet day guide that already knows your plate — and can take action. No account required.',
+  },
+  {
+    icon: Users,
+    title: 'Together',
+    body: 'Optional friends, shared plans, and Circles. Private life stays yours.',
+  },
+] as const
+
 /**
- * App entrance — used for `/` (including PWA home screen).
- * Not a marketing site: open a local space or sign into Cloud.
+ * App entrance — `/` including PWA home screen.
+ * Browser: brand-first hero + short story + open / cloud forms.
+ * Standalone: lean entrance only.
  */
 export default function LandingPage() {
   const { user, loading, startWorkspace } = useAuth()
@@ -39,6 +58,7 @@ export default function LandingPage() {
   } = useCloudAuth()
   const navigate = useNavigate()
   const fileRef = useRef<HTMLInputElement>(null)
+  const formRef = useRef<HTMLDivElement>(null)
 
   const [mode, setMode] = useState<Mode>('open')
   const [name, setName] = useState('')
@@ -99,7 +119,6 @@ export default function LandingPage() {
         await signUpCloud(email, password, display)
         toast.success('Account created — you’re in')
       } else {
-        // Don’t invent a name from the email — use Cloud profile after sign-in
         await startWorkspace(name.trim() || 'You')
         await signInCloud(email, password)
         toast.success('Signed in')
@@ -155,167 +174,255 @@ export default function LandingPage() {
     }
   }
 
-  // silence unused — cloud session is handled after navigate via WorkspaceSyncHost
   void cloudUser
+
+  function scrollToOpen() {
+    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    setMode('open')
+  }
 
   return (
     <div className="relative flex min-h-[100dvh] flex-col overflow-hidden">
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -left-20 top-0 h-72 w-72 rounded-full bg-[hsl(168_45%_70%/0.3)] blur-3xl" />
-        <div className="absolute bottom-10 right-0 h-64 w-64 rounded-full bg-[hsl(200_50%_80%/0.25)] blur-3xl" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,hsl(168_45%_70%/0.45),transparent_55%)]" />
+        <div className="absolute -left-24 top-24 h-80 w-80 rounded-full bg-[hsl(168_45%_70%/0.28)] blur-3xl" />
+        <div className="absolute bottom-0 right-0 h-72 w-72 rounded-full bg-[hsl(200_50%_80%/0.28)] blur-3xl" />
+        {!standalone ? (
+          <div
+            className="absolute inset-x-0 top-0 h-[70vh] opacity-[0.12]"
+            style={{
+              backgroundImage:
+                'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%232F6F68\' fill-opacity=\'0.35\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")',
+            }}
+          />
+        ) : null}
       </div>
 
-      <div className="relative mx-auto flex w-full max-w-md flex-1 flex-col px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1.5rem,env(safe-area-inset-top))]">
+      <div className="relative mx-auto flex w-full max-w-lg flex-1 flex-col px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1.25rem,env(safe-area-inset-top))]">
         <header className="flex items-center justify-between py-2">
           <BrandMark to="/" />
           {!standalone ? (
+            <button
+              type="button"
+              className="text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-primary"
+              onClick={scrollToOpen}
+            >
+              Open
+            </button>
+          ) : (
             <p className="text-[0.65rem] font-medium uppercase tracking-[0.14em] text-muted-foreground">
               Personal
             </p>
-          ) : null}
+          )}
         </header>
 
-        <motion.div {...pageEnterSubtle} className="flex flex-1 flex-col justify-center py-8">
-          <p className="kp-section-label">Welcome</p>
-          <h1 className="font-display mt-2 text-4xl tracking-tight sm:text-5xl">Katana</h1>
-          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-            {standalone
-              ? 'Open your space on this phone — or sign in to sync with your computer.'
-              : 'Your personal OS. Open a private space, or sign in to sync across devices.'}
-          </p>
+        <motion.div {...pageEnterSubtle} className="flex flex-1 flex-col py-6 sm:py-10">
+          {/* Hero — brand first */}
+          <div className={cn('flex flex-col', standalone ? 'justify-center flex-1' : 'min-h-[70vh] justify-center')}>
+            <p className="kp-section-label">Personal OS</p>
+            <h1 className="font-display mt-3 text-5xl tracking-tight sm:text-6xl">Katana</h1>
+            <p className="mt-4 max-w-md text-base leading-relaxed text-muted-foreground sm:text-lg">
+              {standalone
+                ? 'Open your space on this phone — or sign in to sync with your computer.'
+                : 'Your life, organized in one calm place — private on this device.'}
+            </p>
 
-          <div className="mt-8 flex gap-2 rounded-2xl bg-secondary/60 p-1">
-            {(
-              [
-                ['open', 'Open'],
-                ['signin', 'Sign in'],
-                ['signup', 'Create'],
-              ] as const
-            ).map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                className={cn(
-                  'min-h-11 flex-1 rounded-xl text-sm font-semibold transition',
-                  mode === id ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground',
-                )}
-                onClick={() => setMode(id)}
-              >
-                {label}
-              </button>
-            ))}
+            {!standalone ? (
+              <div className="mt-8 flex flex-wrap gap-3">
+                <Button size="lg" className="min-h-12 px-6" onClick={scrollToOpen}>
+                  Open your space
+                </Button>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="min-h-12 px-6"
+                  onClick={() => {
+                    setMode('signup')
+                    scrollToOpen()
+                  }}
+                >
+                  Create with Cloud
+                </Button>
+              </div>
+            ) : null}
+
+            {!standalone ? (
+              <p className="mt-4 text-xs text-muted-foreground">
+                Stays on this device. Add Cloud later for Friends, Circles, and sync.
+              </p>
+            ) : null}
           </div>
 
-          {mode === 'open' ? (
-            <form onSubmit={(e) => void onOpenLocal(e)} className="mt-6 space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">What should we call you?</Label>
-                <Input
-                  id="name"
-                  placeholder="Your name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="h-12 rounded-xl"
-                  autoFocus
-                />
-              </div>
-              <Button type="submit" className="min-h-12 w-full" size="lg" disabled={busy}>
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Open Katana'}
-              </Button>
-              <p className="text-center text-xs text-muted-foreground">
-                Stays on this device. Add Cloud later in Settings to sync.
-              </p>
-            </form>
-          ) : (
-            <form onSubmit={(e) => void onCloudSubmit(e)} className="mt-6 space-y-4">
-              {mode === 'signup' ? (
+          {/* Story — browser only, below first viewport */}
+          {!standalone ? (
+            <motion.div
+              variants={staggerContainer}
+              initial="hidden"
+              whileInView="show"
+              viewport={{ once: true, margin: '-40px' }}
+              className="mb-12 mt-4 space-y-4 border-t border-border/40 pt-10"
+            >
+              <p className="kp-section-label">How it feels</p>
+              {STORY.map((item) => {
+                const Icon = item.icon
+                return (
+                  <motion.div
+                    key={item.title}
+                    variants={staggerItem}
+                    className="flex gap-4 rounded-2xl bg-card/50 px-4 py-4 backdrop-blur-sm"
+                  >
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                      <Icon className="h-5 w-5" />
+                    </span>
+                    <div>
+                      <p className="font-display text-lg tracking-tight">{item.title}</p>
+                      <p className="mt-0.5 text-sm leading-relaxed text-muted-foreground">{item.body}</p>
+                    </div>
+                  </motion.div>
+                )
+              })}
+            </motion.div>
+          ) : null}
+
+          {/* Entrance forms */}
+          <div ref={formRef} id="open" className={cn('scroll-mt-6', !standalone && 'border-t border-border/40 pt-8')}>
+            {!standalone ? (
+              <p className="mb-4 font-display text-2xl tracking-tight">Open Katana</p>
+            ) : null}
+
+            <div className="flex gap-2 rounded-2xl bg-secondary/60 p-1">
+              {(
+                [
+                  ['open', 'Open'],
+                  ['signin', 'Sign in'],
+                  ['signup', 'Create'],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={cn(
+                    'min-h-11 flex-1 rounded-xl text-sm font-semibold transition',
+                    mode === id ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground',
+                  )}
+                  onClick={() => setMode(id)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {mode === 'open' ? (
+              <form onSubmit={(e) => void onOpenLocal(e)} className="mt-6 space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="cloud-name">Name</Label>
+                  <Label htmlFor="name">What should we call you?</Label>
                   <Input
-                    id="cloud-name"
+                    id="name"
                     placeholder="Your name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     className="h-12 rounded-xl"
+                    autoFocus={standalone}
                   />
                 </div>
-              ) : null}
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  autoComplete="email"
-                  placeholder="you@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="h-12 rounded-xl"
-                  autoFocus
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="h-12 rounded-xl"
-                />
-              </div>
-              <Button type="submit" className="min-h-12 w-full" size="lg" disabled={busy || !cloudEnabled}>
-                {busy ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : mode === 'signup' ? (
-                  'Create account & open'
-                ) : (
-                  'Sign in & open'
-                )}
-              </Button>
-              {cloudEnabled ? (
-                <>
-                  <p className="text-center text-xs text-muted-foreground">or</p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="min-h-12 w-full"
-                    disabled={busy}
-                    onClick={() => void onApple()}
-                  >
-                    Continue with Apple
-                  </Button>
-                </>
-              ) : (
+                <Button type="submit" className="min-h-12 w-full" size="lg" disabled={busy}>
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Open Katana'}
+                </Button>
                 <p className="text-center text-xs text-muted-foreground">
-                  Cloud sign-in isn’t available in this build.
+                  Stays on this device. Add Cloud later in Settings to sync.
                 </p>
-              )}
-              <p className="text-center text-xs text-muted-foreground">
-                Signs you into Friends, Circles, and cloud sync for this device.
-              </p>
-            </form>
-          )}
+              </form>
+            ) : (
+              <form onSubmit={(e) => void onCloudSubmit(e)} className="mt-6 space-y-4">
+                {mode === 'signup' ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="cloud-name">Name</Label>
+                    <Input
+                      id="cloud-name"
+                      placeholder="Your name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="h-12 rounded-xl"
+                    />
+                  </div>
+                ) : null}
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    autoComplete="email"
+                    placeholder="you@email.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="h-12 rounded-xl"
+                    autoFocus
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="h-12 rounded-xl"
+                  />
+                </div>
+                <Button type="submit" className="min-h-12 w-full" size="lg" disabled={busy || !cloudEnabled}>
+                  {busy ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : mode === 'signup' ? (
+                    'Create account & open'
+                  ) : (
+                    'Sign in & open'
+                  )}
+                </Button>
+                {cloudEnabled ? (
+                  <>
+                    <p className="text-center text-xs text-muted-foreground">or</p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="min-h-12 w-full"
+                      disabled={busy}
+                      onClick={() => void onApple()}
+                    >
+                      Continue with Apple
+                    </Button>
+                  </>
+                ) : (
+                  <p className="text-center text-xs text-muted-foreground">
+                    Cloud sign-in isn’t available in this build.
+                  </p>
+                )}
+                <p className="text-center text-xs text-muted-foreground">
+                  Signs you into Friends, Circles, and cloud sync for this device.
+                </p>
+              </form>
+            )}
 
-          <div className="mt-8 border-t border-border/50 pt-6">
-            <p className="mb-3 text-xs text-muted-foreground">Have a backup file?</p>
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".katana,application/octet-stream,*/*"
-              className="hidden"
-              onChange={(e) => void onBringBack(e.target.files?.[0] ?? null)}
-            />
-            <Button
-              type="button"
-              variant="outline"
-              className="min-h-11 w-full"
-              disabled={busy}
-              onClick={() => fileRef.current?.click()}
-            >
-              {busy ? 'Bringing it back…' : 'Bring a copy back'}
-            </Button>
+            <div className="mt-8 border-t border-border/50 pt-6">
+              <p className="mb-3 text-xs text-muted-foreground">Have a backup file?</p>
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".katana,application/octet-stream,*/*"
+                className="hidden"
+                onChange={(e) => void onBringBack(e.target.files?.[0] ?? null)}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-11 w-full"
+                disabled={busy}
+                onClick={() => fileRef.current?.click()}
+              >
+                {busy ? 'Bringing it back…' : 'Bring a copy back'}
+              </Button>
+            </div>
           </div>
         </motion.div>
       </div>

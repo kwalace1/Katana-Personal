@@ -78,6 +78,17 @@ export interface StreakSnapshot {
   visible: Partial<SharePrefs>
 }
 
+export type CircleChallengeMetric = 'water' | 'habit' | 'workout' | 'sleep' | 'nutrition'
+
+/** Optional time-boxed streak focus on a Circle */
+export interface CircleChallenge {
+  title: string
+  metric: CircleChallengeMetric
+  startsAt: string
+  endsAt: string
+  startedBy: string
+}
+
 /** Named group of friends for Circles leaderboards */
 export interface CircleGroup {
   id: string
@@ -86,6 +97,7 @@ export interface CircleGroup {
   memberIds: string[]
   createdAt: string
   updatedAt: string
+  challenge?: CircleChallenge | null
 }
 
 /** Shared schedule item inside a circle */

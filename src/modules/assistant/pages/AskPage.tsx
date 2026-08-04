@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Send, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -17,11 +17,13 @@ export default function AskPage() {
   const userId = user!.id
   const name = profile?.display_name || 'there'
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const bottomRef = useRef<HTMLDivElement>(null)
   const [tick, setTick] = useState(0)
   const refresh = () => setTick((n) => n + 1)
   const [draft, setDraft] = useState('')
   const [spent, setSpent] = useState<Record<string, true>>({})
+  const seededQ = useRef(false)
 
   const messages = useMemo(() => {
     void tick
@@ -35,6 +37,17 @@ export default function AskPage() {
       refresh()
     }
   }, [userId, name, messages.length])
+
+  useEffect(() => {
+    const q = searchParams.get('q')?.trim()
+    if (!q || seededQ.current) return
+    seededQ.current = true
+    askApi.append(userId, { role: 'you', text: q })
+    const reply = answerQuestionWithActions(userId, q, name)
+    askApi.append(userId, { role: 'katana', text: reply.text, actions: reply.actions })
+    setSearchParams({}, { replace: true })
+    refresh()
+  }, [searchParams, setSearchParams, userId, name])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -92,6 +105,7 @@ export default function AskPage() {
               onClick={() => {
                 askApi.clear(userId)
                 setSpent({})
+                seededQ.current = false
                 const opening = answerQuestionWithActions(userId, 'briefing', name)
                 askApi.append(userId, { role: 'katana', text: opening.text, actions: opening.actions })
                 refresh()

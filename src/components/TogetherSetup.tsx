@@ -21,7 +21,7 @@ const STEPS = [
   {
     n: 3,
     title: 'Circles',
-    body: 'Streak boards — cheer habits and health together.',
+    body: 'Streak boards and optional 7-day challenges — cheer habits and health together.',
     to: '/circles',
     icon: Trophy,
   },

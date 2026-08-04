@@ -21,6 +21,7 @@ import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAuth } from '@/contexts/AuthContext'
+import { useCloudAuth } from '@/contexts/CloudAuthContext'
 import { format, formatTime, formatShortDate, todayKey, addDays } from '@/lib/dates'
 import { pageEnterSubtle, springSoft } from '@/lib/motion-ui'
 import { useLocalRefresh } from '@/hooks/useLocalRefresh'
@@ -31,8 +32,16 @@ import { habitsApi } from '@/modules/habits/api'
 import { notesApi } from '@/modules/notes/api'
 import { goalsApi } from '@/modules/goals/api'
 import { journalApi } from '@/modules/journal/api'
-import { buildDailyBriefing, buildSnapshot } from '@/modules/assistant/engine'
+import {
+  buildDailyBriefing,
+  buildBriefingActions,
+  buildSnapshot,
+  runAskAction,
+} from '@/modules/assistant/engine'
 import { TogetherTodayCard } from '@/components/TogetherTodayCard'
+import { WeeklyReviewCard } from '@/components/WeeklyReviewCard'
+import { offerPwaNudge } from '@/components/PwaInstallNudge'
+import { shouldOfferWeekReview } from '@/lib/week-review'
 import { toast } from 'sonner'
 import type { Task } from '@/modules/tasks/types'
 import type { CalendarEvent } from '@/modules/calendar/types'
@@ -83,12 +92,15 @@ function markClosed() {
 
 export default function DashboardPage() {
   const { user, profile, onboardingDone, markOnboardingDone } = useAuth()
+  const { cloudEnabled, cloudUser } = useCloudAuth()
   const userId = user!.id
   const { tick, refresh } = useLocalRefresh()
   const [capture, setCapture] = useState('')
   const [alsoOpen, setAlsoOpen] = useState(false)
   const [closeNote, setCloseNote] = useState('')
   const [dayClosed, setDayClosed] = useState(closedToday)
+  const [weekCardVisible, setWeekCardVisible] = useState(() => shouldOfferWeekReview())
+  const [spentBriefing, setSpentBriefing] = useState<Record<string, true>>({})
 
   const draft = useMemo(() => parseCapture(capture), [capture])
 
@@ -108,7 +120,9 @@ export default function DashboardPage() {
     const alsoTasks = priority.filter((t) => !(next?.type === 'task' && next.item.id === t.id)).slice(0, 5)
 
     return {
+      snap,
       briefing: buildDailyBriefing(snap),
+      briefingActions: buildBriefingActions(snap),
       overdue,
       priority,
       events: calendarApi.upcoming(userId),
@@ -123,6 +137,7 @@ export default function DashboardPage() {
       hasTask: tasksApi.listTasks(userId).length > 0,
       hasHabit: habitsApi.list(userId).length > 0,
       hasJournal: Boolean(journalApi.forDate(userId)),
+      hasCapture: Boolean(localStorage.getItem('katana-personal:captured-once')),
       unfinishedToday: tasksApi.todayTasks(userId),
     }
   }, [userId, tick, profile?.display_name])
@@ -135,6 +150,7 @@ export default function DashboardPage() {
     e.preventDefault()
     if (!draft) return
     const result = commitCapture(userId, draft)
+    localStorage.setItem('katana-personal:captured-once', '1')
     setCapture('')
     toast.success(result.summary, {
       action: {
@@ -176,6 +192,7 @@ export default function DashboardPage() {
     setDayClosed(true)
     setCloseNote('')
     toast.success(n ? `Parked ${n} task${n === 1 ? '' : 's'} for tomorrow` : 'Day closed')
+    offerPwaNudge()
     refresh()
   }
 
@@ -207,34 +224,59 @@ export default function DashboardPage() {
             <X className="h-4 w-4" />
           </Button>
           <p className="kp-section-label">Getting started</p>
-          <p className="mt-2 font-display text-xl tracking-tight">Three small steps</p>
-          <p className="mt-1 text-sm text-muted-foreground">Make Today useful in under a minute.</p>
+          <p className="mt-2 font-display text-xl tracking-tight">Make Today yours</p>
+          <p className="mt-1 text-sm text-muted-foreground">A few small steps — under a minute.</p>
           <ul className="mt-5 space-y-2">
-            {[
-              { done: data.hasTask, label: 'Add a task', to: '/tasks' },
-              { done: data.hasHabit, label: 'Start a habit', to: '/habits' },
-              { done: data.hasJournal, label: 'Write today’s journal', to: '/journal' },
-            ].map((step, i) => (
+            {(
+              [
+                { done: data.hasCapture || data.hasTask, label: 'Capture something above', to: null as string | null },
+                { done: data.hasHabit, label: 'Start a habit', to: '/habits' },
+                { done: data.hasJournal, label: 'Write today’s journal', to: '/journal' },
+                ...(cloudEnabled
+                  ? [
+                      {
+                        done: Boolean(cloudUser),
+                        label: cloudUser ? 'Cloud connected — try Friends' : 'Connect Cloud (optional)',
+                        to: cloudUser ? '/friends' : '/settings',
+                      },
+                    ]
+                  : []),
+              ] as { done: boolean; label: string; to: string | null }[]
+            ).map((step, i) => (
               <li
-                key={step.to}
+                key={`${step.label}-${i}`}
                 className="flex items-center justify-between gap-3 rounded-2xl bg-secondary/60 px-4 py-3"
               >
                 <span className="text-sm font-medium">
                   <span className="mr-2 text-muted-foreground">{step.done ? '✓' : `${i + 1}.`}</span>
                   {step.label}
                 </span>
-                <Button asChild size="sm" variant={step.done ? 'secondary' : 'default'}>
-                  <Link to={step.to}>{step.done ? 'Open' : 'Go'}</Link>
-                </Button>
+                {step.to ? (
+                  <Button asChild size="sm" variant={step.done ? 'secondary' : 'default'}>
+                    <Link to={step.to}>{step.done ? 'Open' : 'Go'}</Link>
+                  </Button>
+                ) : (
+                  <span className="text-xs text-muted-foreground">{step.done ? 'Done' : 'Use the bar'}</span>
+                )}
               </li>
             ))}
           </ul>
-          {data.hasTask && data.hasHabit && data.hasJournal && (
+          {(data.hasCapture || data.hasTask) && data.hasHabit && data.hasJournal && (
             <Button className="mt-5" onClick={markOnboardingDone}>
               Looks good — hide tips
             </Button>
           )}
         </div>
+      )}
+
+      {weekCardVisible && (
+        <WeeklyReviewCard
+          snap={data.snap}
+          onDone={() => {
+            setWeekCardVisible(false)
+            toast.success('Week reviewed — back to today')
+          }}
+        />
       )}
 
       <form onSubmit={onCapture} className="mb-4 kp-surface p-3 sm:p-4">
@@ -485,16 +527,53 @@ export default function DashboardPage() {
         <p className="max-w-3xl text-sm leading-relaxed text-foreground/90 sm:text-[0.95rem]">
           {data.briefing}
         </p>
+        {data.briefingActions.length > 0 ? (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {data.briefingActions.map((action) => {
+              const used = Boolean(spentBriefing[action.id])
+              return (
+                <Button
+                  key={action.id}
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  disabled={used}
+                  className="h-8 rounded-full text-xs"
+                  onClick={() => {
+                    if (action.kind === 'open_route' && action.route) {
+                      window.location.href = action.route
+                      return
+                    }
+                    const result = runAskAction(userId, action)
+                    if (result) {
+                      toast.success(result)
+                      setSpentBriefing((s) => ({ ...s, [action.id]: true }))
+                      refresh()
+                    }
+                  }}
+                >
+                  {used ? 'Done' : action.label}
+                </Button>
+              )
+            })}
+          </div>
+        ) : null}
       </section>
 
       {showEveningClose && (
-        <section className="mb-6 kp-surface border border-primary/20 p-5 sm:p-6">
-          <div className="mb-3 flex items-center gap-2">
+        <motion.section
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={springSoft}
+          className="relative mb-6 overflow-hidden kp-surface border border-primary/20 p-5 sm:p-6"
+        >
+          <div className="pointer-events-none absolute -right-6 -top-10 h-36 w-36 rounded-full bg-primary/15 blur-3xl" />
+          <div className="relative mb-3 flex items-center gap-2">
             <Moon className="h-4 w-4 text-primary" />
             <p className="kp-section-label">Evening close</p>
           </div>
-          <p className="font-display text-xl tracking-tight">Close the day in a minute</p>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="relative font-display text-xl tracking-tight sm:text-2xl">Close the day in a minute</p>
+          <p className="relative mt-1 text-sm text-muted-foreground">
             Park unfinished work for tomorrow
             {data.openHabits.length > 0
               ? ` · ${data.openHabits.length} habit${data.openHabits.length === 1 ? '' : 's'} still open`
@@ -502,7 +581,7 @@ export default function DashboardPage() {
             .
           </p>
           {data.openHabits.length > 0 && (
-            <ul className="mt-3 space-y-1.5">
+            <ul className="relative mt-3 space-y-1.5">
               {data.openHabits.map((h) => (
                 <li key={h.id} className="flex items-center justify-between text-sm">
                   <span>{h.title}</span>
@@ -521,15 +600,15 @@ export default function DashboardPage() {
             </ul>
           )}
           <Input
-            className="mt-3"
+            className="relative mt-3"
             value={closeNote}
             onChange={(e) => setCloseNote(e.target.value)}
             placeholder="One line for your journal (optional)"
           />
-          <Button className="mt-4" onClick={parkUnfinished}>
+          <Button className="relative mt-4" onClick={parkUnfinished}>
             Park unfinished & close day
           </Button>
-        </section>
+        </motion.section>
       )}
 
       <div className="grid gap-4 lg:grid-cols-2">

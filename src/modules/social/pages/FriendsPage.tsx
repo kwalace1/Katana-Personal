@@ -297,7 +297,7 @@ export default function FriendsPage() {
           Your people
         </h2>
         {accepted.length === 0 ? (
-          <EmptyState title="No friends yet" description="Share your code or add theirs above." />
+          <EmptyState title="No friends yet" description="Share your Add-me link or code — once they accept, you can share plans and climb Circles together." />
         ) : (
           <ul className="space-y-2">
             {accepted.map((f) => {

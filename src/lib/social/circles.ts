@@ -9,7 +9,7 @@ import {
   where,
 } from 'firebase/firestore'
 import { getDb } from '@/lib/firebase'
-import type { CircleGroup } from './types'
+import type { CircleChallenge, CircleGroup } from './types'
 
 export async function createCircle(input: {
   name: string
@@ -63,4 +63,14 @@ export async function leaveCircle(circle: CircleGroup, uid: string): Promise<voi
 
 export async function deleteCircle(id: string): Promise<void> {
   await deleteDoc(doc(getDb(), 'circles', id))
+}
+
+export async function setCircleChallenge(
+  id: string,
+  challenge: CircleChallenge | null,
+): Promise<void> {
+  await updateDoc(doc(getDb(), 'circles', id), {
+    challenge,
+    updatedAt: new Date().toISOString(),
+  })
 }
