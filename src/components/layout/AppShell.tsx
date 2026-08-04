@@ -222,10 +222,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               variant="ghost"
               size="icon"
               className="rounded-xl"
-              aria-label="Search"
+              aria-label="Search or capture"
               onClick={() => setPaletteOpen(true)}
             >
-              <Search className="h-4 w-4" />
+              <Plus className="h-4 w-4" />
             </Button>
             <SimpleThemeToggle />
           </div>
@@ -262,27 +262,31 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Sparkles className="h-5 w-5" />
             Ask
           </NavLink>
-          <button
-            type="button"
-            className="flex flex-col items-center gap-0.5 rounded-xl px-2 py-2 text-[0.7rem] font-medium text-muted-foreground"
-            onClick={() => setPaletteOpen(true)}
+          <NavLink
+            to="/friends"
+            className={cn(
+              'relative flex flex-col items-center gap-0.5 rounded-xl px-2 py-2 text-[0.7rem] font-medium',
+              isTogether ? 'text-primary' : 'text-muted-foreground',
+            )}
           >
-            <Plus className="h-5 w-5" />
-            Capture
-          </button>
+            <Users className="h-5 w-5" />
+            Together
+            {pendingFriends > 0 ? (
+              <span className="absolute right-2.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[0.55rem] font-semibold text-primary-foreground">
+                {pendingFriends > 9 ? '9+' : pendingFriends}
+              </span>
+            ) : null}
+          </NavLink>
           <button
             type="button"
             className={cn(
-              'relative flex flex-col items-center gap-0.5 rounded-xl px-2 py-2 text-[0.7rem] font-medium',
-              moreOpen || isTogether ? 'text-primary' : 'text-muted-foreground',
+              'flex flex-col items-center gap-0.5 rounded-xl px-2 py-2 text-[0.7rem] font-medium',
+              moreOpen ? 'text-primary' : 'text-muted-foreground',
             )}
             onClick={() => setMoreOpen(true)}
           >
             <MoreHorizontal className="h-5 w-5" />
             More
-            {pendingFriends > 0 ? (
-              <span className="absolute right-3 top-1.5 h-2 w-2 rounded-full bg-primary" />
-            ) : null}
           </button>
         </div>
       </nav>
@@ -290,30 +294,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
         <SheetContent side="bottom" className="max-h-[85vh] rounded-t-3xl pb-[env(safe-area-inset-bottom)]">
           <SheetHeader>
-            <SheetTitle className="font-display text-left text-xl">More</SheetTitle>
+            <SheetTitle className="font-display text-left text-xl">Plan & Life</SheetTitle>
           </SheetHeader>
-          <div className="mt-2 space-y-1">
-            <p className="kp-section-label px-3 pb-1">Together</p>
-            {togetherItems.map(({ to, label, icon: Icon }) => (
-              <NavLink
-                key={to}
-                to={to}
-                onClick={() => setMoreOpen(false)}
-                className={({ isActive }) =>
-                  cn(
-                    'flex items-center gap-3 rounded-xl px-3 py-2.5 text-[0.925rem] font-medium',
-                    isActive
-                      ? 'bg-primary/10 text-primary'
-                      : 'text-muted-foreground hover:bg-secondary/80 hover:text-foreground',
-                  )
-                }
-              >
-                <Icon className="h-[1.05rem] w-[1.05rem]" />
-                {label}
-              </NavLink>
-            ))}
-          </div>
-          <div className="mt-2 max-h-[50vh] overflow-y-auto border-t border-border/40 pt-2">
+          <div className="mt-2 max-h-[65vh] overflow-y-auto">
+            <NavGroup label="Together" items={togetherItems} onNavigate={() => setMoreOpen(false)} />
             <NavGroup label="Plan" items={PLAN} onNavigate={() => setMoreOpen(false)} />
             <NavGroup label="Life" items={LIFE} onNavigate={() => setMoreOpen(false)} />
             <NavLink

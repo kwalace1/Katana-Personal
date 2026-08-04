@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { EmptyState } from '@/components/ui/empty-state'
+import { TogetherSetup } from '@/components/TogetherSetup'
 import {
   Dialog,
   DialogContent,
@@ -195,8 +196,8 @@ export default function CirclesPage() {
   if (!cloudEnabled) {
     return (
       <motion.div {...pageEnterSubtle} className="kp-page">
-        <PageHeader title="Circles" description="Groups for streaks with people you trust." eyebrow="Social" />
-        <EmptyState title="Cloud isn’t connected yet" description="See FIREBASE_SETUP.md to turn on Circles." />
+        <PageHeader title="Circles" description="Streak boards with people you trust." eyebrow="Together" />
+        <TogetherSetup highlight="circles" />
       </motion.div>
     )
   }
@@ -204,16 +205,8 @@ export default function CirclesPage() {
   if (!cloudUser) {
     return (
       <motion.div {...pageEnterSubtle} className="kp-page">
-        <PageHeader title="Circles" description="Groups for streaks with people you trust." eyebrow="Social" />
-        <EmptyState
-          title="Sign in to join Circles"
-          description="Create groups like gym, family, or roommates — then cheer each other on."
-          action={
-            <Button asChild>
-              <Link to="/settings">Open Settings</Link>
-            </Button>
-          }
-        />
+        <PageHeader title="Circles" description="Streak boards with people you trust." eyebrow="Together" />
+        <TogetherSetup highlight="circles" />
       </motion.div>
     )
   }
@@ -223,7 +216,7 @@ export default function CirclesPage() {
       <PageHeader
         title="Circles"
         description="Make different groups — each with its own streak board."
-        eyebrow="Social"
+        eyebrow="Together"
         actions={
           <Button
             variant="outline"
@@ -278,15 +271,18 @@ export default function CirclesPage() {
       </form>
 
       {circles.length === 0 ? (
-        <EmptyState
-          title="No circles yet"
-          description="1) Add a friend · 2) Turn on streak sharing in Settings · 3) Create a circle here."
-          action={
-            <Button asChild variant="outline">
-              <Link to="/friends">Add friends</Link>
-            </Button>
-          }
-        />
+        <>
+          <TogetherSetup highlight="circles" className="mb-4" />
+          <EmptyState
+            title="No circles yet"
+            description="1) Add a friend · 2) Turn on streak sharing in Settings · 3) Create a circle here."
+            action={
+              <Button asChild variant="outline">
+                <Link to="/friends">Add friends</Link>
+              </Button>
+            }
+          />
+        </>
       ) : (
         <>
           <div className="mb-4 flex flex-wrap gap-2">

@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
+import { TogetherSetup } from '@/components/TogetherSetup'
 import {
   Dialog,
   DialogContent,
@@ -58,15 +59,7 @@ export default function SharedPage() {
     return (
       <motion.div {...pageEnterSubtle} className="kp-page">
         <PageHeader title="Shared" description="Plans you’ve made together." eyebrow="Together" />
-        <EmptyState
-          title="Sign in to see shared plans"
-          description="Connect in Settings, then share a task or habit with a friend."
-          action={
-            <Button asChild>
-              <Link to="/settings">Settings</Link>
-            </Button>
-          }
-        />
+        <TogetherSetup highlight="shared" />
       </motion.div>
     )
   }
@@ -75,18 +68,28 @@ export default function SharedPage() {
     <motion.div {...pageEnterSubtle} className="kp-page">
       <PageHeader title="Shared" description="Tasks, events, and more with friends." eyebrow="Together" />
       {items.length === 0 ? (
-        <EmptyState
-          title="Nothing shared yet"
-          description="From Tasks, Habits, or Calendar, tap Share to invite a friend onto something."
-          action={
-            <Button asChild variant="outline">
-              <Link to="/friends">Find friends</Link>
-            </Button>
-          }
-        />
+        <>
+          <TogetherSetup highlight="shared" className="mb-4" />
+          <EmptyState
+            title="Nothing shared yet"
+            description="Open a task or habit, tap Share, pick a friend — it lands here."
+            action={
+              <div className="flex flex-wrap justify-center gap-2">
+                <Button asChild variant="outline">
+                  <Link to="/tasks">Share a task</Link>
+                </Button>
+                <Button asChild variant="outline">
+                  <Link to="/friends">Find friends</Link>
+                </Button>
+              </div>
+            }
+          />
+        </>
       ) : (
         <ul className="space-y-2">
-          {items.map((item) => (
+          {items.map((item) => {
+            const mine = item.ownerId === cloudUser.uid
+            return (
             <li key={item.id}>
               <button
                 type="button"
@@ -94,7 +97,9 @@ export default function SharedPage() {
                 onClick={() => setSelected(item)}
               >
                 <div className="min-w-0">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">{item.kind}</p>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                    {item.kind} · {mine ? 'You shared' : 'Shared with you'}
+                  </p>
                   <p className="font-medium">{item.title}</p>
                   {item.body ? (
                     <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{item.body}</p>
@@ -106,7 +111,8 @@ export default function SharedPage() {
                 </div>
               </button>
             </li>
-          ))}
+            )
+          })}
         </ul>
       )}
 
@@ -133,7 +139,7 @@ export default function SharedPage() {
                 </ul>
               </div>
               <div className="flex flex-wrap gap-2">
-                {sharedItemHref(selected) ? (
+                {sharedItemHref(selected) && selected.ownerId === cloudUser.uid ? (
                   <Button asChild variant="outline">
                     <Link to={sharedItemHref(selected)!} onClick={() => setSelected(null)}>
                       Open related

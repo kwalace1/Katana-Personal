@@ -6,6 +6,7 @@ import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { EmptyState } from '@/components/ui/empty-state'
+import { TogetherSetup } from '@/components/TogetherSetup'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
 import { pageEnterSubtle } from '@/lib/motion-ui'
 import {
@@ -98,7 +99,8 @@ export default function FriendsPage() {
   if (!cloudEnabled) {
     return (
       <motion.div {...pageEnterSubtle} className="kp-page">
-        <PageHeader title="Friends" description="Share plans and cheer each other on." eyebrow="Social" />
+        <PageHeader title="Friends" description="People you trust." eyebrow="Together" />
+        <TogetherSetup highlight="friends" className="mb-4" />
         <EmptyState
           title="Cloud isn’t connected yet"
           description="Add free Firebase keys (see FIREBASE_SETUP.md) so friends can find you."
@@ -118,32 +120,17 @@ export default function FriendsPage() {
   if (!cloudUser || !cloudProfile) {
     return (
       <motion.div {...pageEnterSubtle} className="kp-page">
-        <PageHeader title="Friends" description="Share plans and cheer each other on." eyebrow="Social" />
-        <EmptyState
-          title="Sign in to meet friends"
-          description="Create a free cloud account in Settings — your private data stays on this device until you share."
-          action={
-            <Button asChild>
-              <Link to="/settings">Open Settings</Link>
-            </Button>
-          }
-        />
+        <PageHeader title="Friends" description="People you trust." eyebrow="Together" />
+        <TogetherSetup highlight="friends" />
       </motion.div>
     )
   }
 
   return (
     <motion.div {...pageEnterSubtle} className="kp-page">
-      <PageHeader title="Friends" description="Invite people you trust." eyebrow="Social" />
+      <PageHeader title="Friends" description="Invite people you trust." eyebrow="Together" />
 
-      <section className="mb-6 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
-        <p className="font-medium">Getting started</p>
-        <ol className="mt-1 list-decimal space-y-0.5 pl-4 text-muted-foreground">
-          <li>Share your code below (or add theirs).</li>
-          <li>Accept the request — then share tasks, notes, or streaks.</li>
-          <li>Create a Circle for a group board, or send an invite link.</li>
-        </ol>
-      </section>
+      <TogetherSetup highlight="friends" compact className="mb-6" />
 
       <section className="kp-surface mb-6 p-5">
         <p className="kp-section-label">Your code</p>

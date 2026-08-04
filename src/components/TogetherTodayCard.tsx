@@ -1,0 +1,206 @@
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { motion } from 'framer-motion'
+import { Users, Trophy, Share2, UserPlus, ArrowRight } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { useCloudAuth } from '@/contexts/CloudAuthContext'
+import { listFriendships, getCloudProfile } from '@/lib/social/friends'
+import { listMyCircles } from '@/lib/social/circles'
+import { loadCirclesBoard } from '@/lib/social/streaks'
+import { springSoft } from '@/lib/motion-ui'
+import { cn } from '@/lib/utils'
+import type { StreakSnapshot } from '@/lib/social/types'
+
+type StripMode =
+  | { kind: 'offline' }
+  | { kind: 'connect' }
+  | { kind: 'pending'; count: number; names: string[] }
+  | { kind: 'board'; circleName: string; rows: { name: string; score: number; you: boolean }[] }
+  | { kind: 'empty' }
+
+export function TogetherTodayCard() {
+  const { cloudEnabled, cloudUser, cloudProfile, syncStreaksToCloud } = useCloudAuth()
+  const [mode, setMode] = useState<StripMode | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      if (!cloudEnabled) {
+        setMode({ kind: 'offline' })
+        return
+      }
+      if (!cloudUser || !cloudProfile) {
+        setMode({ kind: 'connect' })
+        return
+      }
+      try {
+        const friendships = await listFriendships(cloudUser.uid)
+        const incoming = friendships.filter(
+          (f) => f.status === 'pending' && f.requestedBy !== cloudUser.uid,
+        )
+        if (incoming.length > 0) {
+          const names: string[] = []
+          for (const f of incoming.slice(0, 2)) {
+            const p = await getCloudProfile(f.requestedBy)
+            if (p) names.push(p.displayName)
+          }
+          if (!cancelled) setMode({ kind: 'pending', count: incoming.length, names })
+          return
+        }
+
+        const circles = await listMyCircles(cloudUser.uid)
+        const accepted = friendships.filter((f) => f.status === 'accepted')
+        if (circles.length > 0 && accepted.length > 0) {
+          await syncStreaksToCloud().catch(() => undefined)
+          const circle = circles[0]
+          const board = await loadCirclesBoard(cloudUser.uid, circle.memberIds)
+          const ranked = [...board]
+            .map((row: StreakSnapshot) => ({
+              name: row.displayName,
+              score: Math.max(
+                row.habitStreakBest,
+                row.waterStreak,
+                row.workoutStreak,
+                row.sleepStreak,
+              ),
+              you: row.uid === cloudUser.uid,
+            }))
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 3)
+          if (!cancelled) setMode({ kind: 'board', circleName: circle.name, rows: ranked })
+          return
+        }
+
+        if (!cancelled) setMode({ kind: 'empty' })
+      } catch {
+        if (!cancelled) setMode({ kind: 'empty' })
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [cloudEnabled, cloudUser?.uid, cloudProfile?.uid, syncStreaksToCloud])
+
+  if (!mode) return null
+
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={springSoft}
+      className="mb-6 overflow-hidden kp-surface border border-primary/15 p-5 sm:p-6"
+    >
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <p className="kp-section-label">Together</p>
+        <Link to="/friends" className="text-xs font-medium text-primary hover:underline">
+          Open
+        </Link>
+      </div>
+
+      {mode.kind === 'offline' && (
+        <div>
+          <p className="font-display text-xl tracking-tight">Friends & Circles</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Add free Firebase keys to turn on accountability with people you trust.
+          </p>
+          <Button asChild size="sm" variant="outline" className="mt-3">
+            <Link to="/settings">See setup</Link>
+          </Button>
+        </div>
+      )}
+
+      {mode.kind === 'connect' && (
+        <div>
+          <p className="font-display text-xl tracking-tight">Invite someone you trust</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Connect once — share plans, cheer streaks, stay accountable.
+          </p>
+          <Button asChild size="sm" className="mt-3 gap-1.5">
+            <Link to="/settings">
+              Connect
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </Button>
+        </div>
+      )}
+
+      {mode.kind === 'pending' && (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="font-display text-xl tracking-tight">
+              {mode.count === 1 ? 'Friend request waiting' : `${mode.count} friend requests`}
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {mode.names.length > 0 ? mode.names.join(', ') : 'Someone wants to connect'}
+            </p>
+          </div>
+          <Button asChild className="gap-1.5">
+            <Link to="/friends">
+              <UserPlus className="h-4 w-4" />
+              Review
+            </Link>
+          </Button>
+        </div>
+      )}
+
+      {mode.kind === 'board' && (
+        <div>
+          <p className="font-display text-xl tracking-tight">{mode.circleName}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">Live streaks with your circle</p>
+          <ul className="mt-3 space-y-1.5">
+            {mode.rows.map((row, i) => (
+              <li
+                key={`${row.name}-${i}`}
+                className={cn(
+                  'flex items-center justify-between rounded-xl px-3 py-2 text-sm',
+                  row.you ? 'bg-primary/10 font-medium' : 'bg-secondary/50',
+                )}
+              >
+                <span>
+                  <span className="mr-2 text-muted-foreground">{i + 1}.</span>
+                  {row.you ? 'You' : row.name}
+                </span>
+                <span className="tabular-nums text-primary">{row.score}d</span>
+              </li>
+            ))}
+          </ul>
+          <Button asChild size="sm" variant="outline" className="mt-3 gap-1.5">
+            <Link to="/circles">
+              <Trophy className="h-3.5 w-3.5" />
+              Full board
+            </Link>
+          </Button>
+        </div>
+      )}
+
+      {mode.kind === 'empty' && (
+        <div>
+          <p className="font-display text-xl tracking-tight">Accountability starts here</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Friends are people. Shared is plans. Circles are streaks.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button asChild size="sm" className="gap-1.5">
+              <Link to="/friends">
+                <Users className="h-3.5 w-3.5" />
+                Invite
+              </Link>
+            </Button>
+            <Button asChild size="sm" variant="outline" className="gap-1.5">
+              <Link to="/tasks">
+                <Share2 className="h-3.5 w-3.5" />
+                Share a task
+              </Link>
+            </Button>
+            <Button asChild size="sm" variant="outline" className="gap-1.5">
+              <Link to="/circles">
+                <Trophy className="h-3.5 w-3.5" />
+                Start a circle
+              </Link>
+            </Button>
+          </div>
+        </div>
+      )}
+    </motion.section>
+  )
+}

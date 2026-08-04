@@ -32,6 +32,7 @@ import { notesApi } from '@/modules/notes/api'
 import { goalsApi } from '@/modules/goals/api'
 import { journalApi } from '@/modules/journal/api'
 import { buildDailyBriefing, buildSnapshot } from '@/modules/assistant/engine'
+import { TogetherTodayCard } from '@/components/TogetherTodayCard'
 import { toast } from 'sonner'
 import type { Task } from '@/modules/tasks/types'
 import type { CalendarEvent } from '@/modules/calendar/types'
@@ -395,6 +396,8 @@ export default function DashboardPage() {
           </div>
         )}
       </motion.section>
+
+      <TogetherTodayCard />
 
       {/* Also today — collapsed */}
       {(data.alsoTasks.length > 0 || data.openHabits.length > 0 || data.todayEvents.length > 0) && (
