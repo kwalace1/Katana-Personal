@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { Link, useSearchParams } from 'react-router-dom'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   Flame,
   Droplets,
@@ -13,6 +13,12 @@ import {
   Trash2,
   LogOut,
   Link2,
+  ChevronLeft,
+  Trophy,
+  Users,
+  Zap,
+  Crown,
+  Medal,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -28,7 +34,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
-import { pageEnterSubtle } from '@/lib/motion-ui'
+import { pageEnterSubtle, springSoft } from '@/lib/motion-ui'
 import { loadCirclesBoard, listFriendActivity } from '@/lib/social/streaks'
 import {
   createCircle,
@@ -42,102 +48,149 @@ import { createCircleInvite } from '@/lib/social/invites'
 import { listFriendProfiles } from '@/lib/social/friends'
 import type { CircleGroup, CloudProfile, StreakSnapshot } from '@/lib/social/types'
 import { cn } from '@/lib/utils'
+import { formatShortDate } from '@/lib/dates'
 
 type BoardMetric = 'water' | 'sleep' | 'nutrition' | 'workout' | 'habit'
 
 const METRICS: {
   id: BoardMetric
   label: string
+  short: string
   icon: typeof Flame
   score: (s: StreakSnapshot) => number
+  accent: string
 }[] = [
-  { id: 'water', label: 'Hydration', icon: Droplets, score: (s) => s.waterStreak },
-  { id: 'sleep', label: 'Sleep', icon: Moon, score: (s) => s.sleepStreak },
-  { id: 'nutrition', label: 'Nutrition', icon: Salad, score: (s) => s.nutritionStreak },
-  { id: 'workout', label: 'Workouts', icon: Dumbbell, score: (s) => s.workoutStreak },
-  { id: 'habit', label: 'Habits', icon: Flame, score: (s) => s.habitStreakBest },
+  {
+    id: 'water',
+    label: 'Hydration',
+    short: 'Water',
+    icon: Droplets,
+    score: (s) => s.waterStreak,
+    accent: 'from-sky-500/20 to-transparent',
+  },
+  {
+    id: 'habit',
+    label: 'Habits',
+    short: 'Habits',
+    icon: Flame,
+    score: (s) => s.habitStreakBest,
+    accent: 'from-orange-500/20 to-transparent',
+  },
+  {
+    id: 'workout',
+    label: 'Workouts',
+    short: 'Move',
+    icon: Dumbbell,
+    score: (s) => s.workoutStreak,
+    accent: 'from-emerald-500/20 to-transparent',
+  },
+  {
+    id: 'sleep',
+    label: 'Sleep',
+    short: 'Sleep',
+    icon: Moon,
+    score: (s) => s.sleepStreak,
+    accent: 'from-indigo-500/15 to-transparent',
+  },
+  {
+    id: 'nutrition',
+    label: 'Nutrition',
+    short: 'Fuel',
+    icon: Salad,
+    score: (s) => s.nutritionStreak,
+    accent: 'from-lime-500/20 to-transparent',
+  },
 ]
+
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return '?'
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return `${parts[0][0] ?? ''}${parts[1][0] ?? ''}`.toUpperCase()
+}
+
+function Avatar({ name, you, size = 'md' }: { name: string; you?: boolean; size?: 'sm' | 'md' | 'lg' }) {
+  const dims = size === 'lg' ? 'h-16 w-16 text-lg' : size === 'sm' ? 'h-8 w-8 text-[0.65rem]' : 'h-11 w-11 text-sm'
+  return (
+    <div
+      className={cn(
+        'flex shrink-0 items-center justify-center rounded-full font-semibold tracking-tight',
+        dims,
+        you
+          ? 'bg-primary text-primary-foreground shadow-[0_0_0_3px_hsl(var(--primary)/0.25)]'
+          : 'bg-secondary text-foreground',
+      )}
+    >
+      {initials(name)}
+    </div>
+  )
+}
+
+function RankBadge({ rank }: { rank: number }) {
+  if (rank === 1) {
+    return (
+      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-400/90 text-amber-950 shadow-sm">
+        <Crown className="h-4 w-4" />
+      </span>
+    )
+  }
+  if (rank === 2) {
+    return (
+      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-300/90 text-slate-800">
+        <Medal className="h-4 w-4" />
+      </span>
+    )
+  }
+  if (rank === 3) {
+    return (
+      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-orange-300/80 text-orange-950">
+        <Medal className="h-4 w-4" />
+      </span>
+    )
+  }
+  return (
+    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-sm font-semibold tabular-nums">
+      {rank}
+    </span>
+  )
+}
+
+function relativeWhen(iso: string) {
+  const t = new Date(iso).getTime()
+  if (Number.isNaN(t)) return formatShortDate(iso)
+  const mins = Math.round((Date.now() - t) / 60_000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.round(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  return formatShortDate(iso)
+}
 
 export default function CirclesPage() {
   const { cloudEnabled, cloudUser, cloudProfile, syncStreaksToCloud } = useCloudAuth()
-  const [metric, setMetric] = useState<BoardMetric>('water')
+  const [params, setParams] = useSearchParams()
+  const [metric, setMetric] = useState<BoardMetric>('habit')
   const [circles, setCircles] = useState<CircleGroup[]>([])
-  const [activeId, setActiveId] = useState<string | null>(null)
   const [board, setBoard] = useState<StreakSnapshot[]>([])
   const [friends, setFriends] = useState<CloudProfile[]>([])
   const [activity, setActivity] = useState<{ uid: string; message: string; updatedAt: string }[]>([])
   const [busy, setBusy] = useState(false)
   const [newName, setNewName] = useState('')
+  const [createOpen, setCreateOpen] = useState(false)
   const [manageOpen, setManageOpen] = useState(false)
   const [editName, setEditName] = useState('')
   const [editMembers, setEditMembers] = useState<Record<string, boolean>>({})
 
+  const activeId = params.get('id')
   const active = circles.find((c) => c.id === activeId) ?? null
+  const entered = Boolean(active)
 
   async function loadCirclesList() {
     if (!cloudUser) return
     const list = await listMyCircles(cloudUser.uid)
     setCircles(list)
-    setActiveId((prev) => {
-      if (prev && list.some((c) => c.id === prev)) return prev
-      return list[0]?.id ?? null
-    })
     return list
   }
-
-  useEffect(() => {
-    if (!cloudUser) return
-    let cancelled = false
-    void (async () => {
-      try {
-        const [list, friendList] = await Promise.all([
-          listMyCircles(cloudUser.uid),
-          listFriendProfiles(cloudUser.uid),
-        ])
-        if (cancelled) return
-        setCircles(list)
-        setFriends(friendList)
-        const first = list[0]?.id ?? null
-        setActiveId(first)
-
-        try {
-          await syncStreaksToCloud()
-        } catch {
-          // Streak publish is optional; board can still load
-        }
-
-        const circle = list[0] ?? null
-        try {
-          const rows = await loadCirclesBoard(
-            cloudUser.uid,
-            circle?.memberIds ?? [cloudUser.uid],
-          )
-          if (!cancelled) setBoard(rows)
-        } catch (err) {
-          if (!cancelled) {
-            toast.error(err instanceof Error ? err.message : 'Couldn’t load the leaderboard')
-          }
-        }
-
-        try {
-          const feed = await listFriendActivity(friendList.map((f) => f.uid))
-          if (!cancelled) {
-            setActivity(feed.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 6))
-          }
-        } catch {
-          // Activity is optional chrome
-        }
-      } catch (err) {
-        if (!cancelled) {
-          toast.error(err instanceof Error ? err.message : 'Couldn’t load circles')
-        }
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cloudUser?.uid])
 
   async function reloadBoard(circle?: CircleGroup | null) {
     if (!cloudUser) return
@@ -162,38 +215,127 @@ export default function CirclesPage() {
   }
 
   useEffect(() => {
-    if (!cloudUser || !activeId) return
+    if (!cloudUser) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const [list, friendList] = await Promise.all([
+          listMyCircles(cloudUser.uid),
+          listFriendProfiles(cloudUser.uid),
+        ])
+        if (cancelled) return
+        setCircles(list)
+        setFriends(friendList)
+
+        const id = params.get('id')
+        const circle = (id && list.find((c) => c.id === id)) || null
+
+        try {
+          await syncStreaksToCloud()
+        } catch {
+          // optional
+        }
+
+        if (circle) {
+          try {
+            const rows = await loadCirclesBoard(cloudUser.uid, circle.memberIds)
+            if (!cancelled) setBoard(rows)
+          } catch (err) {
+            if (!cancelled) {
+              toast.error(err instanceof Error ? err.message : 'Couldn’t load the leaderboard')
+            }
+          }
+        }
+
+        try {
+          const feed = await listFriendActivity(friendList.map((f) => f.uid))
+          if (!cancelled) {
+            setActivity(feed.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 20))
+          }
+        } catch {
+          // optional
+        }
+      } catch (err) {
+        if (!cancelled) {
+          toast.error(err instanceof Error ? err.message : 'Couldn’t load circles')
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cloudUser?.uid])
+
+  useEffect(() => {
+    if (!cloudUser || !activeId) {
+      setBoard([])
+      return
+    }
     const circle = circles.find((c) => c.id === activeId)
     if (!circle) return
     void reloadBoard(circle)
+    void (async () => {
+      try {
+        const memberIds = circle.memberIds.filter((id) => id !== cloudUser.uid)
+        const feed = await listFriendActivity(memberIds)
+        setActivity((prev) => {
+          const byUid = new Map(prev.map((a) => [a.uid, a]))
+          for (const a of feed) byUid.set(a.uid, a)
+          return [...byUid.values()].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 20)
+        })
+      } catch {
+        // optional
+      }
+    })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId])
 
+  const metricDef = METRICS.find((m) => m.id === metric)!
+
   const ranked = useMemo(() => {
-    const m = METRICS.find((x) => x.id === metric)!
     return [...board]
-      .map((row) => ({ row, score: m.score(row) }))
+      .map((row) => ({ row, score: metricDef.score(row) }))
       .sort((a, b) => b.score - a.score)
-  }, [board, metric])
+  }, [board, metricDef])
+
+  const maxScore = Math.max(1, ...ranked.map((r) => r.score))
+  const yourRank = ranked.findIndex((r) => r.row.uid === cloudUser?.uid) + 1
+  const yourScore = ranked.find((r) => r.row.uid === cloudUser?.uid)?.score ?? 0
+
+  const circleActivity = useMemo(() => {
+    if (!active) return []
+    const members = new Set(active.memberIds)
+    return activity.filter((a) => members.has(a.uid)).slice(0, 12)
+  }, [activity, active])
+
+  function enterCircle(id: string) {
+    setParams({ id })
+  }
+
+  function exitCircle() {
+    setParams({})
+    setBoard([])
+  }
 
   async function onCreate(e: FormEvent) {
     e.preventDefault()
     if (!cloudUser || !newName.trim()) return
     try {
-      // Include current friends so they see the circle on their devices immediately
       const circle = await createCircle({
         name: newName,
         ownerId: cloudUser.uid,
         memberIds: friends.map((f) => f.uid),
       })
       setNewName('')
+      setCreateOpen(false)
       toast.success(
         friends.length > 0
           ? `Circle created with you + ${friends.length} friend${friends.length === 1 ? '' : 's'}`
           : 'Circle created — add friends, then Manage to invite them in',
       )
       await loadCirclesList()
-      setActiveId(circle.id)
+      enterCircle(circle.id)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Couldn’t create circle')
     }
@@ -232,7 +374,7 @@ export default function CirclesPage() {
     }
   }
 
-  if (!cloudEnabled) {
+  if (!cloudEnabled || !cloudUser) {
     return (
       <motion.div {...pageEnterSubtle} className="kp-page">
         <PageHeader title="Circles" description="Streak boards with people you trust." eyebrow="Together" />
@@ -241,281 +383,537 @@ export default function CirclesPage() {
     )
   }
 
-  if (!cloudUser) {
+  /* ——— DETAIL VIEW ——— */
+  if (entered && active) {
+    const podium = ranked.slice(0, 3)
+
     return (
       <motion.div {...pageEnterSubtle} className="kp-page">
-        <PageHeader title="Circles" description="Streak boards with people you trust." eyebrow="Together" />
-        <TogetherSetup highlight="circles" />
+        <button
+          type="button"
+          onClick={exitCircle}
+          className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition hover:text-foreground"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          All circles
+        </button>
+
+        <section className="relative mb-6 overflow-hidden kp-surface p-6 sm:p-8">
+          <div
+            className={cn(
+              'pointer-events-none absolute inset-0 bg-gradient-to-br opacity-90',
+              metricDef.accent,
+            )}
+          />
+          <div className="pointer-events-none absolute -right-8 -top-10 h-40 w-40 rounded-full bg-primary/15 blur-3xl" />
+          <div className="relative">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="kp-section-label flex items-center gap-1.5">
+                  <Trophy className="h-3.5 w-3.5" />
+                  Circle
+                </p>
+                <h1 className="font-display mt-2 text-3xl tracking-tight sm:text-4xl">{active.name}</h1>
+                <p className="mt-1.5 text-sm text-muted-foreground">
+                  {active.memberIds.length} member{active.memberIds.length === 1 ? '' : 's'}
+                  {yourRank > 0 ? ` · You’re #${yourRank} in ${metricDef.short.toLowerCase()}` : ''}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5"
+                  disabled={busy}
+                  onClick={() => void reloadBoard(active)}
+                >
+                  <RefreshCw className={cn('h-3.5 w-3.5', busy && 'animate-spin')} />
+                  Sync
+                </Button>
+                <Button size="sm" variant="outline" className="gap-1.5" onClick={openManage}>
+                  <Settings2 className="h-3.5 w-3.5" />
+                  Manage
+                </Button>
+              </div>
+            </div>
+
+            {yourRank > 0 ? (
+              <div className="mt-5 flex flex-wrap items-center gap-3 rounded-2xl bg-background/70 px-4 py-3 backdrop-blur-sm">
+                <Zap className="h-4 w-4 text-primary" />
+                <p className="text-sm font-medium">
+                  {yourScore === 0
+                    ? 'Start a streak to climb the board'
+                    : yourRank === 1
+                      ? `Leading with a ${yourScore}-day ${metricDef.short.toLowerCase()} streak`
+                      : `${yourScore}-day streak · ${ranked[0].score - yourScore} day${ranked[0].score - yourScore === 1 ? '' : 's'} behind #1`}
+                </p>
+              </div>
+            ) : null}
+          </div>
+        </section>
+
+        {active.memberIds.length <= 1 ? (
+          <div className="mb-6 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
+            <p className="font-medium">Only you are in this circle</p>
+            <p className="mt-0.5 text-muted-foreground">
+              Friends won’t see it until you add them in Manage.
+            </p>
+            <Button size="sm" className="mt-2" onClick={openManage}>
+              Add friends
+            </Button>
+          </div>
+        ) : null}
+
+        {/* Metric chips */}
+        <div className="mb-6 flex gap-2 overflow-x-auto pb-1">
+          {METRICS.map(({ id, short, icon: Icon }) => (
+            <Button
+              key={id}
+              size="sm"
+              variant={metric === id ? 'default' : 'outline'}
+              className="shrink-0 rounded-full gap-1.5"
+              onClick={() => setMetric(id)}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {short}
+            </Button>
+          ))}
+        </div>
+
+        {/* Podium */}
+        {ranked.length > 0 ? (
+          <motion.section
+            key={metric}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={springSoft}
+            className="mb-6"
+          >
+            <p className="kp-section-label mb-4">{metricDef.label} leaderboard</p>
+            <div className="mb-6 grid grid-cols-3 items-end gap-2 sm:gap-4">
+              {[1, 0, 2].map((podiumIndex) => {
+                const entry = podium[podiumIndex]
+                const place = podiumIndex + 1
+                const heights = ['h-28 sm:h-32', 'h-36 sm:h-40', 'h-24 sm:h-28']
+                if (!entry) {
+                  return (
+                    <div
+                      key={place}
+                      className={cn(
+                        'rounded-t-3xl bg-secondary/20',
+                        place === 1 ? 'order-2' : place === 2 ? 'order-1' : 'order-3',
+                        heights[place - 1],
+                      )}
+                    />
+                  )
+                }
+                return (
+                  <motion.div
+                    key={entry.row.uid}
+                    layout
+                    className={cn(
+                      'relative flex flex-col items-center rounded-t-3xl px-2 pb-3 pt-4',
+                      place === 1
+                        ? 'order-2 bg-gradient-to-b from-primary/25 to-primary/5 ring-1 ring-primary/20'
+                        : place === 2
+                          ? 'order-1 bg-secondary/70'
+                          : 'order-3 bg-secondary/50',
+                      heights[place - 1],
+                    )}
+                  >
+                    {place === 1 ? (
+                      <Crown className="mb-1 h-4 w-4 text-amber-500" />
+                    ) : (
+                      <span className="mb-1 text-[0.65rem] font-bold uppercase tracking-wider text-muted-foreground">
+                        #{place}
+                      </span>
+                    )}
+                    <Avatar
+                      name={entry.row.displayName}
+                      you={entry.row.uid === cloudUser.uid}
+                      size={place === 1 ? 'lg' : 'md'}
+                    />
+                    <p className="mt-2 line-clamp-1 text-center text-xs font-semibold sm:text-sm">
+                      {entry.row.uid === cloudUser.uid ? 'You' : entry.row.displayName.split(' ')[0]}
+                    </p>
+                    <p className="mt-0.5 flex items-center gap-1 text-sm font-bold tabular-nums text-primary">
+                      <Flame className="h-3.5 w-3.5" />
+                      {entry.score}
+                    </p>
+                    <span className="mt-auto pt-2 text-[0.65rem] font-medium text-muted-foreground">
+                      day streak
+                    </span>
+                  </motion.div>
+                )
+              })}
+            </div>
+
+            <p className="kp-section-label mb-3">Standings</p>
+            <ol className="space-y-2">
+              <AnimatePresence initial={false}>
+                {ranked.map(({ row, score }, index) => {
+                  const width = Math.max(8, (score / maxScore) * 100)
+                  return (
+                    <motion.li
+                      key={row.uid}
+                      layout
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={cn(
+                        'kp-surface relative overflow-hidden p-0',
+                        row.uid === cloudUser.uid && 'ring-1 ring-primary/40',
+                      )}
+                    >
+                      <div
+                        className="pointer-events-none absolute inset-y-0 left-0 bg-primary/10 transition-[width]"
+                        style={{ width: `${width}%` }}
+                      />
+                      <div className="relative flex items-center gap-3 px-4 py-3.5">
+                        <RankBadge rank={index + 1} />
+                        <Avatar name={row.displayName} you={row.uid === cloudUser.uid} size="sm" />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold">
+                            {row.displayName}
+                            {row.uid === cloudUser.uid ? ' · you' : ''}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {score} day{score === 1 ? '' : 's'}
+                            {metric === 'water' && row.waterGlassesToday
+                              ? ` · ${row.waterGlassesToday} glasses today`
+                              : ''}
+                          </p>
+                        </div>
+                        <span className="text-lg font-bold tabular-nums text-primary">{score}</span>
+                      </div>
+                    </motion.li>
+                  )
+                })}
+              </AnimatePresence>
+            </ol>
+          </motion.section>
+        ) : (
+          <EmptyState
+            className="mb-6"
+            title="No streak data yet"
+            description="Turn on sharing in Settings, check in on habits or water, then Sync."
+          />
+        )}
+
+        {/* Timeline */}
+        <section className="mb-8">
+          <div className="mb-3 flex items-center justify-between">
+            <p className="kp-section-label">Activity timeline</p>
+            <span className="text-xs text-muted-foreground">What people are up to</span>
+          </div>
+          {circleActivity.length === 0 ? (
+            <div className="kp-surface p-5 text-sm text-muted-foreground">
+              No shared activity yet. When friends share or check in with activity pings on, it shows up
+              here.
+            </div>
+          ) : (
+            <ul className="relative space-y-0 border-l border-border/60 ml-3">
+              {circleActivity.map((a) => {
+                const name =
+                  a.uid === cloudUser.uid
+                    ? 'You'
+                    : friends.find((f) => f.uid === a.uid)?.displayName ||
+                      board.find((b) => b.uid === a.uid)?.displayName ||
+                      'Member'
+                return (
+                  <li key={`${a.uid}-${a.updatedAt}`} className="relative pb-5 pl-6 last:pb-0">
+                    <span className="absolute -left-[5px] top-1.5 h-2.5 w-2.5 rounded-full bg-primary ring-4 ring-background" />
+                    <div className="kp-surface p-3.5">
+                      <div className="flex items-start gap-3">
+                        <Avatar name={name} you={a.uid === cloudUser.uid} size="sm" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm">
+                            <span className="font-semibold">{name}</span>
+                            <span className="text-muted-foreground"> — {a.message}</span>
+                          </p>
+                          <p className="mt-0.5 text-[0.7rem] text-muted-foreground">
+                            {relativeWhen(a.updatedAt)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </section>
+
+        <div className="flex flex-wrap gap-2 border-t border-border/40 pt-4">
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5"
+            onClick={async () => {
+              try {
+                const { url } = await createCircleInvite({
+                  circle: active,
+                  createdBy: cloudUser.uid,
+                })
+                await navigator.clipboard.writeText(url)
+                toast.success('Invite link copied')
+              } catch (err) {
+                toast.error(err instanceof Error ? err.message : 'Couldn’t create invite')
+              }
+            }}
+          >
+            <Link2 className="h-3.5 w-3.5" />
+            Invite link
+          </Button>
+          {active.ownerId === cloudUser.uid ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="gap-1.5 text-destructive"
+              onClick={async () => {
+                if (!confirm(`Delete “${active.name}”?`)) return
+                await deleteCircle(active.id)
+                toast.message('Circle deleted')
+                exitCircle()
+                await loadCirclesList()
+              }}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Delete
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="gap-1.5"
+              onClick={async () => {
+                try {
+                  await leaveCircle(active, cloudUser.uid)
+                  toast.message('Left circle')
+                  exitCircle()
+                  await loadCirclesList()
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : 'Couldn’t leave')
+                }
+              }}
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              Leave
+            </Button>
+          )}
+        </div>
+
+        <ManageDialog
+          open={manageOpen}
+          onOpenChange={setManageOpen}
+          editName={editName}
+          setEditName={setEditName}
+          friends={friends}
+          editMembers={editMembers}
+          setEditMembers={setEditMembers}
+          onSave={saveManage}
+        />
       </motion.div>
     )
   }
 
+  /* ——— LIST VIEW ——— */
   return (
     <motion.div {...pageEnterSubtle} className="kp-page">
       <PageHeader
         title="Circles"
-        description="Make different groups — each with its own streak board."
+        description="Pick a crew. Climb the board. Stay accountable together."
         eyebrow="Together"
         actions={
-          <Button
-            variant="outline"
-            className="gap-2"
-            disabled={busy}
-            onClick={() => void reloadBoard()}
-          >
-            <RefreshCw className={cn('h-4 w-4', busy && 'animate-spin')} />
-            Refresh
+          <Button className="gap-1.5" onClick={() => setCreateOpen(true)}>
+            <Plus className="h-4 w-4" />
+            New
           </Button>
         }
       />
 
-      <p className="mb-4 text-sm text-muted-foreground">
-        Sharing is still opt-in in{' '}
+      <p className="mb-5 text-sm text-muted-foreground">
+        Streak sharing is opt-in in{' '}
         <Link to="/settings" className="text-primary underline">
           Settings
         </Link>
-        . Add friends first, then put them in a circle.
-        {cloudProfile ? ` You’re ${cloudProfile.displayName}.` : null}
+        .{cloudProfile ? ` Signed in as ${cloudProfile.displayName}.` : null}
       </p>
-
-      {activity.length > 0 ? (
-        <section className="mb-4 overflow-hidden kp-surface p-4">
-          <p className="kp-section-label mb-2">Friend activity</p>
-          <ul className="space-y-1.5">
-            {activity.map((a) => {
-              const friend = friends.find((f) => f.uid === a.uid)
-              return (
-                <li key={`${a.uid}-${a.updatedAt}`} className="text-sm text-muted-foreground">
-                  <span className="font-medium text-foreground">{friend?.displayName || 'Friend'}</span>
-                  {' — '}
-                  {a.message}
-                </li>
-              )
-            })}
-          </ul>
-        </section>
-      ) : null}
-
-      <form onSubmit={(e) => void onCreate(e)} className="kp-surface mb-4 flex gap-2 p-3 sm:p-4">
-        <Input
-          placeholder="New circle name (e.g. Gym crew)"
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          className="flex-1"
-        />
-        <Button type="submit" className="gap-1.5 shrink-0">
-          <Plus className="h-4 w-4" />
-          Create
-        </Button>
-      </form>
 
       {circles.length === 0 ? (
         <>
           <TogetherSetup highlight="circles" className="mb-4" />
           <EmptyState
             title="No circles yet"
-            description="1) Add a friend · 2) Turn on streak sharing in Settings · 3) Create a circle here."
+            description="Create one for gym, family, or roommates — then enter it for leaderboards and a live timeline."
             action={
-              <Button asChild variant="outline">
-                <Link to="/friends">Add friends</Link>
-              </Button>
+              <div className="flex flex-wrap justify-center gap-2">
+                <Button onClick={() => setCreateOpen(true)}>Create a circle</Button>
+                <Button asChild variant="outline">
+                  <Link to="/friends">Add friends</Link>
+                </Button>
+              </div>
             }
           />
         </>
       ) : (
-        <>
-          <div className="mb-4 flex flex-wrap gap-2">
-            {circles.map((c) => (
-              <Button
+        <ul className="grid gap-3 sm:grid-cols-2">
+          {circles.map((c, index) => {
+            const memberNames = c.memberIds.map((uid) => {
+              if (uid === cloudUser.uid) return cloudProfile?.displayName || 'You'
+              return friends.find((f) => f.uid === uid)?.displayName || 'Member'
+            })
+            return (
+              <motion.li
                 key={c.id}
-                size="sm"
-                variant={activeId === c.id ? 'default' : 'outline'}
-                className="rounded-full"
-                onClick={() => setActiveId(c.id)}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ ...springSoft, delay: index * 0.04 }}
               >
-                {c.name}
-                <span className="ml-1.5 opacity-70">{c.memberIds.length}</span>
-              </Button>
-            ))}
-          </div>
-
-          {active && active.memberIds.length <= 1 ? (
-            <div className="mb-4 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
-              <p className="font-medium">Only you are in this circle</p>
-              <p className="mt-0.5 text-muted-foreground">
-                Friends won’t see it on their phone until you add them — tap <strong>Manage</strong> and
-                check their names, then Save.
-              </p>
-              <Button size="sm" className="mt-2" onClick={openManage}>
-                Add friends to circle
-              </Button>
-            </div>
-          ) : null}
-
-          {active ? (
-            <div className="mb-4 flex flex-wrap items-center gap-2">
-              <p className="text-sm text-muted-foreground">
-                {active.memberIds.length} member{active.memberIds.length === 1 ? '' : 's'}
-                {active.ownerId === cloudUser.uid ? ' · you own this' : ''}
-              </p>
-              <Button size="sm" variant="outline" className="gap-1.5" onClick={openManage}>
-                <Settings2 className="h-3.5 w-3.5" />
-                Manage
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="gap-1.5"
-                onClick={async () => {
-                  try {
-                    const { url } = await createCircleInvite({
-                      circle: active,
-                      createdBy: cloudUser.uid,
-                    })
-                    await navigator.clipboard.writeText(url)
-                    toast.success('Invite link copied')
-                  } catch (err) {
-                    toast.error(err instanceof Error ? err.message : 'Couldn’t create invite')
-                  }
-                }}
-              >
-                <Link2 className="h-3.5 w-3.5" />
-                Copy invite link
-              </Button>
-              {active.ownerId === cloudUser.uid ? (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="gap-1.5 text-destructive"
-                  onClick={async () => {
-                    if (!confirm(`Delete “${active.name}”?`)) return
-                    await deleteCircle(active.id)
-                    toast.message('Circle deleted')
-                    await loadCirclesList()
-                  }}
+                <button
+                  type="button"
+                  onClick={() => enterCircle(c.id)}
+                  className="kp-surface group relative w-full overflow-hidden p-5 text-left transition hover:border-primary/30 hover:shadow-[0_12px_40px_-24px_hsl(172_40%_20%/0.45)]"
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  Delete
-                </Button>
-              ) : (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="gap-1.5"
-                  onClick={async () => {
-                    try {
-                      await leaveCircle(active, cloudUser.uid)
-                      toast.message('Left circle')
-                      await loadCirclesList()
-                    } catch (err) {
-                      toast.error(err instanceof Error ? err.message : 'Couldn’t leave')
-                    }
-                  }}
-                >
-                  <LogOut className="h-3.5 w-3.5" />
-                  Leave
-                </Button>
-              )}
-            </div>
-          ) : null}
-
-          <div className="mb-5 flex flex-wrap gap-2">
-            {METRICS.map(({ id, label, icon: Icon }) => (
-              <Button
-                key={id}
-                size="sm"
-                variant={metric === id ? 'default' : 'outline'}
-                className="rounded-full gap-1.5"
-                onClick={() => setMetric(id)}
-              >
-                <Icon className="h-3.5 w-3.5" />
-                {label}
-              </Button>
-            ))}
-          </div>
-
-          {!active ? (
-            <EmptyState title="Pick a circle" description="Select a group above to see the board." />
-          ) : ranked.length === 0 ? (
-            <EmptyState
-              title="No streak data yet"
-              description="Members need to opt in to sharing in Settings, then hit Refresh."
-            />
-          ) : (
-            <ol className="space-y-2">
-              {ranked.map(({ row, score }, index) => (
-                <li
-                  key={row.uid}
-                  className={cn(
-                    'kp-surface flex items-center gap-4 p-4',
-                    row.uid === cloudUser.uid && 'ring-1 ring-primary/35',
-                  )}
-                >
-                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-sm font-semibold">
-                    {index + 1}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium">
-                      {row.displayName}
-                      {row.uid === cloudUser.uid ? ' · you' : ''}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {score} day{score === 1 ? '' : 's'} streak
-                      {metric === 'water' && row.waterGlassesToday
-                        ? ` · ${row.waterGlassesToday} glasses today`
-                        : ''}
-                    </p>
+                  <div className="pointer-events-none absolute -right-6 -top-8 h-28 w-28 rounded-full bg-primary/10 blur-2xl transition group-hover:bg-primary/20" />
+                  <div className="relative flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="kp-section-label mb-1.5 flex items-center gap-1">
+                        <Trophy className="h-3 w-3" />
+                        Circle
+                      </p>
+                      <h2 className="font-display truncate text-2xl tracking-tight">{c.name}</h2>
+                      <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
+                        <Users className="h-3.5 w-3.5" />
+                        {c.memberIds.length} member{c.memberIds.length === 1 ? '' : 's'}
+                        {c.ownerId === cloudUser.uid ? ' · you own' : ''}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+                      Enter
+                    </span>
                   </div>
-                  <Flame className="h-5 w-5 text-primary opacity-80" />
-                </li>
-              ))}
-            </ol>
-          )}
-        </>
+                  <div className="relative mt-4 flex -space-x-2">
+                    {memberNames.slice(0, 5).map((name, i) => (
+                      <div
+                        key={`${c.id}-${i}`}
+                        className="rounded-full ring-2 ring-background"
+                        style={{ zIndex: 5 - i }}
+                      >
+                        <Avatar name={name} you={name === 'You' || name === cloudProfile?.displayName} size="sm" />
+                      </div>
+                    ))}
+                    {memberNames.length > 5 ? (
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-[0.65rem] font-semibold ring-2 ring-background">
+                        +{memberNames.length - 5}
+                      </div>
+                    ) : null}
+                  </div>
+                </button>
+              </motion.li>
+            )
+          })}
+        </ul>
       )}
 
-      <Dialog open={manageOpen} onOpenChange={setManageOpen}>
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Manage circle</DialogTitle>
+            <DialogTitle className="font-display text-xl">New circle</DialogTitle>
           </DialogHeader>
-          <form onSubmit={(e) => void saveManage(e)} className="space-y-4">
-            <Input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Name" />
-            <div>
-              <p className="mb-2 text-sm font-medium">Friends in this circle</p>
-              {friends.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No friends yet.{' '}
-                  <Link to="/friends" className="text-primary underline">
-                    Add friends
-                  </Link>
-                </p>
-              ) : (
-                <ul className="max-h-48 space-y-2 overflow-y-auto">
-                  {friends.map((f) => (
-                    <li key={f.uid} className="flex items-center gap-3 rounded-xl bg-secondary/50 px-3 py-2">
-                      <Checkbox
-                        id={`c-${f.uid}`}
-                        checked={!!editMembers[f.uid]}
-                        onCheckedChange={(v) =>
-                          setEditMembers((m) => ({ ...m, [f.uid]: Boolean(v) }))
-                        }
-                      />
-                      <label htmlFor={`c-${f.uid}`} className="flex-1 cursor-pointer text-sm font-medium">
-                        {f.displayName}
-                      </label>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <p className="mt-2 text-xs text-muted-foreground">You’re always included as a member.</p>
-            </div>
-            <Button type="submit" className="w-full">
-              Save
+          <form onSubmit={(e) => void onCreate(e)} className="space-y-4">
+            <Input
+              autoFocus
+              placeholder="Name (e.g. Gym crew)"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              {friends.length > 0
+                ? `Your ${friends.length} friend${friends.length === 1 ? '' : 's'} will be added automatically — you can edit in Manage.`
+                : 'Add friends first so they can join this circle.'}
+            </p>
+            <Button type="submit" className="w-full" disabled={!newName.trim()}>
+              Create & enter
             </Button>
           </form>
         </DialogContent>
       </Dialog>
+
+      <ManageDialog
+        open={manageOpen}
+        onOpenChange={setManageOpen}
+        editName={editName}
+        setEditName={setEditName}
+        friends={friends}
+        editMembers={editMembers}
+        setEditMembers={setEditMembers}
+        onSave={saveManage}
+      />
     </motion.div>
+  )
+}
+
+function ManageDialog({
+  open,
+  onOpenChange,
+  editName,
+  setEditName,
+  friends,
+  editMembers,
+  setEditMembers,
+  onSave,
+}: {
+  open: boolean
+  onOpenChange: (o: boolean) => void
+  editName: string
+  setEditName: (v: string) => void
+  friends: CloudProfile[]
+  editMembers: Record<string, boolean>
+  setEditMembers: (value: Record<string, boolean> | ((prev: Record<string, boolean>) => Record<string, boolean>)) => void
+  onSave: (e: FormEvent) => void
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Manage circle</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={(e) => void onSave(e)} className="space-y-4">
+          <Input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Name" />
+          <div>
+            <p className="mb-2 text-sm font-medium">Friends in this circle</p>
+            {friends.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No friends yet.{' '}
+                <Link to="/friends" className="text-primary underline">
+                  Add friends
+                </Link>
+              </p>
+            ) : (
+              <ul className="max-h-48 space-y-2 overflow-y-auto">
+                {friends.map((f) => (
+                  <li key={f.uid} className="flex items-center gap-3 rounded-xl bg-secondary/50 px-3 py-2">
+                    <Checkbox
+                      id={`c-${f.uid}`}
+                      checked={!!editMembers[f.uid]}
+                      onCheckedChange={(v) =>
+                        setEditMembers((m) => ({ ...m, [f.uid]: Boolean(v) }))
+                      }
+                    />
+                    <label htmlFor={`c-${f.uid}`} className="flex-1 cursor-pointer text-sm font-medium">
+                      {f.displayName}
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="mt-2 text-xs text-muted-foreground">You’re always included as a member.</p>
+          </div>
+          <Button type="submit" className="w-full">
+            Save
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
