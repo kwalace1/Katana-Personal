@@ -75,8 +75,8 @@ export default function SharedPage() {
             description="Open a task or habit, tap Share, pick a friend — it lands here."
             action={
               <div className="flex flex-wrap justify-center gap-2">
-                <Button asChild variant="outline">
-                  <Link to="/tasks">Share a task</Link>
+                <Button asChild>
+                  <Link to="/tasks">Open Tasks → pick one → Share</Link>
                 </Button>
                 <Button asChild variant="outline">
                   <Link to="/friends">Find friends</Link>

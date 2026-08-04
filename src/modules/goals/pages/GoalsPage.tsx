@@ -118,7 +118,15 @@ export default function GoalsPage() {
       </div>
 
       {visible.length === 0 ? (
-        <EmptyState title="No goals yet" description="Pick one thing that matters this season." />
+        <EmptyState
+          title="No goals yet"
+          description="Pick one thing that matters this season."
+          action={
+            <Button asChild variant="outline">
+              <Link to="/ask?q=What%20goals%20am%20I%20falling%20behind%20on%3F">Ask about goals</Link>
+            </Button>
+          }
+        />
       ) : (
         <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
           <ul className="grid gap-4 sm:grid-cols-2">

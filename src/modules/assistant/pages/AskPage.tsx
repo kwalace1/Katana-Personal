@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/contexts/AuthContext'
 import { pageEnterSubtle } from '@/lib/motion-ui'
 import { cn } from '@/lib/utils'
-import { answerQuestionWithActions, runAskAction, SUGGESTED_ASKS } from '../engine'
+import { answerQuestionWithActions, runAskAction, suggestedAsksForHour } from '../engine'
 import { askApi, type AskAction, type AskMessage } from '../ask-api'
 import { toast } from 'sonner'
 
@@ -119,7 +119,7 @@ export default function AskPage() {
       />
 
       <div className="mb-5 flex flex-wrap gap-2">
-        {SUGGESTED_ASKS.map((prompt) => (
+        {suggestedAsksForHour().map((prompt) => (
           <Button key={prompt} type="button" size="sm" variant="outline" onClick={() => ask(prompt)}>
             {prompt}
           </Button>

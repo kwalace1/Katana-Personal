@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useRef, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -9,6 +10,7 @@ import { Switch } from '@/components/ui/switch'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
 import { downloadBackup, parseBackup, restoreBackup, shareOrDownloadBackup } from '@/lib/backup'
+import { takeInviteReturn } from '@/lib/invite-return'
 import { ensureUserLoaded, localDb } from '@/lib/local-db'
 import { pageEnterSubtle } from '@/lib/motion-ui'
 import { remindersEnabled, requestReminderPermission } from '@/lib/reminders'
@@ -49,7 +51,10 @@ export default function SettingsPage() {
     syncStreaksToCloud,
     enablePushNotifications,
   } = useCloudAuth()
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const fileRef = useRef<HTMLInputElement>(null)
+  const cloudSectionRef = useRef<HTMLElement>(null)
   const [name, setName] = useState(profile?.display_name || '')
   const [busy, setBusy] = useState(false)
   const gentle = remindersEnabled(profile?.preferences)
@@ -65,6 +70,13 @@ export default function SettingsPage() {
   useEffect(() => {
     if (profile?.display_name) setName(profile.display_name)
   }, [profile?.display_name])
+
+  useEffect(() => {
+    if (searchParams.get('cloud') === '1') {
+      setCloudMode('signin')
+      window.setTimeout(() => cloudSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
+    }
+  }, [searchParams])
 
   useEffect(() => {
     if (cloudProfile?.sharePrefs) setPrefs({ ...DEFAULT_SHARE_PREFS, ...cloudProfile.sharePrefs })
@@ -154,6 +166,8 @@ export default function SettingsPage() {
         toast.success('Signed in')
       }
       setPassword('')
+      const back = takeInviteReturn()
+      if (back) navigate(back)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Couldn’t connect')
     } finally {
@@ -179,7 +193,7 @@ export default function SettingsPage() {
         </p>
       </form>
 
-      <section className="kp-surface mb-4 space-y-4 p-5">
+      <section ref={cloudSectionRef} id="cloud" className="kp-surface mb-4 scroll-mt-24 space-y-4 p-5">
         <div>
           <h2 className="font-semibold">Cloud account</h2>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -272,6 +286,8 @@ export default function SettingsPage() {
                 try {
                   await signInWithApple()
                   toast.success('Signed in with Apple')
+                  const back = takeInviteReturn()
+                  if (back) navigate(back)
                 } catch (err) {
                   toast.error(err instanceof Error ? err.message : 'Apple sign-in failed')
                 } finally {
@@ -427,17 +443,17 @@ export default function SettingsPage() {
           On Android Chrome: menu → Install app. You’ll get an app-like feel with the bottom tabs.
         </p>
         <p className="text-xs text-muted-foreground">
-          After installing, use “Move between devices” below so this phone has the same tasks and
-          water logs as your computer (until full cloud sync is on).
+          Three calm layers: Home Screen for the feel, Cloud sync for devices when signed in, and a
+          <code className="mx-1 rounded bg-secondary px-1 text-xs">.katana</code> copy as your safety net.
         </p>
       </section>
 
       <section id="device-copy" className="kp-surface mb-4 scroll-mt-24 space-y-3 p-5">
-        <h2 className="font-semibold">Move between devices</h2>
+        <h2 className="font-semibold">Save a copy</h2>
         <p className="text-sm text-muted-foreground">
-          Prefer a file? Tasks and habits also sync automatically when Cloud sync is on (above). Use
-          a <code className="rounded bg-secondary px-1 text-xs">.katana</code> copy as a safety net
-          or if you’re offline.
+          Cloud sync keeps most life data across devices when you’re signed in. Still export a
+          <code className="mx-1 rounded bg-secondary px-1 text-xs">.katana</code> file — especially before
+          clearing a browser, or as a backup you can AirDrop.
         </p>
         <ol className="list-decimal space-y-1.5 pl-5 text-sm text-muted-foreground">
           <li>

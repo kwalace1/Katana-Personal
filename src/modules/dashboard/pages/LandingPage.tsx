@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useRef, useState } from 'react'
-import { Navigate, useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
 import { Loader2, Sparkles, Users, CalendarCheck } from 'lucide-react'
@@ -11,6 +11,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
 import { parseBackup, restoreBackup } from '@/lib/backup'
 import { createId } from '@/lib/id'
+import { takeInviteReturn, peekInviteReturn } from '@/lib/invite-return'
 import { ensureUserLoaded, localDb } from '@/lib/local-db'
 import { pageEnterSubtle, staggerContainer, staggerItem } from '@/lib/motion-ui'
 import { cn } from '@/lib/utils'
@@ -57,8 +58,10 @@ export default function LandingPage() {
     signInWithApple,
   } = useCloudAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const fileRef = useRef<HTMLInputElement>(null)
   const formRef = useRef<HTMLDivElement>(null)
+  const nameInputRef = useRef<HTMLInputElement>(null)
 
   const [mode, setMode] = useState<Mode>('open')
   const [name, setName] = useState('')
@@ -71,8 +74,18 @@ export default function LandingPage() {
     setStandalone(isStandaloneApp())
   }, [])
 
+  useEffect(() => {
+    const m = searchParams.get('mode')
+    if (m === 'signin' || m === 'signup' || m === 'open') setMode(m)
+  }, [searchParams])
+
+  function goAfterEntrance() {
+    navigate(takeInviteReturn() || '/dashboard')
+  }
+
   if (!loading && user) {
-    return <Navigate to="/dashboard" replace />
+    const back = takeInviteReturn()
+    return <Navigate to={back || '/dashboard'} replace />
   }
 
   async function ensureLocalThen(run: () => Promise<void>, displayName?: string) {
@@ -88,7 +101,7 @@ export default function LandingPage() {
     try {
       await startWorkspace(name.trim() || 'You')
       toast.success('Welcome in')
-      navigate('/dashboard')
+      goAfterEntrance()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Couldn’t open')
     } finally {
@@ -123,7 +136,7 @@ export default function LandingPage() {
         await signInCloud(email, password)
         toast.success('Signed in')
       }
-      navigate('/dashboard')
+      goAfterEntrance()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Couldn’t sign in')
     } finally {
@@ -142,7 +155,7 @@ export default function LandingPage() {
         await signInWithApple()
       }, name.trim() || 'You')
       toast.success('Signed in with Apple')
-      navigate('/dashboard')
+      goAfterEntrance()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Apple sign-in failed')
     } finally {
@@ -179,6 +192,7 @@ export default function LandingPage() {
   function scrollToOpen() {
     formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     setMode('open')
+    window.setTimeout(() => nameInputRef.current?.focus(), 400)
   }
 
   return (
@@ -218,7 +232,7 @@ export default function LandingPage() {
 
         <motion.div {...pageEnterSubtle} className="flex flex-1 flex-col py-6 sm:py-10">
           {/* Hero — brand first */}
-          <div className={cn('flex flex-col', standalone ? 'justify-center flex-1' : 'min-h-[70vh] justify-center')}>
+          <div className={cn('flex flex-col', standalone ? 'justify-center flex-1' : 'min-h-0 sm:min-h-[58vh] justify-center py-4')}>
             <p className="kp-section-label">Personal OS</p>
             <h1 className="font-display mt-3 text-5xl tracking-tight sm:text-6xl">Katana</h1>
             <p className="mt-4 max-w-md text-base leading-relaxed text-muted-foreground sm:text-lg">
@@ -228,21 +242,20 @@ export default function LandingPage() {
             </p>
 
             {!standalone ? (
-              <div className="mt-8 flex flex-wrap gap-3">
+              <div className="mt-8 flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center">
                 <Button size="lg" className="min-h-12 px-6" onClick={scrollToOpen}>
                   Open your space
                 </Button>
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="min-h-12 px-6"
+                <button
+                  type="button"
+                  className="text-sm font-medium text-primary underline-offset-4 hover:underline"
                   onClick={() => {
                     setMode('signup')
-                    scrollToOpen()
+                    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                   }}
                 >
                   Create with Cloud
-                </Button>
+                </button>
               </div>
             ) : null}
 
@@ -316,14 +329,15 @@ export default function LandingPage() {
               <form onSubmit={(e) => void onOpenLocal(e)} className="mt-6 space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="name">What should we call you?</Label>
-                  <Input
-                    id="name"
-                    placeholder="Your name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="h-12 rounded-xl"
-                    autoFocus={standalone}
-                  />
+                <Input
+                  id="name"
+                  ref={nameInputRef}
+                  placeholder="Your name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="h-12 rounded-xl"
+                  autoFocus={standalone}
+                />
                 </div>
                 <Button type="submit" className="min-h-12 w-full" size="lg" disabled={busy}>
                   {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Open Katana'}

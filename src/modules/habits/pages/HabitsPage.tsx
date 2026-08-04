@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Check, Plus, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -118,7 +118,15 @@ export default function HabitsPage() {
       </div>
 
       {habits.length === 0 ? (
-        <EmptyState title="No habits yet" description="Start with one small thing. That’s enough." />
+        <EmptyState
+          title="No habits yet"
+          description="Start with one small thing. That’s enough."
+          action={
+            <Button asChild variant="outline">
+              <Link to="/ask?q=What%20habits%20should%20I%20check%20in%3F">Ask about habits</Link>
+            </Button>
+          }
+        />
       ) : visible.length === 0 ? (
         <EmptyState title="Nothing due today" description="Enjoy the quiet, or switch to All." />
       ) : (

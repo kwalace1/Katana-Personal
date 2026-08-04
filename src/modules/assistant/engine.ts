@@ -669,6 +669,17 @@ export const SUGGESTED_ASKS = [
   'Add gym tomorrow',
 ] as const
 
+/** Time-aware chips for Ask — keeps demos feeling alive without an LLM. */
+export function suggestedAsksForHour(hour = new Date().getHours()): string[] {
+  if (hour < 12) {
+    return ['Clear my morning', 'What should I work on today?', 'When should I work out?', 'Add gym tomorrow']
+  }
+  if (hour < 17) {
+    return ['What should I work on today?', 'Review my week', 'Prep for tomorrow', 'When should I work out?']
+  }
+  return ['Close my day', 'Prep for tomorrow', 'Review my week', 'What should I work on today?']
+}
+
 function tryParseCreate(question: string): AskReply | null {
   const q = question.trim()
   const lower = q.toLowerCase()

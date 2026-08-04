@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { BrandMark } from '@/components/BrandMark'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
+import { stashInviteReturn } from '@/lib/invite-return'
 import { findUidByFriendCode, getCloudProfile, requestFriend } from '@/lib/social/friends'
 
 export default function FriendInvitePage() {
   const { code } = useParams<{ code: string }>()
+  const location = useLocation()
   const { user, loading: localLoading } = useAuth()
   const { cloudUser, cloudLoading, cloudEnabled } = useCloudAuth()
   const navigate = useNavigate()
@@ -16,6 +18,10 @@ export default function FriendInvitePage() {
   const [targetUid, setTargetUid] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    stashInviteReturn(location.pathname)
+  }, [location.pathname])
 
   useEffect(() => {
     if (!code || !cloudEnabled || !cloudUser) return
@@ -71,19 +77,19 @@ export default function FriendInvitePage() {
         ) : !user ? (
           <>
             <p className="mt-3 text-sm text-muted-foreground">
-              Start your private workspace, then sign in to the cloud to add this friend.
+              Open your space, sign in to Cloud, and we’ll bring you right back here.
             </p>
             <Button asChild className="mt-6 w-full">
-              <Link to="/auth">Start your workspace</Link>
+              <Link to="/?mode=signin">Open & sign in</Link>
             </Button>
           </>
         ) : !cloudUser ? (
           <>
             <p className="mt-3 text-sm text-muted-foreground">
-              Sign in to your cloud account in Settings, then reopen this link.
+              Sign in to Cloud — we’ll return you to this invite when you’re done.
             </p>
             <Button asChild className="mt-6 w-full">
-              <Link to="/settings">Open Settings</Link>
+              <Link to="/settings?cloud=1">Sign in to Cloud</Link>
             </Button>
           </>
         ) : error ? (

@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   DndContext,
@@ -311,7 +311,20 @@ export default function TasksPage() {
       <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
         <div>
           {visible.length === 0 ? (
-            <EmptyState title="Nothing here" description="Add a task above when something comes up." />
+            <EmptyState
+              title="Nothing here"
+              description="Add a task above — or ask Katana what to work on."
+              action={
+                <div className="flex flex-wrap justify-center gap-2">
+                  <Button asChild variant="outline">
+                    <Link to="/ask?q=What%20should%20I%20work%20on%20today%3F">Ask for focus</Link>
+                  </Button>
+                  <Button asChild variant="outline">
+                    <Link to="/settings">Load demo day</Link>
+                  </Button>
+                </div>
+              }
+            />
           ) : (
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
               <SortableContext items={openIds} strategy={verticalListSortingStrategy}>

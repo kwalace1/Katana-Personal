@@ -1,20 +1,26 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { BrandMark } from '@/components/BrandMark'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
+import { stashInviteReturn } from '@/lib/invite-return'
 import { acceptCircleInvite, getCircleInvite, type CircleInvite } from '@/lib/social/invites'
 
 export default function InviteJoinPage() {
   const { token } = useParams<{ token: string }>()
+  const location = useLocation()
   const { user, loading: localLoading } = useAuth()
   const { cloudUser, cloudLoading, cloudEnabled } = useCloudAuth()
   const navigate = useNavigate()
   const [invite, setInvite] = useState<CircleInvite | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    stashInviteReturn(location.pathname)
+  }, [location.pathname])
 
   useEffect(() => {
     if (!token || !cloudEnabled || !cloudUser) return
@@ -32,7 +38,7 @@ export default function InviteJoinPage() {
     try {
       await acceptCircleInvite(token, cloudUser.uid)
       toast.success('You’re in the circle')
-      navigate('/circles')
+      navigate(`/circles?id=${invite?.circleId || ''}`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Couldn’t join')
     } finally {
@@ -58,19 +64,19 @@ export default function InviteJoinPage() {
         ) : !user ? (
           <>
             <p className="mt-3 text-sm text-muted-foreground">
-              Start your private workspace, then sign in to the cloud to join this circle.
+              Open your space, sign in to Cloud, and we’ll bring you back to this invite.
             </p>
             <Button asChild className="mt-6 w-full">
-              <Link to="/auth">Start your workspace</Link>
+              <Link to="/?mode=signin">Open & sign in</Link>
             </Button>
           </>
         ) : !cloudUser ? (
           <>
             <p className="mt-3 text-sm text-muted-foreground">
-              Sign in to your cloud account in Settings, then reopen this invite link.
+              Sign in to Cloud — we’ll return you here when you’re done.
             </p>
             <Button asChild className="mt-6 w-full">
-              <Link to="/settings">Open Settings</Link>
+              <Link to="/settings?cloud=1">Sign in to Cloud</Link>
             </Button>
           </>
         ) : error ? (

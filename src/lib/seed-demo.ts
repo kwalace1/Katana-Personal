@@ -1,4 +1,4 @@
-import { addDays, todayKey } from '@/lib/dates'
+import { addDays } from '@/lib/dates'
 import { tasksApi } from '@/modules/tasks/api'
 import { calendarApi } from '@/modules/calendar/api'
 import { habitsApi } from '@/modules/habits/api'
@@ -26,24 +26,41 @@ export function seedDemoWorkspace(userId: string): { seeded: boolean; reason?: s
   const overdue = addDays(new Date(), -1)
   overdue.setHours(17, 0, 0, 0)
 
+  // High-priority today → “Do this next”
   tasksApi.createTask(userId, {
-    title: 'Ship investor update',
+    title: 'Send school forms',
     priority: 'high',
     list_id: listId,
     due_at: new Date().toISOString(),
-    notes: 'One-pager: progress, ask, next week.',
+    notes: 'Sitting in email — five minutes.',
   })
   tasksApi.createTask(userId, {
-    title: 'Review Circles with Alex',
+    title: 'Grocery run',
     priority: 'medium',
     list_id: listId,
     due_at: tomorrow.toISOString(),
   })
   tasksApi.createTask(userId, {
-    title: 'Reply to dentist email',
+    title: 'Reply to dentist',
     priority: 'medium',
     list_id: listId,
     due_at: overdue.toISOString(),
+  })
+
+  // Capture-friendly event: Call Mom Friday-ish feel
+  const mom = addDays(new Date(), ((5 - new Date().getDay() + 7) % 7) || 7)
+  mom.setHours(15, 0, 0, 0)
+  const momEnd = new Date(mom)
+  momEnd.setHours(15, 30, 0, 0)
+  calendarApi.create(userId, {
+    title: 'Call Mom',
+    notes: 'Catch up — no agenda.',
+    starts_at: mom.toISOString(),
+    ends_at: momEnd.toISOString(),
+    all_day: false,
+    location: '',
+    recurrence: 'none',
+    reminder_minutes: 30,
   })
 
   const start = new Date()
@@ -52,8 +69,8 @@ export function seedDemoWorkspace(userId: string): { seeded: boolean; reason?: s
   const end = new Date(start)
   end.setHours(end.getHours() + 1)
   calendarApi.create(userId, {
-    title: 'Focus block — deep work',
-    notes: '',
+    title: 'Focus block',
+    notes: 'Protect this hour.',
     starts_at: start.toISOString(),
     ends_at: end.toISOString(),
     all_day: false,
@@ -68,25 +85,25 @@ export function seedDemoWorkspace(userId: string): { seeded: boolean; reason?: s
     reminder_time: '08:00',
   })
   habitsApi.create(userId, { title: 'Water (6 glasses)', schedule: 'daily', reminder_time: '18:00' })
+  habitsApi.create(userId, { title: 'Evening walk', schedule: 'daily', reminder_time: '19:00' })
   habitsApi.toggleToday(userId, stretch.id)
 
-  const goal = goalsApi.create(userId, {
-    title: 'Ship Katana Personal soft launch',
-    target: 100,
-    progress: 42,
-    horizon: 'quarterly',
+  goalsApi.create(userId, {
+    title: 'Protect deep work 3× this week',
+    target: 3,
+    progress: 1,
+    horizon: 'monthly',
   })
-  void goal
 
   notesApi.createNote(userId, {
-    title: 'Launch narrative',
-    body: 'Busy people. One next step. Friends who keep you honest.',
+    title: 'Weekend ideas',
+    body: 'Farmers market · long walk · no screens after dinner.',
     pinned: true,
   })
 
   journalApi.upsert(userId, {
     mood: 'good',
-    body: 'Clear day. Protect the focus block.',
+    body: 'Clear morning. Protect the focus block.',
   })
 
   healthApi.setWater(userId, 4)
