@@ -159,10 +159,32 @@ export default function FriendsPage() {
             }}
           >
             <Copy className="h-3.5 w-3.5" />
-            Copy
+            Copy code
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5"
+            onClick={async () => {
+              const url = `${window.location.origin}/invite/friend/${cloudProfile.friendCode}`
+              await navigator.clipboard.writeText(url)
+              toast.success('Add-me link copied')
+            }}
+          >
+            <Copy className="h-3.5 w-3.5" />
+            Copy link
           </Button>
         </div>
-        <p className="mt-2 text-sm text-muted-foreground">Friends enter this code to send you a request.</p>
+        <div className="mt-4 flex flex-wrap items-center gap-4">
+          <img
+            alt="QR code to add you as a friend"
+            className="h-28 w-28 rounded-xl border border-border/50 bg-white p-1"
+            src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(`${window.location.origin}/invite/friend/${cloudProfile.friendCode}`)}`}
+          />
+          <p className="max-w-xs text-sm text-muted-foreground">
+            Share your link or QR — friends open it, sign in to the cloud, and send you a request in one tap.
+          </p>
+        </div>
       </section>
 
       <form onSubmit={onAdd} className="kp-surface mb-6 flex gap-2 p-4">

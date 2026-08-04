@@ -25,6 +25,7 @@ import {
 } from '@/lib/social/friends'
 import { DEFAULT_SHARE_PREFS, type CloudProfile, type SharePrefs } from '@/lib/social/types'
 import { publishStreaks } from '@/lib/social/streaks'
+import { registerStreakSync } from '@/lib/social/streak-sync'
 import { useAuth } from '@/contexts/AuthContext'
 
 interface CloudAuthContextType {
@@ -152,6 +153,15 @@ export function CloudAuthProvider({ children }: { children: React.ReactNode }) {
       sharePrefs: cloudProfile.sharePrefs || DEFAULT_SHARE_PREFS,
     })
   }, [cloudUser, cloudProfile, localUser])
+
+  useEffect(() => {
+    if (!cloudUser || !cloudProfile || !localUser) {
+      registerStreakSync(null)
+      return
+    }
+    registerStreakSync(syncStreaksToCloud)
+    return () => registerStreakSync(null)
+  }, [cloudUser, cloudProfile, localUser, syncStreaksToCloud])
 
   const enablePushNotifications = useCallback(async () => {
     if (!cloudUser) throw new Error('Sign in to the cloud first.')

@@ -1,6 +1,6 @@
 import { FormEvent, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   CheckSquare,
   CalendarDays,
@@ -11,14 +11,20 @@ import {
   BookOpen,
   X,
   Sparkles,
+  ArrowRight,
+  AlertCircle,
+  Moon,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAuth } from '@/contexts/AuthContext'
-import { format, formatTime, formatShortDate, todayKey } from '@/lib/dates'
-import { pageEnterSubtle } from '@/lib/motion-ui'
+import { format, formatTime, formatShortDate, todayKey, addDays } from '@/lib/dates'
+import { pageEnterSubtle, springSoft } from '@/lib/motion-ui'
 import { useLocalRefresh } from '@/hooks/useLocalRefresh'
+import { parseCapture, commitCapture } from '@/lib/capture'
 import { tasksApi } from '@/modules/tasks/api'
 import { calendarApi } from '@/modules/calendar/api'
 import { habitsApi } from '@/modules/habits/api'
@@ -27,6 +33,10 @@ import { goalsApi } from '@/modules/goals/api'
 import { journalApi } from '@/modules/journal/api'
 import { buildDailyBriefing, buildSnapshot } from '@/modules/assistant/engine'
 import { toast } from 'sonner'
+import type { Task } from '@/modules/tasks/types'
+import type { CalendarEvent } from '@/modules/calendar/types'
+import type { Habit } from '@/modules/habits/types'
+import { cn } from '@/lib/utils'
 
 const QUICK = [
   { to: '/tasks', label: 'Task', icon: CheckSquare },
@@ -37,38 +47,37 @@ const QUICK = [
   { to: '/goals', label: 'Goal', icon: Target },
 ] as const
 
-function captureItem(userId: string, raw: string): { kind: string; to: string } {
-  const text = raw.trim()
-  if (text.startsWith('#')) {
-    const note = notesApi.createNote(userId, { title: text.slice(1).trim() || 'Untitled' })
-    return { kind: 'note', to: `/notes?id=${note.id}` }
+const CLOSE_KEY = 'katana-personal:day-close'
+
+type NextAction =
+  | { type: 'task'; item: Task }
+  | { type: 'event'; item: CalendarEvent }
+  | { type: 'habit'; item: Habit }
+
+function pickNextAction(
+  overdue: Task[],
+  priority: Task[],
+  todayEvents: CalendarEvent[],
+  openHabits: Habit[],
+): NextAction | null {
+  if (overdue[0]) return { type: 'task', item: overdue[0] }
+  const now = Date.now()
+  const soon = todayEvents.find((e) => new Date(e.starts_at).getTime() >= now - 5 * 60_000)
+  if (soon && new Date(soon.starts_at).getTime() - now < 90 * 60_000) {
+    return { type: 'event', item: soon }
   }
-  if (text.startsWith('@')) {
-    const title = text.slice(1).trim() || 'New event'
-    const start = new Date()
-    start.setMinutes(0, 0, 0)
-    start.setHours(start.getHours() + 1)
-    const end = new Date(start)
-    end.setHours(end.getHours() + 1)
-    const event = calendarApi.create(userId, {
-      title,
-      notes: '',
-      starts_at: start.toISOString(),
-      ends_at: end.toISOString(),
-      all_day: false,
-      location: '',
-      recurrence: 'none',
-      reminder_minutes: 30,
-    })
-    return { kind: 'event', to: `/calendar?date=${todayKey()}&id=${event.id}` }
-  }
-  const lists = tasksApi.listLists(userId)
-  const task = tasksApi.createTask(userId, {
-    title: text,
-    list_id: lists[0]?.id ?? null,
-    due_at: new Date().toISOString(),
-  })
-  return { kind: 'task', to: `/tasks?id=${task.id}` }
+  if (priority[0]) return { type: 'task', item: priority[0] }
+  if (openHabits[0]) return { type: 'habit', item: openHabits[0] }
+  if (soon) return { type: 'event', item: soon }
+  return null
+}
+
+function closedToday(): boolean {
+  return localStorage.getItem(CLOSE_KEY) === todayKey()
+}
+
+function markClosed() {
+  localStorage.setItem(CLOSE_KEY, todayKey())
 }
 
 export default function DashboardPage() {
@@ -76,38 +85,96 @@ export default function DashboardPage() {
   const userId = user!.id
   const { tick, refresh } = useLocalRefresh()
   const [capture, setCapture] = useState('')
+  const [alsoOpen, setAlsoOpen] = useState(false)
+  const [closeNote, setCloseNote] = useState('')
+  const [dayClosed, setDayClosed] = useState(closedToday)
+
+  const draft = useMemo(() => parseCapture(capture), [capture])
 
   const data = useMemo(() => {
     void tick
     const snap = buildSnapshot(userId, profile?.display_name || 'there')
+    const overdue = tasksApi.overdue(userId)
+    const priority = tasksApi.priorityTasks(userId, 8)
+    const todayEvents = calendarApi.forDay(userId, new Date())
+    const habits = habitsApi.dueToday(userId)
+    const openHabits = habits.filter((h) => !habitsApi.isDoneToday(userId, h.id))
+    const atRisk = habits.filter((h) => {
+      const streak = habitsApi.streak(userId, h.id)
+      return streak >= 3 && !habitsApi.isDoneToday(userId, h.id)
+    })
+    const next = pickNextAction(overdue, priority, todayEvents, openHabits)
+    const alsoTasks = priority.filter((t) => !(next?.type === 'task' && next.item.id === t.id)).slice(0, 5)
+
     return {
       briefing: buildDailyBriefing(snap),
-      priority: tasksApi.priorityTasks(userId),
+      overdue,
+      priority,
       events: calendarApi.upcoming(userId),
-      habits: habitsApi.dueToday(userId),
+      todayEvents,
+      habits,
+      openHabits,
+      atRisk,
       notes: notesApi.recent(userId),
       goals: goalsApi.active(userId),
+      next,
+      alsoTasks,
       hasTask: tasksApi.listTasks(userId).length > 0,
       hasHabit: habitsApi.list(userId).length > 0,
       hasJournal: Boolean(journalApi.forDate(userId)),
+      unfinishedToday: tasksApi.todayTasks(userId),
     }
   }, [userId, tick, profile?.display_name])
 
-  const greeting = (() => {
-    const hour = new Date().getHours()
-    if (hour < 12) return 'Good morning'
-    if (hour < 18) return 'Good afternoon'
-    return 'Good evening'
-  })()
+  const hour = new Date().getHours()
+  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
+  const showEveningClose = hour >= 17 && !dayClosed
 
   function onCapture(e: FormEvent) {
     e.preventDefault()
-    if (!capture.trim()) return
-    const result = captureItem(userId, capture)
+    if (!draft) return
+    const result = commitCapture(userId, draft)
     setCapture('')
-    toast.success(
-      result.kind === 'note' ? 'Note saved' : result.kind === 'event' ? 'Event added' : 'Task added',
-    )
+    toast.success(result.summary, {
+      action: {
+        label: 'Open',
+        onClick: () => {
+          window.location.href = result.to
+        },
+      },
+      cancel: {
+        label: 'Undo',
+        onClick: () => {
+          if (result.kind === 'task') tasksApi.deleteTask(userId, result.id)
+          else if (result.kind === 'note') notesApi.deleteNote(userId, result.id)
+          else calendarApi.remove(userId, result.id)
+          refresh()
+          toast.message('Undone')
+        },
+      },
+    })
+    refresh()
+  }
+
+  function parkUnfinished() {
+    const tomorrow = addDays(new Date(), 1)
+    tomorrow.setHours(17, 0, 0, 0)
+    let n = 0
+    for (const task of data.unfinishedToday) {
+      tasksApi.updateTask(userId, task.id, { due_at: tomorrow.toISOString() })
+      n += 1
+    }
+    if (closeNote.trim()) {
+      journalApi.upsert(userId, {
+        mood: 'okay',
+        body: closeNote.trim(),
+        reflection: 'Evening close',
+      })
+    }
+    markClosed()
+    setDayClosed(true)
+    setCloseNote('')
+    toast.success(n ? `Parked ${n} task${n === 1 ? '' : 's'} for tomorrow` : 'Day closed')
     refresh()
   }
 
@@ -116,7 +183,7 @@ export default function DashboardPage() {
       <PageHeader
         eyebrow={format(new Date(), 'EEEE · MMMM d')}
         title={`${greeting}, ${profile?.display_name || 'there'}`}
-        description="Your day, gathered in one place."
+        description="One next step. Everything else can wait."
         actions={
           <Button asChild variant="outline" className="gap-2">
             <Link to="/ask">
@@ -169,22 +236,36 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <form onSubmit={onCapture} className="mb-6 kp-surface p-3 sm:p-4">
+      <form onSubmit={onCapture} className="mb-4 kp-surface p-3 sm:p-4">
         <div className="flex gap-2">
           <Input
             value={capture}
             onChange={(e) => setCapture(e.target.value)}
-            placeholder="Capture a task…  # note  ·  @ event"
+            placeholder="Call Mom Friday 3pm ·  # idea  ·  @ dentist tomorrow"
             aria-label="Quick capture"
             className="flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0"
           />
-          <Button type="submit" size="icon" aria-label="Capture">
+          <Button type="submit" size="icon" aria-label="Capture" disabled={!draft}>
             <Plus className="h-4 w-4" />
           </Button>
         </div>
-        <p className="mt-1 px-1 text-[0.7rem] text-muted-foreground">
-          Enter for a task · start with # for a note · @ for an event
-        </p>
+        <AnimatePresence>
+          {draft && capture.trim() && (
+            <motion.p
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="mt-2 rounded-xl bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary"
+            >
+              Will create: {draft.summary}
+            </motion.p>
+          )}
+        </AnimatePresence>
+        {!capture.trim() && (
+          <p className="mt-1 px-1 text-[0.7rem] text-muted-foreground">
+            tomorrow · fri · 3pm · ! priority · # note · @ event
+          </p>
+        )}
       </form>
 
       <div className="mb-6 flex flex-wrap gap-2">
@@ -198,47 +279,147 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      <section className="relative mb-6 overflow-hidden kp-surface p-6 sm:p-7" aria-live="polite">
-        <div className="pointer-events-none absolute -right-8 -top-10 h-40 w-40 rounded-full bg-primary/10 blur-2xl" />
-        <div className="relative">
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <p className="kp-section-label">For you</p>
-            <Link to="/ask" className="text-xs font-medium text-primary hover:underline">
-              Ask more
-            </Link>
+      {data.overdue.length > 0 && (
+        <section className="mb-4 flex items-start gap-3 rounded-2xl border border-destructive/25 bg-destructive/5 px-4 py-3">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-destructive">
+              {data.overdue.length} overdue
+            </p>
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+              {data.overdue
+                .slice(0, 3)
+                .map((t) => t.title)
+                .join(' · ')}
+            </p>
           </div>
-          <p className="max-w-3xl text-[0.98rem] leading-relaxed text-foreground/90 sm:text-base">
-            {data.briefing}
-          </p>
-        </div>
-      </section>
+          <Button asChild size="sm" variant="outline">
+            <Link to="/tasks?filter=overdue">Review</Link>
+          </Button>
+        </section>
+      )}
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <section className="kp-surface p-5 sm:p-6">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="flex items-center gap-2 text-[0.95rem] font-semibold tracking-tight">
-              <CheckSquare className="h-4 w-4 text-primary" />
-              Focus
-            </h2>
-            <Link to="/tasks" className="text-xs font-medium text-muted-foreground hover:text-foreground">
-              All tasks
-            </Link>
-          </div>
-          {data.priority.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nothing urgent. Protect the calm.</p>
-          ) : (
-            <ul className="space-y-2">
-              {data.priority.map((task) => (
-                <li
-                  key={task.id}
-                  className="flex items-start justify-between gap-3 rounded-2xl bg-secondary/55 px-3.5 py-3"
+      {data.atRisk.length > 0 && (
+        <p className="mb-4 text-sm text-amber-700 dark:text-amber-400">
+          Streak at risk: {data.atRisk.map((h) => h.title).join(', ')} — check in before the day ends.
+        </p>
+      )}
+
+      {/* Hero: Do this next */}
+      <motion.section
+        layout
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={springSoft}
+        className="relative mb-4 overflow-hidden kp-surface p-6 sm:p-8"
+      >
+        <div className="pointer-events-none absolute -right-10 -top-12 h-48 w-48 rounded-full bg-primary/15 blur-3xl" />
+        <p className="kp-section-label relative">Do this next</p>
+        {data.next ? (
+          <div className="relative mt-3 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="min-w-0">
+              <h2 className="font-display text-2xl tracking-tight sm:text-3xl">
+                {data.next.type === 'task' && data.next.item.title}
+                {data.next.type === 'event' && data.next.item.title}
+                {data.next.type === 'habit' && data.next.item.title}
+              </h2>
+              <p className="mt-1.5 text-sm text-muted-foreground">
+                {data.next.type === 'task' && (
+                  <>
+                    Task
+                    {data.next.item.due_at ? ` · ${formatShortDate(data.next.item.due_at)}` : ''}
+                    {data.next.item.priority === 'high' ? ' · Important' : ''}
+                  </>
+                )}
+                {data.next.type === 'event' && (
+                  <>
+                    Event · {formatShortDate(data.next.item.starts_at)}
+                    {!data.next.item.all_day ? ` · ${formatTime(data.next.item.starts_at)}` : ' · All day'}
+                  </>
+                )}
+                {data.next.type === 'habit' && (
+                  <>Habit · {habitsApi.streak(userId, data.next.item.id)} day streak</>
+                )}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {data.next.type === 'task' && (
+                <>
+                  <Button
+                    size="lg"
+                    className="gap-2"
+                    onClick={() => {
+                      tasksApi.completeTask(userId, data.next!.item.id)
+                      toast.success('Done')
+                      refresh()
+                    }}
+                  >
+                    Mark done
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                  <Button asChild size="lg" variant="outline">
+                    <Link to={`/tasks?id=${data.next.item.id}`}>Open</Link>
+                  </Button>
+                </>
+              )}
+              {data.next.type === 'event' && (
+                <Button asChild size="lg" className="gap-2">
+                  <Link
+                    to={`/calendar?date=${data.next.item.starts_at.slice(0, 10)}&id=${data.next.item.id}`}
+                  >
+                    Open event
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </Button>
+              )}
+              {data.next.type === 'habit' && (
+                <Button
+                  size="lg"
+                  className="gap-2"
+                  onClick={() => {
+                    habitsApi.toggleToday(userId, data.next!.item.id)
+                    toast.success('Checked in')
+                    refresh()
+                  }}
                 >
-                  <Link to={`/tasks?id=${task.id}`} className="min-w-0 flex-1 hover:underline">
-                    <p className="text-sm font-medium">{task.title}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {task.priority === 'high' ? 'Important' : task.priority === 'low' ? 'Whenever' : 'Normal'}
-                      {task.due_at ? ` · ${formatShortDate(task.due_at)}` : ''}
-                    </p>
+                  Check in
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="relative mt-3">
+            <h2 className="font-display text-2xl tracking-tight sm:text-3xl">Nothing urgent</h2>
+            <p className="mt-1.5 text-sm text-muted-foreground">Protect the calm — or capture what’s next.</p>
+          </div>
+        )}
+      </motion.section>
+
+      {/* Also today — collapsed */}
+      {(data.alsoTasks.length > 0 || data.openHabits.length > 0 || data.todayEvents.length > 0) && (
+        <section className="mb-6 kp-surface">
+          <button
+            type="button"
+            className="flex w-full items-center justify-between px-5 py-3.5 text-left"
+            onClick={() => setAlsoOpen((v) => !v)}
+            aria-expanded={alsoOpen}
+          >
+            <span className="text-sm font-semibold tracking-tight">Also today</span>
+            <span className="flex items-center gap-2 text-xs text-muted-foreground">
+              {data.alsoTasks.length + data.openHabits.length} items
+              {alsoOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </span>
+          </button>
+          {alsoOpen && (
+            <div className="space-y-2 border-t border-border/40 px-4 pb-4 pt-2">
+              {data.alsoTasks.map((task) => (
+                <div
+                  key={task.id}
+                  className="flex items-center justify-between gap-2 rounded-xl bg-secondary/50 px-3 py-2.5"
+                >
+                  <Link to={`/tasks?id=${task.id}`} className="min-w-0 truncate text-sm hover:underline">
+                    {task.title}
                   </Link>
                   <Button
                     size="sm"
@@ -250,12 +431,105 @@ export default function DashboardPage() {
                   >
                     Done
                   </Button>
+                </div>
+              ))}
+              {data.openHabits
+                .filter((h) => !(data.next?.type === 'habit' && data.next.item.id === h.id))
+                .map((habit) => (
+                  <div
+                    key={habit.id}
+                    className="flex items-center justify-between gap-2 rounded-xl bg-secondary/50 px-3 py-2.5"
+                  >
+                    <span className="truncate text-sm">{habit.title}</span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        habitsApi.toggleToday(userId, habit.id)
+                        refresh()
+                      }}
+                    >
+                      Check in
+                    </Button>
+                  </div>
+                ))}
+              {data.todayEvents
+                .filter((e) => !(data.next?.type === 'event' && data.next.item.id === e.id))
+                .map((event) => (
+                  <Link
+                    key={event.id}
+                    to={`/calendar?date=${event.starts_at.slice(0, 10)}&id=${event.id}`}
+                    className="block rounded-xl bg-secondary/50 px-3 py-2.5 text-sm hover:bg-secondary/80"
+                  >
+                    {event.title}
+                    <span className="ml-2 text-xs text-muted-foreground">
+                      {!event.all_day ? formatTime(event.starts_at) : 'All day'}
+                    </span>
+                  </Link>
+                ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      <section className="relative mb-6 overflow-hidden kp-surface p-5 sm:p-6" aria-live="polite">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <p className="kp-section-label">For you</p>
+          <Link to="/ask" className="text-xs font-medium text-primary hover:underline">
+            Ask more
+          </Link>
+        </div>
+        <p className="max-w-3xl text-sm leading-relaxed text-foreground/90 sm:text-[0.95rem]">
+          {data.briefing}
+        </p>
+      </section>
+
+      {showEveningClose && (
+        <section className="mb-6 kp-surface border border-primary/20 p-5 sm:p-6">
+          <div className="mb-3 flex items-center gap-2">
+            <Moon className="h-4 w-4 text-primary" />
+            <p className="kp-section-label">Evening close</p>
+          </div>
+          <p className="font-display text-xl tracking-tight">Close the day in a minute</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Park unfinished work for tomorrow
+            {data.openHabits.length > 0
+              ? ` · ${data.openHabits.length} habit${data.openHabits.length === 1 ? '' : 's'} still open`
+              : ''}
+            .
+          </p>
+          {data.openHabits.length > 0 && (
+            <ul className="mt-3 space-y-1.5">
+              {data.openHabits.map((h) => (
+                <li key={h.id} className="flex items-center justify-between text-sm">
+                  <span>{h.title}</span>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      habitsApi.toggleToday(userId, h.id)
+                      refresh()
+                    }}
+                  >
+                    Check in
+                  </Button>
                 </li>
               ))}
             </ul>
           )}
+          <Input
+            className="mt-3"
+            value={closeNote}
+            onChange={(e) => setCloseNote(e.target.value)}
+            placeholder="One line for your journal (optional)"
+          />
+          <Button className="mt-4" onClick={parkUnfinished}>
+            Park unfinished & close day
+          </Button>
         </section>
+      )}
 
+      <div className="grid gap-4 lg:grid-cols-2">
         <section className="kp-surface p-5 sm:p-6">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="flex items-center gap-2 text-[0.95rem] font-semibold tracking-tight">
@@ -270,7 +544,7 @@ export default function DashboardPage() {
             <p className="text-sm text-muted-foreground">Nothing on the calendar yet.</p>
           ) : (
             <ul className="space-y-2">
-              {data.events.map((event) => (
+              {data.events.slice(0, 4).map((event) => (
                 <li key={event.id}>
                   <Link
                     to={`/calendar?date=${event.starts_at.slice(0, 10)}&id=${event.id}`}
@@ -291,50 +565,6 @@ export default function DashboardPage() {
         <section className="kp-surface p-5 sm:p-6">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="flex items-center gap-2 text-[0.95rem] font-semibold tracking-tight">
-              <Flame className="h-4 w-4 text-primary" />
-              Habits
-            </h2>
-            <Link to="/habits" className="text-xs font-medium text-muted-foreground hover:text-foreground">
-              Manage
-            </Link>
-          </div>
-          {data.habits.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Add one small habit to begin.</p>
-          ) : (
-            <ul className="space-y-2">
-              {data.habits.map((habit) => {
-                const done = habitsApi.isDoneToday(userId, habit.id)
-                return (
-                  <li
-                    key={habit.id}
-                    className="flex items-center justify-between rounded-2xl bg-secondary/55 px-3.5 py-3"
-                  >
-                    <Link to={`/habits?id=${habit.id}`} className="min-w-0 hover:underline">
-                      <p className="text-sm font-medium">{habit.title}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {habitsApi.streak(userId, habit.id)} day streak
-                      </p>
-                    </Link>
-                    <Button
-                      size="sm"
-                      variant={done ? 'secondary' : 'default'}
-                      onClick={() => {
-                        habitsApi.toggleToday(userId, habit.id)
-                        refresh()
-                      }}
-                    >
-                      {done ? 'Done' : 'Check in'}
-                    </Button>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </section>
-
-        <section className="kp-surface p-5 sm:p-6">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="flex items-center gap-2 text-[0.95rem] font-semibold tracking-tight">
               <Target className="h-4 w-4 text-primary" />
               Goals
             </h2>
@@ -346,7 +576,7 @@ export default function DashboardPage() {
             <p className="text-sm text-muted-foreground">Set a direction when you’re ready.</p>
           ) : (
             <ul className="space-y-4">
-              {data.goals.map((goal) => {
+              {data.goals.slice(0, 3).map((goal) => {
                 const pct = Math.min(100, Math.round((goal.progress / Math.max(goal.target, 1)) * 100))
                 return (
                   <li key={goal.id}>
@@ -356,7 +586,10 @@ export default function DashboardPage() {
                         <span className="text-muted-foreground">{pct}%</span>
                       </div>
                       <div className="h-1.5 overflow-hidden rounded-full bg-secondary">
-                        <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${pct}%` }} />
+                        <div
+                          className={cn('h-full rounded-full bg-primary transition-all')}
+                          style={{ width: `${pct}%` }}
+                        />
                       </div>
                     </Link>
                   </li>

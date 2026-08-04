@@ -1,6 +1,7 @@
 import { localDb } from '@/lib/local-db'
 import { createId } from '@/lib/id'
 import { todayKey } from '@/lib/dates'
+import { notifyLocalProgress } from '@/lib/social/streak-sync'
 import type { Workout, WaterLog, NutritionLog, SleepLog } from './types'
 
 const WORKOUTS = 'workouts'
@@ -50,12 +51,13 @@ export const healthApi = {
 
   setWater(userId: string, glasses: number, date = todayKey()): WaterLog {
     const current = healthApi.getWater(userId, date)
-    return (
+    const updated =
       localDb.update<WaterLog>(WATER, userId, current.id, {
         glasses: Math.max(0, glasses),
         updated_at: now(),
       }) || current
-    )
+    notifyLocalProgress()
+    return updated
   },
 
   listNutrition(userId: string): NutritionLog[] {

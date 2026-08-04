@@ -28,7 +28,7 @@ import {
 } from '@/components/ui/dialog'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
 import { pageEnterSubtle } from '@/lib/motion-ui'
-import { loadCirclesBoard } from '@/lib/social/streaks'
+import { loadCirclesBoard, listFriendActivity } from '@/lib/social/streaks'
 import {
   createCircle,
   deleteCircle,
@@ -64,6 +64,7 @@ export default function CirclesPage() {
   const [activeId, setActiveId] = useState<string | null>(null)
   const [board, setBoard] = useState<StreakSnapshot[]>([])
   const [friends, setFriends] = useState<CloudProfile[]>([])
+  const [activity, setActivity] = useState<{ uid: string; message: string; updatedAt: string }[]>([])
   const [busy, setBusy] = useState(false)
   const [newName, setNewName] = useState('')
   const [manageOpen, setManageOpen] = useState(false)
@@ -120,6 +121,8 @@ export default function CirclesPage() {
           circle?.memberIds ?? [cloudUser.uid],
         )
         setBoard(rows)
+        const feed = await listFriendActivity(friendList.map((f) => f.uid))
+        setActivity(feed.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 6))
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'Couldn’t load circles')
       }
@@ -243,6 +246,24 @@ export default function CirclesPage() {
         {cloudProfile ? ` You’re ${cloudProfile.displayName}.` : null}
       </p>
 
+      {activity.length > 0 ? (
+        <section className="mb-4 overflow-hidden kp-surface p-4">
+          <p className="kp-section-label mb-2">Friend activity</p>
+          <ul className="space-y-1.5">
+            {activity.map((a) => {
+              const friend = friends.find((f) => f.uid === a.uid)
+              return (
+                <li key={`${a.uid}-${a.updatedAt}`} className="text-sm text-muted-foreground">
+                  <span className="font-medium text-foreground">{friend?.displayName || 'Friend'}</span>
+                  {' — '}
+                  {a.message}
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      ) : null}
+
       <form onSubmit={(e) => void onCreate(e)} className="kp-surface mb-4 flex gap-2 p-3 sm:p-4">
         <Input
           placeholder="New circle name (e.g. Gym crew)"
@@ -259,7 +280,12 @@ export default function CirclesPage() {
       {circles.length === 0 ? (
         <EmptyState
           title="No circles yet"
-          description="Create one above — then add friends from Manage."
+          description="1) Add a friend · 2) Turn on streak sharing in Settings · 3) Create a circle here."
+          action={
+            <Button asChild variant="outline">
+              <Link to="/friends">Add friends</Link>
+            </Button>
+          }
         />
       ) : (
         <>

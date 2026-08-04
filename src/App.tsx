@@ -18,6 +18,7 @@ import AskPage from '@/modules/assistant/pages/AskPage'
 import FriendsPage from '@/modules/social/pages/FriendsPage'
 import CirclesPage from '@/modules/social/pages/CirclesPage'
 import SharedPage from '@/modules/social/pages/SharedPage'
+import FriendInvitePage from '@/modules/social/pages/FriendInvitePage'
 import InviteJoinPage from '@/modules/social/pages/InviteJoinPage'
 
 function Protected({ children }: { children: React.ReactNode }) {
@@ -46,6 +47,7 @@ export default function App() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/auth" element={<AuthPage />} />
       <Route path="/invite/circle/:token" element={<InviteJoinPage />} />
+      <Route path="/invite/friend/:code" element={<FriendInvitePage />} />
       <Route path="/home" element={<RootRedirect />} />
 
       <Route path="/dashboard" element={<Protected><DashboardPage /></Protected>} />

@@ -12,6 +12,7 @@ import { downloadBackup, parseBackup, restoreBackup } from '@/lib/backup'
 import { ensureUserLoaded, localDb } from '@/lib/local-db'
 import { pageEnterSubtle } from '@/lib/motion-ui'
 import { remindersEnabled, requestReminderPermission } from '@/lib/reminders'
+import { seedDemoWorkspace } from '@/lib/seed-demo'
 import { DEFAULT_SHARE_PREFS, type SharePrefs } from '@/lib/social/types'
 
 const SHARE_TOGGLES: { key: keyof SharePrefs; label: string; hint: string }[] = [
@@ -28,7 +29,7 @@ const SHARE_TOGGLES: { key: keyof SharePrefs; label: string; hint: string }[] = 
 ]
 
 export default function SettingsPage() {
-  const { profile, updateDisplayName, updatePreferences, resetOnboarding } = useAuth()
+  const { user, profile, updateDisplayName, updatePreferences, resetOnboarding } = useAuth()
   const {
     cloudEnabled,
     cloudUser,
@@ -155,8 +156,27 @@ export default function SettingsPage() {
             <p className="text-sm">
               Signed in as{' '}
               <span className="font-medium">{cloudProfile.email || cloudProfile.displayName}</span>
-              <span className="text-muted-foreground"> · code {cloudProfile.friendCode}</span>
             </p>
+            <div className="rounded-2xl bg-primary/10 px-4 py-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-primary">Share your code</p>
+              <p className="font-display mt-1 text-2xl tracking-widest">{cloudProfile.friendCode}</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={async () => {
+                    const url = `${window.location.origin}/invite/friend/${cloudProfile.friendCode}`
+                    await navigator.clipboard.writeText(url)
+                    toast.success('Add-me link copied')
+                  }}
+                >
+                  Copy add-me link
+                </Button>
+                <Button asChild size="sm" variant="outline">
+                  <a href="/friends">Open Friends</a>
+                </Button>
+              </div>
+            </div>
             <div className="flex flex-wrap gap-2">
               <Button
                 variant="outline"
@@ -303,6 +323,18 @@ export default function SettingsPage() {
       </section>
 
       <section className="kp-surface mb-4 space-y-3 p-5">
+        <h2 className="font-semibold">Install on your phone</h2>
+        <p className="text-sm text-muted-foreground">
+          On iPhone: Safari → Share → Add to Home Screen. On Android: Chrome menu → Install app.
+          You’ll get an app-like feel and better reminder support.
+        </p>
+        <p className="text-xs text-muted-foreground">
+          In-app alerts work on the free Firebase plan. True background push needs a paid plan later —
+          gentle reminders still work while Katana is open.
+        </p>
+      </section>
+
+      <section className="kp-surface mb-4 space-y-3 p-5">
         <h2 className="font-semibold">Keep a copy</h2>
         <p className="text-sm text-muted-foreground">
           Save everything on this device to a file you can put somewhere safe — or bring an old copy
@@ -321,6 +353,25 @@ export default function SettingsPage() {
             {busy ? 'Bringing it back…' : 'Bring a copy back'}
           </Button>
         </div>
+      </section>
+
+      <section className="kp-surface mb-4 space-y-3 p-5">
+        <h2 className="font-semibold">Demo data</h2>
+        <p className="text-sm text-muted-foreground">
+          Fill an empty workspace with sample tasks, habits, and a focus block — useful for demos.
+        </p>
+        <Button
+          variant="outline"
+          onClick={() => {
+            if (!user) return
+            const result = seedDemoWorkspace(user.id)
+            if (result.seeded) toast.success('Demo day loaded — open Today')
+            else if (result.reason === 'already') toast.message('Demo data was already added')
+            else toast.message('Workspace isn’t empty — clear tasks first or use a fresh start')
+          }}
+        >
+          Load demo day
+        </Button>
       </section>
 
       <section className="kp-surface mb-4 space-y-3 p-5">

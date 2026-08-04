@@ -19,20 +19,23 @@ import {
   Trophy,
   Share2,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
+import { useCloudAuth } from '@/contexts/CloudAuthContext'
 import { SimpleThemeToggle } from '@/components/SimpleThemeToggle'
 import { BrandMark } from '@/components/BrandMark'
 import { Button } from '@/components/ui/button'
 import { CommandPalette } from '@/components/CommandPalette'
 import { NotificationBell, useNotificationToasts } from '@/components/NotificationBell'
+import { BackupNudge } from '@/components/BackupNudge'
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { listFriendships } from '@/lib/social/friends'
 
 export const PRIMARY = [
   { to: '/dashboard', label: 'Today', icon: Sun },
@@ -95,23 +98,51 @@ function NavGroup({
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { profile, signOut } = useAuth()
+  const { cloudUser } = useCloudAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [moreOpen, setMoreOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const [pendingFriends, setPendingFriends] = useState(0)
   useNotificationToasts()
+
+  useEffect(() => {
+    if (!cloudUser) {
+      setPendingFriends(0)
+      return
+    }
+    let cancelled = false
+    void listFriendships(cloudUser.uid)
+      .then((list) => {
+        if (cancelled) return
+        const n = list.filter((f) => f.status === 'pending' && f.requestedBy !== cloudUser.uid).length
+        setPendingFriends(n)
+      })
+      .catch(() => {
+        if (!cancelled) setPendingFriends(0)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [cloudUser?.uid, location.pathname])
 
   async function handleSignOut() {
     await signOut()
     navigate('/')
   }
 
+  const togetherItems = SOCIAL.map((item) =>
+    item.to === '/friends' && pendingFriends > 0
+      ? { ...item, label: `Friends (${pendingFriends})` }
+      : item,
+  )
+
   const nav = (
     <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-2.5 py-2" aria-label="Main">
       <NavGroup items={PRIMARY} onNavigate={() => setMoreOpen(false)} />
       <NavGroup label="Plan" items={PLAN} onNavigate={() => setMoreOpen(false)} />
       <NavGroup label="Life" items={LIFE} onNavigate={() => setMoreOpen(false)} />
-      <NavGroup label="Together" items={SOCIAL} onNavigate={() => setMoreOpen(false)} />
+      <NavGroup label="Together" items={togetherItems} onNavigate={() => setMoreOpen(false)} />
       <div className="mt-2">
         <NavLink
           to="/settings"
@@ -134,6 +165,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const isToday = location.pathname === '/dashboard'
   const isAsk = location.pathname === '/ask'
+  const isTogether = ['/friends', '/shared', '/circles'].includes(location.pathname)
 
   return (
     <div className="flex min-h-screen pb-[calc(4.25rem+env(safe-area-inset-bottom))] md:pb-[env(safe-area-inset-bottom)]">
@@ -201,10 +233,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <main id="main-content" className="flex-1" tabIndex={-1}>
           {children}
+          <BackupNudge />
         </main>
       </div>
 
-      {/* Mobile bottom nav */}
       <nav
         className="fixed inset-x-0 bottom-0 z-30 border-t border-border/40 bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden"
         aria-label="Mobile"
@@ -241,13 +273,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <button
             type="button"
             className={cn(
-              'flex flex-col items-center gap-0.5 rounded-xl px-2 py-2 text-[0.7rem] font-medium',
-              moreOpen ? 'text-primary' : 'text-muted-foreground',
+              'relative flex flex-col items-center gap-0.5 rounded-xl px-2 py-2 text-[0.7rem] font-medium',
+              moreOpen || isTogether ? 'text-primary' : 'text-muted-foreground',
             )}
             onClick={() => setMoreOpen(true)}
           >
             <MoreHorizontal className="h-5 w-5" />
             More
+            {pendingFriends > 0 ? (
+              <span className="absolute right-3 top-1.5 h-2 w-2 rounded-full bg-primary" />
+            ) : null}
           </button>
         </div>
       </nav>
@@ -257,7 +292,46 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <SheetHeader>
             <SheetTitle className="font-display text-left text-xl">More</SheetTitle>
           </SheetHeader>
-          <div className="mt-2 max-h-[65vh] overflow-y-auto">{nav}</div>
+          <div className="mt-2 space-y-1">
+            <p className="kp-section-label px-3 pb-1">Together</p>
+            {togetherItems.map(({ to, label, icon: Icon }) => (
+              <NavLink
+                key={to}
+                to={to}
+                onClick={() => setMoreOpen(false)}
+                className={({ isActive }) =>
+                  cn(
+                    'flex items-center gap-3 rounded-xl px-3 py-2.5 text-[0.925rem] font-medium',
+                    isActive
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-muted-foreground hover:bg-secondary/80 hover:text-foreground',
+                  )
+                }
+              >
+                <Icon className="h-[1.05rem] w-[1.05rem]" />
+                {label}
+              </NavLink>
+            ))}
+          </div>
+          <div className="mt-2 max-h-[50vh] overflow-y-auto border-t border-border/40 pt-2">
+            <NavGroup label="Plan" items={PLAN} onNavigate={() => setMoreOpen(false)} />
+            <NavGroup label="Life" items={LIFE} onNavigate={() => setMoreOpen(false)} />
+            <NavLink
+              to="/settings"
+              onClick={() => setMoreOpen(false)}
+              className={({ isActive }) =>
+                cn(
+                  'mt-2 flex items-center gap-3 rounded-xl px-3 py-2 text-[0.925rem] font-medium',
+                  isActive
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-muted-foreground hover:bg-secondary/80 hover:text-foreground',
+                )
+              }
+            >
+              <Settings className="h-[1.05rem] w-[1.05rem] shrink-0 opacity-80" />
+              Settings
+            </NavLink>
+          </div>
           <div className="mt-3 border-t border-border/40 pt-3">
             <Button variant="outline" className="w-full gap-2 rounded-xl" onClick={handleSignOut}>
               <LogOut className="h-4 w-4" />

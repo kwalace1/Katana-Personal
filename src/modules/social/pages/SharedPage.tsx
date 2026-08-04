@@ -1,20 +1,32 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Trash2 } from 'lucide-react'
+import { CheckSquare, LogOut, Trash2, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { useAuth } from '@/contexts/AuthContext'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
 import { pageEnterSubtle } from '@/lib/motion-ui'
-import { listSharedItems, removeSharedItem } from '@/lib/social/shared'
+import { leaveSharedItem, listSharedItems, removeSharedItem, sharedItemHref } from '@/lib/social/shared'
+import { getCloudProfile } from '@/lib/social/friends'
+import { tasksApi } from '@/modules/tasks/api'
 import type { SharedItem } from '@/lib/social/types'
 import { formatShortDate } from '@/lib/dates'
 
 export default function SharedPage() {
+  const { user } = useAuth()
   const { cloudUser } = useCloudAuth()
   const [items, setItems] = useState<SharedItem[]>([])
+  const [selected, setSelected] = useState<SharedItem | null>(null)
+  const [memberNames, setMemberNames] = useState<Record<string, string>>({})
   const [tick, setTick] = useState(0)
 
   useEffect(() => {
@@ -24,12 +36,31 @@ export default function SharedPage() {
       .catch((err) => toast.error(err instanceof Error ? err.message : 'Couldn’t load shared items'))
   }, [cloudUser, tick])
 
+  useEffect(() => {
+    if (!selected) return
+    let cancelled = false
+    ;(async () => {
+      const map: Record<string, string> = {}
+      await Promise.all(
+        selected.memberIds.map(async (id) => {
+          const p = await getCloudProfile(id)
+          if (p) map[id] = p.displayName
+        }),
+      )
+      if (!cancelled) setMemberNames(map)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [selected])
+
   if (!cloudUser) {
     return (
       <motion.div {...pageEnterSubtle} className="kp-page">
-        <PageHeader title="Shared" description="Plans you’ve made together." eyebrow="Social" />
+        <PageHeader title="Shared" description="Plans you’ve made together." eyebrow="Together" />
         <EmptyState
           title="Sign in to see shared plans"
+          description="Connect in Settings, then share a task or habit with a friend."
           action={
             <Button asChild>
               <Link to="/settings">Settings</Link>
@@ -42,40 +73,128 @@ export default function SharedPage() {
 
   return (
     <motion.div {...pageEnterSubtle} className="kp-page">
-      <PageHeader title="Shared" description="Tasks, events, and more with friends." eyebrow="Social" />
+      <PageHeader title="Shared" description="Tasks, events, and more with friends." eyebrow="Together" />
       {items.length === 0 ? (
         <EmptyState
           title="Nothing shared yet"
-          description="From Tasks or Calendar, tap Share to invite a friend onto something."
+          description="From Tasks, Habits, or Calendar, tap Share to invite a friend onto something."
+          action={
+            <Button asChild variant="outline">
+              <Link to="/friends">Find friends</Link>
+            </Button>
+          }
         />
       ) : (
         <ul className="space-y-2">
           {items.map((item) => (
-            <li key={item.id} className="kp-surface flex items-start justify-between gap-3 p-4">
-              <div className="min-w-0">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">{item.kind}</p>
-                <p className="font-medium">{item.title}</p>
-                {item.body ? <p className="mt-1 text-sm text-muted-foreground line-clamp-2">{item.body}</p> : null}
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {item.memberIds.length} people · {formatShortDate(item.updatedAt)}
-                </p>
-              </div>
-              {item.ownerId === cloudUser.uid ? (
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={async () => {
-                    await removeSharedItem(item.id)
-                    setTick((n) => n + 1)
-                  }}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              ) : null}
+            <li key={item.id}>
+              <button
+                type="button"
+                className="kp-surface flex w-full items-start justify-between gap-3 p-4 text-left transition hover:border-primary/30"
+                onClick={() => setSelected(item)}
+              >
+                <div className="min-w-0">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">{item.kind}</p>
+                  <p className="font-medium">{item.title}</p>
+                  {item.body ? (
+                    <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{item.body}</p>
+                  ) : null}
+                  <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                    <Users className="h-3 w-3" />
+                    {item.memberIds.length} people · {formatShortDate(item.updatedAt)}
+                  </p>
+                </div>
+              </button>
             </li>
           ))}
         </ul>
       )}
+
+      <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
+        <DialogContent className="max-w-md">
+          {selected ? (
+            <>
+              <DialogHeader>
+                <DialogTitle className="font-display text-xl tracking-tight">{selected.title}</DialogTitle>
+              </DialogHeader>
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">{selected.kind}</p>
+              {selected.body ? <p className="text-sm text-muted-foreground">{selected.body}</p> : null}
+              <div>
+                <p className="mb-2 text-sm font-medium">People</p>
+                <ul className="space-y-1">
+                  {selected.memberIds.map((id) => (
+                    <li key={id} className="rounded-xl bg-secondary/50 px-3 py-2 text-sm">
+                      {memberNames[id] || '…'}
+                      {id === selected.ownerId ? (
+                        <span className="ml-2 text-xs text-muted-foreground">owner</span>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {sharedItemHref(selected) ? (
+                  <Button asChild variant="outline">
+                    <Link to={sharedItemHref(selected)!} onClick={() => setSelected(null)}>
+                      Open related
+                    </Link>
+                  </Button>
+                ) : null}
+                {selected.kind === 'task' && user ? (
+                  <Button
+                    className="gap-1.5"
+                    onClick={() => {
+                      const lists = tasksApi.listLists(user.id)
+                      const task = tasksApi.createTask(user.id, {
+                        title: selected.title,
+                        notes: selected.body || '',
+                        list_id: lists[0]?.id ?? null,
+                        due_at:
+                          typeof selected.data?.due_at === 'string' ? selected.data.due_at : null,
+                      })
+                      toast.success('Copied into your tasks')
+                      setSelected(null)
+                      window.location.href = `/tasks?id=${task.id}`
+                    }}
+                  >
+                    <CheckSquare className="h-3.5 w-3.5" />
+                    Copy into my tasks
+                  </Button>
+                ) : null}
+                {selected.ownerId === cloudUser.uid ? (
+                  <Button
+                    variant="destructive"
+                    className="gap-1.5"
+                    onClick={async () => {
+                      await removeSharedItem(selected.id)
+                      setSelected(null)
+                      setTick((n) => n + 1)
+                      toast.message('Removed')
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    className="gap-1.5"
+                    onClick={async () => {
+                      await leaveSharedItem(cloudUser.uid, selected)
+                      setSelected(null)
+                      setTick((n) => n + 1)
+                      toast.message('Left')
+                    }}
+                  >
+                    <LogOut className="h-3.5 w-3.5" />
+                    Leave
+                  </Button>
+                )}
+              </div>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </motion.div>
   )
 }

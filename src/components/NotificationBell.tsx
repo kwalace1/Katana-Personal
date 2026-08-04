@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Bell } from 'lucide-react'
 import { toast } from 'sonner'
@@ -13,9 +13,9 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
 import {
-  listNotifications,
   markAllNotificationsRead,
   markNotificationRead,
+  subscribeNotifications,
   unreadCount,
   type AppNotification,
 } from '@/lib/social/notifications'
@@ -28,23 +28,12 @@ export function NotificationBell() {
   const [items, setItems] = useState<AppNotification[]>([])
   const [open, setOpen] = useState(false)
 
-  async function refresh() {
-    if (!cloudUser) return
-    try {
-      setItems(await listNotifications(cloudUser.uid))
-    } catch {
-      // index may still be building
-    }
-  }
-
   useEffect(() => {
     if (!cloudUser) {
       setItems([])
       return
     }
-    void refresh()
-    const t = window.setInterval(() => void refresh(), 45_000)
-    return () => window.clearInterval(t)
+    return subscribeNotifications(cloudUser.uid, setItems)
   }, [cloudUser?.uid])
 
   if (!cloudUser) return null
@@ -52,7 +41,7 @@ export function NotificationBell() {
   const unread = unreadCount(items)
 
   return (
-    <DropdownMenu open={open} onOpenChange={(v) => { setOpen(v); if (v) void refresh() }}>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" className="relative rounded-xl" aria-label="Notifications">
           <Bell className="h-4 w-4" />
@@ -72,7 +61,6 @@ export function NotificationBell() {
               className="text-xs text-primary hover:underline"
               onClick={async () => {
                 await markAllNotificationsRead(cloudUser.uid)
-                void refresh()
               }}
             >
               Mark all read
@@ -90,7 +78,6 @@ export function NotificationBell() {
               onClick={async () => {
                 await markNotificationRead(n.id)
                 if (n.href) navigate(n.href)
-                else void refresh()
               }}
             >
               <span className="text-sm font-medium">{n.title}</span>
@@ -104,32 +91,26 @@ export function NotificationBell() {
   )
 }
 
-/** Show a browser toast when tab is open and a new friend/share lands — best-effort. */
+/** Toast when a new notification arrives via realtime snapshot. */
 export function useNotificationToasts() {
   const { cloudUser } = useCloudAuth()
+  const primed = useRef(false)
+  const lastIds = useRef(new Set<string>())
+
   useEffect(() => {
     if (!cloudUser) return
-    let lastIds = new Set<string>()
-    let primed = false
-    const tick = async () => {
-      try {
-        const items = await listNotifications(cloudUser.uid, 10)
-        const ids = new Set(items.map((i) => i.id))
-        if (primed) {
-          for (const item of items) {
-            if (!item.read && !lastIds.has(item.id)) {
-              toast(item.title, { description: item.body })
-            }
+    primed.current = false
+    lastIds.current = new Set()
+    return subscribeNotifications(cloudUser.uid, (items) => {
+      if (primed.current) {
+        for (const item of items) {
+          if (!item.read && !lastIds.current.has(item.id)) {
+            toast(item.title, { description: item.body })
           }
         }
-        lastIds = ids
-        primed = true
-      } catch {
-        // ignore
       }
-    }
-    void tick()
-    const t = window.setInterval(() => void tick(), 30_000)
-    return () => window.clearInterval(t)
+      lastIds.current = new Set(items.map((i) => i.id))
+      primed.current = true
+    }, 10)
   }, [cloudUser?.uid])
 }

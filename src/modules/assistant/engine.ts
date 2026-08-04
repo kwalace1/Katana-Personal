@@ -5,6 +5,7 @@ import { goalsApi } from '@/modules/goals/api'
 import { journalApi } from '@/modules/journal/api'
 import { healthApi } from '@/modules/health/api'
 import { notesApi } from '@/modules/notes/api'
+import { parseCapture } from '@/lib/capture'
 import { addDays, format, formatShortDate, formatTime, todayKey } from '@/lib/dates'
 import { createId } from '@/lib/id'
 import type { Task } from '@/modules/tasks/types'
@@ -337,6 +338,10 @@ export function answerQuestionWithActions(
   if (!q || q === 'briefing') {
     return { text: buildDailyBriefing(snap), actions: briefingActions(snap) }
   }
+
+  const created = tryParseCreate(question.trim())
+  if (created) return created
+
   if (q.includes('work out') || q.includes('workout') || q.includes('exercise') || q.includes('gym')) {
     return answerWorkout(snap)
   }
@@ -375,6 +380,28 @@ export function runAskAction(userId: string, action: AskAction): string {
     healthApi.setWater(userId, current.glasses + 1)
     return 'Logged a glass of water.'
   }
+  if (action.kind === 'create_task' && action.title) {
+    const lists = tasksApi.listLists(userId)
+    const task = tasksApi.createTask(userId, {
+      title: action.title,
+      list_id: lists[0]?.id ?? null,
+      due_at: action.dueAt ?? null,
+    })
+    return `Added “${task.title}”.`
+  }
+  if (action.kind === 'create_event' && action.title && action.startsAt && action.endsAt) {
+    calendarApi.create(userId, {
+      title: action.title,
+      notes: '',
+      starts_at: action.startsAt,
+      ends_at: action.endsAt,
+      all_day: false,
+      location: '',
+      recurrence: 'none',
+      reminder_minutes: 30,
+    })
+    return `Scheduled “${action.title}”.`
+  }
   return ''
 }
 
@@ -383,4 +410,51 @@ export const SUGGESTED_ASKS = [
   'When should I work out?',
   'Summarize my week.',
   'What goals am I falling behind on?',
+  'Add gym tomorrow',
 ] as const
+
+function tryParseCreate(question: string): AskReply | null {
+  const q = question.trim()
+  const lower = q.toLowerCase()
+  const addMatch = lower.match(/^(?:add|remind me to|create|schedule)\s+(.+)$/i)
+  if (!addMatch) return null
+
+  // Prefer capture parser for dates/times
+  const raw = addMatch[1]
+  const isEvent =
+    lower.startsWith('schedule') ||
+    lower.includes(' meeting') ||
+    lower.includes(' appointment') ||
+    raw.startsWith('@')
+  const parsed = parseCapture(isEvent ? `@ ${raw.replace(/^@\s*/, '')}` : raw)
+  if (!parsed) return null
+
+  if (parsed.kind === 'event' && parsed.eventStart && parsed.eventEnd) {
+    return {
+      text: `I can schedule “${parsed.title}” (${parsed.summary.replace(/^Event · /, '')}). Tap to confirm.`,
+      actions: [
+        {
+          id: createId(),
+          label: `Schedule “${parsed.title}”`,
+          kind: 'create_event',
+          title: parsed.title,
+          startsAt: parsed.eventStart.toISOString(),
+          endsAt: parsed.eventEnd.toISOString(),
+        },
+      ],
+    }
+  }
+
+  return {
+    text: `I can add “${parsed.title}”${parsed.dueAt ? ` (${parsed.summary})` : ''}. Tap to confirm.`,
+    actions: [
+      {
+        id: createId(),
+        label: `Add “${parsed.title}”`,
+        kind: 'create_task',
+        title: parsed.title,
+        dueAt: parsed.dueAt,
+      },
+    ],
+  }
+}

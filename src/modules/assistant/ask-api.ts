@@ -8,10 +8,14 @@ export type AskRole = 'you' | 'katana'
 export interface AskAction {
   id: string
   label: string
-  kind: 'complete_task' | 'toggle_habit' | 'log_water' | 'open_route'
+  kind: 'complete_task' | 'toggle_habit' | 'log_water' | 'open_route' | 'create_task' | 'create_event'
   taskId?: string
   habitId?: string
   route?: string
+  title?: string
+  dueAt?: string | null
+  startsAt?: string
+  endsAt?: string
 }
 
 export interface AskMessage {
@@ -56,6 +60,15 @@ export const askApi = {
         created_at: now(),
       }),
     )
+  },
+
+  /** Remove a spent action chip from a message. */
+  consumeAction(userId: string, messageId: string, actionId: string): void {
+    const msg = localDb.getById<AskMessage>(MESSAGES, userId, messageId)
+    if (!msg) return
+    localDb.update<AskMessage>(MESSAGES, userId, messageId, {
+      actions: (msg.actions || []).filter((a) => a.id !== actionId),
+    })
   },
 
   clear(userId: string): void {

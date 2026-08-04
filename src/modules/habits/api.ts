@@ -1,6 +1,7 @@
 import { localDb } from '@/lib/local-db'
 import { createId } from '@/lib/id'
 import { todayKey, addDays } from '@/lib/dates'
+import { notifyLocalProgress } from '@/lib/social/streak-sync'
 import type { Habit, HabitLog } from './types'
 
 const HABITS = 'habits'
@@ -72,19 +73,23 @@ export const habitsApi = {
   toggleToday(userId: string, habitId: string, date = todayKey()): HabitLog {
     const logs = habitsApi.logs(userId)
     const existing = logs.find((l) => l.habit_id === habitId && l.date === date)
+    let result: HabitLog
     if (existing) {
       const updated = { ...existing, completed: !existing.completed }
       localDb.update<HabitLog>(LOGS, userId, existing.id, updated)
-      return updated
+      result = updated
+    } else {
+      result = localDb.insert(LOGS, userId, {
+        id: createId(),
+        user_id: userId,
+        habit_id: habitId,
+        date,
+        completed: true,
+        created_at: now(),
+      })
     }
-    return localDb.insert(LOGS, userId, {
-      id: createId(),
-      user_id: userId,
-      habit_id: habitId,
-      date,
-      completed: true,
-      created_at: now(),
-    })
+    notifyLocalProgress()
+    return result
   },
 
   streak(userId: string, habitId: string): number {

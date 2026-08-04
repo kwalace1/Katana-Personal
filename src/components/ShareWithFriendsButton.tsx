@@ -15,8 +15,17 @@ import { useCloudAuth } from '@/contexts/CloudAuthContext'
 import { listFriendProfiles } from '@/lib/social/friends'
 import { createSharedItem } from '@/lib/social/shared'
 import { publishActivity } from '@/lib/social/streaks'
-import type { CloudProfile, SharedKind } from '@/lib/social/types'
+import type { CloudProfile, SharedKind, SharePrefs } from '@/lib/social/types'
 import { Link } from 'react-router-dom'
+
+function prefForKind(kind: SharedKind): keyof SharePrefs | null {
+  if (kind === 'habit') return 'habits'
+  if (kind === 'goal') return 'goals'
+  if (kind === 'journal') return 'journalMood'
+  if (kind === 'note') return 'notes'
+  if (kind === 'file') return 'files'
+  return null
+}
 
 export function ShareWithFriendsButton({
   kind,
@@ -46,6 +55,20 @@ export function ShareWithFriendsButton({
     return (
       <Button asChild size="sm" variant="outline">
         <Link to="/settings">Connect to share</Link>
+      </Button>
+    )
+  }
+
+  const prefKey = prefForKind(kind)
+  const prefOk = !prefKey || Boolean(cloudProfile?.sharePrefs?.[prefKey])
+
+  if (!prefOk) {
+    return (
+      <Button asChild size="sm" variant="outline" className="gap-1.5">
+        <Link to="/settings">
+          <Users className="h-3.5 w-3.5" />
+          Enable sharing
+        </Link>
       </Button>
     )
   }

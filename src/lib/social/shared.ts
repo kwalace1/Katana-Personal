@@ -72,3 +72,38 @@ export async function updateSharedItem(
 export async function removeSharedItem(id: string): Promise<void> {
   await deleteDoc(doc(getDb(), 'sharedItems', id))
 }
+
+/** Leave a shared item (or delete if you’re the last member / owner cleanup). */
+export async function leaveSharedItem(uid: string, item: SharedItem): Promise<void> {
+  if (item.ownerId === uid) {
+    await removeSharedItem(item.id)
+    return
+  }
+  const memberIds = item.memberIds.filter((id) => id !== uid)
+  if (memberIds.length === 0) {
+    await removeSharedItem(item.id)
+    return
+  }
+  await updateSharedItem(item.id, { memberIds })
+}
+
+export function sharedItemHref(item: SharedItem): string | null {
+  const localId = typeof item.data?.localTaskId === 'string'
+    ? item.data.localTaskId
+    : typeof item.data?.localId === 'string'
+      ? item.data.localId
+      : null
+  if (item.kind === 'task') return localId ? `/tasks?id=${localId}` : '/tasks'
+  if (item.kind === 'event') {
+    const date =
+      typeof item.data?.starts_at === 'string' ? String(item.data.starts_at).slice(0, 10) : null
+    return date ? `/calendar?date=${date}` : '/calendar'
+  }
+  if (item.kind === 'goal') return '/goals'
+  if (item.kind === 'habit') return '/habits'
+  if (item.kind === 'note') return '/notes'
+  if (item.kind === 'file') return '/documents'
+  if (item.kind === 'journal') return '/journal'
+  return null
+}
+

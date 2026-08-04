@@ -100,25 +100,29 @@ export async function loadCirclesBoard(
 
   const snaps = await Promise.all(
     ids.map(async (uid) => {
-      const docSnap = await getDoc(doc(getDb(), 'streaks', uid))
-      if (!docSnap.exists()) {
-        const profile = await getCloudProfile(uid)
-        if (!profile) return null
-        return {
-          uid,
-          displayName: profile.displayName,
-          updatedAt: new Date().toISOString(),
-          waterStreak: 0,
-          sleepStreak: 0,
-          nutritionStreak: 0,
-          workoutStreak: 0,
-          habitStreakBest: 0,
-          waterGlassesToday: 0,
-          sleepHoursLast: 0,
-          visible: profile.sharePrefs,
-        } satisfies StreakSnapshot
+      try {
+        const docSnap = await getDoc(doc(getDb(), 'streaks', uid))
+        if (!docSnap.exists()) {
+          const profile = await getCloudProfile(uid)
+          if (!profile) return null
+          return {
+            uid,
+            displayName: profile.displayName,
+            updatedAt: new Date().toISOString(),
+            waterStreak: 0,
+            sleepStreak: 0,
+            nutritionStreak: 0,
+            workoutStreak: 0,
+            habitStreakBest: 0,
+            waterGlassesToday: 0,
+            sleepHoursLast: 0,
+            visible: profile.sharePrefs,
+          } satisfies StreakSnapshot
+        }
+        return docSnap.data() as StreakSnapshot
+      } catch {
+        return null
       }
-      return docSnap.data() as StreakSnapshot
     }),
   )
   const board = snaps.filter(Boolean) as StreakSnapshot[]

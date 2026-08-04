@@ -4,11 +4,11 @@ Your life, organized in one calm place — private on this device.
 
 ## What’s inside
 
-Today · Ask · Tasks · Calendar · Notes · Goals · Habits · Journal · Health · Documents · Friends · Shared · Circles · Settings
+**Today** · **Ask** · Tasks · Calendar · Notes · Goals · Habits · Journal · Health · Documents · Friends · Shared · Circles · Settings
 
-**Ask** is a quiet guide that reads what’s already on your device.
-
-**Together** (optional cloud): friends, shared plans, and Circles leaderboards — private by default. See [FIREBASE_SETUP.md](./FIREBASE_SETUP.md).
+- **Today** — one next action, smart capture, evening close
+- **Ask** — a quiet day guide that can take action (no account, no API key)
+- **Together** (optional cloud) — friends, shared plans, Circles leaderboards
 
 ## Run it
 
@@ -17,14 +17,14 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3001
+Open http://localhost:3001 — on a phone, Add to Home Screen for an app-like feel.
 
-On a phone, you can add Katana to your Home Screen for an app-like feel.
+## Soft launch
+
+See [docs/SOFT_LAUNCH_CHECKLIST.md](./docs/SOFT_LAUNCH_CHECKLIST.md). Demo data: Settings → Load demo day.
+
+Firebase (optional social): [FIREBASE_SETUP.md](./FIREBASE_SETUP.md) — publish `firestore.rules` when they change.
 
 ## Keep a copy
 
-In Settings, use **Save a copy** / **Bring a copy back** so you never lose your space.
-
-## Gentle reminders
-
-Optional once-a-day nudge when something still needs you — turn on in Settings.
+Settings → **Save a copy** / **Bring a copy back** so a cleared browser doesn’t lose your space.

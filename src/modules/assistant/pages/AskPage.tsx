@@ -21,6 +21,7 @@ export default function AskPage() {
   const [tick, setTick] = useState(0)
   const refresh = () => setTick((n) => n + 1)
   const [draft, setDraft] = useState('')
+  const [spent, setSpent] = useState<Record<string, true>>({})
 
   const messages = useMemo(() => {
     void tick
@@ -55,6 +56,9 @@ export default function AskPage() {
   }
 
   function onAction(action: AskAction, message: AskMessage) {
+    const key = `${message.id}:${action.id}`
+    if (spent[key]) return
+
     if (action.kind === 'open_route' && action.route) {
       navigate(action.route)
       return
@@ -62,13 +66,13 @@ export default function AskPage() {
     const result = runAskAction(userId, action)
     if (result) {
       toast.success(result)
+      askApi.consumeAction(userId, message.id, action.id)
+      setSpent((s) => ({ ...s, [key]: true }))
       askApi.append(userId, {
         role: 'katana',
         text: result,
         actions: [],
       })
-      // Clear spent actions on the source message by appending only — keep simple
-      void message
       refresh()
     }
   }
@@ -76,9 +80,9 @@ export default function AskPage() {
   return (
     <motion.div {...pageEnterSubtle} className="kp-page mx-auto max-w-2xl">
       <PageHeader
-        eyebrow="Guide"
+        eyebrow="Day guide"
         title="Ask"
-        description="A quiet guide that already knows what’s on your plate."
+        description="A quiet guide that already knows what’s on your plate — and can take action."
         actions={
           messages.length > 1 ? (
             <Button
@@ -87,6 +91,7 @@ export default function AskPage() {
               className="gap-1.5"
               onClick={() => {
                 askApi.clear(userId)
+                setSpent({})
                 const opening = answerQuestionWithActions(userId, 'briefing', name)
                 askApi.append(userId, { role: 'katana', text: opening.text, actions: opening.actions })
                 refresh()
@@ -126,18 +131,23 @@ export default function AskPage() {
               {m.text}
               {m.role === 'katana' && m.actions.length > 0 ? (
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {m.actions.map((action) => (
-                    <Button
-                      key={action.id}
-                      type="button"
-                      size="sm"
-                      variant="secondary"
-                      className="h-8 rounded-full text-xs"
-                      onClick={() => onAction(action, m)}
-                    >
-                      {action.label}
-                    </Button>
-                  ))}
+                  {m.actions.map((action) => {
+                    const key = `${m.id}:${action.id}`
+                    const used = Boolean(spent[key])
+                    return (
+                      <Button
+                        key={action.id}
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        disabled={used}
+                        className="h-8 rounded-full text-xs"
+                        onClick={() => onAction(action, m)}
+                      >
+                        {used ? 'Done' : action.label}
+                      </Button>
+                    )
+                  })}
                 </div>
               ) : null}
             </div>
@@ -150,7 +160,7 @@ export default function AskPage() {
         <Textarea
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder="Ask anything about your day…"
+          placeholder="Ask about your day, or “add gym tomorrow”…"
           className="min-h-[52px] flex-1 resize-none"
           rows={2}
           onKeyDown={(e) => {

@@ -22,10 +22,7 @@ import {
 } from '@/components/ui/command'
 import { useAuth } from '@/contexts/AuthContext'
 import { searchWorkspace, type SearchHit } from '@/lib/search'
-import { tasksApi } from '@/modules/tasks/api'
-import { notesApi } from '@/modules/notes/api'
-import { calendarApi } from '@/modules/calendar/api'
-import { todayKey } from '@/lib/dates'
+import { captureItem } from '@/lib/capture'
 import { toast } from 'sonner'
 
 const KIND_ICON: Record<SearchHit['kind'], React.ComponentType<{ className?: string }>> = {
@@ -78,42 +75,26 @@ export function CommandPalette({
 
   function createTask(title: string) {
     if (!user) return
-    const lists = tasksApi.listLists(user.id)
-    const task = tasksApi.createTask(user.id, {
-      title: title || 'New task',
-      list_id: lists[0]?.id ?? null,
-      due_at: new Date().toISOString(),
-    })
-    toast.success('Task added')
-    go(`/tasks?id=${task.id}`)
+    const result = captureItem(user.id, title || 'New task')
+    if (!result) return
+    toast.success(result.summary)
+    go(result.to)
   }
 
   function createNote(title: string) {
     if (!user) return
-    const note = notesApi.createNote(user.id, { title: title || 'Untitled' })
-    toast.success('Note created')
-    go(`/notes?id=${note.id}`)
+    const result = captureItem(user.id, `# ${title || 'Untitled'}`)
+    if (!result) return
+    toast.success(result.summary)
+    go(result.to)
   }
 
   function createEvent(title: string) {
     if (!user) return
-    const start = new Date()
-    start.setMinutes(0, 0, 0)
-    start.setHours(start.getHours() + 1)
-    const end = new Date(start)
-    end.setHours(end.getHours() + 1)
-    const event = calendarApi.create(user.id, {
-      title: title || 'New event',
-      notes: '',
-      starts_at: start.toISOString(),
-      ends_at: end.toISOString(),
-      all_day: false,
-      location: '',
-      recurrence: 'none',
-      reminder_minutes: 30,
-    })
-    toast.success('Event added')
-    go(`/calendar?date=${todayKey()}&id=${event.id}`)
+    const result = captureItem(user.id, `@ ${title || 'New event'}`)
+    if (!result) return
+    toast.success(result.summary)
+    go(result.to)
   }
 
   const createLabel = query.trim() || 'Untitled'

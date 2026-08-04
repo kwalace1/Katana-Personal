@@ -128,7 +128,10 @@ export default function TasksPage() {
   const [priority, setPriority] = useState<TaskPriority>('medium')
   const [dueAt, setDueAt] = useState('')
   const [recurrence, setRecurrence] = useState<Recurrence>('none')
-  const [filter, setFilter] = useState<'open' | 'done' | 'all' | 'overdue'>('open')
+  const [filter, setFilter] = useState<'open' | 'done' | 'all' | 'overdue'>(() => {
+    const f = params.get('filter')
+    return f === 'overdue' || f === 'done' || f === 'all' || f === 'open' ? f : 'open'
+  })
   const [listId, setListId] = useState<string | 'all'>('all')
   const [newListName, setNewListName] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(params.get('id'))
@@ -136,6 +139,8 @@ export default function TasksPage() {
   useEffect(() => {
     const id = params.get('id')
     if (id) setSelectedId(id)
+    const f = params.get('filter')
+    if (f === 'overdue' || f === 'done' || f === 'all' || f === 'open') setFilter(f)
   }, [params])
 
   const selected = selectedId ? tasks.find((t) => t.id === selectedId) ?? null : null

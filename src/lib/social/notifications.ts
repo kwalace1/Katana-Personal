@@ -4,11 +4,13 @@ import {
   doc,
   getDocs,
   limit,
+  onSnapshot,
   orderBy,
   query,
   updateDoc,
   where,
   writeBatch,
+  type Unsubscribe,
 } from 'firebase/firestore'
 import { getDb } from '@/lib/firebase'
 
@@ -62,6 +64,29 @@ export async function listNotifications(uid: string, max = 40): Promise<AppNotif
   )
   const snap = await getDocs(q)
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<AppNotification, 'id'>) }))
+}
+
+/** Live updates without Cloud Functions / polling. */
+export function subscribeNotifications(
+  uid: string,
+  onChange: (items: AppNotification[]) => void,
+  max = 40,
+): Unsubscribe {
+  const q = query(
+    collection(getDb(), 'notifications'),
+    where('uid', '==', uid),
+    orderBy('createdAt', 'desc'),
+    limit(max),
+  )
+  return onSnapshot(
+    q,
+    (snap) => {
+      onChange(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<AppNotification, 'id'>) })))
+    },
+    () => {
+      // index may still be building — fall back silently
+    },
+  )
 }
 
 export async function markNotificationRead(id: string): Promise<void> {
