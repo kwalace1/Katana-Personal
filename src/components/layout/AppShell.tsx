@@ -29,6 +29,7 @@ import { Button } from '@/components/ui/button'
 import { CommandPalette } from '@/components/CommandPalette'
 import { NotificationBell, useNotificationToasts } from '@/components/NotificationBell'
 import { BackupNudge } from '@/components/BackupNudge'
+import { WorkspaceSyncHost } from '@/components/WorkspaceSyncHost'
 import {
   Sheet,
   SheetContent,
@@ -164,7 +165,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   )
 
   const isToday = location.pathname === '/dashboard'
-  const isAsk = location.pathname === '/ask'
+  const isTasks = location.pathname.startsWith('/tasks')
+  const isHabits = location.pathname.startsWith('/habits')
   const isTogether = ['/friends', '/shared', '/circles'].includes(location.pathname)
 
   return (
@@ -196,7 +198,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="mt-auto space-y-3 border-t border-border/40 p-4">
           <div className="px-1">
             <p className="truncate text-sm font-semibold tracking-tight">{profile?.display_name || 'You'}</p>
-            <p className="truncate text-xs text-muted-foreground">Private on this device</p>
+            <p className="truncate text-xs text-muted-foreground">
+              {cloudUser ? 'Cloud sync on · Save a copy as backup' : 'This device · Save a copy to move'}
+            </p>
           </div>
           <div className="flex items-center gap-1">
             <SimpleThemeToggle />
@@ -234,6 +238,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <main id="main-content" className="flex-1" tabIndex={-1}>
           {children}
           <BackupNudge />
+          <WorkspaceSyncHost />
         </main>
       </div>
 
@@ -241,11 +246,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         className="fixed inset-x-0 bottom-0 z-30 border-t border-border/40 bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden"
         aria-label="Mobile"
       >
-        <div className="grid grid-cols-4 gap-1 px-2 py-1.5">
+        <div className="grid grid-cols-5 gap-0.5 px-1 py-1">
           <NavLink
             to="/dashboard"
             className={cn(
-              'flex flex-col items-center gap-0.5 rounded-xl px-2 py-2 text-[0.7rem] font-medium',
+              'flex min-h-[3.25rem] flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1.5 text-[0.65rem] font-medium',
               isToday ? 'text-primary' : 'text-muted-foreground',
             )}
           >
@@ -253,26 +258,36 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             Today
           </NavLink>
           <NavLink
-            to="/ask"
+            to="/tasks"
             className={cn(
-              'flex flex-col items-center gap-0.5 rounded-xl px-2 py-2 text-[0.7rem] font-medium',
-              isAsk ? 'text-primary' : 'text-muted-foreground',
+              'flex min-h-[3.25rem] flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1.5 text-[0.65rem] font-medium',
+              isTasks ? 'text-primary' : 'text-muted-foreground',
             )}
           >
-            <Sparkles className="h-5 w-5" />
-            Ask
+            <CheckSquare className="h-5 w-5" />
+            Tasks
+          </NavLink>
+          <NavLink
+            to="/habits"
+            className={cn(
+              'flex min-h-[3.25rem] flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1.5 text-[0.65rem] font-medium',
+              isHabits ? 'text-primary' : 'text-muted-foreground',
+            )}
+          >
+            <Flame className="h-5 w-5" />
+            Habits
           </NavLink>
           <NavLink
             to="/friends"
             className={cn(
-              'relative flex flex-col items-center gap-0.5 rounded-xl px-2 py-2 text-[0.7rem] font-medium',
+              'relative flex min-h-[3.25rem] flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1.5 text-[0.65rem] font-medium',
               isTogether ? 'text-primary' : 'text-muted-foreground',
             )}
           >
             <Users className="h-5 w-5" />
             Together
             {pendingFriends > 0 ? (
-              <span className="absolute right-2.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[0.55rem] font-semibold text-primary-foreground">
+              <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[0.55rem] font-semibold text-primary-foreground">
                 {pendingFriends > 9 ? '9+' : pendingFriends}
               </span>
             ) : null}
@@ -280,7 +295,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <button
             type="button"
             className={cn(
-              'flex flex-col items-center gap-0.5 rounded-xl px-2 py-2 text-[0.7rem] font-medium',
+              'flex min-h-[3.25rem] flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1.5 text-[0.65rem] font-medium',
               moreOpen ? 'text-primary' : 'text-muted-foreground',
             )}
             onClick={() => setMoreOpen(true)}
@@ -294,18 +309,33 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
         <SheetContent side="bottom" className="max-h-[85vh] rounded-t-3xl pb-[env(safe-area-inset-bottom)]">
           <SheetHeader>
-            <SheetTitle className="font-display text-left text-xl">Plan & Life</SheetTitle>
+            <SheetTitle className="font-display text-left text-xl">More</SheetTitle>
           </SheetHeader>
+          <p className="mt-1 px-1 text-xs text-muted-foreground">
+            This device · use Settings → Save a copy to move to another phone or computer
+          </p>
           <div className="mt-2 max-h-[65vh] overflow-y-auto">
+            <NavGroup
+              label="Capture & plan"
+              items={[
+                { to: '/ask', label: 'Ask', icon: Sparkles },
+                { to: '/calendar', label: 'Calendar', icon: CalendarDays },
+                { to: '/goals', label: 'Goals', icon: Target },
+              ]}
+              onNavigate={() => setMoreOpen(false)}
+            />
+            <NavGroup
+              label="Life"
+              items={LIFE.filter((i) => i.to !== '/habits')}
+              onNavigate={() => setMoreOpen(false)}
+            />
             <NavGroup label="Together" items={togetherItems} onNavigate={() => setMoreOpen(false)} />
-            <NavGroup label="Plan" items={PLAN} onNavigate={() => setMoreOpen(false)} />
-            <NavGroup label="Life" items={LIFE} onNavigate={() => setMoreOpen(false)} />
             <NavLink
               to="/settings"
               onClick={() => setMoreOpen(false)}
               className={({ isActive }) =>
                 cn(
-                  'mt-2 flex items-center gap-3 rounded-xl px-3 py-2 text-[0.925rem] font-medium',
+                  'mt-2 flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-[0.925rem] font-medium',
                   isActive
                     ? 'bg-primary/10 text-primary'
                     : 'text-muted-foreground hover:bg-secondary/80 hover:text-foreground',
@@ -317,7 +347,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </NavLink>
           </div>
           <div className="mt-3 border-t border-border/40 pt-3">
-            <Button variant="outline" className="w-full gap-2 rounded-xl" onClick={handleSignOut}>
+            <Button variant="outline" className="min-h-11 w-full gap-2 rounded-xl" onClick={handleSignOut}>
               <LogOut className="h-4 w-4" />
               Sign out
             </Button>

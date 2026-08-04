@@ -101,7 +101,14 @@ function scheduleFlush() {
   if (flushTimer) return
   flushTimer = setTimeout(() => {
     flushTimer = null
-    void flushDirty()
+    void flushDirty().then(() => {
+      try {
+        // Dynamic import avoids circular deps with workspace-sync
+        void import('@/lib/workspace-sync').then((m) => m.notifyWorkspaceDirty())
+      } catch {
+        // optional
+      }
+    })
   }, 50)
 }
 

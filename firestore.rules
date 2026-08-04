@@ -156,5 +156,18 @@ service cloud.firestore {
     match /pushTokens/{uid} {
       allow read, write: if isSelf(uid);
     }
+
+    // Personal workspace sync (tasks, habits, water, calendar, …)
+    match /workspaces/{uid} {
+      allow read, write: if isSelf(uid);
+
+      match /meta/{docId} {
+        allow read, write: if isSelf(uid);
+      }
+
+      match /collections/{collectionId} {
+        allow read, write: if isSelf(uid);
+      }
+    }
   }
 }

@@ -127,7 +127,23 @@ export default function CalendarPage() {
 
   const initialDate = params.get('date')
   const [cursor, setCursor] = useState(() => (initialDate ? parseISO(initialDate) : new Date()))
-  const [view, setView] = useState<View>(params.get('date') ? 'day' : 'week')
+  const [view, setView] = useState<View>(() => {
+    if (params.get('date')) return 'day'
+    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches) return 'day'
+    return 'week'
+  })
+  const [isNarrow, setIsNarrow] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches,
+  )
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)')
+    const onChange = () => setIsNarrow(mq.matches)
+    onChange()
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+
   const [selectedId, setSelectedId] = useState<string | null>(params.get('id'))
   const [filter, setFilter] = useState<AgendaFilter>(DEFAULT_AGENDA_FILTER)
   const [addOpen, setAddOpen] = useState(false)
@@ -627,6 +643,71 @@ export default function CalendarPage() {
             </aside>
           ) : null}
         </div>
+      ) : view === 'week' && isNarrow ? (
+        <ul className="mb-6 space-y-2">
+          {days.map((day) => {
+            const dayItems = agendaForDay(agenda, day)
+            return (
+              <li key={day.toISOString()}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCursor(day)
+                    setView('day')
+                    setParams({ date: todayKey(day) })
+                  }}
+                  className={cn(
+                    'kp-surface flex min-h-11 w-full items-start gap-3 p-3.5 text-left transition hover:ring-1 hover:ring-primary/30',
+                    isToday(day) && 'ring-1 ring-primary/40',
+                  )}
+                >
+                  <div className="w-14 shrink-0">
+                    <p className="text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">
+                      {format(day, 'EEE')}
+                    </p>
+                    <p className="font-display text-xl leading-none">{format(day, 'd')}</p>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    {dayItems.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">Nothing planned</p>
+                    ) : (
+                      <ul className="space-y-1">
+                        {dayItems.slice(0, 4).map((item) => (
+                          <li key={`${item.kind}-${item.id}`} className="truncate text-sm">
+                            <span
+                              className="mr-1.5 inline-block h-2 w-2 rounded-full align-middle"
+                              style={{ background: item.color }}
+                            />
+                            <span className="font-medium">{item.title}</span>
+                            <span className="text-muted-foreground">
+                              {' '}
+                              · {item.all_day ? 'All day' : formatTime(item.starts_at)}
+                            </span>
+                          </li>
+                        ))}
+                        {dayItems.length > 4 ? (
+                          <li className="text-xs text-muted-foreground">+{dayItems.length - 4} more</li>
+                        ) : null}
+                      </ul>
+                    )}
+                  </div>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-11 w-11 shrink-0"
+                    aria-label="Add"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      openAdd(day)
+                    }}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </button>
+              </li>
+            )
+          })}
+        </ul>
       ) : (
         <div
           className={cn(
@@ -647,7 +728,7 @@ export default function CalendarPage() {
                   setParams({ date: todayKey(day) })
                 }}
                 className={cn(
-                  'kp-surface min-h-[120px] p-3 text-left transition hover:ring-1 hover:ring-primary/30',
+                  'kp-surface min-h-[100px] p-3 text-left transition hover:ring-1 hover:ring-primary/30 sm:min-h-[120px]',
                   isToday(day) && 'ring-1 ring-primary/40',
                   view === 'month' && day.getMonth() !== cursor.getMonth() && 'opacity-45',
                 )}
@@ -659,7 +740,7 @@ export default function CalendarPage() {
                   <span
                     role="button"
                     tabIndex={0}
-                    className="rounded-full p-0.5 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground"
                     onClick={(e) => {
                       e.stopPropagation()
                       openAdd(day)

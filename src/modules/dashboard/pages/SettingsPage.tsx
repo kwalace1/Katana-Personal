@@ -8,12 +8,18 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
-import { downloadBackup, parseBackup, restoreBackup } from '@/lib/backup'
+import { downloadBackup, parseBackup, restoreBackup, shareOrDownloadBackup } from '@/lib/backup'
 import { ensureUserLoaded, localDb } from '@/lib/local-db'
 import { pageEnterSubtle } from '@/lib/motion-ui'
 import { remindersEnabled, requestReminderPermission } from '@/lib/reminders'
 import { seedDemoWorkspace } from '@/lib/seed-demo'
 import { DEFAULT_SHARE_PREFS, type SharePrefs } from '@/lib/social/types'
+import {
+  mergeWorkspaceBothWays,
+  subscribeWorkspaceSyncStatus,
+  syncWorkspaceNow,
+} from '@/lib/workspace-sync'
+import { broadcastLocalRefresh } from '@/hooks/useLocalRefresh'
 
 const SHARE_TOGGLES: { key: keyof SharePrefs; label: string; hint: string }[] = [
   { key: 'activityFeed', label: 'Activity pings', hint: 'Check-ins & shares show on Circles timelines' },
@@ -26,7 +32,6 @@ const SHARE_TOGGLES: { key: keyof SharePrefs; label: string; hint: string }[] = 
   { key: 'journalMood', label: 'Journal mood', hint: 'Mood only — never full entries' },
   { key: 'notes', label: 'Notes', hint: 'Allow sharing notes with friends' },
   { key: 'files', label: 'Files', hint: 'Allow sharing files with friends' },
-  { key: 'activityFeed', label: 'Activity pings', hint: 'Check-ins & shares show on Circles timelines' },
 ]
 
 export default function SettingsPage() {
@@ -52,10 +57,21 @@ export default function SettingsPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [prefs, setPrefs] = useState<SharePrefs>(DEFAULT_SHARE_PREFS)
+  const [syncAt, setSyncAt] = useState<string | null>(null)
+  const [syncBusy, setSyncBusy] = useState(false)
+  const [syncError, setSyncError] = useState<string | null>(null)
 
   useEffect(() => {
     if (cloudProfile?.sharePrefs) setPrefs({ ...DEFAULT_SHARE_PREFS, ...cloudProfile.sharePrefs })
   }, [cloudProfile])
+
+  useEffect(() => {
+    return subscribeWorkspaceSyncStatus((s) => {
+      setSyncAt(s.lastSyncedAt)
+      setSyncBusy(s.busy)
+      setSyncError(s.error)
+    })
+  }, [])
 
   function onSaveName(e: FormEvent) {
     e.preventDefault()
@@ -66,8 +82,14 @@ export default function SettingsPage() {
   async function onSaveCopy() {
     if (!profile) return
     await localDb.flush()
-    downloadBackup(profile)
-    toast.success('Copy saved')
+    try {
+      const mode = await shareOrDownloadBackup(profile)
+      toast.success(mode === 'shared' ? 'Shared — open on your other device' : 'Copy saved')
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return
+      downloadBackup(profile)
+      toast.success('Copy saved')
+    }
   }
 
   async function onBringBack(file: File | null) {
@@ -282,6 +304,60 @@ export default function SettingsPage() {
       </section>
 
       {cloudUser ? (
+        <section className="kp-surface mb-4 space-y-3 p-5">
+          <h2 className="font-semibold">Cloud sync</h2>
+          <p className="text-sm text-muted-foreground">
+            When you’re signed in, tasks, habits, water, calendar, and the rest of your personal space
+            sync across phone and computer. Circles stay separate under Together sharing.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {syncBusy
+              ? 'Syncing…'
+              : syncAt
+                ? `Last synced ${new Date(syncAt).toLocaleString()}`
+                : 'Not synced yet — open the app on both devices while signed in.'}
+            {syncError ? ` · ${syncError}` : ''}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              className="min-h-11"
+              disabled={syncBusy}
+              onClick={() => {
+                void syncWorkspaceNow()
+                  .then(() => {
+                    broadcastLocalRefresh()
+                    toast.success('Synced')
+                  })
+                  .catch((err) =>
+                    toast.error(err instanceof Error ? err.message : 'Sync failed'),
+                  )
+              }}
+            >
+              Sync now
+            </Button>
+            <Button
+              variant="outline"
+              className="min-h-11"
+              disabled={syncBusy}
+              onClick={() => {
+                void mergeWorkspaceBothWays()
+                  .then(() => {
+                    broadcastLocalRefresh()
+                    toast.success('Merged with cloud')
+                  })
+                  .catch((err) =>
+                    toast.error(err instanceof Error ? err.message : 'Merge failed'),
+                  )
+              }}
+            >
+              Merge with cloud
+            </Button>
+          </div>
+        </section>
+      ) : null}
+
+      {cloudUser ? (
         <section className="kp-surface mb-4 space-y-4 p-5">
           <div>
             <h2 className="font-semibold">What friends can see</h2>
@@ -326,23 +402,37 @@ export default function SettingsPage() {
       <section className="kp-surface mb-4 space-y-3 p-5">
         <h2 className="font-semibold">Install on your phone</h2>
         <p className="text-sm text-muted-foreground">
-          On iPhone: Safari → Share → Add to Home Screen. On Android: Chrome menu → Install app.
-          You’ll get an app-like feel and better reminder support.
+          On iPhone Safari: Share → <span className="font-medium text-foreground">Add to Home Screen</span>.
+          On Android Chrome: menu → Install app. You’ll get an app-like feel with the bottom tabs.
         </p>
         <p className="text-xs text-muted-foreground">
-          In-app alerts work on the free Firebase plan. True background push needs a paid plan later —
-          gentle reminders still work while Katana is open.
+          After installing, use “Move between devices” below so this phone has the same tasks and
+          water logs as your computer (until full cloud sync is on).
         </p>
       </section>
 
-      <section className="kp-surface mb-4 space-y-3 p-5">
-        <h2 className="font-semibold">Keep a copy</h2>
+      <section id="device-copy" className="kp-surface mb-4 scroll-mt-24 space-y-3 p-5">
+        <h2 className="font-semibold">Move between devices</h2>
         <p className="text-sm text-muted-foreground">
-          Save everything on this device to a file you can put somewhere safe — or bring an old copy
-          back if you need to.
+          Prefer a file? Tasks and habits also sync automatically when Cloud sync is on (above). Use
+          a <code className="rounded bg-secondary px-1 text-xs">.katana</code> copy as a safety net
+          or if you’re offline.
         </p>
+        <ol className="list-decimal space-y-1.5 pl-5 text-sm text-muted-foreground">
+          <li>
+            On the device that has your data, tap <span className="font-medium text-foreground">Save a copy</span>
+            (on iPhone you can AirDrop or save to Files).
+          </li>
+          <li>Open Katana on the other device (same Home Screen app or browser).</li>
+          <li>
+            Tap <span className="font-medium text-foreground">Bring a copy back</span> and pick the
+            <code className="mx-1 rounded bg-secondary px-1 text-xs">.katana</code> file.
+          </li>
+        </ol>
         <div className="flex flex-wrap gap-2">
-          <Button onClick={() => void onSaveCopy()}>Save a copy</Button>
+          <Button className="min-h-11" onClick={() => void onSaveCopy()}>
+            Save a copy
+          </Button>
           <input
             ref={fileRef}
             type="file"
@@ -350,7 +440,12 @@ export default function SettingsPage() {
             className="hidden"
             onChange={(e) => void onBringBack(e.target.files?.[0] ?? null)}
           />
-          <Button variant="outline" disabled={busy} onClick={() => fileRef.current?.click()}>
+          <Button
+            variant="outline"
+            className="min-h-11"
+            disabled={busy}
+            onClick={() => fileRef.current?.click()}
+          >
             {busy ? 'Bringing it back…' : 'Bring a copy back'}
           </Button>
         </div>

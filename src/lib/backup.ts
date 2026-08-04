@@ -25,20 +25,54 @@ export function buildBackup(profile: UserProfile): WorkspaceBackup {
   }
 }
 
-export function downloadBackup(profile: UserProfile) {
-  const backup = buildBackup(profile)
-  const blob = new Blob([JSON.stringify(backup)], { type: 'application/octet-stream' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  const stamp = new Date().toLocaleDateString(undefined, {
+function backupFilename(stamp = new Date()) {
+  const label = stamp.toLocaleDateString(undefined, {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
   })
+  return `My Katana — ${label}.katana`
+}
+
+export function backupBlob(profile: UserProfile): { blob: Blob; filename: string } {
+  const backup = buildBackup(profile)
+  const blob = new Blob([JSON.stringify(backup)], { type: 'application/octet-stream' })
+  return { blob, filename: backupFilename() }
+}
+
+export function downloadBackup(profile: UserProfile) {
+  const { blob, filename } = backupBlob(profile)
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
   a.href = url
-  a.download = `My Katana — ${stamp}.katana`
+  a.download = filename
   a.click()
   URL.revokeObjectURL(url)
+}
+
+/** Prefer native share (AirDrop / Files on iOS) when available; otherwise download. */
+export async function shareOrDownloadBackup(profile: UserProfile): Promise<'shared' | 'downloaded'> {
+  const { blob, filename } = backupBlob(profile)
+  const file = new File([blob], filename, { type: 'application/octet-stream' })
+  const nav = navigator as Navigator & {
+    canShare?: (data?: ShareData) => boolean
+    share?: (data: ShareData) => Promise<void>
+  }
+  try {
+    if (nav.share && nav.canShare?.({ files: [file] })) {
+      await nav.share({
+        files: [file],
+        title: 'Katana backup',
+        text: 'Your Katana space — open on another device and Bring a copy back.',
+      })
+      return 'shared'
+    }
+  } catch (err) {
+    // User cancelled share — don't fall through to download
+    if (err instanceof Error && err.name === 'AbortError') throw err
+  }
+  downloadBackup(profile)
+  return 'downloaded'
 }
 
 export function parseBackup(raw: string): WorkspaceBackup {
