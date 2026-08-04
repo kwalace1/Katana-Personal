@@ -38,6 +38,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { listFriendships } from '@/lib/social/friends'
+import { listMyPendingCircleInvites } from '@/lib/social/invites'
 
 export const PRIMARY = [
   { to: '/dashboard', label: 'Today', icon: Sun },
@@ -114,11 +115,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       return
     }
     let cancelled = false
-    void listFriendships(cloudUser.uid)
-      .then((list) => {
+    void Promise.all([
+      listFriendships(cloudUser.uid),
+      listMyPendingCircleInvites(cloudUser.uid).catch(() => []),
+    ])
+      .then(([list, circleInvites]) => {
         if (cancelled) return
-        const n = list.filter((f) => f.status === 'pending' && f.requestedBy !== cloudUser.uid).length
-        setPendingFriends(n)
+        const friends = list.filter((f) => f.status === 'pending' && f.requestedBy !== cloudUser.uid)
+          .length
+        setPendingFriends(friends + circleInvites.length)
       })
       .catch(() => {
         if (!cancelled) setPendingFriends(0)

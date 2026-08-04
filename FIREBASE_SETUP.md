@@ -46,7 +46,7 @@ In Firebase Console → Firestore → Rules, paste `firestore.rules` and **Publi
 
 Republish whenever we add collections (friends, circles, **circleInvites**, **notifications**, **blocks**, **pushTokens**).
 
-When the console prompts for a composite index on `notifications` (`uid` + `createdAt`), click the link to create it.
+Also deploy indexes from `firestore.indexes.json` (Firebase CLI: `firebase deploy --only firestore:indexes`) — needed for circle invite inbox queries. When the console prompts for a composite index (e.g. notifications `uid` + `createdAt`, or circleInvites `inviteeUid` + `status`), click the link to create it.
 
 ## 7. Web push (optional)
 

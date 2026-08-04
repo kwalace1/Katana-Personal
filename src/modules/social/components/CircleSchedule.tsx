@@ -35,7 +35,7 @@ import {
   updateCircleEvent,
 } from '@/lib/social/circle-events'
 import type { CircleEvent, CircleGroup, CloudProfile } from '@/lib/social/types'
-import { EVENT_CATEGORIES, categoryColor, type EventCategory } from '@/modules/calendar/categories'
+import { EVENT_CATEGORIES, circleCategoryColor, type EventCategory } from '@/modules/calendar/categories'
 
 function defaultStartLocal(day?: Date) {
   const start = day ? new Date(day) : new Date()
@@ -135,7 +135,7 @@ export function CircleSchedule({
         endsAt: (allDay ? endOfDay(end) : end).toISOString(),
         allDay,
         category,
-        color: categoryColor(category),
+        color: circleCategoryColor(category),
         createdBy: selfUid,
         assigneeId: assigneeId === 'none' ? null : assigneeId,
       })
@@ -220,8 +220,8 @@ export function CircleSchedule({
                           selectedId === ev.id && 'ring-2 ring-primary/40',
                         )}
                         style={{
-                          backgroundColor: `${ev.color || categoryColor(ev.category)}22`,
-                          borderLeft: `3px solid ${ev.color || categoryColor(ev.category)}`,
+                          backgroundColor: `${circleCategoryColor(ev.category)}22`,
+                          borderLeft: `3px solid ${circleCategoryColor(ev.category)}`,
                         }}
                       >
                         <p className="font-medium leading-snug">{ev.title}</p>
@@ -255,7 +255,7 @@ export function CircleSchedule({
             onValueChange={(v) => {
               void updateCircleEvent(selected.id, {
                 category: v,
-                color: categoryColor(v),
+                color: circleCategoryColor(v),
               }).catch((err) => toast.error(err instanceof Error ? err.message : 'Update failed'))
             }}
           >
@@ -265,11 +265,17 @@ export function CircleSchedule({
             <SelectContent>
               {EVENT_CATEGORIES.map((c) => (
                 <SelectItem key={c.id} value={c.id}>
-                  {c.label}
+                  <span className="inline-flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ background: c.color }} />
+                    {c.label}
+                  </span>
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+          <p className="text-[0.7rem] text-muted-foreground">
+            Circle colors are shared — everyone sees the same category colors.
+          </p>
           <Select
             value={selected.assigneeId || 'none'}
             onValueChange={(v) => {
@@ -382,6 +388,7 @@ export function CircleSchedule({
                 ))}
               </SelectContent>
             </Select>
+            <p className="text-[0.7rem] text-muted-foreground">Standard colors for everyone in the circle.</p>
             <Select value={assigneeId} onValueChange={setAssigneeId}>
               <SelectTrigger>
                 <SelectValue placeholder="Who’s on it?" />

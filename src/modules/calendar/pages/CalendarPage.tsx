@@ -43,7 +43,7 @@ import { listCircleEventsForCircles } from '@/lib/social/circle-events'
 import type { CircleEvent, CircleGroup } from '@/lib/social/types'
 import type { CalendarEvent } from '../types'
 import type { EventCategory } from '../categories'
-import { EVENT_CATEGORIES, categoryColor } from '../categories'
+import { EVENT_CATEGORIES, PERSONAL_COLOR_SWATCHES, categoryColor } from '../categories'
 import {
   agendaForDay,
   buildAgenda,
@@ -154,6 +154,7 @@ export default function CalendarPage() {
   const [allDay, setAllDay] = useState(false)
   const [notes, setNotes] = useState('')
   const [category, setCategory] = useState<EventCategory>('personal')
+  const [eventColor, setEventColor] = useState<string | null>(null)
   const [location, setLocation] = useState('')
   const [recurrence, setRecurrence] = useState<CalendarEvent['recurrence']>('none')
   const [reminder, setReminder] = useState('30')
@@ -304,7 +305,7 @@ export default function CalendarPage() {
         recurrence,
         reminder_minutes: Number(reminder) || null,
         category,
-        color: null,
+        color: eventColor,
       })
       setSelectedId(event.id)
       setParams({ date: event.starts_at.slice(0, 10), id: event.id })
@@ -532,7 +533,7 @@ export default function CalendarPage() {
                 onValueChange={(v) => {
                   calendarApi.update(userId, selected.id, {
                     category: v as EventCategory,
-                    color: null,
+                    color: selected.color,
                   })
                   refresh()
                 }}
@@ -543,11 +544,48 @@ export default function CalendarPage() {
                 <SelectContent>
                   {EVENT_CATEGORIES.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
-                      {c.label}
+                      <span className="inline-flex items-center gap-2">
+                        <span className="h-2.5 w-2.5 rounded-full" style={{ background: c.color }} />
+                        {c.label}
+                      </span>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              <div>
+                <p className="mb-2 text-xs text-muted-foreground">Color</p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    title="Use category default"
+                    className={cn(
+                      'h-7 w-7 rounded-full border-2 border-dashed border-border',
+                      !selected.color && 'ring-2 ring-primary ring-offset-2',
+                    )}
+                    style={{ background: categoryColor(selected.category) }}
+                    onClick={() => {
+                      calendarApi.update(userId, selected.id, { color: null })
+                      refresh()
+                    }}
+                  />
+                  {PERSONAL_COLOR_SWATCHES.map((hex) => (
+                    <button
+                      key={hex}
+                      type="button"
+                      title={hex}
+                      className={cn(
+                        'h-7 w-7 rounded-full border border-border/60',
+                        selected.color === hex && 'ring-2 ring-primary ring-offset-2',
+                      )}
+                      style={{ background: hex }}
+                      onClick={() => {
+                        calendarApi.update(userId, selected.id, { color: hex })
+                        refresh()
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
               <Input
                 type="datetime-local"
                 value={toLocalInput(selected.starts_at)}
@@ -883,6 +921,33 @@ export default function CalendarPage() {
                     ))}
                   </SelectContent>
                 </Select>
+                <div>
+                  <p className="mb-2 text-xs text-muted-foreground">Color (optional)</p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      title="Category default"
+                      className={cn(
+                        'h-7 w-7 rounded-full border-2 border-dashed border-border',
+                        !eventColor && 'ring-2 ring-primary ring-offset-2',
+                      )}
+                      style={{ background: categoryColor(category) }}
+                      onClick={() => setEventColor(null)}
+                    />
+                    {PERSONAL_COLOR_SWATCHES.map((hex) => (
+                      <button
+                        key={hex}
+                        type="button"
+                        className={cn(
+                          'h-7 w-7 rounded-full border border-border/60',
+                          eventColor === hex && 'ring-2 ring-primary ring-offset-2',
+                        )}
+                        style={{ background: hex }}
+                        onClick={() => setEventColor(hex)}
+                      />
+                    ))}
+                  </div>
+                </div>
                 <Input
                   placeholder="Location (optional)"
                   value={location}

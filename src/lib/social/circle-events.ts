@@ -11,7 +11,7 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore'
 import { getDb } from '@/lib/firebase'
-import { categoryColor } from '@/modules/calendar/categories'
+import { circleCategoryColor } from '@/modules/calendar/categories'
 import type { CircleEvent } from './types'
 
 const COL = 'circleEvents'
@@ -81,7 +81,8 @@ export async function createCircleEvent(input: {
     endsAt: input.endsAt,
     allDay: Boolean(input.allDay),
     category,
-    color: input.color || categoryColor(category),
+    // Circles use the shared standard palette only
+    color: circleCategoryColor(category),
     createdBy: input.createdBy,
     assigneeId: input.assigneeId ?? null,
     createdAt: now,
@@ -107,8 +108,12 @@ export async function updateCircleEvent(
     >
   >,
 ): Promise<void> {
+  const next = { ...patch }
+  if (patch.category) {
+    next.color = circleCategoryColor(patch.category)
+  }
   await updateDoc(doc(getDb(), COL, id), {
-    ...patch,
+    ...next,
     updatedAt: new Date().toISOString(),
   })
 }

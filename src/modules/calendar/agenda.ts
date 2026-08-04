@@ -3,7 +3,7 @@ import type { CalendarEvent } from './types'
 import type { Task } from '@/modules/tasks/types'
 import type { Goal } from '@/modules/goals/types'
 import type { CircleEvent } from '@/lib/social/types'
-import { categoryColor } from './categories'
+import { categoryColor, circleCategoryColor } from './categories'
 
 export type AgendaKind = 'event' | 'task' | 'goal' | 'circle'
 
@@ -103,7 +103,7 @@ export function circleEventToAgenda(
     starts_at: event.startsAt,
     ends_at: event.endsAt,
     all_day: event.allDay,
-    color: event.color || categoryColor(event.category),
+    color: circleCategoryColor(event.category),
     sourceLabel: circleName,
     href: `/circles?id=${event.circleId}&tab=schedule`,
     circleId: event.circleId,

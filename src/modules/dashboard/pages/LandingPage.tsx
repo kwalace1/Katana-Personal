@@ -84,7 +84,7 @@ export default function LandingPage() {
   }
 
   if (!loading && user) {
-    const back = takeInviteReturn()
+    const back = peekInviteReturn()
     return <Navigate to={back || '/dashboard'} replace />
   }
 

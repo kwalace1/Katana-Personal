@@ -25,7 +25,6 @@ import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Checkbox } from '@/components/ui/checkbox'
 import { EmptyState } from '@/components/ui/empty-state'
 import { TogetherSetup } from '@/components/TogetherSetup'
 import {
@@ -46,7 +45,7 @@ import {
   setCircleMembers,
   setCircleChallenge,
 } from '@/lib/social/circles'
-import { createCircleInvite } from '@/lib/social/invites'
+import { createCircleInvite, inviteFriendToCircle, listOutgoingPendingForCircle } from '@/lib/social/invites'
 import { listFriendProfiles } from '@/lib/social/friends'
 import type { CircleChallengeMetric, CircleGroup, CloudProfile, StreakSnapshot } from '@/lib/social/types'
 import { cn } from '@/lib/utils'
@@ -172,7 +171,8 @@ export default function CirclesPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [manageOpen, setManageOpen] = useState(false)
   const [editName, setEditName] = useState('')
-  const [editMembers, setEditMembers] = useState<Record<string, boolean>>({})
+  const [pendingInvites, setPendingInvites] = useState<{ token: string; inviteeUid: string }[]>([])
+  const [inviteBusy, setInviteBusy] = useState<string | null>(null)
   const [challengeOpen, setChallengeOpen] = useState(false)
   const [challengeTitle, setChallengeTitle] = useState('7-day streak')
   const [challengeMetric, setChallengeMetric] = useState<CircleChallengeMetric>('habit')
@@ -340,15 +340,11 @@ export default function CirclesPage() {
       const circle = await createCircle({
         name: newName,
         ownerId: cloudUser.uid,
-        memberIds: friends.map((f) => f.uid),
+        memberIds: [],
       })
       setNewName('')
       setCreateOpen(false)
-      toast.success(
-        friends.length > 0
-          ? `Circle created with you + ${friends.length} friend${friends.length === 1 ? '' : 's'}`
-          : 'Circle created — add friends, then Manage to invite them in',
-      )
+      toast.success('Circle created — invite friends from Manage')
       await loadCirclesList()
       enterCircle(circle.id)
     } catch (err) {
@@ -356,14 +352,19 @@ export default function CirclesPage() {
     }
   }
 
-  function openManage() {
+  async function openManage() {
     if (!active || !cloudUser) return
     setEditName(active.name)
-    const map: Record<string, boolean> = {}
-    for (const f of friends) {
-      map[f.uid] = active.memberIds.includes(f.uid)
+    try {
+      const pending = await listOutgoingPendingForCircle(active.id)
+      setPendingInvites(
+        pending
+          .filter((p) => p.inviteeUid)
+          .map((p) => ({ token: p.token, inviteeUid: p.inviteeUid as string })),
+      )
+    } catch {
+      setPendingInvites([])
     }
-    setEditMembers(map)
     setManageOpen(true)
   }
 
@@ -371,21 +372,53 @@ export default function CirclesPage() {
     e.preventDefault()
     if (!active || !cloudUser) return
     try {
-      const memberIds = [
-        cloudUser.uid,
-        ...Object.entries(editMembers)
-          .filter(([, on]) => on)
-          .map(([id]) => id),
-      ]
       await renameCircle(active.id, editName)
-      await setCircleMembers(active.id, memberIds)
       toast.success('Circle updated')
       setManageOpen(false)
-      const list = await loadCirclesList()
-      const updated = list?.find((c) => c.id === active.id)
-      await reloadBoard(updated ?? null)
+      await loadCirclesList()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Couldn’t update')
+    }
+  }
+
+  async function inviteFriend(friendUid: string) {
+    if (!active || !cloudUser) return
+    setInviteBusy(friendUid)
+    try {
+      await inviteFriendToCircle({
+        circle: active,
+        createdBy: cloudUser.uid,
+        inviteeUid: friendUid,
+      })
+      toast.success('Invite sent — they’ll see it in Friends')
+      const pending = await listOutgoingPendingForCircle(active.id)
+      setPendingInvites(
+        pending
+          .filter((p) => p.inviteeUid)
+          .map((p) => ({ token: p.token, inviteeUid: p.inviteeUid as string })),
+      )
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Couldn’t invite')
+    } finally {
+      setInviteBusy(null)
+    }
+  }
+
+  async function removeMember(uid: string) {
+    if (!active || !cloudUser) return
+    if (uid === active.ownerId) {
+      toast.error('Can’t remove the circle owner')
+      return
+    }
+    try {
+      await setCircleMembers(
+        active.id,
+        active.memberIds.filter((id) => id !== uid),
+      )
+      toast.message('Removed from circle')
+      await loadCirclesList()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Couldn’t remove')
     }
   }
 
@@ -795,8 +828,13 @@ export default function CirclesPage() {
           editName={editName}
           setEditName={setEditName}
           friends={friends}
-          editMembers={editMembers}
-          setEditMembers={setEditMembers}
+          memberIds={active.memberIds}
+          ownerId={active.ownerId}
+          selfUid={cloudUser.uid}
+          pendingInviteeIds={pendingInvites.map((p) => p.inviteeUid)}
+          inviteBusy={inviteBusy}
+          onInvite={(uid) => void inviteFriend(uid)}
+          onRemove={(uid) => void removeMember(uid)}
           onSave={saveManage}
         />
 
@@ -1000,8 +1038,13 @@ export default function CirclesPage() {
         editName={editName}
         setEditName={setEditName}
         friends={friends}
-        editMembers={editMembers}
-        setEditMembers={setEditMembers}
+        memberIds={active?.memberIds ?? []}
+        ownerId={active?.ownerId ?? ''}
+        selfUid={cloudUser.uid}
+        pendingInviteeIds={pendingInvites.map((p) => p.inviteeUid)}
+        inviteBusy={inviteBusy}
+        onInvite={(uid) => void inviteFriend(uid)}
+        onRemove={(uid) => void removeMember(uid)}
         onSave={saveManage}
       />
     </motion.div>
@@ -1014,8 +1057,13 @@ function ManageDialog({
   editName,
   setEditName,
   friends,
-  editMembers,
-  setEditMembers,
+  memberIds,
+  ownerId,
+  selfUid,
+  pendingInviteeIds,
+  inviteBusy,
+  onInvite,
+  onRemove,
   onSave,
 }: {
   open: boolean
@@ -1023,10 +1071,19 @@ function ManageDialog({
   editName: string
   setEditName: (v: string) => void
   friends: CloudProfile[]
-  editMembers: Record<string, boolean>
-  setEditMembers: (value: Record<string, boolean> | ((prev: Record<string, boolean>) => Record<string, boolean>)) => void
+  memberIds: string[]
+  ownerId: string
+  selfUid: string
+  pendingInviteeIds: string[]
+  inviteBusy: string | null
+  onInvite: (uid: string) => void
+  onRemove: (uid: string) => void
   onSave: (e: FormEvent) => void
 }) {
+  const memberFriends = friends.filter((f) => memberIds.includes(f.uid))
+  const inviteable = friends.filter((f) => !memberIds.includes(f.uid))
+  const pendingSet = new Set(pendingInviteeIds)
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -1035,38 +1092,79 @@ function ManageDialog({
         </DialogHeader>
         <form onSubmit={(e) => void onSave(e)} className="space-y-4">
           <Input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Name" />
+          <Button type="submit" variant="secondary" className="w-full">
+            Save name
+          </Button>
+
           <div>
-            <p className="mb-2 text-sm font-medium">Friends in this circle</p>
-            {friends.length === 0 ? (
+            <p className="mb-2 text-sm font-medium">In this circle</p>
+            <ul className="max-h-36 space-y-2 overflow-y-auto">
+              <li className="flex items-center justify-between rounded-xl bg-secondary/50 px-3 py-2 text-sm">
+                <span className="font-medium">You</span>
+                <span className="text-xs text-muted-foreground">Owner</span>
+              </li>
+              {memberFriends.map((f) => (
+                <li
+                  key={f.uid}
+                  className="flex items-center justify-between gap-2 rounded-xl bg-secondary/50 px-3 py-2"
+                >
+                  <span className="text-sm font-medium">{f.displayName}</span>
+                  {f.uid !== ownerId && f.uid !== selfUid ? (
+                    <Button type="button" size="sm" variant="ghost" onClick={() => onRemove(f.uid)}>
+                      Remove
+                    </Button>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div>
+            <p className="mb-2 text-sm font-medium">Invite a friend</p>
+            {inviteable.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                No friends yet.{' '}
-                <Link to="/friends" className="text-primary underline">
-                  Add friends
-                </Link>
+                {friends.length === 0 ? (
+                  <>
+                    No friends yet.{' '}
+                    <Link to="/friends" className="text-primary underline">
+                      Add friends
+                    </Link>
+                  </>
+                ) : (
+                  'Everyone you know is already in this circle.'
+                )}
               </p>
             ) : (
               <ul className="max-h-48 space-y-2 overflow-y-auto">
-                {friends.map((f) => (
-                  <li key={f.uid} className="flex items-center gap-3 rounded-xl bg-secondary/50 px-3 py-2">
-                    <Checkbox
-                      id={`c-${f.uid}`}
-                      checked={!!editMembers[f.uid]}
-                      onCheckedChange={(v) =>
-                        setEditMembers((m) => ({ ...m, [f.uid]: Boolean(v) }))
-                      }
-                    />
-                    <label htmlFor={`c-${f.uid}`} className="flex-1 cursor-pointer text-sm font-medium">
-                      {f.displayName}
-                    </label>
-                  </li>
-                ))}
+                {inviteable.map((f) => {
+                  const pending = pendingSet.has(f.uid)
+                  return (
+                    <li
+                      key={f.uid}
+                      className="flex items-center justify-between gap-2 rounded-xl bg-secondary/50 px-3 py-2"
+                    >
+                      <span className="text-sm font-medium">{f.displayName}</span>
+                      {pending ? (
+                        <span className="text-xs text-muted-foreground">Pending</span>
+                      ) : (
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={inviteBusy === f.uid}
+                          onClick={() => onInvite(f.uid)}
+                        >
+                          {inviteBusy === f.uid ? 'Sending…' : 'Invite'}
+                        </Button>
+                      )}
+                    </li>
+                  )
+                })}
               </ul>
             )}
-            <p className="mt-2 text-xs text-muted-foreground">You’re always included as a member.</p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              They’ll get a notification and can accept in Friends.
+            </p>
           </div>
-          <Button type="submit" className="w-full">
-            Save
-          </Button>
         </form>
       </DialogContent>
     </Dialog>

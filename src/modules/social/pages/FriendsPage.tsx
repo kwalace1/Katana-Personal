@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Check, Copy, UserPlus, Users, X, Ban } from 'lucide-react'
+import { Check, Copy, UserPlus, Users, X, Ban, Trophy } from 'lucide-react'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
@@ -18,29 +18,51 @@ import {
   removeFriendship,
   requestFriend,
 } from '@/lib/social/friends'
+import {
+  acceptCircleInvite,
+  declineCircleInvite,
+  listMyPendingCircleInvites,
+  type CircleInvite,
+} from '@/lib/social/invites'
 import type { CloudProfile, Friendship } from '@/lib/social/types'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
 export default function FriendsPage() {
   const { cloudEnabled, cloudUser, cloudProfile, cloudLoading, refreshCloudProfile } = useCloudAuth()
+  const navigate = useNavigate()
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [friendships, setFriendships] = useState<Friendship[]>([])
   const [profiles, setProfiles] = useState<Record<string, CloudProfile>>({})
+  const [circleInvites, setCircleInvites] = useState<CircleInvite[]>([])
   const [tick, setTick] = useState(0)
   const refresh = () => setTick((n) => n + 1)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (window.location.hash === '#invites') {
+      document.getElementById('invites')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [cloudUser, tick, circleInvites.length])
 
   useEffect(() => {
     if (!cloudUser) return
     let cancelled = false
     ;(async () => {
       try {
-        const list = await listFriendships(cloudUser.uid)
+        const [list, invites] = await Promise.all([
+          listFriendships(cloudUser.uid),
+          listMyPendingCircleInvites(cloudUser.uid).catch(() => [] as CircleInvite[]),
+        ])
         if (cancelled) return
         setFriendships(list)
+        setCircleInvites(invites)
         const ids = new Set<string>()
         for (const f of list) {
           ids.add(f.a === cloudUser.uid ? f.b : f.a)
+        }
+        for (const inv of invites) {
+          ids.add(inv.createdBy)
         }
         const map: Record<string, CloudProfile> = {}
         await Promise.all(
@@ -159,6 +181,8 @@ export default function FriendsPage() {
     )
   }
 
+  const hasInbox = incoming.length > 0 || circleInvites.length > 0
+
   return (
     <motion.div {...pageEnterSubtle} className="kp-page">
       <PageHeader title="Friends" description="Invite people you trust." eyebrow="Together" />
@@ -207,7 +231,7 @@ export default function FriendsPage() {
         </div>
       </section>
 
-      <form onSubmit={onAdd} className="kp-surface mb-6 flex gap-2 p-4">
+      <form onSubmit={(e) => void onAdd(e)} className="kp-surface mb-6 flex gap-2 p-4">
         <Input
           placeholder="Friend’s code"
           value={code}
@@ -221,29 +245,32 @@ export default function FriendsPage() {
         </Button>
       </form>
 
-      {incoming.length > 0 ? (
-        <section className="mb-6">
-          <h2 className="mb-2 font-semibold">Requests</h2>
+      {hasInbox ? (
+        <section id="invites" className="mb-6 scroll-mt-24">
+          <h2 className="mb-2 font-semibold">Invites</h2>
           <ul className="space-y-2">
             {incoming.map((f) => {
-              const other = f.requestedBy
+              const other = f.a === cloudUser.uid ? f.b : f.a
               const p = profiles[other]
               return (
                 <li key={f.id} className="kp-surface flex items-center justify-between gap-3 p-4">
                   <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Friend request
+                    </p>
                     <p className="font-medium">{p?.displayName || 'Someone'}</p>
-                    <p className="text-xs text-muted-foreground">{p?.friendCode}</p>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-1">
                     <Button
                       size="sm"
+                      className="gap-1"
                       onClick={async () => {
                         await acceptFriend(cloudUser.uid, f.id)
                         toast.success('You’re friends')
                         refresh()
                       }}
                     >
-                      <Check className="mr-1 h-3.5 w-3.5" />
+                      <Check className="h-3.5 w-3.5" />
                       Accept
                     </Button>
                     <Button
@@ -252,6 +279,56 @@ export default function FriendsPage() {
                       onClick={async () => {
                         await removeFriendship(cloudUser.uid, f.id)
                         refresh()
+                      }}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </li>
+              )
+            })}
+            {circleInvites.map((inv) => {
+              const from = profiles[inv.createdBy]
+              return (
+                <li key={inv.token} className="kp-surface flex items-center justify-between gap-3 p-4">
+                  <div className="min-w-0">
+                    <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      <Trophy className="h-3 w-3" />
+                      Circle invite
+                    </p>
+                    <p className="font-medium">
+                      {from?.displayName || 'A friend'} · “{inv.circleName}”
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 gap-1">
+                    <Button
+                      size="sm"
+                      className="gap-1"
+                      onClick={async () => {
+                        try {
+                          const circle = await acceptCircleInvite(inv.token, cloudUser.uid)
+                          toast.success(`Joined “${circle.name}”`)
+                          refresh()
+                          navigate(`/circles?id=${circle.id}`)
+                        } catch (err) {
+                          toast.error(err instanceof Error ? err.message : 'Couldn’t join')
+                        }
+                      }}
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                      Join
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={async () => {
+                        try {
+                          await declineCircleInvite(inv.token, cloudUser.uid)
+                          toast.message('Declined')
+                          refresh()
+                        } catch (err) {
+                          toast.error(err instanceof Error ? err.message : 'Couldn’t decline')
+                        }
                       }}
                     >
                       <X className="h-3.5 w-3.5" />
@@ -297,7 +374,10 @@ export default function FriendsPage() {
           Your people
         </h2>
         {accepted.length === 0 ? (
-          <EmptyState title="No friends yet" description="Share your Add-me link or code — once they accept, you can share plans and climb Circles together." />
+          <EmptyState
+            title="No friends yet"
+            description="Share your Add-me link or code — once they accept, you can share plans and climb Circles together."
+          />
         ) : (
           <ul className="space-y-2">
             {accepted.map((f) => {
@@ -326,7 +406,12 @@ export default function FriendsPage() {
                       variant="ghost"
                       className="text-destructive"
                       onClick={async () => {
-                        if (!confirm(`Block ${p?.displayName || 'this person'}? They won’t be able to reconnect.`)) return
+                        if (
+                          !confirm(
+                            `Block ${p?.displayName || 'this person'}? They won’t be able to reconnect.`,
+                          )
+                        )
+                          return
                         try {
                           await blockUser(cloudUser.uid, other)
                           toast.message('Blocked')

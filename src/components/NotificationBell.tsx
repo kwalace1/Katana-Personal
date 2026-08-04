@@ -77,7 +77,14 @@ export function NotificationBell() {
               className={cn('flex cursor-pointer flex-col items-start gap-0.5 py-2.5', !n.read && 'bg-accent/40')}
               onClick={async () => {
                 await markNotificationRead(n.id)
-                if (n.href) navigate(n.href)
+                const href =
+                  n.href ||
+                  (n.kind === 'circle_invite' || n.kind === 'friend_request'
+                    ? '/friends#invites'
+                    : n.kind === 'circle_joined'
+                      ? '/circles'
+                      : '/friends')
+                navigate(href)
               }}
             >
               <span className="text-sm font-medium">{n.title}</span>

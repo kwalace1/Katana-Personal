@@ -117,12 +117,21 @@ service cloud.firestore {
     }
 
     match /circleInvites/{token} {
-      // Invitees need get-by-token; list only for creator.
+      // Link invites: get-by-token. Addressed invites: invitee can list + respond.
       allow get: if signedIn();
-      allow list: if signedIn() && resource.data.createdBy == request.auth.uid;
-      allow create: if signedIn() && request.resource.data.createdBy == request.auth.uid;
+      allow list: if signedIn() && (
+        resource.data.createdBy == request.auth.uid
+        || resource.data.inviteeUid == request.auth.uid
+      );
+      allow create: if signedIn()
+        && request.resource.data.createdBy == request.auth.uid;
       allow update: if signedIn() && (
         resource.data.createdBy == request.auth.uid
+        || (
+          resource.data.inviteeUid == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['status', 'usedBy', 'respondedAt'])
+        )
         || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['usedBy'])
       );
       allow delete: if signedIn() && resource.data.createdBy == request.auth.uid;

@@ -1,8 +1,12 @@
 import {
+  collection,
   doc,
   getDoc,
+  getDocs,
+  query,
   setDoc,
   updateDoc,
+  where,
   arrayUnion,
 } from 'firebase/firestore'
 import { getDb } from '@/lib/firebase'
@@ -12,6 +16,8 @@ import { getCloudProfile } from './friends'
 import { setCircleMembers } from './circles'
 import type { CircleGroup } from './types'
 
+export type CircleInviteStatus = 'pending' | 'accepted' | 'declined' | 'link'
+
 export interface CircleInvite {
   token: string
   circleId: string
@@ -20,6 +26,10 @@ export interface CircleInvite {
   createdAt: string
   expiresAt: string
   usedBy: string[]
+  /** When set, this is a direct invite to a friend (accept in Friends). */
+  inviteeUid?: string | null
+  status?: CircleInviteStatus
+  respondedAt?: string | null
 }
 
 function inviteUrl(token: string) {
@@ -27,6 +37,7 @@ function inviteUrl(token: string) {
   return `${origin}/invite/circle/${token}`
 }
 
+/** Shareable link invite (anyone with the link). */
 export async function createCircleInvite(input: {
   circle: CircleGroup
   createdBy: string
@@ -44,9 +55,60 @@ export async function createCircleInvite(input: {
     createdAt: now.toISOString(),
     expiresAt: expires.toISOString(),
     usedBy: [],
+    inviteeUid: null,
+    status: 'link',
   }
   await setDoc(doc(getDb(), 'circleInvites', token), invite)
   return { invite, url: inviteUrl(token) }
+}
+
+/** Invite an existing friend — they accept from Friends / notifications. */
+export async function inviteFriendToCircle(input: {
+  circle: CircleGroup
+  createdBy: string
+  inviteeUid: string
+  daysValid?: number
+}): Promise<CircleInvite> {
+  if (input.circle.memberIds.includes(input.inviteeUid)) {
+    throw new Error('They’re already in this circle.')
+  }
+  if (input.inviteeUid === input.createdBy) {
+    throw new Error('You can’t invite yourself.')
+  }
+
+  const existing = await listPendingInvitesForCircle(input.circle.id, input.inviteeUid)
+  if (existing.length > 0) {
+    throw new Error('Invite already sent — waiting for them to accept.')
+  }
+
+  const token = createId().replace(/-/g, '').slice(0, 12)
+  const now = new Date()
+  const expires = new Date(now)
+  expires.setDate(expires.getDate() + (input.daysValid ?? 14))
+  const invite: CircleInvite = {
+    token,
+    circleId: input.circle.id,
+    circleName: input.circle.name,
+    createdBy: input.createdBy,
+    createdAt: now.toISOString(),
+    expiresAt: expires.toISOString(),
+    usedBy: [],
+    inviteeUid: input.inviteeUid,
+    status: 'pending',
+  }
+  await setDoc(doc(getDb(), 'circleInvites', token), invite)
+
+  const inviter = await getCloudProfile(input.createdBy)
+  await createNotification({
+    uid: input.inviteeUid,
+    kind: 'circle_invite',
+    title: 'Circle invite',
+    body: `${inviter?.displayName || 'A friend'} invited you to “${input.circle.name}”.`,
+    href: '/friends#invites',
+    meta: { circleId: input.circle.id, token },
+  })
+
+  return invite
 }
 
 export async function getCircleInvite(token: string): Promise<CircleInvite | null> {
@@ -55,11 +117,49 @@ export async function getCircleInvite(token: string): Promise<CircleInvite | nul
   return snap.data() as CircleInvite
 }
 
-export async function acceptCircleInvite(token: string, uid: string): Promise<CircleGroup> {
-  const invite = await getCircleInvite(token)
-  if (!invite) throw new Error('That invite link isn’t valid.')
+/** Pending invites addressed to me (Friends inbox). */
+export async function listMyPendingCircleInvites(uid: string): Promise<CircleInvite[]> {
+  const q = query(
+    collection(getDb(), 'circleInvites'),
+    where('inviteeUid', '==', uid),
+    where('status', '==', 'pending'),
+  )
+  const snap = await getDocs(q)
+  const now = Date.now()
+  return snap.docs
+    .map((d) => d.data() as CircleInvite)
+    .filter((inv) => new Date(inv.expiresAt).getTime() >= now)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+}
+
+async function listPendingInvitesForCircle(circleId: string, inviteeUid: string): Promise<CircleInvite[]> {
+  const q = query(
+    collection(getDb(), 'circleInvites'),
+    where('circleId', '==', circleId),
+    where('inviteeUid', '==', inviteeUid),
+    where('status', '==', 'pending'),
+  )
+  const snap = await getDocs(q)
+  return snap.docs.map((d) => d.data() as CircleInvite)
+}
+
+/** Pending invites I sent for a circle (to show “Pending” on Manage). */
+export async function listOutgoingPendingForCircle(circleId: string): Promise<CircleInvite[]> {
+  const q = query(
+    collection(getDb(), 'circleInvites'),
+    where('circleId', '==', circleId),
+    where('status', '==', 'pending'),
+  )
+  const snap = await getDocs(q)
+  return snap.docs.map((d) => d.data() as CircleInvite)
+}
+
+async function joinFromInvite(invite: CircleInvite, uid: string): Promise<CircleGroup> {
   if (new Date(invite.expiresAt).getTime() < Date.now()) {
     throw new Error('That invite has expired.')
+  }
+  if (invite.status === 'declined') {
+    throw new Error('That invite was declined.')
   }
   const circleSnap = await getDoc(doc(getDb(), 'circles', invite.circleId))
   if (!circleSnap.exists()) throw new Error('That circle no longer exists.')
@@ -69,8 +169,10 @@ export async function acceptCircleInvite(token: string, uid: string): Promise<Ci
   }
   const nextMembers = [...circle.memberIds, uid]
   await setCircleMembers(circle.id, nextMembers)
-  await updateDoc(doc(getDb(), 'circleInvites', token), {
+  await updateDoc(doc(getDb(), 'circleInvites', invite.token), {
     usedBy: arrayUnion(uid),
+    status: 'accepted',
+    respondedAt: new Date().toISOString(),
   })
   const joiner = await getCloudProfile(uid)
   await createNotification({
@@ -78,8 +180,28 @@ export async function acceptCircleInvite(token: string, uid: string): Promise<Ci
     kind: 'circle_joined',
     title: 'Someone joined your circle',
     body: `${joiner?.displayName || 'A friend'} joined “${invite.circleName}”.`,
-    href: '/circles',
+    href: `/circles?id=${invite.circleId}`,
     meta: { circleId: invite.circleId },
   })
   return { ...circle, memberIds: nextMembers }
+}
+
+export async function acceptCircleInvite(token: string, uid: string): Promise<CircleGroup> {
+  const invite = await getCircleInvite(token)
+  if (!invite) throw new Error('That invite isn’t valid.')
+  if (invite.inviteeUid && invite.inviteeUid !== uid) {
+    throw new Error('This invite was sent to someone else.')
+  }
+  return joinFromInvite(invite, uid)
+}
+
+export async function declineCircleInvite(token: string, uid: string): Promise<void> {
+  const invite = await getCircleInvite(token)
+  if (!invite) throw new Error('That invite isn’t valid.')
+  if (invite.inviteeUid !== uid) throw new Error('This invite was sent to someone else.')
+  if (invite.status !== 'pending') return
+  await updateDoc(doc(getDb(), 'circleInvites', token), {
+    status: 'declined',
+    respondedAt: new Date().toISOString(),
+  })
 }
