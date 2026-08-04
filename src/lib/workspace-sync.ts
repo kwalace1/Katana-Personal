@@ -1,10 +1,13 @@
-import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { doc, getDoc, writeBatch } from 'firebase/firestore'
 import { getDb } from '@/lib/firebase'
 import { WORKSPACE_COLLECTIONS, localDb } from '@/lib/local-db'
 
 const LAST_SYNC_KEY = 'katana-personal:workspace-last-sync'
 const MERGE_DONE_KEY = 'katana-personal:workspace-merge-done'
-const SYNC_TIMEOUT_MS = 45_000
+/** Generous for mobile networks; work itself should finish in a few seconds via batching. */
+const SYNC_TIMEOUT_MS = 90_000
+/** Soft cap per collection payload (~700KB) to avoid Firestore 1MB hard fail. */
+const MAX_COLLECTION_BYTES = 700_000
 
 /** Skip bulky / non-essential collections from cloud sync for reliability on Spark. */
 const SYNC_COLLECTIONS = WORKSPACE_COLLECTIONS.filter(
@@ -91,6 +94,28 @@ export function sanitizeForFirestore<T>(value: T): T {
   return out as T
 }
 
+function approxBytes(value: unknown): number {
+  try {
+    return new Blob([JSON.stringify(value)]).size
+  } catch {
+    return JSON.stringify(value).length
+  }
+}
+
+/** Drop oldest rows until under size budget (keeps sync moving on large notes/journals). */
+function fitItems(items: unknown[]): unknown[] {
+  const clean = sanitizeForFirestore(items) as unknown[]
+  if (approxBytes(clean) <= MAX_COLLECTION_BYTES) return clean
+  const sorted = [...clean].sort((a, b) => rowStamp(b).localeCompare(rowStamp(a)))
+  const kept: unknown[] = []
+  for (const row of sorted) {
+    const next = [...kept, row]
+    if (approxBytes(next) > MAX_COLLECTION_BYTES) break
+    kept.push(row)
+  }
+  return kept
+}
+
 function friendlyFirestoreError(err: unknown): string {
   const msg = err instanceof Error ? err.message : String(err)
   const code =
@@ -162,12 +187,46 @@ function mergeItems(local: unknown[], remote: unknown[]): unknown[] {
   return [...byId.values()]
 }
 
-async function writeCollection(cloudUid: string, collection: string, items: unknown[], updatedAt: string) {
-  const clean = sanitizeForFirestore(items)
-  await setDoc(collectionRef(cloudUid, collection), {
-    items: clean,
-    updatedAt,
-  } satisfies CollectionDoc)
+async function fetchAllRemote(cloudUid: string): Promise<Map<string, unknown[]>> {
+  const entries = await Promise.all(
+    SYNC_COLLECTIONS.map(async (collection) => {
+      try {
+        const snap = await getDoc(collectionRef(cloudUid, collection))
+        if (!snap.exists()) return [collection, [] as unknown[]] as const
+        const data = snap.data() as CollectionDoc
+        return [collection, Array.isArray(data.items) ? data.items : []] as const
+      } catch {
+        return [collection, [] as unknown[]] as const
+      }
+    }),
+  )
+  return new Map(entries)
+}
+
+async function commitWorkspace(
+  cloudUid: string,
+  localUserId: string,
+  byCollection: Map<string, unknown[]>,
+): Promise<{ now: string; count: number }> {
+  const now = new Date().toISOString()
+  const db = getDb()
+  const batch = writeBatch(db)
+  let count = 0
+  for (const collection of SYNC_COLLECTIONS) {
+    const items = fitItems(byCollection.get(collection) || [])
+    count += items.length
+    batch.set(collectionRef(cloudUid, collection), {
+      items,
+      updatedAt: now,
+    } satisfies CollectionDoc)
+  }
+  batch.set(metaRef(cloudUid), {
+    updatedAt: now,
+    hasData: count > 0,
+    localUserId,
+  })
+  await batch.commit()
+  return { now, count }
 }
 
 export async function cloudWorkspaceHasData(cloudUid: string): Promise<boolean> {
@@ -209,26 +268,23 @@ async function runLocked(fn: () => Promise<void>): Promise<void> {
   }
 }
 
+function finishOk(cloudUid: string, now: string) {
+  localStorage.setItem(`${LAST_SYNC_KEY}:${cloudUid}`, now)
+  markWorkspaceMergeDone(cloudUid)
+  setStatus({ busy: false, lastSyncedAt: now, error: null })
+}
+
 /** Upload this device’s workspace to cloud (overwrites cloud collections). */
 export async function pushWorkspaceToCloud(input?: SyncContext): Promise<void> {
   const c = input || ctx
   if (!c) throw new Error('Not signed into Cloud yet.')
   await runLocked(async () => {
-    const now = new Date().toISOString()
-    let count = 0
+    const map = new Map<string, unknown[]>()
     for (const collection of SYNC_COLLECTIONS) {
-      const items = localDb.list(collection, c.localUserId)
-      count += items.length
-      await writeCollection(c.cloudUid, collection, items, now)
+      map.set(collection, localDb.list(collection, c.localUserId))
     }
-    await setDoc(metaRef(c.cloudUid), {
-      updatedAt: now,
-      hasData: count > 0,
-      localUserId: c.localUserId,
-    })
-    localStorage.setItem(`${LAST_SYNC_KEY}:${c.cloudUid}`, now)
-    markWorkspaceMergeDone(c.cloudUid)
-    setStatus({ busy: false, lastSyncedAt: now, error: null })
+    const { now } = await commitWorkspace(c.cloudUid, c.localUserId, map)
+    finishOk(c.cloudUid, now)
   })
 }
 
@@ -237,21 +293,13 @@ export async function pullWorkspaceFromCloud(input?: SyncContext): Promise<void>
   const c = input || ctx
   if (!c) throw new Error('Not signed into Cloud yet.')
   await runLocked(async () => {
-    const now = new Date().toISOString()
+    const remote = await fetchAllRemote(c.cloudUid)
     for (const collection of SYNC_COLLECTIONS) {
-      const snap = await getDoc(collectionRef(c.cloudUid, collection))
-      if (!snap.exists()) {
-        localDb.replaceAll(collection, c.localUserId, [])
-        continue
-      }
-      const data = snap.data() as CollectionDoc
-      const items = Array.isArray(data.items) ? data.items : []
-      localDb.replaceAll(collection, c.localUserId, items)
+      localDb.replaceAll(collection, c.localUserId, remote.get(collection) || [])
     }
     await localDb.flush()
-    localStorage.setItem(`${LAST_SYNC_KEY}:${c.cloudUid}`, now)
-    markWorkspaceMergeDone(c.cloudUid)
-    setStatus({ busy: false, lastSyncedAt: now, error: null })
+    const now = new Date().toISOString()
+    finishOk(c.cloudUid, now)
   })
 }
 
@@ -260,34 +308,17 @@ export async function mergeWorkspaceBothWays(input?: SyncContext): Promise<void>
   const c = input || ctx
   if (!c) throw new Error('Not signed into Cloud yet.')
   await runLocked(async () => {
-    const now = new Date().toISOString()
-    let count = 0
+    const remote = await fetchAllRemote(c.cloudUid)
+    const mergedMap = new Map<string, unknown[]>()
     for (const collection of SYNC_COLLECTIONS) {
       const local = localDb.list(collection, c.localUserId)
-      let remote: unknown[] = []
-      try {
-        const snap = await getDoc(collectionRef(c.cloudUid, collection))
-        if (snap.exists()) {
-          const data = snap.data() as CollectionDoc
-          remote = Array.isArray(data.items) ? data.items : []
-        }
-      } catch {
-        remote = []
-      }
-      const merged = mergeItems(local, remote)
-      count += merged.length
+      const merged = mergeItems(local, remote.get(collection) || [])
+      mergedMap.set(collection, merged)
       localDb.replaceAll(collection, c.localUserId, merged)
-      await writeCollection(c.cloudUid, collection, merged, now)
     }
     await localDb.flush()
-    await setDoc(metaRef(c.cloudUid), {
-      updatedAt: now,
-      hasData: count > 0,
-      localUserId: c.localUserId,
-    })
-    localStorage.setItem(`${LAST_SYNC_KEY}:${c.cloudUid}`, now)
-    markWorkspaceMergeDone(c.cloudUid)
-    setStatus({ busy: false, lastSyncedAt: now, error: null })
+    const { now } = await commitWorkspace(c.cloudUid, c.localUserId, mergedMap)
+    finishOk(c.cloudUid, now)
   })
 }
 
@@ -300,7 +331,7 @@ export function notifyWorkspaceDirty() {
     void pushWorkspaceToCloud().catch(() => {
       // optional while offline
     })
-  }, 2000)
+  }, 2500)
 }
 
 /** On app focus / login — pull+merge if already linked. */
