@@ -53,12 +53,15 @@ service cloud.firestore {
     }
 
     match /activity/{uid} {
-      allow read: if isSelf(uid) || isFriendOf(uid);
+      // Prefer get-by-id from clients; list queries are hard to authorize with friendship checks.
+      allow get: if isSelf(uid) || isFriendOf(uid);
+      allow list: if false;
       allow write: if isSelf(uid);
     }
 
     match /streaks/{uid} {
-      allow read: if isSelf(uid) || isFriendOf(uid);
+      allow get: if isSelf(uid) || isFriendOf(uid);
+      allow list: if false;
       allow write: if isSelf(uid);
     }
 

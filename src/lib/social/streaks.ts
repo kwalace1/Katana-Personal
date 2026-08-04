@@ -1,4 +1,4 @@
-import { doc, getDoc, getDocs, setDoc, collection, query, where } from 'firebase/firestore'
+import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { getDb } from '@/lib/firebase'
 import { habitsApi } from '@/modules/habits/api'
 import { healthApi } from '@/modules/health/api'
@@ -162,9 +162,18 @@ export async function publishActivity(
 
 export async function listFriendActivity(friendUids: string[]) {
   if (friendUids.length === 0) return []
-  // Firestore 'in' limited to 10 — batch if needed
-  const chunk = friendUids.slice(0, 10)
-  const q = query(collection(getDb(), 'activity'), where('uid', 'in', chunk))
-  const snap = await getDocs(q)
-  return snap.docs.map((d) => d.data() as { uid: string; message: string; updatedAt: string })
+  // Use per-doc gets — collection queries fail under friend-scoped rules
+  // (rules check path id via isFriendOf; a where('uid' in …) query can’t prove that).
+  const snaps = await Promise.all(
+    friendUids.slice(0, 20).map(async (uid) => {
+      try {
+        const snap = await getDoc(doc(getDb(), 'activity', uid))
+        if (!snap.exists()) return null
+        return snap.data() as { uid: string; message: string; updatedAt: string }
+      } catch {
+        return null
+      }
+    }),
+  )
+  return snaps.filter(Boolean) as { uid: string; message: string; updatedAt: string }[]
 }

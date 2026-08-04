@@ -85,11 +85,69 @@ export default function CirclesPage() {
     return list
   }
 
+  useEffect(() => {
+    if (!cloudUser) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const [list, friendList] = await Promise.all([
+          listMyCircles(cloudUser.uid),
+          listFriendProfiles(cloudUser.uid),
+        ])
+        if (cancelled) return
+        setCircles(list)
+        setFriends(friendList)
+        const first = list[0]?.id ?? null
+        setActiveId(first)
+
+        try {
+          await syncStreaksToCloud()
+        } catch {
+          // Streak publish is optional; board can still load
+        }
+
+        const circle = list[0] ?? null
+        try {
+          const rows = await loadCirclesBoard(
+            cloudUser.uid,
+            circle?.memberIds ?? [cloudUser.uid],
+          )
+          if (!cancelled) setBoard(rows)
+        } catch (err) {
+          if (!cancelled) {
+            toast.error(err instanceof Error ? err.message : 'Couldn’t load the leaderboard')
+          }
+        }
+
+        try {
+          const feed = await listFriendActivity(friendList.map((f) => f.uid))
+          if (!cancelled) {
+            setActivity(feed.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 6))
+          }
+        } catch {
+          // Activity is optional chrome
+        }
+      } catch (err) {
+        if (!cancelled) {
+          toast.error(err instanceof Error ? err.message : 'Couldn’t load circles')
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cloudUser?.uid])
+
   async function reloadBoard(circle?: CircleGroup | null) {
     if (!cloudUser) return
     setBusy(true)
     try {
-      await syncStreaksToCloud()
+      try {
+        await syncStreaksToCloud()
+      } catch {
+        // optional
+      }
       const target = circle ?? active
       const rows = await loadCirclesBoard(
         cloudUser.uid,
@@ -102,34 +160,6 @@ export default function CirclesPage() {
       setBusy(false)
     }
   }
-
-  useEffect(() => {
-    if (!cloudUser) return
-    void (async () => {
-      try {
-        const [list, friendList] = await Promise.all([
-          listMyCircles(cloudUser.uid),
-          listFriendProfiles(cloudUser.uid),
-        ])
-        setCircles(list)
-        setFriends(friendList)
-        const first = list[0]?.id ?? null
-        setActiveId(first)
-        await syncStreaksToCloud()
-        const circle = list[0] ?? null
-        const rows = await loadCirclesBoard(
-          cloudUser.uid,
-          circle?.memberIds ?? [cloudUser.uid],
-        )
-        setBoard(rows)
-        const feed = await listFriendActivity(friendList.map((f) => f.uid))
-        setActivity(feed.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 6))
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : 'Couldn’t load circles')
-      }
-    })()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cloudUser?.uid])
 
   useEffect(() => {
     if (!cloudUser || !activeId) return
@@ -150,9 +180,18 @@ export default function CirclesPage() {
     e.preventDefault()
     if (!cloudUser || !newName.trim()) return
     try {
-      const circle = await createCircle({ name: newName, ownerId: cloudUser.uid })
+      // Include current friends so they see the circle on their devices immediately
+      const circle = await createCircle({
+        name: newName,
+        ownerId: cloudUser.uid,
+        memberIds: friends.map((f) => f.uid),
+      })
       setNewName('')
-      toast.success('Circle created')
+      toast.success(
+        friends.length > 0
+          ? `Circle created with you + ${friends.length} friend${friends.length === 1 ? '' : 's'}`
+          : 'Circle created — add friends, then Manage to invite them in',
+      )
       await loadCirclesList()
       setActiveId(circle.id)
     } catch (err) {
@@ -299,6 +338,19 @@ export default function CirclesPage() {
               </Button>
             ))}
           </div>
+
+          {active && active.memberIds.length <= 1 ? (
+            <div className="mb-4 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
+              <p className="font-medium">Only you are in this circle</p>
+              <p className="mt-0.5 text-muted-foreground">
+                Friends won’t see it on their phone until you add them — tap <strong>Manage</strong> and
+                check their names, then Save.
+              </p>
+              <Button size="sm" className="mt-2" onClick={openManage}>
+                Add friends to circle
+              </Button>
+            </div>
+          ) : null}
 
           {active ? (
             <div className="mb-4 flex flex-wrap items-center gap-2">
