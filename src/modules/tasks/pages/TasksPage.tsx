@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -12,6 +12,7 @@ import {
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { ChevronDown, GripVertical, Plus, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -19,14 +20,17 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { EmptyState } from '@/components/ui/empty-state'
 import { CompleteToggle } from '@/components/CompleteToggle'
+import { ShareAudiencePicker, type ShareAudienceSelection } from '@/components/ShareAudiencePicker'
+import { ShareWithFriendsButton } from '@/components/ShareWithFriendsButton'
 import { useAuth } from '@/contexts/AuthContext'
+import { useCloudAuth } from '@/contexts/CloudAuthContext'
 import { pageEnterSubtle } from '@/lib/motion-ui'
 import { formatShortDate, todayKey } from '@/lib/dates'
 import { useLocalRefresh } from '@/hooks/useLocalRefresh'
 import { cn } from '@/lib/utils'
+import { shareSuccessMessage, shareWithAudience } from '@/lib/social/share-with-audience'
 import { tasksApi } from '../api'
 import { goalsApi } from '@/modules/goals/api'
-import { ShareWithFriendsButton } from '@/components/ShareWithFriendsButton'
 import { EVENT_CATEGORIES, categoryColor, categoryLabel, type EventCategory } from '@/modules/calendar/categories'
 import type { Recurrence, Task, TaskPriority, TaskStatus } from '../types'
 import type { Goal } from '@/modules/goals/types'
@@ -373,6 +377,7 @@ function SortableTask({
 export default function TasksPage() {
   const { user } = useAuth()
   const userId = user!.id
+  const { cloudUser, cloudProfile } = useCloudAuth()
   const { tick, refresh } = useLocalRefresh()
   const [params, setParams] = useSearchParams()
 
@@ -396,6 +401,16 @@ export default function TasksPage() {
   const [dueAt, setDueAt] = useState('')
   const [recurrence, setRecurrence] = useState<Recurrence>('none')
   const [category, setCategory] = useState<EventCategory>('personal')
+  const [shareFriends, setShareFriends] = useState<Record<string, boolean>>({})
+  const [shareCircles, setShareCircles] = useState<Record<string, boolean>>({})
+  const [shareAudience, setShareAudience] = useState<ShareAudienceSelection>({
+    friendIds: [],
+    circles: [],
+    hasAny: false,
+  })
+  const onShareAudienceChange = useCallback((sel: ShareAudienceSelection) => {
+    setShareAudience(sel)
+  }, [])
   const [filter, setFilter] = useState<'open' | 'done' | 'all' | 'overdue'>(() => {
     const f = params.get('filter')
     return f === 'overdue' || f === 'done' || f === 'all' || f === 'open' ? f : 'open'
@@ -413,23 +428,59 @@ export default function TasksPage() {
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
-  function onCreate(e: FormEvent) {
+  async function onCreate(e: FormEvent) {
     e.preventDefault()
     if (!title.trim()) return
+    if (shareAudience.hasAny && shareAudience.circles.length > 0 && !dueAt) {
+      toast.error('Set a due date if you want to share this to a circle calendar')
+      return
+    }
     const targetList = listId === 'all' ? lists[0]?.id : listId
+    const dueIso = dueAt ? new Date(dueAt).toISOString() : null
     const task = tasksApi.createTask(userId, {
       title,
       priority,
-      due_at: dueAt ? new Date(dueAt).toISOString() : null,
+      due_at: dueIso,
       recurrence,
       category,
       list_id: targetList || null,
     })
+
+    if (shareAudience.hasAny && cloudUser) {
+      try {
+        const result = await shareWithAudience({
+          kind: 'task',
+          title: task.title,
+          body: task.notes,
+          data: {
+            due_at: task.due_at,
+            priority: task.priority,
+            category: task.category,
+            localTaskId: task.id,
+          },
+          ownerId: cloudUser.uid,
+          friendIds: shareAudience.friendIds,
+          circles: shareAudience.circles,
+          activityFeed: cloudProfile?.sharePrefs?.activityFeed,
+        })
+        if (!result.ok) {
+          toast.error(result.error)
+        } else {
+          toast.success(shareSuccessMessage(result))
+        }
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Task saved, but sharing failed')
+      }
+    }
+
     setTitle('')
     setDueAt('')
     setRecurrence('none')
     setPriority('medium')
     setCategory('personal')
+    setShareFriends({})
+    setShareCircles({})
+    setShareAudience({ friendIds: [], circles: [], hasAny: false })
     setSelectedId(task.id)
     setParams({ id: task.id })
     refresh()
@@ -633,6 +684,36 @@ export default function TasksPage() {
             </Select>
           </div>
         </div>
+
+        <div className="space-y-1.5 rounded-xl border border-primary/20 bg-primary/5 p-3">
+          <p className="text-xs font-medium text-muted-foreground">Share when creating</p>
+          <p className="text-xs text-muted-foreground">
+            {cloudUser
+              ? dueAt
+                ? 'Optional — pick a circle or friends now. Circles also get a calendar entry.'
+                : 'Optional — pick friends now, or set a due date to share onto a circle calendar.'
+              : 'Connect under Settings to share with circles or friends while creating.'}
+          </p>
+          {cloudUser ? (
+            <ShareAudiencePicker
+              uid={cloudUser.uid}
+              selectedFriends={shareFriends}
+              selectedCircles={shareCircles}
+              onFriendsChange={setShareFriends}
+              onCirclesChange={setShareCircles}
+              onAudienceChange={onShareAudienceChange}
+              compact
+            />
+          ) : (
+            <Button asChild size="sm" variant="outline">
+              <Link to="/settings">Connect to share</Link>
+            </Button>
+          )}
+        </div>
+
+        <Button type="submit" className="w-full sm:w-auto">
+          {shareAudience.hasAny ? 'Add & share task' : 'Add task'}
+        </Button>
       </form>
 
       <div className="mb-4 flex flex-wrap gap-2">

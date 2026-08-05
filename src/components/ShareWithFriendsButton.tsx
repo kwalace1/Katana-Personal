@@ -1,11 +1,10 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { FormEvent, useCallback, useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
 import {
   Dialog,
@@ -14,33 +13,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
-import { listFriendProfiles } from '@/lib/social/friends'
-import { listMyCircles } from '@/lib/social/circles'
-import { createCircleEvent } from '@/lib/social/circle-events'
-import { createSharedItem } from '@/lib/social/shared'
-import { publishActivity } from '@/lib/social/streaks'
-import type { CircleGroup, CloudProfile, SharedKind, SharePrefs } from '@/lib/social/types'
+import { ShareAudiencePicker, type ShareAudienceSelection } from '@/components/ShareAudiencePicker'
+import { shareSuccessMessage, shareWithAudience } from '@/lib/social/share-with-audience'
+import type { SharedKind, SharePrefs } from '@/lib/social/types'
 import { DEFAULT_SHARE_PREFS } from '@/lib/social/types'
-import { endOfDay, startOfDay } from '@/lib/dates'
-import { categoryLabel } from '@/modules/calendar/categories'
 import { cn } from '@/lib/utils'
-
-function timingFromDueAt(dueAt: string): { startsAt: string; endsAt: string; allDay: boolean } {
-  const due = new Date(dueAt)
-  const timed = due.getHours() !== 0 || due.getMinutes() !== 0 || due.getSeconds() !== 0
-  if (timed) {
-    return {
-      startsAt: due.toISOString(),
-      endsAt: new Date(due.getTime() + 60 * 60 * 1000).toISOString(),
-      allDay: false,
-    }
-  }
-  return {
-    startsAt: startOfDay(due).toISOString(),
-    endsAt: endOfDay(due).toISOString(),
-    allDay: true,
-  }
-}
 
 function prefForKind(kind: SharedKind): keyof SharePrefs | null {
   if (kind === 'habit') return 'habits'
@@ -82,26 +59,30 @@ export function ShareWithFriendsButton({
   const navigate = useNavigate()
   const { cloudUser, cloudProfile, saveSharePrefs, syncStreaksToCloud } = useCloudAuth()
   const [open, setOpen] = useState(false)
-  const [friends, setFriends] = useState<CloudProfile[]>([])
-  const [circles, setCircles] = useState<CircleGroup[]>([])
   const [selectedFriends, setSelectedFriends] = useState<Record<string, boolean>>({})
   const [selectedCircles, setSelectedCircles] = useState<Record<string, boolean>>({})
+  const [audience, setAudience] = useState<ShareAudienceSelection>({
+    friendIds: [],
+    circles: [],
+    hasAny: false,
+  })
   const [busy, setBusy] = useState(false)
   const [unlocking, setUnlocking] = useState(false)
 
   const prefKey = prefForKind(kind)
   const prefOk = !prefKey || Boolean(cloudProfile?.sharePrefs?.[prefKey])
 
-  const shareableCircles = useMemo(
-    () => circles.filter((c) => c.memberIds.some((id) => id !== cloudUser?.uid)),
-    [circles, cloudUser?.uid],
-  )
+  const onAudienceChange = useCallback((sel: ShareAudienceSelection) => {
+    setAudience(sel)
+  }, [])
 
   useEffect(() => {
-    if (!open || !cloudUser) return
-    void listFriendProfiles(cloudUser.uid).then(setFriends).catch(() => setFriends([]))
-    void listMyCircles(cloudUser.uid).then(setCircles).catch(() => setCircles([]))
-  }, [open, cloudUser])
+    if (!open) {
+      setSelectedFriends({})
+      setSelectedCircles({})
+      setAudience({ friendIds: [], circles: [], hasAny: false })
+    }
+  }, [open])
 
   if (!cloudUser) {
     return (
@@ -137,115 +118,40 @@ export function ShareWithFriendsButton({
       toast.message('Turn on sharing below first')
       return
     }
-
-    const pickedCircles = shareableCircles.filter((c) => selectedCircles[c.id])
-    const friendIds = Object.entries(selectedFriends)
-      .filter(([, v]) => v)
-      .map(([id]) => id)
-
-    const memberIds = new Set<string>()
-    for (const id of friendIds) memberIds.add(id)
-    for (const circle of pickedCircles) {
-      for (const id of circle.memberIds) {
-        if (id !== cloudUser.uid) memberIds.add(id)
-      }
-    }
-
-    if (memberIds.size === 0) {
+    if (!audience.hasAny) {
       toast.message('Pick a circle or at least one friend')
-      return
-    }
-
-    const dueAt = typeof data?.due_at === 'string' ? data.due_at : null
-    if (kind === 'task' && pickedCircles.length > 0 && !dueAt) {
-      toast.error('Set a due date on this task first so it can show on the circle calendar')
       return
     }
 
     setBusy(true)
     try {
-      const circleNames = pickedCircles.map((c) => c.name)
-      const category =
-        typeof data?.category === 'string' && data.category ? String(data.category) : 'personal'
-
-      await createSharedItem({
+      const result = await shareWithAudience({
         kind,
         title,
         body,
-        data: {
-          ...(data || {}),
-          category,
-          ...(pickedCircles.length
-            ? {
-                sharedCircleIds: pickedCircles.map((c) => c.id),
-                sharedCircleNames: circleNames,
-              }
-            : {}),
-        },
+        data,
         ownerId: cloudUser.uid,
-        memberIds: [...memberIds],
+        friendIds: audience.friendIds,
+        circles: audience.circles,
+        activityFeed: cloudProfile.sharePrefs.activityFeed,
       })
-
-      // Dated tasks shared to a circle also land on that circle’s schedule/calendar
-      if (kind === 'task' && dueAt && pickedCircles.length > 0) {
-        const timing = timingFromDueAt(dueAt)
-        const noteParts = [
-          body?.trim() || '',
-          `Shared task · ${categoryLabel(category)}`,
-        ].filter(Boolean)
-        await Promise.all(
-          pickedCircles.map((circle) =>
-            createCircleEvent({
-              circleId: circle.id,
-              title,
-              notes: noteParts.join('\n'),
-              startsAt: timing.startsAt,
-              endsAt: timing.endsAt,
-              allDay: timing.allDay,
-              category,
-              createdBy: cloudUser.uid,
-            }),
-          ),
-        )
+      if (!result.ok) {
+        toast.error(result.error)
+        return
       }
-
-      if (cloudProfile.sharePrefs.activityFeed) {
-        const audience =
-          circleNames.length > 0
-            ? `with ${circleNames.join(', ')}`
-            : 'with friends'
-        const ping =
-          kind === 'journal'
-            ? `Shared mood ${audience}: ${body || title}`
-            : `Shared a ${kind} ${audience}: ${title}`
-        await publishActivity(cloudUser.uid, ping)
-      }
-      const toastLabel =
-        kind === 'task' && circleNames.length > 0 && dueAt
-          ? `Shared — on calendar for ${circleNames.join(', ')}`
-          : circleNames.length > 0 && friendIds.length === 0
-            ? `Shared with ${circleNames.join(', ')}`
-            : circleNames.length > 0
-              ? 'Shared with circles & friends'
-              : 'Shared with friends'
-      toast.success(toastLabel, {
+      toast.success(shareSuccessMessage(result), {
         action: {
           label: 'View Shared',
           onClick: () => navigate('/shared'),
         },
       })
       setOpen(false)
-      setSelectedFriends({})
-      setSelectedCircles({})
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Couldn’t share')
     } finally {
       setBusy(false)
     }
   }
-
-  const hasTargets = friends.length > 0 || shareableCircles.length > 0
-  const canSubmit = hasTargets && !busy && !Boolean(prefKey && !prefOk)
 
   return (
     <>
@@ -285,89 +191,21 @@ export function ShareWithFriendsButton({
               </div>
             ) : null}
 
-            {!hasTargets ? (
-              <p className="text-sm text-muted-foreground">
-                Add friends or create a circle with members first.{' '}
-                <Link to="/friends" className="text-primary underline">
-                  Friends
-                </Link>
-                {' · '}
-                <Link to="/circles" className="text-primary underline">
-                  Circles
-                </Link>
-              </p>
-            ) : (
-              <div className="max-h-64 space-y-4 overflow-y-auto">
-                {shareableCircles.length > 0 ? (
-                  <div>
-                    <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Circles
-                    </p>
-                    <ul className="space-y-2">
-                      {shareableCircles.map((c) => {
-                        const others = c.memberIds.filter((id) => id !== cloudUser.uid).length
-                        return (
-                          <li key={c.id} className="flex items-center gap-3 rounded-xl bg-secondary/50 px-3 py-2">
-                            <Checkbox
-                              checked={!!selectedCircles[c.id]}
-                              onCheckedChange={(v) =>
-                                setSelectedCircles((s) => ({ ...s, [c.id]: Boolean(v) }))
-                              }
-                              id={`share-circle-${c.id}`}
-                              disabled={Boolean(prefKey && !prefOk)}
-                            />
-                            <label
-                              htmlFor={`share-circle-${c.id}`}
-                              className="min-w-0 flex-1 cursor-pointer"
-                            >
-                              <span className="block text-sm font-medium">{c.name}</span>
-                              <span className="text-xs text-muted-foreground">
-                                {others} member{others === 1 ? '' : 's'} (besides you)
-                              </span>
-                            </label>
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  </div>
-                ) : null}
+            <ShareAudiencePicker
+              uid={cloudUser.uid}
+              enabled={Boolean(prefOk)}
+              selectedFriends={selectedFriends}
+              selectedCircles={selectedCircles}
+              onFriendsChange={setSelectedFriends}
+              onCirclesChange={setSelectedCircles}
+              onAudienceChange={onAudienceChange}
+            />
 
-                {friends.length > 0 ? (
-                  <div>
-                    <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Friends
-                    </p>
-                    <ul className="space-y-2">
-                      {friends.map((f) => (
-                        <li key={f.uid} className="flex items-center gap-3 rounded-xl bg-secondary/50 px-3 py-2">
-                          <Checkbox
-                            checked={!!selectedFriends[f.uid]}
-                            onCheckedChange={(v) =>
-                              setSelectedFriends((s) => ({ ...s, [f.uid]: Boolean(v) }))
-                            }
-                            id={`share-friend-${f.uid}`}
-                            disabled={Boolean(prefKey && !prefOk)}
-                          />
-                          <label
-                            htmlFor={`share-friend-${f.uid}`}
-                            className="flex-1 cursor-pointer text-sm font-medium"
-                          >
-                            {f.displayName}
-                          </label>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
-
-                {circles.length > 0 && shareableCircles.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">
-                    Your circles only have you so far — invite friends on Circles to share there.
-                  </p>
-                ) : null}
-              </div>
-            )}
-            <Button type="submit" className="w-full" disabled={!canSubmit}>
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={busy || !audience.hasAny || Boolean(prefKey && !prefOk)}
+            >
               {busy ? 'Sharing…' : 'Share'}
             </Button>
           </form>
