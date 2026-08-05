@@ -20,7 +20,7 @@ import {
   Menu,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AnimatePresence, motion, type PanInfo } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
@@ -62,7 +62,6 @@ export const SOCIAL = [
 const DRAWER_WIDTH = 280
 const EDGE_OPEN_PX = 28
 const SWIPE_OPEN_PX = 56
-const SWIPE_CLOSE_PX = 80
 
 function NavGroup({
   label,
@@ -360,49 +359,50 @@ function MobileNavDrawer({
   onOpenChange: (open: boolean) => void
   children: React.ReactNode
 }) {
-  const handleDragEnd = (_: unknown, info: PanInfo) => {
-    if (info.offset.x < -SWIPE_CLOSE_PX || info.velocity.x < -400) {
-      onOpenChange(false)
-    }
-  }
-
   useEffect(() => {
     if (!open) return
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onOpenChange(false)
+    }
+    window.addEventListener('keydown', onKey)
     return () => {
       document.body.style.overflow = prev
+      window.removeEventListener('keydown', onKey)
     }
-  }, [open])
+  }, [open, onOpenChange])
 
   return (
     <AnimatePresence>
       {open ? (
         <>
-          <motion.button
-            type="button"
-            aria-label="Close menu"
-            className="fixed inset-0 z-40 bg-black/50 md:hidden"
+          {/* Full-screen dismiss layer — closes on first touch/click, not delayed click */}
+          <motion.div
+            role="presentation"
+            aria-hidden
+            className="fixed inset-0 z-40 touch-manipulation bg-black/50 md:hidden"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            onClick={() => onOpenChange(false)}
+            transition={{ duration: 0.18 }}
+            onPointerDown={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              onOpenChange(false)
+            }}
           />
           <motion.aside
             role="dialog"
             aria-modal="true"
             aria-label="Navigation"
-            className="fixed inset-y-0 left-0 z-50 flex w-[min(17.5rem,85vw)] flex-col border-r border-border/40 bg-background shadow-xl md:hidden"
+            className="fixed inset-y-0 left-0 z-50 flex w-[min(17.5rem,85vw)] flex-col border-r border-border/40 bg-background shadow-xl touch-pan-y md:hidden"
             style={{ width: `min(${DRAWER_WIDTH}px, 85vw)` }}
             initial={{ x: '-100%' }}
             animate={{ x: 0 }}
             exit={{ x: '-100%' }}
             transition={{ type: 'spring', damping: 32, stiffness: 340, mass: 0.85 }}
-            drag="x"
-            dragConstraints={{ left: -DRAWER_WIDTH, right: 0 }}
-            dragElastic={0.08}
-            onDragEnd={handleDragEnd}
+            onPointerDown={(e) => e.stopPropagation()}
           >
             {children}
           </motion.aside>
