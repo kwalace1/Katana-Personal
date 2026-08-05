@@ -187,7 +187,9 @@ export const liftApi = {
       silent: true,
     })
 
-    notifyCheckIn(`Logged lift: ${session.title}`)
+    notifyCheckIn(
+      `Logged lift: ${session.title}${input.sets.length ? ` · ${input.sets.length} set${input.sets.length === 1 ? '' : 's'}` : ''}`,
+    )
     return session
   },
 

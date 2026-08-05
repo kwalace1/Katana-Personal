@@ -95,7 +95,7 @@ export default function AskPage() {
       <PageHeader
         eyebrow="Day guide"
         title="Ask"
-        description="A quiet guide that already knows what’s on your plate — and can take action."
+        description="Knows what’s on your plate — and can take action. No cloud AI."
         actions={
           messages.length > 1 ? (
             <Button
@@ -119,11 +119,13 @@ export default function AskPage() {
       />
 
       <div className="mb-5 flex flex-wrap gap-2">
-        {suggestedAsksForHour().map((prompt) => (
-          <Button key={prompt} type="button" size="sm" variant="outline" onClick={() => ask(prompt)}>
-            {prompt}
-          </Button>
-        ))}
+        {messages.filter((m) => m.role === 'you').length === 0
+          ? suggestedAsksForHour().map((prompt) => (
+              <Button key={prompt} type="button" size="sm" variant="outline" onClick={() => ask(prompt)}>
+                {prompt}
+              </Button>
+            ))
+          : null}
       </div>
 
       <div

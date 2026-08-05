@@ -1,7 +1,8 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Trash2 } from 'lucide-react'
+import { Check, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -31,6 +32,10 @@ const MOOD_SCORE: Record<Mood, number> = {
   okay: 2,
   good: 3,
   great: 4,
+}
+
+function moodLabel(mood: Mood): string {
+  return MOODS.find((m) => m.id === mood)?.label ?? mood
 }
 
 export default function JournalPage() {
@@ -64,17 +69,29 @@ export default function JournalPage() {
   const [mood, setMood] = useState<Mood>('good')
   const [body, setBody] = useState('')
   const [reflection, setReflection] = useState('')
+  const [dirty, setDirty] = useState(false)
+  const [justSaved, setJustSaved] = useState(false)
 
   useEffect(() => {
     setMood(existing?.mood || 'good')
     setBody(existing?.body || '')
     setReflection(existing?.reflection || '')
-  }, [existing])
+    setDirty(false)
+    setJustSaved(false)
+  }, [existing, activeDate])
+
+  function markDirty() {
+    setDirty(true)
+    setJustSaved(false)
+  }
 
   function onSave(e: FormEvent) {
     e.preventDefault()
     journalApi.upsert(userId, { date: activeDate, mood, body, reflection })
     refresh()
+    setDirty(false)
+    setJustSaved(true)
+    toast.success(existing ? 'Entry updated' : 'Entry saved')
   }
 
   const dateLabel = (() => {
@@ -84,6 +101,9 @@ export default function JournalPage() {
       return activeDate
     }
   })()
+
+  const canShare = Boolean(existing) || justSaved
+  const shareMoodLabel = moodLabel(mood)
 
   return (
     <motion.div {...pageEnterSubtle} className="kp-page">
@@ -135,7 +155,10 @@ export default function JournalPage() {
                 size="sm"
                 variant={mood === m.id ? 'default' : 'outline'}
                 className="rounded-full"
-                onClick={() => setMood(m.id)}
+                onClick={() => {
+                  setMood(m.id)
+                  markDirty()
+                }}
               >
                 {m.label}
               </Button>
@@ -148,7 +171,10 @@ export default function JournalPage() {
             className="min-h-[160px]"
             placeholder="What happened?"
             value={body}
-            onChange={(e) => setBody(e.target.value)}
+            onChange={(e) => {
+              setBody(e.target.value)
+              markDirty()
+            }}
           />
         </div>
         <div>
@@ -157,33 +183,60 @@ export default function JournalPage() {
             className="min-h-[100px]"
             placeholder="Anything you’d like to remember…"
             value={reflection}
-            onChange={(e) => setReflection(e.target.value)}
+            onChange={(e) => {
+              setReflection(e.target.value)
+              markDirty()
+            }}
           />
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button type="submit">Save</Button>
-          {existing ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="submit" disabled={!dirty && Boolean(existing)} className="gap-1.5">
+            {justSaved && !dirty ? (
+              <>
+                <Check className="h-4 w-4" />
+                Saved
+              </>
+            ) : existing && !dirty ? (
+              'Saved'
+            ) : existing ? (
+              'Update'
+            ) : (
+              'Save'
+            )}
+          </Button>
+          {canShare ? (
             <>
               <ShareWithFriendsButton
                 kind="journal"
-                title={`Journal · ${activeDate}`}
-                body={mood}
-                data={{ date: activeDate, mood, localEntryId: existing.id }}
+                title={`Mood · ${dateLabel}`}
+                body={`${shareMoodLabel} — shared from Journal`}
+                data={{ date: activeDate, mood, moodLabel: shareMoodLabel, localEntryId: existing?.id }}
                 label="Share mood"
               />
-              <Button
-                type="button"
-                variant="outline"
-                className="gap-2"
-                onClick={() => {
-                  journalApi.remove(userId, existing.id)
-                  refresh()
-                }}
-              >
-                <Trash2 className="h-4 w-4" />
-                Delete
-              </Button>
+              {existing ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => {
+                    journalApi.remove(userId, existing.id)
+                    setBody('')
+                    setReflection('')
+                    setMood('good')
+                    setDirty(false)
+                    setJustSaved(false)
+                    refresh()
+                    toast.message('Entry deleted')
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete
+                </Button>
+              ) : null}
             </>
+          ) : null}
+          {justSaved && !dirty ? (
+            <p className="text-xs text-muted-foreground">Only your mood is shared — never the entry text.</p>
           ) : null}
         </div>
       </form>
@@ -216,9 +269,16 @@ export default function JournalPage() {
                       }
                     })()}
                   </p>
-                  <span className="text-xs uppercase tracking-wide text-muted-foreground">{entry.mood}</span>
+                  <span className="text-xs font-medium tracking-wide text-muted-foreground">
+                    {moodLabel(entry.mood)}
+                  </span>
                 </div>
-                <p className="mt-2 line-clamp-2 whitespace-pre-wrap text-sm text-foreground/90">{entry.body}</p>
+                {entry.body ? (
+                  <p className="mt-2 line-clamp-2 whitespace-pre-wrap text-sm text-foreground/90">{entry.body}</p>
+                ) : null}
+                {entry.reflection ? (
+                  <p className="mt-1 line-clamp-1 text-xs italic text-muted-foreground">{entry.reflection}</p>
+                ) : null}
               </button>
             </li>
           ))}

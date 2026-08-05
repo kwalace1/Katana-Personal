@@ -60,7 +60,7 @@ export function CircleBoardExtras({
   friends: CloudProfile[]
   board: StreakSnapshot[]
   metric: string
-  activity: { uid: string; message: string; updatedAt: string }[]
+  activity: { id: string; uid: string; message: string; updatedAt: string }[]
   onAfterCheckIn: () => void
 }) {
   const { user } = useAuth()
@@ -129,13 +129,13 @@ export function CircleBoardExtras({
       })),
       ...activity.map((a) => ({
         kind: 'activity' as const,
-        id: `act-${a.uid}-${a.updatedAt}`,
+        id: `act-${a.id}`,
         uid: a.uid,
         message: a.message,
         at: a.updatedAt,
       })),
     ]
-    return items.sort((a, b) => b.at.localeCompare(a.at)).slice(0, 24)
+    return items.sort((a, b) => b.at.localeCompare(a.at)).slice(0, 36)
   }, [posts, activity])
 
   async function onPost(e: FormEvent) {
@@ -311,8 +311,8 @@ export function CircleBoardExtras({
         </div>
         {timeline.length === 0 ? (
           <div className="kp-surface p-5 text-sm text-muted-foreground">
-            Nothing yet. Post a message, log water or a habit, or share something — it’ll show up
-            here for everyone in the circle.
+            Nothing yet. Post a message, or log water, a meal, a workout, sleep, or a habit — check-ins
+            show up here when Activity pings are on in Settings.
           </div>
         ) : (
           <ul className="relative ml-3 space-y-0 border-l border-border/60">

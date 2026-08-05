@@ -4,6 +4,7 @@ import { habitsApi } from '@/modules/habits/api'
 import { goalsApi } from '@/modules/goals/api'
 import { journalApi } from '@/modules/journal/api'
 import { healthApi } from '@/modules/health/api'
+import { liftApi } from '@/modules/health/lift-api'
 import { notesApi } from '@/modules/notes/api'
 import { parseCapture } from '@/lib/capture'
 import { addDays, format, formatShortDate, formatTime, todayKey } from '@/lib/dates'
@@ -28,8 +29,12 @@ export interface LifeSnapshot {
   activeGoals: Goal[]
   behindGoals: Goal[]
   journalToday: boolean
+  journalMood: string | null
   waterGlasses: number
   recentWorkouts: number
+  recentLifts: number
+  sleepHoursLast: number
+  caloriesToday: number
   recentNotes: number
 }
 
@@ -44,6 +49,8 @@ export function buildSnapshot(userId: string, displayName = 'there'): LifeSnapsh
   const habitsDue = habitsApi.dueToday(userId)
   const activeGoals = goalsApi.active(userId, 20)
   const behindGoals = activeGoals.filter((g) => g.progress / Math.max(g.target, 1) < 0.4)
+  const journal = journalApi.forDate(userId, todayKey())
+  const weekStart = todayKey(addDays(today, -7))
 
   return {
     name: displayName,
@@ -57,9 +64,18 @@ export function buildSnapshot(userId: string, displayName = 'there'): LifeSnapsh
     habitsDoneIds: habitsDue.filter((h) => habitsApi.isDoneToday(userId, h.id)).map((h) => h.id),
     activeGoals,
     behindGoals,
-    journalToday: Boolean(journalApi.forDate(userId, todayKey())),
+    journalToday: Boolean(journal),
+    journalMood: journal?.mood ?? null,
     waterGlasses: healthApi.getWater(userId).glasses,
-    recentWorkouts: healthApi.listWorkouts(userId).filter((w) => w.date >= todayKey(addDays(today, -7))).length,
+    recentWorkouts: healthApi
+      .listWorkouts(userId)
+      .filter((w) => w.date >= weekStart && !w.lift_session_id).length,
+    recentLifts: liftApi.listSessions(userId).filter((s) => s.date >= weekStart).length,
+    sleepHoursLast: healthApi.listSleep(userId)[0]?.hours ?? 0,
+    caloriesToday: healthApi
+      .listNutrition(userId)
+      .filter((n) => n.date === todayKey())
+      .reduce((s, n) => s + (n.calories || 0), 0),
     recentNotes: notesApi.listNotes(userId).length,
   }
 }
@@ -466,10 +482,17 @@ function answerHabits(snap: LifeSnapshot): AskReply {
 }
 
 function answerHealth(snap: LifeSnapshot): AskReply {
+  const bits = [
+    `Water today: ${snap.waterGlasses} glass${snap.waterGlasses === 1 ? '' : 'es'}.`,
+    `Workouts this week: ${snap.recentWorkouts}. Lifts: ${snap.recentLifts}.`,
+  ]
+  if (snap.sleepHoursLast > 0) bits.push(`Last sleep logged: ${snap.sleepHoursLast}h.`)
+  if (snap.caloriesToday > 0) bits.push(`Meals today: ${snap.caloriesToday} cal.`)
+  bits.push(
+    snap.waterGlasses < 4 ? 'A glass of water would be a kind next step.' : 'Hydration looks solid.',
+  )
   return {
-    text: `Water today: ${snap.waterGlasses} glass${snap.waterGlasses === 1 ? '' : 'es'}. Workouts this week: ${snap.recentWorkouts}. ${
-      snap.waterGlasses < 4 ? 'A glass of water would be a kind next step.' : 'Hydration looks solid.'
-    }`,
+    text: bits.join(' '),
     actions: [
       { id: createId(), label: 'Log a glass of water', kind: 'log_water' },
       { id: createId(), label: 'Open health', kind: 'open_route', route: '/health' },
@@ -477,10 +500,99 @@ function answerHealth(snap: LifeSnapshot): AskReply {
   }
 }
 
-function answerDefault(snap: LifeSnapshot): AskReply {
+function answerAboutMe(snap: LifeSnapshot): AskReply {
+  const parts: string[] = [
+    `Here’s a snapshot of you in Katana, ${snap.name}.`,
+    `Today is ${snap.todayLabel}.`,
+  ]
+  parts.push(
+    snap.openTasks.length > 0
+      ? `You have ${snap.openTasks.length} open task${snap.openTasks.length === 1 ? '' : 's'}${
+          snap.priorityTasks[0] ? `, led by “${snap.priorityTasks[0].title}”` : ''
+        }.`
+      : 'Your task list is clear.',
+  )
+  parts.push(
+    snap.habitsDue.length > 0
+      ? `Habits today: ${snap.habitsDoneIds.length} of ${snap.habitsDue.length} done${
+          snap.habitsDue[0] ? ` (${listTitles(snap.habitsDue, 3)})` : ''
+        }.`
+      : 'No habits set yet — you can add them anytime.',
+  )
+  if (snap.activeGoals.length > 0) {
+    parts.push(
+      snap.behindGoals.length > 0
+        ? `Active goals: ${listTitles(snap.activeGoals, 3)}. Needs attention: ${listTitles(snap.behindGoals, 2)}.`
+        : `Active goals: ${listTitles(snap.activeGoals, 3)} — looking steady.`,
+    )
+  } else {
+    parts.push('No active goals yet.')
+  }
+  parts.push(
+    `Health: ${snap.waterGlasses} glass${snap.waterGlasses === 1 ? '' : 'es'} of water today, ${snap.recentWorkouts} workout${snap.recentWorkouts === 1 ? '' : 's'} and ${snap.recentLifts} lift session${snap.recentLifts === 1 ? '' : 's'} this week${
+      snap.caloriesToday > 0 ? `, ${snap.caloriesToday} cal logged today` : ''
+    }.`,
+  )
+  if (snap.journalToday) {
+    parts.push(
+      snap.journalMood
+        ? `You’ve journaled today (mood: ${snap.journalMood}).`
+        : 'You’ve journaled today.',
+    )
+  } else {
+    parts.push('No journal entry for today yet.')
+  }
+  if (snap.todayEvents.length > 0) {
+    parts.push(`On the calendar: ${listTitles(snap.todayEvents, 3)}.`)
+  }
+
   return {
-    text: `${buildDailyBriefing(snap)}\n\nYou can also ask things like “What should I work on today?”, “Close my day,” “Prep for tomorrow,” “Summarize my week,” or “Add gym tomorrow.”`,
-    actions: briefingActions(snap),
+    text: parts.join(' '),
+    actions: [
+      { id: createId(), label: 'Open Today', kind: 'open_route', route: '/dashboard' },
+      { id: createId(), label: 'Open goals', kind: 'open_route', route: '/goals' },
+      { id: createId(), label: 'Open journal', kind: 'open_route', route: '/journal' },
+    ],
+  }
+}
+
+function answerCapabilities(_snap: LifeSnapshot): AskReply {
+  return {
+    text: [
+      'I’m your local day guide — no cloud AI, just what’s already in Katana.',
+      'I can brief your day, suggest what to focus on, help close the evening, prep tomorrow, check habits and goals, and point you to health (water, lifts, sleep, meals).',
+      'You can also say things like “add gym tomorrow” or “add a task called call Mom” and I’ll create them.',
+      'Ask in your own words — try “tell me about myself,” “what should I work on today,” or “close my day.”',
+    ].join(' '),
+    actions: [
+      { id: createId(), label: 'Open Today', kind: 'open_route', route: '/dashboard' },
+      { id: createId(), label: 'Open Health', kind: 'open_route', route: '/health' },
+      { id: createId(), label: 'Open Habits', kind: 'open_route', route: '/habits' },
+    ],
+  }
+}
+
+function answerDefault(snap: LifeSnapshot): AskReply {
+  const top = snap.priorityTasks[0]
+  const hint = top
+    ? `If you’re unsure, start with “${top.title}”.`
+    : 'If you’re unsure, ask what I can do — or say “briefing” for a fresh overview.'
+  return {
+    text: `I didn’t catch a specific ask there. ${hint} You can also say “tell me about myself,” “what should I work on today,” “close my day,” or “add gym tomorrow.”`,
+    actions: [
+      ...(top
+        ? [
+            {
+              id: createId(),
+              label: `Finish “${top.title}”`,
+              kind: 'complete_task' as const,
+              taskId: top.id,
+            },
+          ]
+        : []),
+      { id: createId(), label: 'Open Today', kind: 'open_route', route: '/dashboard' },
+      { id: createId(), label: 'Daily briefing', kind: 'open_route', route: '/ask?q=briefing' },
+    ],
   }
 }
 
@@ -491,6 +603,26 @@ export function answerQuestion(userId: string, question: string, displayName?: s
 type Intent = { test: (q: string) => boolean; answer: (snap: LifeSnapshot) => AskReply }
 
 const INTENTS: Intent[] = [
+  {
+    test: (q) =>
+      q.includes('what can you') ||
+      q.includes('what do you do') ||
+      q.includes('what are you') ||
+      q.includes('your capabilities') ||
+      q.includes('how do you work') ||
+      (q.includes('help') && (q.includes('what') || q.includes('how') || q === 'help' || q.endsWith(' help'))),
+    answer: answerCapabilities,
+  },
+  {
+    test: (q) =>
+      q.includes('about myself') ||
+      q.includes('about me') ||
+      q.includes('who am i') ||
+      q.includes('my profile') ||
+      q.includes('know about me') ||
+      q.includes('tell me about my life'),
+    answer: answerAboutMe,
+  },
   {
     test: (q) =>
       q.includes('close') ||
@@ -551,7 +683,12 @@ const INTENTS: Intent[] = [
   },
   {
     test: (q) =>
-      q.includes('health') || q.includes('water') || q.includes('sleep') || q.includes('nutrition'),
+      q.includes('health') ||
+      q.includes('water') ||
+      q.includes('sleep') ||
+      q.includes('nutrition') ||
+      q.includes('lift') ||
+      q.includes('meal'),
     answer: answerHealth,
   },
   {

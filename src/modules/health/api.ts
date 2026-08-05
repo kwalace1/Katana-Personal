@@ -44,7 +44,9 @@ export const healthApi = {
       lift_session_id: input.lift_session_id ?? null,
     })
     if (!input.silent) {
-      notifyCheckIn(`Logged a workout: ${row.activity}`)
+      notifyCheckIn(
+        `Logged a workout: ${row.activity}${row.duration_minutes ? ` · ${row.duration_minutes} min` : ''}`,
+      )
     }
     return row
   },
@@ -108,7 +110,11 @@ export const healthApi = {
       notes: input.notes || '',
       created_at: now(),
     })
-    notifyCheckIn(`Logged a meal: ${row.meal}`)
+    notifyCheckIn(
+      row.calories > 0
+        ? `Logged a meal: ${row.meal} · ${row.calories} cal`
+        : `Logged a meal: ${row.meal}`,
+    )
     return row
   },
 
@@ -133,7 +139,7 @@ export const healthApi = {
       notes: input.notes || '',
       created_at: now(),
     })
-    notifyCheckIn(`Logged sleep — ${row.hours}h`)
+    notifyCheckIn(`Logged sleep — ${row.hours}h (${row.quality})`)
     return row
   },
 

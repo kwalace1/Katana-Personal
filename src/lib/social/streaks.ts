@@ -35,6 +35,10 @@ function emptyStreakNumbers(): Pick<
   | 'habitStreakBest'
   | 'waterGlassesToday'
   | 'sleepHoursLast'
+  | 'habitsDoneToday'
+  | 'habitsDueToday'
+  | 'caloriesToday'
+  | 'workoutMinutesToday'
 > {
   return {
     waterStreak: 0,
@@ -45,6 +49,10 @@ function emptyStreakNumbers(): Pick<
     habitStreakBest: 0,
     waterGlassesToday: 0,
     sleepHoursLast: 0,
+    habitsDoneToday: 0,
+    habitsDueToday: 0,
+    caloriesToday: 0,
+    workoutMinutesToday: 0,
   }
 }
 
@@ -52,6 +60,7 @@ function emptyStreakNumbers(): Pick<
 export function computeLocalStreaks(
   localUserId: string,
 ): Omit<StreakSnapshot, 'uid' | 'displayName' | 'visible' | 'updatedAt'> {
+  const today = todayKey()
   const waterStreak = consecutiveDays((date) => healthApi.getWater(localUserId, date).glasses >= 6)
   const sleepStreak = consecutiveDays((date) => {
     const logs = healthApi.listSleep(localUserId).filter((s) => s.date === date)
@@ -68,10 +77,21 @@ export function computeLocalStreaks(
     liftApi.listSessions(localUserId).some((s) => s.date === date),
   )
   const habits = habitsApi.list(localUserId)
+  const habitsDue = habitsApi.dueToday(localUserId)
   let habitStreakBest = 0
   for (const h of habits) {
     habitStreakBest = Math.max(habitStreakBest, habitsApi.streak(localUserId, h.id))
   }
+  const habitsDoneToday = habitsDue.filter((h) => habitsApi.isDoneToday(localUserId, h.id)).length
+  const caloriesToday = healthApi
+    .listNutrition(localUserId)
+    .filter((n) => n.date === today)
+    .reduce((s, n) => s + (n.calories || 0), 0)
+  const workoutMinutesToday = healthApi
+    .listWorkouts(localUserId)
+    .filter((w) => w.date === today && !w.lift_session_id)
+    .reduce((s, w) => s + (w.duration_minutes || 0), 0)
+
   return {
     waterStreak,
     sleepStreak,
@@ -81,6 +101,10 @@ export function computeLocalStreaks(
     habitStreakBest,
     waterGlassesToday: healthApi.getWater(localUserId).glasses,
     sleepHoursLast: healthApi.listSleep(localUserId)[0]?.hours ?? 0,
+    habitsDoneToday,
+    habitsDueToday: habitsDue.length,
+    caloriesToday,
+    workoutMinutesToday,
   }
 }
 
@@ -116,6 +140,10 @@ export async function publishStreaks(input: {
     habitStreakBest: input.sharePrefs.habits ? snapshot.habitStreakBest : 0,
     waterGlassesToday: input.sharePrefs.healthWater ? snapshot.waterGlassesToday : 0,
     sleepHoursLast: input.sharePrefs.healthSleep ? snapshot.sleepHoursLast : 0,
+    habitsDoneToday: input.sharePrefs.habits ? snapshot.habitsDoneToday : 0,
+    habitsDueToday: input.sharePrefs.habits ? snapshot.habitsDueToday : 0,
+    caloriesToday: input.sharePrefs.healthNutrition ? snapshot.caloriesToday : 0,
+    workoutMinutesToday: input.sharePrefs.healthWorkouts ? snapshot.workoutMinutesToday : 0,
   }
   await setDoc(doc(getDb(), 'streaks', input.cloudUid), publicSnap)
   return publicSnap
@@ -147,7 +175,15 @@ export async function loadCirclesBoard(
           } satisfies StreakSnapshot
         }
         const data = docSnap.data() as StreakSnapshot
-        return { ...emptyStreakNumbers(), ...data, liftStreak: data.liftStreak ?? 0 }
+        return {
+          ...emptyStreakNumbers(),
+          ...data,
+          liftStreak: data.liftStreak ?? 0,
+          habitsDoneToday: data.habitsDoneToday ?? 0,
+          habitsDueToday: data.habitsDueToday ?? 0,
+          caloriesToday: data.caloriesToday ?? 0,
+          workoutMinutesToday: data.workoutMinutesToday ?? 0,
+        }
       } catch {
         return null
       }
@@ -166,20 +202,40 @@ export async function loadCirclesBoard(
   return board
 }
 
-/** Soft activity ping friends can see if activityFeed is on. */
+export type ActivityFeedItem = {
+  id: string
+  uid: string
+  message: string
+  updatedAt: string
+}
+
+type ActivityEvent = { id: string; message: string; at: string }
+
+/** Soft activity ping friends can see if activityFeed is on. Keeps a short history per person. */
 export async function publishActivity(cloudUid: string, message: string): Promise<void> {
+  const ref = doc(getDb(), 'activity', cloudUid)
+  const existing = await getDoc(ref)
+  const prev = (existing.exists() ? (existing.data().events as ActivityEvent[] | undefined) : undefined) || []
+  const at = new Date().toISOString()
+  const nextEvent: ActivityEvent = {
+    id: `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+    message,
+    at,
+  }
+  const events = [...prev, nextEvent].slice(-40)
   await setDoc(
-    doc(getDb(), 'activity', cloudUid),
+    ref,
     {
       uid: cloudUid,
       message,
-      updatedAt: new Date().toISOString(),
+      updatedAt: at,
+      events,
     },
     { merge: true },
   )
 }
 
-export async function listFriendActivity(friendUids: string[]) {
+export async function listFriendActivity(friendUids: string[]): Promise<ActivityFeedItem[]> {
   if (friendUids.length === 0) return []
   // Use per-doc gets — collection queries fail under friend-scoped rules
   // (rules check path id via isFriendOf; a where('uid' in …) query can’t prove that).
@@ -187,12 +243,39 @@ export async function listFriendActivity(friendUids: string[]) {
     friendUids.slice(0, 20).map(async (uid) => {
       try {
         const snap = await getDoc(doc(getDb(), 'activity', uid))
-        if (!snap.exists()) return null
-        return snap.data() as { uid: string; message: string; updatedAt: string }
+        if (!snap.exists()) return [] as ActivityFeedItem[]
+        const data = snap.data() as {
+          uid: string
+          message: string
+          updatedAt: string
+          events?: ActivityEvent[]
+        }
+        if (data.events && data.events.length > 0) {
+          return data.events.map((e) => ({
+            id: e.id,
+            uid,
+            message: e.message,
+            updatedAt: e.at,
+          }))
+        }
+        if (data.message) {
+          return [
+            {
+              id: `${uid}-latest`,
+              uid,
+              message: data.message,
+              updatedAt: data.updatedAt,
+            },
+          ]
+        }
+        return []
       } catch {
-        return null
+        return []
       }
     }),
   )
-  return snaps.filter(Boolean) as { uid: string; message: string; updatedAt: string }[]
+  return snaps
+    .flat()
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    .slice(0, 60)
 }

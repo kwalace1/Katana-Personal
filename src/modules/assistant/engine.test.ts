@@ -32,10 +32,23 @@ describe('Ask engine (no LLM)', () => {
     expect(reply.text.toLowerCase()).toMatch(/week|open task/)
   })
 
+  it('answers tell me about myself', () => {
+    const reply = answerQuestionWithActions(USER, 'Tell me about myself', 'Alex')
+    expect(reply.text.toLowerCase()).toMatch(/snapshot|alex|task|habit/)
+    expect(reply.text.toLowerCase()).not.toMatch(/you can also ask things like/)
+  })
+
+  it('answers what can you do', () => {
+    const reply = answerQuestionWithActions(USER, 'What can you do?', 'Alex')
+    expect(reply.text.toLowerCase()).toMatch(/day guide|brief|habit|health/)
+    expect(reply.text.toLowerCase()).not.toMatch(/you can also ask things like/)
+  })
+
   it('builds a snapshot', () => {
     const snap = buildSnapshot(USER, 'Alex')
     expect(snap.name).toBe('Alex')
     expect(snap.openTasks).toEqual([])
+    expect(snap.recentLifts).toBe(0)
   })
 
   it('runs park_tasks safely when empty', () => {

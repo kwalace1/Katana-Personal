@@ -79,6 +79,13 @@ export interface StreakSnapshot {
   habitStreakBest: number
   waterGlassesToday: number
   sleepHoursLast: number
+  /** Habits checked in today (when habits sharing is on) */
+  habitsDoneToday: number
+  habitsDueToday: number
+  /** Calories logged today */
+  caloriesToday: number
+  /** Non-lift workout minutes today */
+  workoutMinutesToday: number
   /** Only fields allowed by sharePrefs are meaningful to readers */
   visible: Partial<SharePrefs>
 }

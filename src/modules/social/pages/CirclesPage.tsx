@@ -36,7 +36,7 @@ import {
 } from '@/components/ui/dialog'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
 import { pageEnterSubtle, springSoft } from '@/lib/motion-ui'
-import { loadCirclesBoard, listFriendActivity } from '@/lib/social/streaks'
+import { loadCirclesBoard, listFriendActivity, type ActivityFeedItem } from '@/lib/social/streaks'
 import {
   createCircle,
   deleteCircle,
@@ -174,7 +174,7 @@ export default function CirclesPage() {
   const [circles, setCircles] = useState<CircleGroup[]>([])
   const [board, setBoard] = useState<StreakSnapshot[]>([])
   const [friends, setFriends] = useState<CloudProfile[]>([])
-  const [activity, setActivity] = useState<{ uid: string; message: string; updatedAt: string }[]>([])
+  const [activity, setActivity] = useState<ActivityFeedItem[]>([])
   const [busy, setBusy] = useState(false)
   const [newName, setNewName] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
@@ -270,7 +270,7 @@ export default function CirclesPage() {
             ...friendList.map((f) => f.uid),
           ])
           if (!cancelled) {
-            setActivity(feed.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 20))
+            setActivity(feed.slice(0, 40))
           }
         } catch {
           // optional
@@ -299,9 +299,11 @@ export default function CirclesPage() {
       try {
         const feed = await listFriendActivity(circle.memberIds)
         setActivity((prev) => {
-          const byUid = new Map(prev.map((a) => [a.uid, a]))
-          for (const a of feed) byUid.set(a.uid, a)
-          return [...byUid.values()].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 20)
+          const byId = new Map(prev.map((a) => [a.id, a]))
+          for (const a of feed) byId.set(a.id, a)
+          return [...byId.values()]
+            .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+            .slice(0, 40)
         })
       } catch {
         // optional
@@ -325,7 +327,7 @@ export default function CirclesPage() {
   const circleActivity = useMemo(() => {
     if (!active) return []
     const members = new Set(active.memberIds)
-    return activity.filter((a) => members.has(a.uid)).slice(0, 12)
+    return activity.filter((a) => members.has(a.uid)).slice(0, 24)
   }, [activity, active])
 
   function enterCircle(id: string, tab: 'board' | 'schedule' = 'board') {
@@ -731,10 +733,22 @@ export default function CirclesPage() {
                             <p className="text-xs text-muted-foreground">
                             {score} day{score === 1 ? '' : 's'}
                             {metric === 'water' && row.waterGlassesToday
-                              ? ` · ${row.waterGlassesToday} glasses today`
+                              ? ` · ${row.waterGlassesToday} glass${row.waterGlassesToday === 1 ? '' : 'es'} today`
                               : ''}
                             {metric === 'sleep' && row.sleepHoursLast
                               ? ` · last ${row.sleepHoursLast}h`
+                              : ''}
+                            {metric === 'habit' && (row.habitsDueToday ?? 0) > 0
+                              ? ` · ${row.habitsDoneToday ?? 0}/${row.habitsDueToday} habits today`
+                              : ''}
+                            {metric === 'nutrition' && (row.caloriesToday ?? 0) > 0
+                              ? ` · ${row.caloriesToday} cal today`
+                              : ''}
+                            {metric === 'workout' && (row.workoutMinutesToday ?? 0) > 0
+                              ? ` · ${row.workoutMinutesToday} min today`
+                              : ''}
+                            {metric === 'lift' && (row.liftStreak ?? 0) > 0 && score > 0
+                              ? ` · lifting streak`
                               : ''}
                           </p>
                         </div>
@@ -750,7 +764,7 @@ export default function CirclesPage() {
           <EmptyState
             className="mb-6"
             title="No streak data yet"
-            description="Turn on sharing in Settings, check in on habits or water, then Sync."
+            description="Turn on sharing in Settings, log water, habits, lifts, or meals, then Sync."
           />
         )}
 

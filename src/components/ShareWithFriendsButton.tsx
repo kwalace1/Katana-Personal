@@ -121,7 +121,11 @@ export function ShareWithFriendsButton({
         memberIds,
       })
       if (cloudProfile.sharePrefs.activityFeed) {
-        await publishActivity(cloudUser.uid, `Shared a ${kind}: ${title}`)
+        const ping =
+          kind === 'journal'
+            ? `Shared mood: ${body || title}`
+            : `Shared a ${kind}: ${title}`
+        await publishActivity(cloudUser.uid, ping)
       }
       toast.success('Shared with friends', {
         action: {

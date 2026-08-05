@@ -90,9 +90,9 @@ export const habitsApi = {
     }
     const habit = habitsApi.get(userId, habitId)
     if (result.completed) {
-      notifyCheckIn(`Checked in on ${habit?.title || 'a habit'}`)
+      notifyCheckIn(`Checked in on “${habit?.title || 'a habit'}”`)
     } else {
-      notifyCheckIn(`Unchecked ${habit?.title || 'a habit'}`)
+      notifyCheckIn(`Unchecked “${habit?.title || 'a habit'}”`)
     }
     return result
   },
