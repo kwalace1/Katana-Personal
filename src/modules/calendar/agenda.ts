@@ -96,11 +96,18 @@ export function goalToAgenda(goal: Goal): AgendaItem | null {
 }
 
 export function habitDueOnDay(habit: Habit, day: Date): boolean {
+  if (habit.schedule === 'once') {
+    return Boolean(habit.once_date) && habit.once_date === todayKey(day)
+  }
   const dow = day.getDay()
-  const isWeekend = dow === 0 || dow === 6
   if (habit.schedule === 'daily') return true
-  if (habit.schedule === 'weekdays') return !isWeekend
-  return isWeekend
+  if (habit.schedule === 'weekdays') return dow >= 1 && dow <= 5
+  if (habit.schedule === 'weekends') return dow === 0 || dow === 6
+  if (habit.schedule === 'custom') {
+    const days = habit.custom_days || []
+    return days.includes(dow as 0 | 1 | 2 | 3 | 4 | 5 | 6)
+  }
+  return false
 }
 
 /** Expand habits across a visible calendar range (one chip per due day). */

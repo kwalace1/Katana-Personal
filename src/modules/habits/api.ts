@@ -2,7 +2,14 @@ import { localDb } from '@/lib/local-db'
 import { createId } from '@/lib/id'
 import { todayKey, addDays } from '@/lib/dates'
 import { notifyCheckIn } from '@/lib/social/streak-sync'
-import type { Habit, HabitLog } from './types'
+import {
+  formatHabitSchedule,
+  resolveHabitDays,
+  type Habit,
+  type HabitLog,
+  type HabitSchedule,
+  type Weekday,
+} from './types'
 
 const HABITS = 'habits'
 const LOGS = 'habit_logs'
@@ -11,13 +18,24 @@ function now() {
   return new Date().toISOString()
 }
 
+function normalizeHabit(habit: Habit): Habit {
+  return {
+    ...habit,
+    schedule: habit.schedule || 'daily',
+    custom_days: Array.isArray(habit.custom_days) ? (habit.custom_days as Weekday[]) : [],
+    once_date: habit.once_date ?? null,
+    reminder_time: habit.reminder_time ?? null,
+  }
+}
+
 export const habitsApi = {
   list(userId: string): Habit[] {
-    return localDb.list<Habit>(HABITS, userId)
+    return localDb.list<Habit>(HABITS, userId).map(normalizeHabit)
   },
 
   get(userId: string, id: string): Habit | null {
-    return localDb.getById<Habit>(HABITS, userId, id)
+    const habit = localDb.getById<Habit>(HABITS, userId, id)
+    return habit ? normalizeHabit(habit) : null
   },
 
   logs(userId: string): HabitLog[] {
@@ -29,12 +47,18 @@ export const habitsApi = {
   },
 
   /** Last N days of completion flags for heatmap (oldest → newest). */
-  heatmap(userId: string, habitId: string, days = 84): { date: string; done: boolean }[] {
-    const out: { date: string; done: boolean }[] = []
+  heatmap(userId: string, habitId: string, days = 84): { date: string; done: boolean; due: boolean }[] {
+    const habit = habitsApi.get(userId, habitId)
+    const out: { date: string; done: boolean; due: boolean }[] = []
     let cursor = addDays(new Date(), -(days - 1))
     for (let i = 0; i < days; i++) {
       const key = todayKey(cursor)
-      out.push({ date: key, done: habitsApi.isDoneToday(userId, habitId, key) })
+      const due = habit ? habitsApi.isDueOn(habit, cursor) : false
+      out.push({
+        date: key,
+        done: habitsApi.isDoneToday(userId, habitId, key),
+        due,
+      })
       cursor = addDays(cursor, 1)
     }
     return out
@@ -42,22 +66,34 @@ export const habitsApi = {
 
   create(
     userId: string,
-    input: { title: string; schedule?: Habit['schedule']; reminder_time?: string | null },
+    input: {
+      title: string
+      schedule?: HabitSchedule
+      custom_days?: Weekday[]
+      once_date?: string | null
+      reminder_time?: string | null
+    },
   ): Habit {
     const ts = now()
-    return localDb.insert(HABITS, userId, {
-      id: createId(),
-      user_id: userId,
-      title: input.title.trim(),
-      schedule: input.schedule || 'daily',
-      reminder_time: input.reminder_time ?? null,
-      created_at: ts,
-      updated_at: ts,
-    })
+    const schedule = input.schedule || 'daily'
+    return normalizeHabit(
+      localDb.insert(HABITS, userId, {
+        id: createId(),
+        user_id: userId,
+        title: input.title.trim(),
+        schedule,
+        custom_days: schedule === 'custom' ? (input.custom_days || []) : [],
+        once_date: schedule === 'once' ? input.once_date || todayKey() : null,
+        reminder_time: input.reminder_time ?? null,
+        created_at: ts,
+        updated_at: ts,
+      }),
+    )
   },
 
   update(userId: string, id: string, patch: Partial<Habit>): Habit | null {
-    return localDb.update<Habit>(HABITS, userId, id, { ...patch, updated_at: now() })
+    const updated = localDb.update<Habit>(HABITS, userId, id, { ...patch, updated_at: now() })
+    return updated ? normalizeHabit(updated) : null
   },
 
   remove(userId: string, id: string): boolean {
@@ -68,6 +104,16 @@ export const habitsApi = {
 
   isDoneToday(userId: string, habitId: string, date = todayKey()): boolean {
     return habitsApi.logs(userId).some((l) => l.habit_id === habitId && l.date === date && l.completed)
+  },
+
+  /** Whether this habit applies on a given calendar day. */
+  isDueOn(habit: Habit, day: Date = new Date()): boolean {
+    const key = todayKey(day)
+    if (habit.schedule === 'once') {
+      return Boolean(habit.once_date) && habit.once_date === key
+    }
+    const days = resolveHabitDays(habit)
+    return days.includes(day.getDay() as Weekday)
   },
 
   toggleToday(userId: string, habitId: string, date = todayKey()): HabitLog {
@@ -97,19 +143,22 @@ export const habitsApi = {
     return result
   },
 
+  /** Streak counts consecutive *due* days completed (skips off days). */
   streak(userId: string, habitId: string): number {
+    const habit = habitsApi.get(userId, habitId)
+    if (!habit || habit.schedule === 'once') return 0
     let streak = 0
     let cursor = new Date()
-    for (let i = 0; i < 365; i++) {
-      const key = todayKey(cursor)
-      const done = habitsApi.isDoneToday(userId, habitId, key)
-      if (!done) {
-        if (i === 0) {
-          cursor = addDays(cursor, -1)
-          continue
-        }
-        break
+    // If today is due and not done yet, start counting from yesterday
+    if (habitsApi.isDueOn(habit, cursor) && !habitsApi.isDoneToday(userId, habitId, todayKey(cursor))) {
+      cursor = addDays(cursor, -1)
+    }
+    for (let i = 0; i < 730; i++) {
+      if (!habitsApi.isDueOn(habit, cursor)) {
+        cursor = addDays(cursor, -1)
+        continue
       }
+      if (!habitsApi.isDoneToday(userId, habitId, todayKey(cursor))) break
       streak += 1
       cursor = addDays(cursor, -1)
     }
@@ -117,12 +166,11 @@ export const habitsApi = {
   },
 
   dueToday(userId: string): Habit[] {
-    const day = new Date().getDay()
-    const isWeekend = day === 0 || day === 6
-    return habitsApi.list(userId).filter((h) => {
-      if (h.schedule === 'daily') return true
-      if (h.schedule === 'weekdays') return !isWeekend
-      return isWeekend
-    })
+    const today = new Date()
+    return habitsApi.list(userId).filter((h) => habitsApi.isDueOn(h, today))
+  },
+
+  scheduleLabel(habit: Habit): string {
+    return formatHabitSchedule(habit)
   },
 }
