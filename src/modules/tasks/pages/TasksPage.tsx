@@ -257,6 +257,7 @@ function TaskEditFields({
             due_at: task.due_at,
             priority: task.priority,
             category: task.category || 'personal',
+            recurrence: task.recurrence || 'none',
             localTaskId: task.id,
           }}
           label="Share with circle or friends"
@@ -456,6 +457,7 @@ export default function TasksPage() {
             due_at: task.due_at,
             priority: task.priority,
             category: task.category,
+            recurrence: task.recurrence || 'none',
             localTaskId: task.id,
           },
           ownerId: cloudUser.uid,

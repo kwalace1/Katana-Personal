@@ -1,6 +1,6 @@
 import { endOfDay, eachDayOfInterval, isWithinInterval, parseISO, startOfDay, todayKey } from '@/lib/dates'
 import type { CalendarEvent } from './types'
-import type { Task } from '@/modules/tasks/types'
+import type { Task, Recurrence } from '@/modules/tasks/types'
 import type { Goal } from '@/modules/goals/types'
 import type { Habit } from '@/modules/habits/types'
 import type { CircleEvent } from '@/lib/social/types'
@@ -45,6 +45,66 @@ function hasTimeComponent(iso: string) {
   return d.getHours() !== 0 || d.getMinutes() !== 0 || d.getSeconds() !== 0
 }
 
+function advanceRecurrence(date: Date, recurrence: Recurrence): void {
+  if (recurrence === 'daily') date.setDate(date.getDate() + 1)
+  else if (recurrence === 'weekly') date.setDate(date.getDate() + 7)
+  else if (recurrence === 'monthly') date.setMonth(date.getMonth() + 1)
+}
+
+/** Occurrences of a dated task within [rangeStart, rangeEnd], inclusive by day. */
+export function expandTaskOccurrencesInRange(
+  task: Pick<Task, 'due_at' | 'recurrence' | 'status'>,
+  rangeStart: Date,
+  rangeEnd: Date,
+): Date[] {
+  if (!task.due_at || task.status === 'done') return []
+  const due = parseISO(task.due_at)
+  const startBound = startOfDay(rangeStart)
+  const endBound = endOfDay(rangeEnd)
+  const recurrence = task.recurrence || 'none'
+
+  if (recurrence === 'none') {
+    return due >= startBound && due <= endBound ? [due] : []
+  }
+
+  const cursor = new Date(due)
+  let guard = 0
+  while (cursor < startBound && guard++ < 20_000) {
+    advanceRecurrence(cursor, recurrence)
+  }
+  const out: Date[] = []
+  while (cursor <= endBound && guard++ < 20_000) {
+    if (cursor >= startBound) out.push(new Date(cursor))
+    advanceRecurrence(cursor, recurrence)
+  }
+  return out
+}
+
+/** Next N occurrences from due_at (including the first), for circle calendar seeding. */
+export function expandUpcomingTaskOccurrences(
+  dueAt: string,
+  recurrence: Recurrence | string | undefined,
+  maxCount = 16,
+): Date[] {
+  const due = parseISO(dueAt)
+  const r = (recurrence || 'none') as Recurrence
+  if (r === 'none') return [due]
+  const out: Date[] = []
+  const cursor = new Date(due)
+  for (let i = 0; i < maxCount; i++) {
+    out.push(new Date(cursor))
+    advanceRecurrence(cursor, r)
+  }
+  return out
+}
+
+export function occurrenceHorizon(recurrence: Recurrence | string | undefined): number {
+  if (recurrence === 'daily') return 60
+  if (recurrence === 'weekly') return 16
+  if (recurrence === 'monthly') return 12
+  return 1
+}
+
 export function eventToAgenda(event: CalendarEvent): AgendaItem {
   return {
     kind: 'event',
@@ -59,15 +119,14 @@ export function eventToAgenda(event: CalendarEvent): AgendaItem {
   }
 }
 
-export function taskToAgenda(task: Task, listName?: string): AgendaItem | null {
-  if (!task.due_at || task.status === 'done') return null
-  const due = parseISO(task.due_at)
-  const timed = hasTimeComponent(task.due_at)
+function taskOccurrenceToAgenda(task: Task, due: Date, listName?: string): AgendaItem {
+  const timed = hasTimeComponent(task.due_at!)
   const start = timed ? due : startOfDay(due)
   const end = timed ? new Date(due.getTime() + 60 * 60 * 1000) : endOfDay(due)
+  const dayKey = todayKey(due)
   return {
     kind: 'task',
-    id: task.id,
+    id: task.recurrence && task.recurrence !== 'none' ? `${task.id}__${dayKey}` : task.id,
     title: task.title,
     starts_at: start.toISOString(),
     ends_at: end.toISOString(),
@@ -77,6 +136,28 @@ export function taskToAgenda(task: Task, listName?: string): AgendaItem | null {
     href: `/tasks?id=${task.id}`,
     done: false,
   }
+}
+
+export function taskToAgenda(task: Task, listName?: string): AgendaItem | null {
+  if (!task.due_at || task.status === 'done') return null
+  return taskOccurrenceToAgenda(task, parseISO(task.due_at), listName)
+}
+
+/** Expand recurring tasks across a visible calendar range. */
+export function tasksToAgendaInRange(
+  tasks: Task[],
+  rangeStart: Date,
+  rangeEnd: Date,
+  listName?: (listId: string | null) => string | undefined,
+): AgendaItem[] {
+  const items: AgendaItem[] = []
+  for (const task of tasks) {
+    const occurrences = expandTaskOccurrencesInRange(task, rangeStart, rangeEnd)
+    for (const due of occurrences) {
+      items.push(taskOccurrenceToAgenda(task, due, listName?.(task.list_id)))
+    }
+  }
+  return items
 }
 
 export function goalToAgenda(goal: Goal): AgendaItem | null {
@@ -200,9 +281,13 @@ export function buildAgenda(input: {
     for (const e of input.events) items.push(eventToAgenda(e))
   }
   if (filter.tasks) {
-    for (const t of input.tasks) {
-      const item = taskToAgenda(t, listName(t.list_id))
-      if (item) items.push(item)
+    if (input.rangeStart && input.rangeEnd) {
+      items.push(...tasksToAgendaInRange(input.tasks, input.rangeStart, input.rangeEnd, listName))
+    } else {
+      for (const t of input.tasks) {
+        const item = taskToAgenda(t, listName(t.list_id))
+        if (item) items.push(item)
+      }
     }
   }
   if (filter.goals) {

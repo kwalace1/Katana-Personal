@@ -4,14 +4,26 @@ import { createSharedItem } from '@/lib/social/shared'
 import { publishActivity } from '@/lib/social/streaks'
 import type { CircleGroup, SharedKind } from '@/lib/social/types'
 import { categoryLabel } from '@/modules/calendar/categories'
+import {
+  expandUpcomingTaskOccurrences,
+  occurrenceHorizon,
+} from '@/modules/calendar/agenda'
+import type { Recurrence } from '@/modules/tasks/types'
 
-function timingFromDueAt(dueAt: string): { startsAt: string; endsAt: string; allDay: boolean } {
-  const due = new Date(dueAt)
-  const timed = due.getHours() !== 0 || due.getMinutes() !== 0 || due.getSeconds() !== 0
+function timingFromDueDate(due: Date, templateIso: string): {
+  startsAt: string
+  endsAt: string
+  allDay: boolean
+} {
+  const template = new Date(templateIso)
+  const timed =
+    template.getHours() !== 0 || template.getMinutes() !== 0 || template.getSeconds() !== 0
   if (timed) {
+    const start = new Date(due)
+    start.setHours(template.getHours(), template.getMinutes(), template.getSeconds(), 0)
     return {
-      startsAt: due.toISOString(),
-      endsAt: new Date(due.getTime() + 60 * 60 * 1000).toISOString(),
+      startsAt: start.toISOString(),
+      endsAt: new Date(start.getTime() + 60 * 60 * 1000).toISOString(),
       allDay: false,
     }
   }
@@ -61,6 +73,9 @@ export async function shareWithAudience(input: {
     typeof input.data?.category === 'string' && input.data.category
       ? String(input.data.category)
       : 'personal'
+  const recurrence = (typeof input.data?.recurrence === 'string'
+    ? input.data.recurrence
+    : 'none') as Recurrence
 
   await createSharedItem({
     kind: input.kind,
@@ -69,6 +84,7 @@ export async function shareWithAudience(input: {
     data: {
       ...(input.data || {}),
       category,
+      recurrence,
       ...(input.circles.length
         ? {
             sharedCircleIds: input.circles.map((c) => c.id),
@@ -82,21 +98,31 @@ export async function shareWithAudience(input: {
 
   let onCalendar = false
   if (input.kind === 'task' && dueAt && input.circles.length > 0) {
-    const timing = timingFromDueAt(dueAt)
-    const noteParts = [input.body?.trim() || '', `Shared task · ${categoryLabel(category)}`].filter(
-      Boolean,
+    const occurrences = expandUpcomingTaskOccurrences(
+      dueAt,
+      recurrence,
+      occurrenceHorizon(recurrence),
     )
+    const noteParts = [
+      input.body?.trim() || '',
+      `Shared task · ${categoryLabel(category)}${
+        recurrence !== 'none' ? ` · repeats ${recurrence}` : ''
+      }`,
+    ].filter(Boolean)
     await Promise.all(
-      input.circles.map((circle) =>
-        createCircleEvent({
-          circleId: circle.id,
-          title: input.title,
-          notes: noteParts.join('\n'),
-          startsAt: timing.startsAt,
-          endsAt: timing.endsAt,
-          allDay: timing.allDay,
-          category,
-          createdBy: input.ownerId,
+      input.circles.flatMap((circle) =>
+        occurrences.map((due) => {
+          const timing = timingFromDueDate(due, dueAt)
+          return createCircleEvent({
+            circleId: circle.id,
+            title: input.title,
+            notes: noteParts.join('\n'),
+            startsAt: timing.startsAt,
+            endsAt: timing.endsAt,
+            allDay: timing.allDay,
+            category,
+            createdBy: input.ownerId,
+          })
         }),
       ),
     )
