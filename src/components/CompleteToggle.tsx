@@ -1,11 +1,11 @@
-import { Check } from 'lucide-react'
+import { Frown, Smile } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-/** Obvious complete / check-in control — larger target, labeled, doesn’t blend into the row. */
+/** Complete / check-in control — frown = open, smile = done. */
 export function CompleteToggle({
   done,
   onToggle,
-  openLabel = 'Done',
+  openLabel = 'To do',
   doneLabel = 'Done',
   className,
 }: {
@@ -24,7 +24,7 @@ export function CompleteToggle({
         e.stopPropagation()
         onToggle()
       }}
-      aria-label={done ? `Undo ${doneLabel.toLowerCase()}` : openLabel}
+      aria-label={done ? `Undo — mark as ${openLabel.toLowerCase()}` : openLabel}
       aria-pressed={done}
       className={cn(
         'group flex shrink-0 flex-col items-center gap-0.5 rounded-xl px-0.5 py-0.5 transition active:scale-[0.97]',
@@ -36,16 +36,20 @@ export function CompleteToggle({
         className={cn(
           'flex h-11 w-11 items-center justify-center rounded-full border-2 transition',
           done
-            ? 'border-primary bg-primary text-primary-foreground shadow-sm'
-            : 'border-primary bg-primary/10 text-primary shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.2)] group-hover:bg-primary/20',
+            ? 'border-emerald-600 bg-emerald-500 text-white shadow-sm'
+            : 'border-amber-500/80 bg-amber-500/15 text-amber-700 shadow-[inset_0_0_0_1px_rgb(245_158_11/0.25)] group-hover:bg-amber-500/25 dark:text-amber-400',
         )}
       >
-        <Check className={cn('h-5 w-5', !done && 'opacity-60')} strokeWidth={2.5} />
+        {done ? (
+          <Smile className="h-5 w-5" strokeWidth={2.25} />
+        ) : (
+          <Frown className="h-5 w-5" strokeWidth={2.25} />
+        )}
       </span>
       <span
         className={cn(
           'max-w-[3.5rem] text-center text-[0.65rem] font-semibold leading-tight tracking-wide',
-          done ? 'text-primary' : 'text-foreground/70 group-hover:text-primary',
+          done ? 'text-emerald-700 dark:text-emerald-400' : 'text-foreground/70 group-hover:text-amber-700',
         )}
       >
         {done ? doneLabel : openLabel}

@@ -17,6 +17,7 @@ function normalizeTask(task: Task): Task {
     goal_id: task.goal_id ?? null,
     notes: task.notes ?? '',
     category: task.category || 'General',
+    completed_at: task.completed_at ?? null,
   }
 }
 
@@ -103,6 +104,7 @@ export const tasksApi = {
         priority: input.priority || 'medium',
         status: input.status || 'todo',
         due_at: input.due_at ?? null,
+        completed_at: input.status === 'done' ? ts : null,
         recurrence: input.recurrence || 'none',
         category: input.category || 'General',
         sort_order: input.sort_order ?? maxOrder + 1,
@@ -114,7 +116,16 @@ export const tasksApi = {
   },
 
   updateTask(userId: string, id: string, patch: Partial<Task>): Task | null {
-    const updated = localDb.update<Task>(TASKS, userId, id, { ...patch, updated_at: now() })
+    const current = tasksApi.getTask(userId, id)
+    if (!current) return null
+    const next = { ...patch, updated_at: now() } as Partial<Task>
+    if (patch.status === 'done' && current.status !== 'done') {
+      next.completed_at = patch.completed_at ?? now()
+    }
+    if (patch.status && patch.status !== 'done' && current.status === 'done') {
+      next.completed_at = null
+    }
+    const updated = localDb.update<Task>(TASKS, userId, id, next)
     return updated ? normalizeTask(updated) : null
   },
 
@@ -128,7 +139,7 @@ export const tasksApi = {
   completeTask(userId: string, id: string): Task | null {
     const task = tasksApi.getTask(userId, id)
     if (!task) return null
-    const updated = tasksApi.updateTask(userId, id, { status: 'done' })
+    const updated = tasksApi.updateTask(userId, id, { status: 'done', completed_at: now() })
     if (task.recurrence !== 'none') {
       const base = task.due_at ? new Date(task.due_at) : new Date()
       const next = new Date(base)

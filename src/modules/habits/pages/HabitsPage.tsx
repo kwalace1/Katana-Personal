@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { motion } from 'framer-motion'
-import { Plus, Trash2 } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { ChevronDown, Plus, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -61,8 +61,6 @@ export default function HabitsPage() {
     const id = params.get('id')
     if (id) setSelectedId(id)
   }, [params])
-
-  const selected = selectedId ? habits.find((h) => h.id === selectedId) ?? null : null
 
   function onCreate(e: FormEvent) {
     e.preventDefault()
@@ -131,7 +129,7 @@ export default function HabitsPage() {
       ) : visible.length === 0 ? (
         <EmptyState title="Nothing due today" description="Enjoy the quiet, or switch to All." />
       ) : (
-        <div className="grid gap-4 lg:grid-cols-[1fr_300px]">
+        <div>
           <ul className="space-y-2">
             {visible.map((habit) => {
               const done = habitsApi.isDoneToday(userId, habit.id)
@@ -142,18 +140,16 @@ export default function HabitsPage() {
                   : habit.schedule === 'weekdays'
                     ? 'Weekdays'
                     : 'Weekends'
+              const expanded = selectedId === habit.id
               return (
                 <li
                   key={habit.id}
-                  className={cn(
-                    'kp-surface p-4',
-                    selectedId === habit.id && 'ring-2 ring-primary/30',
-                  )}
+                  className={cn('kp-surface overflow-hidden p-0', expanded && 'ring-2 ring-primary/30')}
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 p-4">
                     <CompleteToggle
                       done={done}
-                      openLabel="Check in"
+                      openLabel="To do"
                       doneLabel="Done"
                       onToggle={() => {
                         habitsApi.toggleToday(userId, habit.id)
@@ -164,14 +160,28 @@ export default function HabitsPage() {
                       type="button"
                       className="min-w-0 flex-1 text-left"
                       onClick={() => {
-                        setSelectedId(habit.id)
-                        setParams({ id: habit.id })
+                        if (expanded) {
+                          setSelectedId(null)
+                          setParams({})
+                        } else {
+                          setSelectedId(habit.id)
+                          setParams({ id: habit.id })
+                        }
                       }}
                     >
-                      <h3 className="font-semibold">{habit.title}</h3>
+                      <div className="flex items-start justify-between gap-2">
+                        <h3 className="font-semibold">{habit.title}</h3>
+                        <ChevronDown
+                          className={cn(
+                            'mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition',
+                            expanded && 'rotate-180',
+                          )}
+                        />
+                      </div>
                       <p className="text-sm text-muted-foreground">
                         {scheduleLabel}
                         {streak > 0 ? ` · ${streak} day${streak === 1 ? '' : 's'} in a row` : ''}
+                        <span className="text-primary/80"> · {expanded ? 'Hide edit' : 'Tap to edit'}</span>
                       </p>
                     </button>
                     <Button
@@ -186,61 +196,72 @@ export default function HabitsPage() {
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
-                  <Heatmap userId={userId} habitId={habit.id} />
+                  <div className="px-4 pb-3">
+                    <Heatmap userId={userId} habitId={habit.id} />
+                  </div>
+                  <AnimatePresence initial={false}>
+                    {expanded ? (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="border-t border-border/60"
+                      >
+                        <div className="space-y-3 p-4">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-xs font-medium text-muted-foreground">Edit habit</p>
+                            <ShareWithFriendsButton
+                              kind="habit"
+                              title={habit.title}
+                              data={{ schedule: habit.schedule, localHabitId: habit.id }}
+                            />
+                          </div>
+                          <Input
+                            value={habit.title}
+                            onChange={(e) => {
+                              habitsApi.update(userId, habit.id, { title: e.target.value })
+                              refresh()
+                            }}
+                          />
+                          <div className="flex flex-wrap gap-2">
+                            {SCHEDULE_CHIPS.map((chip) => (
+                              <Button
+                                key={chip.id}
+                                type="button"
+                                size="sm"
+                                variant={habit.schedule === chip.id ? 'default' : 'outline'}
+                                className="rounded-full"
+                                onClick={() => {
+                                  habitsApi.update(userId, habit.id, { schedule: chip.id })
+                                  refresh()
+                                }}
+                              >
+                                {chip.label}
+                              </Button>
+                            ))}
+                          </div>
+                          <div>
+                            <p className="mb-1 text-xs text-muted-foreground">Reminder time</p>
+                            <Input
+                              type="time"
+                              value={habit.reminder_time || ''}
+                              onChange={(e) => {
+                                habitsApi.update(userId, habit.id, {
+                                  reminder_time: e.target.value || null,
+                                })
+                                refresh()
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </motion.div>
+                    ) : null}
+                  </AnimatePresence>
                 </li>
               )
             })}
           </ul>
-
-          {selected ? (
-            <aside className="kp-surface h-fit space-y-3 p-4">
-              <div className="flex items-center justify-between gap-2">
-                <p className="kp-section-label">Edit</p>
-                <ShareWithFriendsButton
-                  kind="habit"
-                  title={selected.title}
-                  data={{ schedule: selected.schedule, localHabitId: selected.id }}
-                />
-              </div>
-              <Input
-                value={selected.title}
-                onChange={(e) => {
-                  habitsApi.update(userId, selected.id, { title: e.target.value })
-                  refresh()
-                }}
-              />
-              <div className="flex flex-wrap gap-2">
-                {SCHEDULE_CHIPS.map((chip) => (
-                  <Button
-                    key={chip.id}
-                    type="button"
-                    size="sm"
-                    variant={selected.schedule === chip.id ? 'default' : 'outline'}
-                    className="rounded-full"
-                    onClick={() => {
-                      habitsApi.update(userId, selected.id, { schedule: chip.id })
-                      refresh()
-                    }}
-                  >
-                    {chip.label}
-                  </Button>
-                ))}
-              </div>
-              <div>
-                <p className="mb-1 text-xs text-muted-foreground">Reminder time</p>
-                <Input
-                  type="time"
-                  value={selected.reminder_time || ''}
-                  onChange={(e) => {
-                    habitsApi.update(userId, selected.id, {
-                      reminder_time: e.target.value || null,
-                    })
-                    refresh()
-                  }}
-                />
-              </div>
-            </aside>
-          ) : null}
         </div>
       )}
     </motion.div>

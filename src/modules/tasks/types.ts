@@ -20,6 +20,8 @@ export interface Task {
   priority: TaskPriority
   status: TaskStatus
   due_at: string | null
+  /** When the task was marked done (editable). */
+  completed_at: string | null
   recurrence: Recurrence
   category: string
   sort_order: number
