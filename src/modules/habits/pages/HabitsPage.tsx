@@ -1,11 +1,12 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Check, Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { EmptyState } from '@/components/ui/empty-state'
+import { CompleteToggle } from '@/components/CompleteToggle'
 import { useAuth } from '@/contexts/AuthContext'
 import { pageEnterSubtle } from '@/lib/motion-ui'
 import { useLocalRefresh } from '@/hooks/useLocalRefresh'
@@ -150,22 +151,15 @@ export default function HabitsPage() {
                   )}
                 >
                   <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      aria-label={done ? 'Undo today' : 'Check in'}
-                      className={cn(
-                        'flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition',
-                        done
-                          ? 'border-primary bg-primary text-primary-foreground'
-                          : 'border-border hover:border-primary',
-                      )}
-                      onClick={() => {
+                    <CompleteToggle
+                      done={done}
+                      openLabel="Check in"
+                      doneLabel="Done"
+                      onToggle={() => {
                         habitsApi.toggleToday(userId, habit.id)
                         refresh()
                       }}
-                    >
-                      {done ? <Check className="h-4 w-4" /> : null}
-                    </button>
+                    />
                     <button
                       type="button"
                       className="min-w-0 flex-1 text-left"

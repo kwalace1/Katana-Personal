@@ -11,13 +11,14 @@ import {
 } from '@dnd-kit/core'
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Check, GripVertical, Plus, Trash2 } from 'lucide-react'
+import { GripVertical, Plus, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { EmptyState } from '@/components/ui/empty-state'
+import { CompleteToggle } from '@/components/CompleteToggle'
 import { useAuth } from '@/contexts/AuthContext'
 import { pageEnterSubtle } from '@/lib/motion-ui'
 import { formatShortDate, todayKey } from '@/lib/dates'
@@ -64,26 +65,19 @@ function SortableTask({
     >
       <button
         type="button"
-        className="mt-1 cursor-grab touch-none text-muted-foreground active:cursor-grabbing"
+        className="mt-2 cursor-grab touch-none text-muted-foreground active:cursor-grabbing"
         aria-label="Drag to reorder"
         {...attributes}
         {...listeners}
       >
         <GripVertical className="h-4 w-4" />
       </button>
-      <button
-        type="button"
-        aria-label={task.status === 'done' ? 'Mark open' : 'Mark done'}
-        className={cn(
-          'mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition',
-          task.status === 'done'
-            ? 'border-primary bg-primary text-primary-foreground'
-            : 'border-border hover:border-primary',
-        )}
-        onClick={onToggle}
-      >
-        {task.status === 'done' ? <Check className="h-3.5 w-3.5" /> : null}
-      </button>
+      <CompleteToggle
+        done={task.status === 'done'}
+        onToggle={onToggle}
+        openLabel="Done"
+        doneLabel="Done"
+      />
       <button type="button" className="min-w-0 flex-1 text-left" onClick={onSelect}>
         <p className={cn('font-medium', task.status === 'done' && 'line-through')}>{task.title}</p>
         <p className="text-xs text-muted-foreground">
@@ -399,16 +393,15 @@ export default function TasksPage() {
                           selectedId === task.id && 'ring-2 ring-primary/30',
                         )}
                       >
-                        <button
-                          type="button"
-                          className="flex h-7 w-7 items-center justify-center rounded-full border border-primary bg-primary text-primary-foreground"
-                          onClick={() => {
+                        <CompleteToggle
+                          done
+                          onToggle={() => {
                             tasksApi.updateTask(userId, task.id, { status: 'todo' })
                             refresh()
                           }}
-                        >
-                          <Check className="h-3.5 w-3.5" />
-                        </button>
+                          openLabel="Done"
+                          doneLabel="Done"
+                        />
                         <button type="button" className="flex-1 text-left" onClick={() => setSelectedId(task.id)}>
                           <p className="font-medium line-through">{task.title}</p>
                         </button>
