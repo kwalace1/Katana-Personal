@@ -193,7 +193,7 @@ export default function TasksPage() {
 
   return (
     <motion.div {...pageEnterSubtle} className="kp-page">
-      <PageHeader title="Tasks" description="What needs your attention." eyebrow="Plan" />
+      <PageHeader title="Tasks" description="What needs attention — dated tasks show on Calendar." eyebrow="Plan" />
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <Button
@@ -251,17 +251,63 @@ export default function TasksPage() {
             <Plus className="h-4 w-4" />
           </Button>
         </div>
-        <button
-          type="button"
-          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-          onClick={() => setShowMore((v) => !v)}
-        >
-          <ChevronDown className={cn('h-3.5 w-3.5 transition', showMore && 'rotate-180')} />
-          {showMore ? 'Less' : 'Due date, priority, repeat'}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            type="datetime-local"
+            value={dueAt}
+            onChange={(e) => setDueAt(e.target.value)}
+            className="w-auto min-w-[11rem] flex-1 sm:flex-none"
+            aria-label="Due date"
+          />
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="rounded-full"
+            onClick={() => {
+              const d = new Date()
+              d.setHours(9, 0, 0, 0)
+              const pad = (n: number) => String(n).padStart(2, '0')
+              setDueAt(
+                `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`,
+              )
+            }}
+          >
+            Today
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="rounded-full"
+            onClick={() => {
+              const d = new Date()
+              d.setDate(d.getDate() + 1)
+              d.setHours(9, 0, 0, 0)
+              const pad = (n: number) => String(n).padStart(2, '0')
+              setDueAt(
+                `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`,
+              )
+            }}
+          >
+            Tomorrow
+          </Button>
+          <button
+            type="button"
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+            onClick={() => setShowMore((v) => !v)}
+          >
+            <ChevronDown className={cn('h-3.5 w-3.5 transition', showMore && 'rotate-180')} />
+            {showMore ? 'Less' : 'Priority & repeat'}
+          </button>
+        </div>
+        {dueAt ? (
+          <p className="text-xs text-muted-foreground">This task will show on your calendar.</p>
+        ) : (
+          <p className="text-xs text-muted-foreground">Add a due date to place it on the calendar.</p>
+        )}
         {showMore && (
-          <div className="grid gap-2 sm:grid-cols-3">
-            <Input type="datetime-local" value={dueAt} onChange={(e) => setDueAt(e.target.value)} />
+          <div className="grid gap-2 sm:grid-cols-2">
             <Select value={priority} onValueChange={(v) => setPriority(v as TaskPriority)}>
               <SelectTrigger>
                 <SelectValue placeholder="Priority" />
@@ -426,6 +472,13 @@ export default function TasksPage() {
                 refresh()
               }}
             />
+            {selected.due_at ? (
+              <Button asChild size="sm" variant="outline" className="w-full">
+                <Link to={`/calendar?date=${selected.due_at.slice(0, 10)}`}>View on calendar</Link>
+              </Button>
+            ) : (
+              <p className="text-xs text-muted-foreground">Set a due date to show this on Calendar.</p>
+            )}
             <Select
               value={selected.priority}
               onValueChange={(v) => {

@@ -38,6 +38,7 @@ import { calendarApi } from '../api'
 import { ShareWithFriendsButton } from '@/components/ShareWithFriendsButton'
 import { tasksApi } from '@/modules/tasks/api'
 import { goalsApi } from '@/modules/goals/api'
+import { habitsApi } from '@/modules/habits/api'
 import { listMyCircles } from '@/lib/social/circles'
 import { listCircleEventsForCircles } from '@/lib/social/circle-events'
 import type { CircleEvent, CircleGroup } from '@/lib/social/types'
@@ -218,6 +219,11 @@ export default function CalendarPage() {
     return goalsApi.list(userId)
   }, [userId, tick])
 
+  const habits = useMemo(() => {
+    void tick
+    return habitsApi.list(userId)
+  }, [userId, tick])
+
   const lists = useMemo(() => {
     void tick
     return tasksApi.listLists(userId)
@@ -230,34 +236,6 @@ export default function CalendarPage() {
     }
     return set
   }, [circles, circleEnabled])
-
-  const agenda = useMemo(() => {
-    return buildAgenda({
-      events,
-      tasks,
-      goals,
-      lists,
-      filter,
-      circleEvents: circleEvents.map((event) => ({
-        event,
-        circleName: circles.find((c) => c.id === event.circleId)?.name || 'Circle',
-      })),
-      circleIdsEnabled,
-    })
-  }, [events, tasks, goals, lists, filter, circleEvents, circles, circleIdsEnabled])
-
-  const selected = selectedId ? events.find((e) => e.id === selectedId) ?? null : null
-  const selectedAgenda =
-    selectedId && !selected
-      ? agenda.find((a) => a.id === selectedId) ?? null
-      : selected
-        ? agenda.find((a) => a.kind === 'event' && a.id === selectedId) ?? null
-        : null
-
-  const conflicts = useMemo(() => {
-    void tick
-    return calendarApi.conflicts(userId, cursor)
-  }, [userId, cursor, tick])
 
   const days = useMemo(() => {
     if (view === 'day') return [cursor]
@@ -273,6 +251,54 @@ export default function CalendarPage() {
     const gridEnd = endOfWeek(end, { weekStartsOn: 0 })
     return eachDayOfInterval({ start: gridStart, end: gridEnd })
   }, [cursor, view])
+
+  const agenda = useMemo(() => {
+    const rangeStart = days[0] ?? cursor
+    const rangeEnd = days[days.length - 1] ?? cursor
+    return buildAgenda({
+      events,
+      tasks,
+      goals,
+      habits,
+      rangeStart,
+      rangeEnd,
+      habitDone: (habitId, dateKey) => habitsApi.isDoneToday(userId, habitId, dateKey),
+      lists,
+      filter,
+      circleEvents: circleEvents.map((event) => ({
+        event,
+        circleName: circles.find((c) => c.id === event.circleId)?.name || 'Circle',
+      })),
+      circleIdsEnabled,
+    })
+  }, [
+    events,
+    tasks,
+    goals,
+    habits,
+    lists,
+    filter,
+    circleEvents,
+    circles,
+    circleIdsEnabled,
+    days,
+    cursor,
+    userId,
+    tick,
+  ])
+
+  const selected = selectedId ? events.find((e) => e.id === selectedId) ?? null : null
+  const selectedAgenda =
+    selectedId && !selected
+      ? agenda.find((a) => a.id === selectedId) ?? null
+      : selected
+        ? agenda.find((a) => a.kind === 'event' && a.id === selectedId) ?? null
+        : null
+
+  const conflicts = useMemo(() => {
+    void tick
+    return calendarApi.conflicts(userId, cursor)
+  }, [userId, cursor, tick])
 
   function openAdd(day?: Date) {
     setStartsAt(defaultStartLocal(day))
@@ -351,7 +377,7 @@ export default function CalendarPage() {
       return
     }
     setSelectedId(item.id)
-    if (item.kind === 'task' || item.kind === 'goal' || item.kind === 'circle') {
+    if (item.kind === 'task' || item.kind === 'goal' || item.kind === 'circle' || item.kind === 'habit') {
       navigate(item.href)
     }
   }
@@ -361,6 +387,7 @@ export default function CalendarPage() {
     events.length > 0 ||
     tasks.some((t) => t.due_at && t.status !== 'done') ||
     goals.some((g) => g.target_date) ||
+    habits.length > 0 ||
     circleEvents.length > 0
 
   function toggleFilter(key: keyof AgendaFilter) {
@@ -371,7 +398,7 @@ export default function CalendarPage() {
     <motion.div {...pageEnterSubtle} className="kp-page">
       <PageHeader
         title="Calendar"
-        description="Events, due tasks, goals, and circle plans — one board."
+        description="Events, tasks, goals, and habits — one calendar."
         eyebrow="Plan"
         actions={
           <div className="flex items-center gap-2">
@@ -416,6 +443,7 @@ export default function CalendarPage() {
             ['events', 'Events'],
             ['tasks', 'Tasks'],
             ['goals', 'Goals'],
+            ['habits', 'Habits'],
             ...(cloudEnabled && circles.length > 0 ? ([['circles', 'Circles']] as const) : []),
           ] as const
         ).map(([key, label]) => (
@@ -467,6 +495,10 @@ export default function CalendarPage() {
         <span className="inline-flex items-center gap-1.5">
           <span className="h-2 w-2 rounded-full bg-emerald-600" />
           Goals
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-violet-600" />
+          Habits
         </span>
       </p>
 

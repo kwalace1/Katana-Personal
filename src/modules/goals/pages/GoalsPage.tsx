@@ -44,6 +44,7 @@ export default function GoalsPage() {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [horizon, setHorizon] = useState<GoalHorizon>('monthly')
+  const [targetDate, setTargetDate] = useState('')
   const [filter, setFilter] = useState<GoalHorizon | 'all'>('all')
   const [selectedId, setSelectedId] = useState<string | null>(params.get('id'))
   const [milestoneTitle, setMilestoneTitle] = useState('')
@@ -64,9 +65,15 @@ export default function GoalsPage() {
   function onCreate(e: FormEvent) {
     e.preventDefault()
     if (!title.trim()) return
-    const goal = goalsApi.create(userId, { title, description, horizon })
+    const goal = goalsApi.create(userId, {
+      title,
+      description,
+      horizon,
+      target_date: targetDate || null,
+    })
     setTitle('')
     setDescription('')
+    setTargetDate('')
     setSelectedId(goal.id)
     setParams({ id: goal.id })
     refresh()
@@ -76,7 +83,7 @@ export default function GoalsPage() {
 
   return (
     <motion.div {...pageEnterSubtle} className="kp-page">
-      <PageHeader title="Goals" description="Where you’re headed." eyebrow="Plan" />
+      <PageHeader title="Goals" description="Where you’re headed — dated goals show on Calendar." eyebrow="Plan" />
 
       <form onSubmit={onCreate} className="kp-surface mb-6 grid gap-3 p-5 sm:grid-cols-2">
         <Input
@@ -103,7 +110,16 @@ export default function GoalsPage() {
             ))}
           </SelectContent>
         </Select>
-        <Button type="submit" className="gap-2">
+        <Input
+          type="date"
+          value={targetDate}
+          onChange={(e) => setTargetDate(e.target.value)}
+          aria-label="Target date on calendar"
+        />
+        <p className="sm:col-span-2 text-xs text-muted-foreground">
+          Set a target date to show this goal on your calendar.
+        </p>
+        <Button type="submit" className="gap-2 sm:col-span-2">
           <Plus className="h-4 w-4" />
           Add goal
         </Button>
@@ -145,7 +161,10 @@ export default function GoalsPage() {
                       selectedId === goal.id && 'ring-2 ring-primary/30',
                     )}
                   >
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">{goal.horizon}</p>
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                      {goal.horizon}
+                      {goal.target_date ? ` · ${goal.target_date.slice(0, 10)}` : ''}
+                    </p>
                     <h3 className="mt-1 font-semibold">{goal.title}</h3>
                     {goal.description ? (
                       <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{goal.description}</p>
@@ -239,6 +258,11 @@ export default function GoalsPage() {
                     refresh()
                   }}
                 />
+                {selected.target_date ? (
+                  <Button asChild size="sm" variant="outline" className="w-full">
+                    <Link to={`/calendar?date=${selected.target_date.slice(0, 10)}`}>View on calendar</Link>
+                  </Button>
+                ) : null}
               </div>
               <div className="flex gap-2">
                 <Button

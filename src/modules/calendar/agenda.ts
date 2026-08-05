@@ -1,11 +1,12 @@
-import { endOfDay, isWithinInterval, parseISO, startOfDay } from '@/lib/dates'
+import { endOfDay, eachDayOfInterval, isWithinInterval, parseISO, startOfDay, todayKey } from '@/lib/dates'
 import type { CalendarEvent } from './types'
 import type { Task } from '@/modules/tasks/types'
 import type { Goal } from '@/modules/goals/types'
+import type { Habit } from '@/modules/habits/types'
 import type { CircleEvent } from '@/lib/social/types'
 import { categoryColor, circleCategoryColor } from './categories'
 
-export type AgendaKind = 'event' | 'task' | 'goal' | 'circle'
+export type AgendaKind = 'event' | 'task' | 'goal' | 'habit' | 'circle'
 
 export interface AgendaItem {
   kind: AgendaKind
@@ -27,6 +28,7 @@ export type AgendaFilter = {
   events: boolean
   tasks: boolean
   goals: boolean
+  habits: boolean
   circles: boolean
 }
 
@@ -34,6 +36,7 @@ export const DEFAULT_AGENDA_FILTER: AgendaFilter = {
   events: true,
   tasks: true,
   goals: true,
+  habits: true,
   circles: true,
 }
 
@@ -92,10 +95,58 @@ export function goalToAgenda(goal: Goal): AgendaItem | null {
   }
 }
 
-export function circleEventToAgenda(
-  event: CircleEvent,
-  circleName: string,
-): AgendaItem {
+export function habitDueOnDay(habit: Habit, day: Date): boolean {
+  const dow = day.getDay()
+  const isWeekend = dow === 0 || dow === 6
+  if (habit.schedule === 'daily') return true
+  if (habit.schedule === 'weekdays') return !isWeekend
+  return isWeekend
+}
+
+/** Expand habits across a visible calendar range (one chip per due day). */
+export function habitsToAgendaInRange(
+  habits: Habit[],
+  rangeStart: Date,
+  rangeEnd: Date,
+  isDone: (habitId: string, dateKey: string) => boolean,
+): AgendaItem[] {
+  const items: AgendaItem[] = []
+  const days = eachDayOfInterval({
+    start: startOfDay(rangeStart),
+    end: startOfDay(rangeEnd),
+  })
+  for (const day of days) {
+    const key = todayKey(day)
+    for (const habit of habits) {
+      if (!habitDueOnDay(habit, day)) continue
+      let start = startOfDay(day)
+      let allDay = true
+      if (habit.reminder_time && /^\d{1,2}:\d{2}$/.test(habit.reminder_time)) {
+        const [hh, mm] = habit.reminder_time.split(':').map(Number)
+        start = new Date(day)
+        start.setHours(hh, mm, 0, 0)
+        allDay = false
+      }
+      const end = allDay ? endOfDay(day) : new Date(start.getTime() + 30 * 60 * 1000)
+      const done = isDone(habit.id, key)
+      items.push({
+        kind: 'habit',
+        id: `${habit.id}__${key}`,
+        title: done ? `✓ ${habit.title}` : habit.title,
+        starts_at: start.toISOString(),
+        ends_at: end.toISOString(),
+        all_day: allDay,
+        color: done ? '#94a3b8' : '#7c3aed',
+        sourceLabel: 'Habit',
+        href: `/habits?id=${habit.id}`,
+        done,
+      })
+    }
+  }
+  return items
+}
+
+export function circleEventToAgenda(event: CircleEvent, circleName: string): AgendaItem {
   return {
     kind: 'circle',
     id: event.id,
@@ -123,6 +174,10 @@ export function buildAgenda(input: {
   events: CalendarEvent[]
   tasks: Task[]
   goals: Goal[]
+  habits?: Habit[]
+  rangeStart?: Date
+  rangeEnd?: Date
+  habitDone?: (habitId: string, dateKey: string) => boolean
   circleEvents?: { event: CircleEvent; circleName: string }[]
   lists?: { id: string; name: string }[]
   filter?: AgendaFilter
@@ -148,6 +203,16 @@ export function buildAgenda(input: {
       const item = goalToAgenda(g)
       if (item) items.push(item)
     }
+  }
+  if (filter.habits && input.habits && input.rangeStart && input.rangeEnd) {
+    items.push(
+      ...habitsToAgendaInRange(
+        input.habits,
+        input.rangeStart,
+        input.rangeEnd,
+        input.habitDone ?? (() => false),
+      ),
+    )
   }
   if (filter.circles && input.circleEvents) {
     for (const { event, circleName } of input.circleEvents) {

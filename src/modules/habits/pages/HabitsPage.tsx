@@ -78,7 +78,7 @@ export default function HabitsPage() {
 
   return (
     <motion.div {...pageEnterSubtle} className="kp-page">
-      <PageHeader title="Habits" description="Small things, done often." eyebrow="Life" />
+      <PageHeader title="Habits" description="Small things, done often — also on your calendar by schedule." eyebrow="Life" />
 
       <form onSubmit={onCreate} className="kp-surface mb-6 space-y-3 p-4 sm:p-5">
         <div className="flex gap-2">
