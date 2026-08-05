@@ -7,6 +7,7 @@ import { AuthProvider } from '@/contexts/AuthContext'
 import { CloudAuthProvider } from '@/contexts/CloudAuthContext'
 import { Toaster } from '@/components/ui/sonner'
 import { ReminderHost } from '@/components/ReminderHost'
+import { Analytics } from '@vercel/analytics/react'
 import App from './App'
 import 'sonner/dist/styles.css'
 import './index.css'
@@ -100,6 +101,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
               <ReminderHost />
               <App />
               <Toaster />
+              <Analytics />
             </CloudAuthProvider>
           </AuthProvider>
         </BrowserRouter>
