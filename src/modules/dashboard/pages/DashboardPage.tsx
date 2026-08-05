@@ -16,10 +16,12 @@ import {
   Moon,
   ChevronDown,
   ChevronUp,
+  LayoutGrid,
 } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
 import { format, formatTime, formatShortDate, todayKey, addDays } from '@/lib/dates'
@@ -42,6 +44,11 @@ import { TogetherTodayCard } from '@/components/TogetherTodayCard'
 import { WeeklyReviewCard } from '@/components/WeeklyReviewCard'
 import { offerPwaNudge } from '@/components/PwaInstallNudge'
 import { shouldOfferWeekReview } from '@/lib/week-review'
+import {
+  TODAY_SECTIONS,
+  isSectionVisible,
+  toggleSection,
+} from '@/modules/dashboard/today-layout'
 import { toast } from 'sonner'
 import type { Task } from '@/modules/tasks/types'
 import type { CalendarEvent } from '@/modules/calendar/types'
@@ -91,7 +98,7 @@ function markClosed() {
 }
 
 export default function DashboardPage() {
-  const { user, profile, onboardingDone, markOnboardingDone } = useAuth()
+  const { user, profile, onboardingDone, markOnboardingDone, updatePreferences } = useAuth()
   const { cloudEnabled, cloudUser } = useCloudAuth()
   const userId = user!.id
   const { tick, refresh } = useLocalRefresh()
@@ -101,6 +108,8 @@ export default function DashboardPage() {
   const [dayClosed, setDayClosed] = useState(closedToday)
   const [weekCardVisible, setWeekCardVisible] = useState(() => shouldOfferWeekReview())
   const [spentBriefing, setSpentBriefing] = useState<Record<string, true>>({})
+  const [editingLayout, setEditingLayout] = useState(false)
+  const prefs = profile?.preferences
 
   const draft = useMemo(() => parseCapture(capture), [capture])
 
@@ -203,14 +212,56 @@ export default function DashboardPage() {
         title={`${greeting}, ${profile?.display_name || 'there'}`}
         description="One next step. Everything else can wait."
         actions={
-          <Button asChild variant="outline" className="gap-2">
-            <Link to="/ask">
-              <Sparkles className="h-4 w-4" />
-              Ask
-            </Link>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant={editingLayout ? 'default' : 'outline'}
+              className="gap-2"
+              onClick={() => setEditingLayout((v) => !v)}
+            >
+              <LayoutGrid className="h-4 w-4" />
+              {editingLayout ? 'Done' : 'Edit layout'}
+            </Button>
+            <Button asChild variant="outline" className="gap-2">
+              <Link to="/ask">
+                <Sparkles className="h-4 w-4" />
+                Ask
+              </Link>
+            </Button>
+          </div>
         }
       />
+
+      {editingLayout && (
+        <section className="mb-6 kp-surface p-5 sm:p-6">
+          <p className="kp-section-label">Today layout</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Turn sections on or off. Capture and quick add always stay.
+          </p>
+          <ul className="mt-4 space-y-1">
+            {TODAY_SECTIONS.map((section) => {
+              const on = isSectionVisible(prefs, section.id)
+              return (
+                <li
+                  key={section.id}
+                  className="flex items-center justify-between gap-3 rounded-xl px-2 py-2.5"
+                >
+                  <label htmlFor={`today-section-${section.id}`} className="text-sm font-medium">
+                    {section.label}
+                  </label>
+                  <Switch
+                    id={`today-section-${section.id}`}
+                    checked={on}
+                    onCheckedChange={() => {
+                      updatePreferences({ todayLayout: toggleSection(prefs, section.id) })
+                    }}
+                  />
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      )}
 
       {!onboardingDone && (
         <div className="relative mb-6 kp-surface p-6">
@@ -349,6 +400,7 @@ export default function DashboardPage() {
       )}
 
       {/* Hero: Do this next */}
+      {isSectionVisible(prefs, 'do_this_next') && (
       <motion.section
         layout
         initial={{ opacity: 0, y: 12 }}
@@ -438,11 +490,13 @@ export default function DashboardPage() {
           </div>
         )}
       </motion.section>
+      )}
 
-      <TogetherTodayCard />
+      {isSectionVisible(prefs, 'together') && <TogetherTodayCard />}
 
       {/* Also today — collapsed */}
-      {(data.alsoTasks.length > 0 || data.openHabits.length > 0 || data.todayEvents.length > 0) && (
+      {isSectionVisible(prefs, 'also_today') &&
+        (data.alsoTasks.length > 0 || data.openHabits.length > 0 || data.todayEvents.length > 0) && (
         <section className="mb-6 kp-surface">
           <button
             type="button"
@@ -517,6 +571,7 @@ export default function DashboardPage() {
         </section>
       )}
 
+      {isSectionVisible(prefs, 'for_you') && (
       <section className="relative mb-6 overflow-hidden kp-surface p-5 sm:p-6" aria-live="polite">
         <div className="mb-2 flex items-center justify-between gap-2">
           <p className="kp-section-label">For you</p>
@@ -559,8 +614,9 @@ export default function DashboardPage() {
           </div>
         ) : null}
       </section>
+      )}
 
-      {showEveningClose && (
+      {isSectionVisible(prefs, 'evening_close') && showEveningClose && (
         <motion.section
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -612,6 +668,7 @@ export default function DashboardPage() {
       )}
 
       <div className="grid gap-4 lg:grid-cols-2">
+        {isSectionVisible(prefs, 'coming_up') && (
         <section className="kp-surface p-5 sm:p-6">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="flex items-center gap-2 text-[0.95rem] font-semibold tracking-tight">
@@ -643,7 +700,9 @@ export default function DashboardPage() {
             </ul>
           )}
         </section>
+        )}
 
+        {isSectionVisible(prefs, 'goals') && (
         <section className="kp-surface p-5 sm:p-6">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="flex items-center gap-2 text-[0.95rem] font-semibold tracking-tight">
@@ -680,7 +739,9 @@ export default function DashboardPage() {
             </ul>
           )}
         </section>
+        )}
 
+        {isSectionVisible(prefs, 'recent_notes') && (
         <section className="kp-surface p-5 sm:p-6 lg:col-span-2">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="flex items-center gap-2 text-[0.95rem] font-semibold tracking-tight">
@@ -710,6 +771,7 @@ export default function DashboardPage() {
             </div>
           )}
         </section>
+        )}
       </div>
     </motion.div>
   )
