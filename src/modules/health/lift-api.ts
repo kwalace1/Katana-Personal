@@ -6,8 +6,11 @@ import { healthApi } from './api'
 import type {
   BodyWeightLog,
   LiftExercise,
+  LiftProgressMetric,
+  LiftProgressPoint,
   LiftSession,
   LiftSet,
+  LiftWorkoutDraftExercise,
   SplitDay,
   SplitPattern,
   TrainingSplit,
@@ -26,16 +29,30 @@ function now() {
   return new Date().toISOString()
 }
 
-const DEFAULT_EXERCISES = [
+/** Built-in library from personal-lift-tracker (plus a few Katana defaults). */
+const DEFAULT_EXERCISES: { name: string; muscle: string }[] = [
   { name: 'Bench Press', muscle: 'Chest' },
-  { name: 'Squat', muscle: 'Legs' },
-  { name: 'Deadlift', muscle: 'Back' },
+  { name: 'Incline Bench Press', muscle: 'Chest' },
   { name: 'Overhead Press', muscle: 'Shoulders' },
-  { name: 'Barbell Row', muscle: 'Back' },
+  { name: 'Cable Fly', muscle: 'Chest' },
+  { name: 'Lat Pulldown', muscle: 'Back' },
   { name: 'Pull-Up', muscle: 'Back' },
+  { name: 'Barbell Row', muscle: 'Back' },
+  { name: 'T-Bar Row', muscle: 'Back' },
+  { name: 'Squat', muscle: 'Legs' },
+  { name: 'Leg Press', muscle: 'Legs' },
   { name: 'Romanian Deadlift', muscle: 'Legs' },
+  { name: 'Deadlift', muscle: 'Back' },
+  { name: 'Leg Extension', muscle: 'Legs' },
+  { name: 'Leg Curl', muscle: 'Legs' },
+  { name: 'Lateral Raise', muscle: 'Shoulders' },
+  { name: 'Triceps Pushdown', muscle: 'Arms' },
+  { name: 'Preacher Curl', muscle: 'Arms' },
+  { name: 'Incline Dumbbell Curl', muscle: 'Arms' },
   { name: 'Dumbbell Curl', muscle: 'Arms' },
 ]
+
+export const EXERCISE_LIBRARY_NAMES = DEFAULT_EXERCISES.map((e) => e.name)
 
 export const SPLIT_PRESETS: { name: string; pattern: SplitPattern; days: SplitDay[] }[] = [
   {
@@ -72,11 +89,35 @@ export const SPLIT_PRESETS: { name: string; pattern: SplitPattern; days: SplitDa
   },
 ]
 
+export function estimated1RM(weight: number, reps: number): number {
+  return weight * (1 + reps / 30)
+}
+
+export function clamp(n: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, n))
+}
+
 export const liftApi = {
   ensureDefaultExercises(userId: string): void {
-    if (localDb.list<LiftExercise>(EXERCISES, userId).length > 0) return
+    const existing = localDb.list<LiftExercise>(EXERCISES, userId)
+    if (existing.length === 0) {
+      const ts = now()
+      for (const ex of DEFAULT_EXERCISES) {
+        localDb.insert(EXERCISES, userId, {
+          id: createId(),
+          user_id: userId,
+          name: ex.name,
+          muscle: ex.muscle,
+          created_at: ts,
+        })
+      }
+      return
+    }
+    // Backfill any missing library names without wiping user customs
+    const have = new Set(existing.map((e) => e.name.toLowerCase()))
     const ts = now()
     for (const ex of DEFAULT_EXERCISES) {
+      if (have.has(ex.name.toLowerCase())) continue
       localDb.insert(EXERCISES, userId, {
         id: createId(),
         user_id: userId,
@@ -94,6 +135,17 @@ export const liftApi = {
       .sort((a, b) => a.name.localeCompare(b.name))
   },
 
+  /** Unique sorted names: library ∪ used in sessions. */
+  getExerciseNames(userId: string): string[] {
+    const names = new Set(liftApi.listExercises(userId).map((e) => e.name))
+    const byId = new Map(liftApi.listExercises(userId).map((e) => [e.id, e.name]))
+    for (const set of localDb.list<LiftSet>(SETS, userId)) {
+      const n = byId.get(set.exercise_id)
+      if (n) names.add(n)
+    }
+    return [...names].sort((a, b) => a.localeCompare(b))
+  },
+
   addExercise(userId: string, input: { name: string; muscle?: string }): LiftExercise {
     return localDb.insert(EXERCISES, userId, {
       id: createId(),
@@ -104,7 +156,6 @@ export const liftApi = {
     })
   },
 
-  /** Find by name (case-insensitive) or create. */
   findOrCreateExercise(userId: string, name: string, muscle?: string): LiftExercise {
     const trimmed = name.trim()
     const existing = liftApi
@@ -121,7 +172,9 @@ export const liftApi = {
   },
 
   listSessions(userId: string): LiftSession[] {
-    return localDb.list<LiftSession>(SESSIONS, userId).sort((a, b) => b.date.localeCompare(a.date) || b.created_at.localeCompare(a.created_at))
+    return localDb
+      .list<LiftSession>(SESSIONS, userId)
+      .sort((a, b) => b.date.localeCompare(a.date) || b.created_at.localeCompare(a.created_at))
   },
 
   getSession(userId: string, id: string): LiftSession | null {
@@ -142,8 +195,28 @@ export const liftApi = {
       .sort((a, b) => a.created_at.localeCompare(b.created_at))
   },
 
+  /** Group sets by exercise for history display. */
+  sessionExerciseGroups(
+    userId: string,
+    sessionId: string,
+  ): { exercise_id: string; name: string; sets: LiftSet[] }[] {
+    const sets = liftApi.listSetsForSession(userId, sessionId)
+    const byEx = new Map<string, LiftSet[]>()
+    for (const s of sets) {
+      const list = byEx.get(s.exercise_id) || []
+      list.push(s)
+      byEx.set(s.exercise_id, list)
+    }
+    const exercises = new Map(liftApi.listExercises(userId).map((e) => [e.id, e.name]))
+    return [...byEx.entries()].map(([exercise_id, group]) => ({
+      exercise_id,
+      name: exercises.get(exercise_id) || 'Exercise',
+      sets: group,
+    }))
+  },
+
   /**
-   * Create a lift session with sets. Also logs a cardio Workout row so Circles workout streak still works.
+   * Create a lift session with sets. Also logs a cardio Workout row so Move can stay separate via lift_session_id.
    */
   logSession(
     userId: string,
@@ -193,6 +266,40 @@ export const liftApi = {
     return session
   },
 
+  /** Tracker-style nested workout → session + sets (Circles-safe). */
+  logWorkout(
+    userId: string,
+    input: {
+      date?: string
+      name: string
+      notes?: string
+      exercises: LiftWorkoutDraftExercise[]
+    },
+  ): LiftSession | null {
+    const flat: { exercise_id: string; reps: number; weight: number }[] = []
+    for (const ex of input.exercises) {
+      const name = ex.name.trim()
+      if (!name) continue
+      const kept = ex.sets.filter((s) => s.reps > 0)
+      if (kept.length === 0) continue
+      const exercise = liftApi.findOrCreateExercise(userId, name)
+      for (const s of kept) {
+        flat.push({
+          exercise_id: exercise.id,
+          reps: s.reps,
+          weight: Number(s.weight) || 0,
+        })
+      }
+    }
+    if (flat.length === 0) return null
+    return liftApi.logSession(userId, {
+      date: input.date,
+      title: input.name.trim() || 'Lift',
+      notes: input.notes,
+      sets: flat,
+    })
+  },
+
   removeSession(userId: string, sessionId: string): void {
     for (const set of liftApi.listSetsForSession(userId, sessionId)) {
       localDb.remove(SETS, userId, set.id)
@@ -203,7 +310,7 @@ export const liftApi = {
     }
   },
 
-  /** Best (max) weight per calendar day for an exercise — for progress charts. */
+  /** Best weight per day (legacy sparkline helper). */
   exerciseProgressSeries(
     userId: string,
     exerciseId: string,
@@ -224,6 +331,43 @@ export const liftApi = {
       .sort((a, b) => a.date.localeCompare(b.date))
   },
 
+  /** Tracker progress: top weight | e1RM | session volume per workout occurrence. */
+  getExerciseProgress(
+    userId: string,
+    exerciseName: string,
+    metric: LiftProgressMetric,
+  ): LiftProgressPoint[] {
+    const exercises = liftApi.listExercises(userId)
+    const match = exercises.find((e) => e.name.toLowerCase() === exerciseName.toLowerCase())
+    if (!match) return []
+
+    const points: LiftProgressPoint[] = []
+    for (const session of liftApi.listSessions(userId)) {
+      const sets = liftApi.listSetsForSession(userId, session.id).filter((s) => s.exercise_id === match.id)
+      if (sets.length === 0) continue
+
+      let value: number
+      if (metric === 'volume') {
+        value = sets.reduce((sum, s) => sum + s.weight * s.reps, 0)
+      } else if (metric === 'estimated1RM') {
+        value = Math.max(...sets.map((s) => estimated1RM(s.weight, s.reps)))
+      } else {
+        value = Math.max(...sets.map((s) => s.weight))
+      }
+
+      points.push({
+        date: session.date,
+        workoutName: session.title,
+        session_id: session.id,
+        value,
+        sets: sets.length,
+        setSummary: sets.map((s) => `${s.weight.toLocaleString()} × ${s.reps}`).join(', '),
+      })
+    }
+
+    return points.sort((a, b) => a.date.localeCompare(b.date) || a.session_id.localeCompare(b.session_id))
+  },
+
   listSplits(userId: string): TrainingSplit[] {
     return localDb
       .list<TrainingSplit>(SPLITS, userId)
@@ -235,7 +379,8 @@ export const liftApi = {
     input: { name: string; pattern: SplitPattern; days: SplitDay[]; active?: boolean; id?: string },
   ): TrainingSplit {
     const ts = now()
-    if (input.active !== false) {
+    const makeActive = input.active !== false
+    if (makeActive) {
       for (const s of liftApi.listSplits(userId)) {
         if (s.active) localDb.update<TrainingSplit>(SPLITS, userId, s.id, { active: false, updated_at: ts })
       }
@@ -245,10 +390,17 @@ export const liftApi = {
         name: input.name.trim(),
         pattern: input.pattern,
         days: input.days,
-        active: input.active !== false,
+        active: makeActive,
         updated_at: ts,
       })
       if (updated) return updated
+    }
+    const existing = liftApi.listSplits(userId)
+    const autoActive = makeActive || existing.length === 0
+    if (autoActive) {
+      for (const s of existing) {
+        if (s.active) localDb.update<TrainingSplit>(SPLITS, userId, s.id, { active: false, updated_at: ts })
+      }
     }
     return localDb.insert(SPLITS, userId, {
       id: createId(),
@@ -256,14 +408,20 @@ export const liftApi = {
       name: input.name.trim(),
       pattern: input.pattern,
       days: input.days,
-      active: input.active !== false,
+      active: autoActive,
       created_at: ts,
       updated_at: ts,
     })
   },
 
   removeSplit(userId: string, id: string): boolean {
-    return localDb.remove(SPLITS, userId, id)
+    const wasActive = liftApi.listSplits(userId).find((s) => s.id === id)?.active
+    const ok = localDb.remove(SPLITS, userId, id)
+    if (ok && wasActive) {
+      const next = liftApi.listSplits(userId)[0]
+      if (next) liftApi.setActiveSplit(userId, next.id)
+    }
+    return ok
   },
 
   setActiveSplit(userId: string, id: string): void {
@@ -273,7 +431,6 @@ export const liftApi = {
     }
   },
 
-  /** What’s on for a given date based on the active split. */
   plannedDay(userId: string, date = todayKey()): { split: TrainingSplit; day: SplitDay; index: number } | null {
     const active = liftApi.listSplits(userId).find((s) => s.active)
     if (!active || active.days.length === 0) return null
@@ -282,13 +439,23 @@ export const liftApi = {
     if (active.pattern === 'weekdays') {
       index = d.getDay() % active.days.length
     } else {
-      // Cycle from split created_at
       const start = new Date(active.created_at)
       start.setHours(12, 0, 0, 0)
       const diff = Math.floor((d.getTime() - start.getTime()) / 86_400_000)
       index = ((diff % active.days.length) + active.days.length) % active.days.length
     }
     return { split: active, day: active.days[index], index }
+  },
+
+  /** Calendar day detail: lifts + bodyweight. */
+  calendarDay(
+    userId: string,
+    date: string,
+  ): { sessions: LiftSession[]; weight: BodyWeightLog | null } {
+    return {
+      sessions: liftApi.listSessions(userId).filter((s) => s.date === date),
+      weight: liftApi.listBodyWeight(userId).find((w) => w.date === date) ?? null,
+    }
   },
 
   listBodyWeight(userId: string): BodyWeightLog[] {
@@ -329,6 +496,33 @@ export const liftApi = {
     return liftApi.listBodyWeight(userId).map((w) => ({ date: w.date, weight: w.weight }))
   },
 
+  weightGoalProgress(userId: string): {
+    start: number | null
+    current: number | null
+    goal: number | null
+    percent: number
+    delta: number | null
+  } {
+    const entries = liftApi.listBodyWeight(userId)
+    const active = liftApi.getActiveWeightGoal(userId)
+    const first = entries[0]
+    const latest = entries[entries.length - 1]
+    const start = first ? first.weight : active?.start_weight ?? null
+    const current = latest?.weight ?? null
+    const goal = active?.target_weight ?? null
+    let percent = 0
+    if (goal != null && start != null && current != null && goal !== start) {
+      percent = clamp(((current - start) / (goal - start)) * 100, 0, 100)
+    }
+    return {
+      start,
+      current,
+      goal,
+      percent,
+      delta: start != null && current != null ? current - start : null,
+    }
+  },
+
   getActiveWeightGoal(userId: string): WeightGoal | null {
     return liftApi.listWeightGoals(userId).find((g) => g.active) ?? null
   },
@@ -339,7 +533,13 @@ export const liftApi = {
 
   setWeightGoal(
     userId: string,
-    input: { mode: WeightGoalMode; start_weight: number; target_weight: number; start_date?: string },
+    input: {
+      mode: WeightGoalMode
+      start_weight: number
+      target_weight: number
+      start_date?: string
+      target_date?: string | null
+    },
   ): WeightGoal {
     const ts = now()
     for (const g of liftApi.listWeightGoals(userId)) {
@@ -352,9 +552,76 @@ export const liftApi = {
       start_weight: input.start_weight,
       target_weight: input.target_weight,
       start_date: input.start_date || todayKey(),
+      target_date: input.target_date || null,
       active: true,
       created_at: ts,
       updated_at: ts,
+    })
+  },
+
+  /** Clear lift-related collections only (keeps cardio/nutrition/sleep/water). */
+  clearLiftData(userId: string): void {
+    for (const s of liftApi.listSessions(userId)) liftApi.removeSession(userId, s.id)
+    for (const split of liftApi.listSplits(userId)) localDb.remove(SPLITS, userId, split.id)
+    for (const w of liftApi.listBodyWeight(userId)) localDb.remove(WEIGHT_LOGS, userId, w.id)
+    for (const g of liftApi.listWeightGoals(userId)) localDb.remove(WEIGHT_GOALS, userId, g.id)
+    for (const e of localDb.list<LiftExercise>(EXERCISES, userId)) localDb.remove(EXERCISES, userId, e.id)
+  },
+
+  loadDemoLiftData(userId: string): void {
+    liftApi.clearLiftData(userId)
+    liftApi.ensureDefaultExercises(userId)
+
+    const bench = liftApi.findOrCreateExercise(userId, 'Bench Press')
+    const squat = liftApi.findOrCreateExercise(userId, 'Squat')
+    const row = liftApi.findOrCreateExercise(userId, 'Barbell Row')
+
+    const days = [0, 3, 7, 10].map((offset) => {
+      const d = new Date()
+      d.setDate(d.getDate() - offset)
+      return todayKey(d)
+    })
+
+    const loads = [205, 215, 225, 235]
+    days.forEach((date, i) => {
+      liftApi.logSession(userId, {
+        date,
+        title: i % 2 === 0 ? 'Push' : 'Pull',
+        sets: [
+          { exercise_id: bench.id, reps: 5, weight: loads[i] },
+          { exercise_id: bench.id, reps: 5, weight: loads[i] },
+          { exercise_id: bench.id, reps: 5, weight: loads[i] - 10 },
+          ...(i % 2 === 0
+            ? [
+                { exercise_id: squat.id, reps: 5, weight: 185 + i * 5 },
+                { exercise_id: squat.id, reps: 5, weight: 185 + i * 5 },
+              ]
+            : [
+                { exercise_id: row.id, reps: 8, weight: 135 + i * 5 },
+                { exercise_id: row.id, reps: 8, weight: 135 + i * 5 },
+              ]),
+        ],
+      })
+    })
+
+    liftApi.saveSplit(userId, {
+      name: 'Push / Pull / Legs',
+      pattern: 'cycle',
+      days: SPLIT_PRESETS[0].days,
+      active: true,
+    })
+
+    const weights = [190, 188.5, 187.2, 186]
+    days.forEach((date, i) => {
+      liftApi.logBodyWeight(userId, { date, weight: weights[i] })
+    })
+    const first = weights[weights.length - 1]
+    liftApi.setWeightGoal(userId, {
+      mode: 'cut',
+      start_weight: first,
+      target_weight: 183,
+      start_date: days[days.length - 1],
+      target_date: todayKey(),
     })
   },
 }

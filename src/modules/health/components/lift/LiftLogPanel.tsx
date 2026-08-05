@@ -1,0 +1,284 @@
+import { FormEvent, useMemo, useState } from 'react'
+import { ChevronDown, Plus, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { EmptyState } from '@/components/ui/empty-state'
+import { todayKey } from '@/lib/dates'
+import { liftApi } from '../../lift-api'
+import { formatLiftDate } from './LiftLineChart'
+import { cn } from '@/lib/utils'
+
+type Props = {
+  userId: string
+  logDate: string
+  tick: number
+  refresh: () => void
+}
+
+type DraftSet = { key: string; weight: string; reps: string }
+type DraftExercise = { key: string; name: string; sets: DraftSet[] }
+
+let draftKey = 0
+function nextKey(prefix: string) {
+  draftKey += 1
+  return `${prefix}-${draftKey}`
+}
+
+function emptySet(): DraftSet {
+  return { key: nextKey('set'), weight: '', reps: '' }
+}
+
+function emptyExercise(defaultName = 'Bench Press'): DraftExercise {
+  return { key: nextKey('ex'), name: defaultName, sets: [emptySet()] }
+}
+
+export function LiftLogPanel({ userId, logDate, tick, refresh }: Props) {
+  const names = useMemo(() => {
+    void tick
+    return liftApi.getExerciseNames(userId)
+  }, [userId, tick])
+
+  const sessions = useMemo(() => {
+    void tick
+    return liftApi.listSessions(userId)
+  }, [userId, tick])
+
+  const planned = useMemo(() => {
+    void tick
+    return liftApi.plannedDay(userId, logDate)
+  }, [userId, logDate, tick])
+
+  const [name, setName] = useState('')
+  const [date, setDate] = useState(logDate || todayKey())
+  const [exercises, setExercises] = useState<DraftExercise[]>([emptyExercise(names[0] || 'Bench Press')])
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+
+  const listId = `lift-exercise-list-${userId}`
+
+  function updateExercise(key: string, patch: Partial<DraftExercise>) {
+    setExercises((rows) => rows.map((ex) => (ex.key === key ? { ...ex, ...patch } : ex)))
+  }
+
+  function updateSet(exKey: string, setKey: string, patch: Partial<DraftSet>) {
+    setExercises((rows) =>
+      rows.map((ex) =>
+        ex.key !== exKey
+          ? ex
+          : {
+              ...ex,
+              sets: ex.sets.map((s) => (s.key === setKey ? { ...s, ...patch } : s)),
+            },
+      ),
+    )
+  }
+
+  function saveWorkout(e: FormEvent) {
+    e.preventDefault()
+    const title = name.trim() || planned?.day.name || 'Lift'
+    const session = liftApi.logWorkout(userId, {
+      date,
+      name: title,
+      exercises: exercises.map((ex) => ({
+        name: ex.name,
+        sets: ex.sets.map((s) => ({
+          weight: Number(s.weight) || 0,
+          reps: Number(s.reps) || 0,
+        })),
+      })),
+    })
+    if (!session) {
+      toast.error('Add at least one set with reps')
+      return
+    }
+    toast.success('Workout saved')
+    setName('')
+    setExercises([emptyExercise(names[0] || 'Bench Press')])
+    refresh()
+  }
+
+  return (
+    <div className="space-y-4">
+      {planned ? (
+        <div className="kp-surface border-primary/20 bg-primary/5 p-4">
+          <p className="text-xs text-muted-foreground">Planned for {formatLiftDate(logDate)}</p>
+          <p className="font-display text-xl tracking-tight">
+            {planned.day.name}
+            {planned.day.focus ? (
+              <span className="ml-2 text-base font-sans font-normal text-muted-foreground">
+                · {planned.day.focus}
+              </span>
+            ) : null}
+          </p>
+          <p className="text-xs text-muted-foreground">{planned.split.name}</p>
+        </div>
+      ) : null}
+
+      <form onSubmit={saveWorkout} className="kp-surface space-y-4 p-4">
+        <div>
+          <p className="text-xs text-muted-foreground">Log workout</p>
+          <h3 className="font-display text-xl tracking-tight">New session</h3>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Input
+            placeholder="Workout name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            aria-label="Workout name"
+          />
+          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} aria-label="Date" />
+        </div>
+
+        <datalist id={listId}>
+          {names.map((n) => (
+            <option key={n} value={n} />
+          ))}
+        </datalist>
+
+        <div className="space-y-3">
+          {exercises.map((ex, exIndex) => (
+            <div key={ex.key} className="rounded-xl border border-border/60 p-3">
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <Input
+                  list={listId}
+                  value={ex.name}
+                  onChange={(e) => updateExercise(ex.key, { name: e.target.value })}
+                  placeholder="Exercise"
+                  className="min-w-[12rem] flex-1"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  disabled={exercises.length <= 1}
+                  onClick={() => setExercises((rows) => rows.filter((r) => r.key !== ex.key))}
+                >
+                  Remove
+                </Button>
+              </div>
+              <div className="space-y-2">
+                {ex.sets.map((set, setIndex) => (
+                  <div key={set.key} className="grid grid-cols-[1fr_1fr_auto] items-center gap-2">
+                    <Input
+                      type="number"
+                      min={0}
+                      step={0.5}
+                      placeholder="Weight (lb)"
+                      value={set.weight}
+                      onChange={(e) => updateSet(ex.key, set.key, { weight: e.target.value })}
+                      aria-label={`Exercise ${exIndex + 1} set ${setIndex + 1} weight`}
+                    />
+                    <Input
+                      type="number"
+                      min={0}
+                      step={1}
+                      placeholder="Reps"
+                      value={set.reps}
+                      onChange={(e) => updateSet(ex.key, set.key, { reps: e.target.value })}
+                      aria-label={`Exercise ${exIndex + 1} set ${setIndex + 1} reps`}
+                    />
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      disabled={ex.sets.length <= 1}
+                      onClick={() =>
+                        updateExercise(ex.key, {
+                          sets: ex.sets.filter((s) => s.key !== set.key),
+                        })
+                      }
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="mt-2"
+                onClick={() => updateExercise(ex.key, { sets: [...ex.sets, emptySet()] })}
+              >
+                <Plus className="mr-1 h-3.5 w-3.5" />
+                Add set
+              </Button>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" onClick={() => setExercises((rows) => [...rows, emptyExercise()])}>
+            <Plus className="mr-1 h-4 w-4" />
+            Add exercise
+          </Button>
+          <Button type="submit">Save workout</Button>
+        </div>
+      </form>
+
+      <div>
+        <h3 className="mb-2 font-display text-lg tracking-tight">History</h3>
+        {sessions.length === 0 ? (
+          <EmptyState title="No workouts yet" description="Log a multi-exercise session above." />
+        ) : (
+          <ul className="space-y-2">
+            {sessions.map((session) => {
+              const open = expanded.has(session.id)
+              const groups = liftApi.sessionExerciseGroups(userId, session.id)
+              return (
+                <li key={session.id} className="kp-surface overflow-hidden p-0">
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-3 p-4 text-left"
+                    onClick={() =>
+                      setExpanded((prev) => {
+                        const next = new Set(prev)
+                        if (next.has(session.id)) next.delete(session.id)
+                        else next.add(session.id)
+                        return next
+                      })
+                    }
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium">{session.title}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatLiftDate(session.date)} · {groups.length} exercise
+                        {groups.length === 1 ? '' : 's'} ·{' '}
+                        {groups.reduce((n, g) => n + g.sets.length, 0)} sets
+                      </p>
+                    </div>
+                    <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition', open && 'rotate-180')} />
+                  </button>
+                  {open ? (
+                    <div className="space-y-3 border-t border-border/50 px-4 pb-4 pt-3">
+                      {groups.map((g) => (
+                        <div key={g.exercise_id}>
+                          <p className="text-sm font-medium">{g.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {g.sets.map((s) => `${s.weight} × ${s.reps}`).join(' · ')}
+                          </p>
+                        </div>
+                      ))}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          liftApi.removeSession(userId, session.id)
+                          refresh()
+                          toast.message('Workout deleted')
+                        }}
+                      >
+                        <Trash2 className="mr-1 h-3.5 w-3.5" />
+                        Delete workout
+                      </Button>
+                    </div>
+                  ) : null}
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </div>
+    </div>
+  )
+}

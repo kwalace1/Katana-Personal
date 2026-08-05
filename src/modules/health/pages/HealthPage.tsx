@@ -23,6 +23,7 @@ export default function HealthPage() {
   const userId = user!.id
   const { tick, refresh } = useLocalRefresh()
   const { cloudUser, syncStreaksToCloud } = useCloudAuth()
+  const [healthTab, setHealthTab] = useState('overview')
 
   useEffect(() => {
     if (!cloudUser) return
@@ -212,8 +213,9 @@ export default function HealthPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="lift">
+      <Tabs value={healthTab} onValueChange={setHealthTab}>
         <TabsList className="flex h-auto flex-wrap gap-1">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="lift">Lift</TabsTrigger>
           <TabsTrigger value="splits">Splits</TabsTrigger>
           <TabsTrigger value="progress">Progress</TabsTrigger>
@@ -222,6 +224,18 @@ export default function HealthPage() {
           <TabsTrigger value="nutrition">Nutrition</TabsTrigger>
           <TabsTrigger value="sleep">Sleep</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="overview" className="space-y-4">
+          <LiftTrackingPanel
+            userId={userId}
+            logDate={logDate}
+            tick={tick}
+            refresh={refresh}
+            panel="overview"
+            onGoLift={() => setHealthTab('lift')}
+            onGoSplits={() => setHealthTab('splits')}
+          />
+        </TabsContent>
 
         <TabsContent value="lift" className="space-y-4">
           <LiftTrackingPanel userId={userId} logDate={logDate} tick={tick} refresh={refresh} panel="lift" />

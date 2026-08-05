@@ -105,7 +105,26 @@ export interface WeightGoal {
   start_weight: number
   target_weight: number
   start_date: string
+  /** Optional target date for the goal (YYYY-MM-DD). */
+  target_date?: string | null
   active: boolean
   created_at: string
   updated_at: string
+}
+
+export type LiftProgressMetric = 'topWeight' | 'estimated1RM' | 'volume'
+
+export interface LiftProgressPoint {
+  date: string
+  workoutName: string
+  session_id: string
+  value: number
+  sets: number
+  setSummary: string
+}
+
+/** Nested draft shape used when logging a multi-exercise workout (tracker parity). */
+export interface LiftWorkoutDraftExercise {
+  name: string
+  sets: { weight: number; reps: number }[]
 }
