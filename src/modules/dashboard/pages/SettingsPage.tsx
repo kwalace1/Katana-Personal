@@ -7,8 +7,17 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { HueWheel } from '@/components/HueWheel'
+import { SimpleThemeToggle } from '@/components/SimpleThemeToggle'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
+import {
+  DEFAULT_ACCENT_HUE,
+  normalizeHue,
+  resolveAccentHue,
+  syncAccentToDocument,
+  writeStoredAccentHue,
+} from '@/lib/accent'
 import { downloadBackup, parseBackup, restoreBackup, shareOrDownloadBackup } from '@/lib/backup'
 import { takeInviteReturn } from '@/lib/invite-return'
 import { ensureUserLoaded, localDb } from '@/lib/local-db'
@@ -67,10 +76,34 @@ export default function SettingsPage() {
   const [syncAt, setSyncAt] = useState<string | null>(null)
   const [syncBusy, setSyncBusy] = useState(false)
   const [syncError, setSyncError] = useState<string | null>(null)
+  const [accentHue, setAccentHue] = useState(
+    () => resolveAccentHue(profile?.preferences) ?? DEFAULT_ACCENT_HUE,
+  )
 
   useEffect(() => {
     if (profile?.display_name) setName(profile.display_name)
   }, [profile?.display_name])
+
+  useEffect(() => {
+    const hue = resolveAccentHue(profile?.preferences)
+    if (hue != null) setAccentHue(hue)
+  }, [profile?.preferences])
+
+  function persistAccentHue(hue: number | null) {
+    const dark = document.documentElement.classList.contains('dark')
+    if (hue == null) {
+      writeStoredAccentHue(null)
+      updatePreferences({ accent_hue: null })
+      syncAccentToDocument(null, dark)
+      setAccentHue(DEFAULT_ACCENT_HUE)
+      return
+    }
+    const n = normalizeHue(hue) ?? DEFAULT_ACCENT_HUE
+    writeStoredAccentHue(n)
+    updatePreferences({ accent_hue: n })
+    syncAccentToDocument(n, dark)
+    setAccentHue(n)
+  }
 
   useEffect(() => {
     if (searchParams.get('cloud') === '1') {
@@ -193,6 +226,44 @@ export default function SettingsPage() {
           {cloudUser ? ' in Cloud, Circles, and invites.' : '.'}
         </p>
       </form>
+
+      <section className="kp-surface mb-4 space-y-4 p-5">
+        <div>
+          <h2 className="font-semibold">Appearance</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Pick an accent color for buttons and highlights. Light and dark mode stay the same.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-6">
+          <HueWheel
+            hue={accentHue}
+            onChange={(h) => {
+              setAccentHue(h)
+              syncAccentToDocument(h, document.documentElement.classList.contains('dark'))
+            }}
+            onCommit={(h) => persistAccentHue(h)}
+          />
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <span
+                className="h-10 w-10 rounded-full border border-border/50 shadow-sm"
+                style={{ background: `hsl(${accentHue} 48% 40%)` }}
+                aria-hidden
+              />
+              <div>
+                <p className="text-sm font-medium">Accent</p>
+                <p className="text-xs text-muted-foreground">{accentHue}°</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <SimpleThemeToggle />
+              <Button type="button" variant="outline" size="sm" onClick={() => persistAccentHue(null)}>
+                Reset to teal
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <section ref={cloudSectionRef} id="cloud" className="kp-surface mb-4 scroll-mt-24 space-y-4 p-5">
         <div>

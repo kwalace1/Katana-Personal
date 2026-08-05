@@ -107,6 +107,8 @@ export interface CircleGroup {
   name: string
   ownerId: string
   memberIds: string[]
+  /** Members who can rename, invite, remove members, and set moderators (not delete). */
+  moderatorIds?: string[]
   createdAt: string
   updatedAt: string
   challenge?: CircleChallenge | null

@@ -38,12 +38,15 @@ import { useCloudAuth } from '@/contexts/CloudAuthContext'
 import { pageEnterSubtle, springSoft } from '@/lib/motion-ui'
 import { loadCirclesBoard, listFriendActivity, type ActivityFeedItem } from '@/lib/social/streaks'
 import {
+  canManageCircle,
+  circleRole,
   createCircle,
   deleteCircle,
   leaveCircle,
   listMyCircles,
   renameCircle,
   setCircleMembers,
+  setCircleModerators,
   setCircleChallenge,
 } from '@/lib/social/circles'
 import { createCircleInvite, inviteFriendToCircle, listOutgoingPendingForCircle } from '@/lib/social/invites'
@@ -383,7 +386,7 @@ export default function CirclesPage() {
     e.preventDefault()
     if (!active || !cloudUser) return
     try {
-      await renameCircle(active.id, editName)
+      await renameCircle(active, editName, cloudUser.uid)
       toast.success('Circle updated')
       setManageOpen(false)
       await loadCirclesList()
@@ -431,8 +434,9 @@ export default function CirclesPage() {
     }
     try {
       await setCircleMembers(
-        active.id,
+        active,
         active.memberIds.filter((id) => id !== uid),
+        cloudUser.uid,
       )
       toast.message('Removed from circle')
       await loadCirclesList()
@@ -440,6 +444,24 @@ export default function CirclesPage() {
       toast.error(err instanceof Error ? err.message : 'Couldn’t remove')
     }
   }
+
+  async function setModerator(uid: string, makeMod: boolean) {
+    if (!active || !cloudUser) return
+    if (uid === active.ownerId) return
+    const current = active.moderatorIds || []
+    const next = makeMod
+      ? Array.from(new Set([...current, uid]))
+      : current.filter((id) => id !== uid)
+    try {
+      await setCircleModerators(active, next, cloudUser.uid)
+      toast.success(makeMod ? 'Moderator added' : 'Moderator removed')
+      await loadCirclesList()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Couldn’t update moderators')
+    }
+  }
+
+  const iCanManage = Boolean(active && cloudUser && canManageCircle(active, cloudUser.uid))
 
   if (!cloudEnabled || !cloudUser) {
     return (
@@ -501,10 +523,12 @@ export default function CirclesPage() {
                     Sync
                   </Button>
                 ) : null}
-                <Button size="sm" variant="outline" className="gap-1.5" onClick={openManage}>
-                  <Settings2 className="h-3.5 w-3.5" />
-                  Manage
-                </Button>
+                {iCanManage ? (
+                  <Button size="sm" variant="outline" className="gap-1.5" onClick={openManage}>
+                    <Settings2 className="h-3.5 w-3.5" />
+                    Manage
+                  </Button>
+                ) : null}
               </div>
             </div>
 
@@ -523,7 +547,7 @@ export default function CirclesPage() {
           </div>
         </section>
 
-        {active.memberIds.length <= 1 ? (
+        {active.memberIds.length <= 1 && iCanManage ? (
           <div className="mb-6 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
             <p className="font-medium">Only you are in this circle</p>
             <p className="mt-0.5 text-muted-foreground">
@@ -795,26 +819,28 @@ export default function CirclesPage() {
         )}
 
         <div className="flex flex-wrap gap-2 border-t border-border/40 pt-4">
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1.5"
-            onClick={async () => {
-              try {
-                const { url } = await createCircleInvite({
-                  circle: active,
-                  createdBy: cloudUser.uid,
-                })
-                await navigator.clipboard.writeText(url)
-                toast.success('Invite link copied')
-              } catch (err) {
-                toast.error(err instanceof Error ? err.message : 'Couldn’t create invite')
-              }
-            }}
-          >
-            <Link2 className="h-3.5 w-3.5" />
-            Invite link
-          </Button>
+          {iCanManage ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              onClick={async () => {
+                try {
+                  const { url } = await createCircleInvite({
+                    circle: active,
+                    createdBy: cloudUser.uid,
+                  })
+                  await navigator.clipboard.writeText(url)
+                  toast.success('Invite link copied')
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : 'Couldn’t create invite')
+                }
+              }}
+            >
+              <Link2 className="h-3.5 w-3.5" />
+              Invite link
+            </Button>
+          ) : null}
           {active.ownerId === cloudUser.uid ? (
             <Button
               size="sm"
@@ -822,10 +848,14 @@ export default function CirclesPage() {
               className="gap-1.5 text-destructive"
               onClick={async () => {
                 if (!confirm(`Delete “${active.name}”?`)) return
-                await deleteCircle(active.id)
-                toast.message('Circle deleted')
-                exitCircle()
-                await loadCirclesList()
+                try {
+                  await deleteCircle(active.id, cloudUser.uid, active.ownerId)
+                  toast.message('Circle deleted')
+                  exitCircle()
+                  await loadCirclesList()
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : 'Couldn’t delete')
+                }
               }}
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -859,13 +889,13 @@ export default function CirclesPage() {
           editName={editName}
           setEditName={setEditName}
           friends={friends}
-          memberIds={active.memberIds}
-          ownerId={active.ownerId}
+          circle={active}
           selfUid={cloudUser.uid}
           pendingInviteeIds={pendingInvites.map((p) => p.inviteeUid)}
           inviteBusy={inviteBusy}
           onInvite={(uid) => void inviteFriend(uid)}
           onRemove={(uid) => void removeMember(uid)}
+          onSetModerator={(uid, makeMod) => void setModerator(uid, makeMod)}
           onSave={saveManage}
         />
 
@@ -1006,7 +1036,11 @@ export default function CirclesPage() {
                       <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
                         <Users className="h-3.5 w-3.5" />
                         {c.memberIds.length} member{c.memberIds.length === 1 ? '' : 's'}
-                        {c.ownerId === cloudUser.uid ? ' · you own' : ''}
+                        {c.ownerId === cloudUser.uid
+                          ? ' · you own'
+                          : (c.moderatorIds || []).includes(cloudUser.uid)
+                            ? ' · you moderate'
+                            : ''}
                       </p>
                       <p className="mt-2 text-xs text-muted-foreground">
                         Leaderboard · shared schedule
@@ -1069,17 +1103,23 @@ export default function CirclesPage() {
         editName={editName}
         setEditName={setEditName}
         friends={friends}
-        memberIds={active?.memberIds ?? []}
-        ownerId={active?.ownerId ?? ''}
+        circle={active}
         selfUid={cloudUser.uid}
         pendingInviteeIds={pendingInvites.map((p) => p.inviteeUid)}
         inviteBusy={inviteBusy}
         onInvite={(uid) => void inviteFriend(uid)}
         onRemove={(uid) => void removeMember(uid)}
+        onSetModerator={(uid, makeMod) => void setModerator(uid, makeMod)}
         onSave={saveManage}
       />
     </motion.div>
   )
+}
+
+function roleLabel(role: 'owner' | 'moderator' | 'member') {
+  if (role === 'owner') return 'Owner'
+  if (role === 'moderator') return 'Moderator'
+  return 'Member'
 }
 
 function ManageDialog({
@@ -1088,13 +1128,13 @@ function ManageDialog({
   editName,
   setEditName,
   friends,
-  memberIds,
-  ownerId,
+  circle,
   selfUid,
   pendingInviteeIds,
   inviteBusy,
   onInvite,
   onRemove,
+  onSetModerator,
   onSave,
 }: {
   open: boolean
@@ -1102,18 +1142,30 @@ function ManageDialog({
   editName: string
   setEditName: (v: string) => void
   friends: CloudProfile[]
-  memberIds: string[]
-  ownerId: string
+  circle: CircleGroup | null
   selfUid: string
   pendingInviteeIds: string[]
   inviteBusy: string | null
   onInvite: (uid: string) => void
   onRemove: (uid: string) => void
+  onSetModerator: (uid: string, makeMod: boolean) => void
   onSave: (e: FormEvent) => void
 }) {
-  const memberFriends = friends.filter((f) => memberIds.includes(f.uid))
+  if (!circle) return null
+
+  const memberIds = circle.memberIds
+  const moderatorIds = new Set(circle.moderatorIds || [])
+  const friendByUid = new Map(friends.map((f) => [f.uid, f]))
   const inviteable = friends.filter((f) => !memberIds.includes(f.uid))
   const pendingSet = new Set(pendingInviteeIds)
+  const canManage = canManageCircle(circle, selfUid)
+
+  const memberRows = memberIds.map((uid) => {
+    const role = circleRole(circle, uid)
+    const name =
+      uid === selfUid ? 'You' : friendByUid.get(uid)?.displayName || 'Member'
+    return { uid, role, name }
+  })
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1122,80 +1174,107 @@ function ManageDialog({
           <DialogTitle>Manage circle</DialogTitle>
         </DialogHeader>
         <form onSubmit={(e) => void onSave(e)} className="space-y-4">
-          <Input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Name" />
-          <Button type="submit" variant="secondary" className="w-full">
-            Save name
-          </Button>
+          {canManage ? (
+            <>
+              <Input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Name" />
+              <Button type="submit" variant="secondary" className="w-full">
+                Save name
+              </Button>
+            </>
+          ) : null}
 
           <div>
             <p className="mb-2 text-sm font-medium">In this circle</p>
-            <ul className="max-h-36 space-y-2 overflow-y-auto">
-              <li className="flex items-center justify-between rounded-xl bg-secondary/50 px-3 py-2 text-sm">
-                <span className="font-medium">You</span>
-                <span className="text-xs text-muted-foreground">Owner</span>
-              </li>
-              {memberFriends.map((f) => (
+            <ul className="max-h-48 space-y-2 overflow-y-auto">
+              {memberRows.map((row) => (
                 <li
-                  key={f.uid}
-                  className="flex items-center justify-between gap-2 rounded-xl bg-secondary/50 px-3 py-2"
+                  key={row.uid}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-secondary/50 px-3 py-2"
                 >
-                  <span className="text-sm font-medium">{f.displayName}</span>
-                  {f.uid !== ownerId && f.uid !== selfUid ? (
-                    <Button type="button" size="sm" variant="ghost" onClick={() => onRemove(f.uid)}>
-                      Remove
-                    </Button>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{row.name}</p>
+                    <p className="text-xs text-muted-foreground">{roleLabel(row.role)}</p>
+                  </div>
+                  {canManage && row.uid !== circle.ownerId && row.uid !== selfUid ? (
+                    <div className="flex flex-wrap gap-1">
+                      {moderatorIds.has(row.uid) ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => onSetModerator(row.uid, false)}
+                        >
+                          Demote
+                        </Button>
+                      ) : (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => onSetModerator(row.uid, true)}
+                        >
+                          Make mod
+                        </Button>
+                      )}
+                      <Button type="button" size="sm" variant="ghost" onClick={() => onRemove(row.uid)}>
+                        Remove
+                      </Button>
+                    </div>
                   ) : null}
                 </li>
               ))}
             </ul>
           </div>
 
-          <div>
-            <p className="mb-2 text-sm font-medium">Invite a friend</p>
-            {inviteable.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                {friends.length === 0 ? (
-                  <>
-                    No friends yet.{' '}
-                    <Link to="/friends" className="text-primary underline">
-                      Add friends
-                    </Link>
-                  </>
-                ) : (
-                  'Everyone you know is already in this circle.'
-                )}
+          {canManage ? (
+            <div>
+              <p className="mb-2 text-sm font-medium">Invite a friend</p>
+              {inviteable.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  {friends.length === 0 ? (
+                    <>
+                      No friends yet.{' '}
+                      <Link to="/friends" className="text-primary underline">
+                        Add friends
+                      </Link>
+                    </>
+                  ) : (
+                    'Everyone you know is already in this circle.'
+                  )}
+                </p>
+              ) : (
+                <ul className="max-h-48 space-y-2 overflow-y-auto">
+                  {inviteable.map((f) => {
+                    const pending = pendingSet.has(f.uid)
+                    return (
+                      <li
+                        key={f.uid}
+                        className="flex items-center justify-between gap-2 rounded-xl bg-secondary/50 px-3 py-2"
+                      >
+                        <span className="text-sm font-medium">{f.displayName}</span>
+                        {pending ? (
+                          <span className="text-xs text-muted-foreground">Pending</span>
+                        ) : (
+                          <Button
+                            type="button"
+                            size="sm"
+                            disabled={inviteBusy === f.uid}
+                            onClick={() => onInvite(f.uid)}
+                          >
+                            {inviteBusy === f.uid ? 'Sending…' : 'Invite'}
+                          </Button>
+                        )}
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+              <p className="mt-2 text-xs text-muted-foreground">
+                They’ll get a notification and can accept in Friends. Moderators can rename, invite,
+                and manage members — only the owner can delete the circle.
               </p>
-            ) : (
-              <ul className="max-h-48 space-y-2 overflow-y-auto">
-                {inviteable.map((f) => {
-                  const pending = pendingSet.has(f.uid)
-                  return (
-                    <li
-                      key={f.uid}
-                      className="flex items-center justify-between gap-2 rounded-xl bg-secondary/50 px-3 py-2"
-                    >
-                      <span className="text-sm font-medium">{f.displayName}</span>
-                      {pending ? (
-                        <span className="text-xs text-muted-foreground">Pending</span>
-                      ) : (
-                        <Button
-                          type="button"
-                          size="sm"
-                          disabled={inviteBusy === f.uid}
-                          onClick={() => onInvite(f.uid)}
-                        >
-                          {inviteBusy === f.uid ? 'Sending…' : 'Invite'}
-                        </Button>
-                      )}
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-            <p className="mt-2 text-xs text-muted-foreground">
-              They’ll get a notification and can accept in Friends.
-            </p>
-          </div>
+            </div>
+          ) : null}
         </form>
       </DialogContent>
     </Dialog>

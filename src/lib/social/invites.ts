@@ -15,7 +15,7 @@ import { getDb } from '@/lib/firebase'
 import { createId } from '@/lib/id'
 import { createNotification } from './notifications'
 import { getCloudProfile } from './friends'
-import { setCircleMembers } from './circles'
+import { canManageCircle, joinCircleMember, normalizeCircle } from './circles'
 import type { CircleGroup } from './types'
 
 export type CircleInviteStatus = 'pending' | 'accepted' | 'declined' | 'link'
@@ -45,6 +45,9 @@ export async function createCircleInvite(input: {
   createdBy: string
   daysValid?: number
 }): Promise<{ invite: CircleInvite; url: string }> {
+  if (!canManageCircle(input.circle, input.createdBy)) {
+    throw new Error('Only the owner or a moderator can create invite links.')
+  }
   const token = createId().replace(/-/g, '').slice(0, 12)
   const now = new Date()
   const expires = new Date(now)
@@ -75,6 +78,9 @@ export async function inviteFriendToCircle(input: {
   inviteeUid: string
   daysValid?: number
 }): Promise<CircleInvite> {
+  if (!canManageCircle(input.circle, input.createdBy)) {
+    throw new Error('Only the owner or a moderator can invite friends.')
+  }
   if (input.circle.memberIds.includes(input.inviteeUid)) {
     throw new Error('They’re already in this circle.')
   }
@@ -197,12 +203,11 @@ async function joinFromInvite(invite: CircleInvite, uid: string): Promise<Circle
   }
   const circleSnap = await getDoc(doc(getDb(), 'circles', invite.circleId))
   if (!circleSnap.exists()) throw new Error('That circle no longer exists.')
-  const circle = { id: circleSnap.id, ...(circleSnap.data() as Omit<CircleGroup, 'id'>) }
+  const circle = normalizeCircle({ id: circleSnap.id, ...(circleSnap.data() as Omit<CircleGroup, 'id'>) })
   if (circle.memberIds.includes(uid)) {
     return circle
   }
-  const nextMembers = [...circle.memberIds, uid]
-  await setCircleMembers(circle.id, nextMembers)
+  const joined = await joinCircleMember(circle, uid)
   await updateDoc(doc(getDb(), 'circleInvites', invite.token), {
     usedBy: arrayUnion(uid),
     status: 'accepted',
@@ -217,7 +222,7 @@ async function joinFromInvite(invite: CircleInvite, uid: string): Promise<Circle
     href: `/circles?id=${invite.circleId}`,
     meta: { circleId: invite.circleId },
   })
-  return { ...circle, memberIds: nextMembers }
+  return joined
 }
 
 export async function acceptCircleInvite(token: string, uid: string): Promise<CircleGroup> {
