@@ -54,15 +54,7 @@ function TaskEditFields({
 }) {
   return (
     <div className="space-y-3 border-t border-border/60 px-3 pb-3 pt-3 sm:px-4">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-medium text-muted-foreground">Edit task</p>
-        <ShareWithFriendsButton
-          kind="task"
-          title={task.title}
-          body={task.notes}
-          data={{ due_at: task.due_at, priority: task.priority, localTaskId: task.id }}
-        />
-      </div>
+      <p className="text-xs font-medium text-muted-foreground">Edit task</p>
       <Input
         value={task.title}
         onChange={(e) => {
@@ -217,6 +209,20 @@ function TaskEditFields({
             ))}
           </SelectContent>
         </Select>
+      </div>
+      <div className="space-y-1.5 rounded-xl border border-primary/20 bg-primary/5 p-3">
+        <p className="text-xs font-medium text-muted-foreground">Share with a circle or friends</p>
+        <p className="text-xs text-muted-foreground">
+          Send this task to everyone in a Circle, or pick individual friends. It shows up under Shared.
+        </p>
+        <ShareWithFriendsButton
+          kind="task"
+          title={task.title}
+          body={task.notes}
+          data={{ due_at: task.due_at, priority: task.priority, localTaskId: task.id }}
+          label="Share with circle or friends"
+          fullWidth
+        />
       </div>
     </div>
   )

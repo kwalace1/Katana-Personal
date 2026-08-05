@@ -20,6 +20,7 @@ import { createSharedItem } from '@/lib/social/shared'
 import { publishActivity } from '@/lib/social/streaks'
 import type { CircleGroup, CloudProfile, SharedKind, SharePrefs } from '@/lib/social/types'
 import { DEFAULT_SHARE_PREFS } from '@/lib/social/types'
+import { cn } from '@/lib/utils'
 
 function prefForKind(kind: SharedKind): keyof SharePrefs | null {
   if (kind === 'habit') return 'habits'
@@ -47,12 +48,16 @@ export function ShareWithFriendsButton({
   body,
   data,
   label = 'Share',
+  className,
+  fullWidth = false,
 }: {
   kind: SharedKind
   title: string
   body?: string
   data?: Record<string, unknown>
   label?: string
+  className?: string
+  fullWidth?: boolean
 }) {
   const navigate = useNavigate()
   const { cloudUser, cloudProfile, saveSharePrefs, syncStreaksToCloud } = useCloudAuth()
@@ -80,8 +85,8 @@ export function ShareWithFriendsButton({
 
   if (!cloudUser) {
     return (
-      <Button asChild size="sm" variant="outline">
-        <Link to="/settings">Connect to share</Link>
+      <Button asChild size="sm" variant="outline" className={cn(fullWidth && 'w-full', className)}>
+        <Link to="/settings">Connect to share with circles</Link>
       </Button>
     )
   }
@@ -188,7 +193,12 @@ export function ShareWithFriendsButton({
 
   return (
     <>
-      <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setOpen(true)}>
+      <Button
+        size={fullWidth ? 'default' : 'sm'}
+        variant="outline"
+        className={cn('gap-1.5', fullWidth && 'w-full justify-center', className)}
+        onClick={() => setOpen(true)}
+      >
         <Users className="h-3.5 w-3.5" />
         {label}
       </Button>
