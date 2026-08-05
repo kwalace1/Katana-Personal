@@ -3,11 +3,16 @@ export interface Workout {
   user_id: string
   date: string
   activity: string
+  /** Total minutes (used for Circles / series). May be fractional when seconds are logged. */
   duration_minutes: number
   notes: string
   created_at: string
   /** When set, this cardio row is linked to a lift session (streak compatibility). */
   lift_session_id?: string | null
+  /** Precise duration parts from cardio logger (tracker parity). */
+  duration_hours?: number
+  duration_mins?: number
+  duration_secs?: number
 }
 
 export interface WaterLog {
@@ -18,6 +23,8 @@ export interface WaterLog {
   updated_at: string
 }
 
+export type MealCategory = 'breakfast' | 'lunch' | 'dinner' | 'snack'
+
 export interface NutritionLog {
   id: string
   user_id: string
@@ -26,6 +33,12 @@ export interface NutritionLog {
   calories: number
   notes: string
   created_at: string
+  category?: MealCategory
+  /** Local time HH:MM */
+  time?: string
+  protein?: number
+  carbs?: number
+  fat?: number
 }
 
 export interface SleepLog {
