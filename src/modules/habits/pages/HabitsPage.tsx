@@ -253,6 +253,7 @@ export default function HabitsPage() {
                       done={done}
                       openLabel="To do"
                       doneLabel="Done"
+                      celebrateMessage="Checked in"
                       onToggle={() => {
                         habitsApi.toggleToday(userId, habit.id)
                         refresh()

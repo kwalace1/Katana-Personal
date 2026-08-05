@@ -279,6 +279,7 @@ function SortableTask({
           onToggle={onToggle}
           openLabel="To do"
           doneLabel="Done"
+          celebrateMessage="Done"
         />
         <button type="button" className="min-w-0 flex-1 text-left" onClick={onSelect}>
           <div className="flex items-start justify-between gap-2">
