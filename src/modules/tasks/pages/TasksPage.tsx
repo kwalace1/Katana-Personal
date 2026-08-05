@@ -11,7 +11,7 @@ import {
 } from '@dnd-kit/core'
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Check, ChevronDown, GripVertical, Plus, Trash2 } from 'lucide-react'
+import { Check, GripVertical, Plus, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -124,7 +124,6 @@ export default function TasksPage() {
   }, [userId, tick])
 
   const [title, setTitle] = useState('')
-  const [showMore, setShowMore] = useState(false)
   const [priority, setPriority] = useState<TaskPriority>('medium')
   const [dueAt, setDueAt] = useState('')
   const [recurrence, setRecurrence] = useState<Recurrence>('none')
@@ -162,7 +161,6 @@ export default function TasksPage() {
     setDueAt('')
     setRecurrence('none')
     setPriority('medium')
-    setShowMore(false)
     setSelectedId(task.id)
     setParams({ id: task.id })
     refresh()
@@ -239,7 +237,7 @@ export default function TasksPage() {
         </form>
       </div>
 
-      <form onSubmit={onCreate} className="kp-surface mb-6 space-y-3 p-4 sm:p-5">
+      <form onSubmit={onCreate} className="kp-surface mb-6 space-y-4 p-4 sm:p-5">
         <div className="flex gap-2">
           <Input
             placeholder="Add something…"
@@ -251,66 +249,80 @@ export default function TasksPage() {
             <Plus className="h-4 w-4" />
           </Button>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Input
-            type="datetime-local"
-            value={dueAt}
-            onChange={(e) => setDueAt(e.target.value)}
-            className="w-auto min-w-[11rem] flex-1 sm:flex-none"
-            aria-label="Due date"
-          />
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="rounded-full"
-            onClick={() => {
-              const d = new Date()
-              d.setHours(9, 0, 0, 0)
-              const pad = (n: number) => String(n).padStart(2, '0')
-              setDueAt(
-                `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`,
-              )
-            }}
-          >
-            Today
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="rounded-full"
-            onClick={() => {
-              const d = new Date()
-              d.setDate(d.getDate() + 1)
-              d.setHours(9, 0, 0, 0)
-              const pad = (n: number) => String(n).padStart(2, '0')
-              setDueAt(
-                `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`,
-              )
-            }}
-          >
-            Tomorrow
-          </Button>
-          <button
-            type="button"
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-            onClick={() => setShowMore((v) => !v)}
-          >
-            <ChevronDown className={cn('h-3.5 w-3.5 transition', showMore && 'rotate-180')} />
-            {showMore ? 'Less' : 'Priority & repeat'}
-          </button>
+
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-muted-foreground">Due date</p>
+          <div className="relative">
+            <Input
+              type="datetime-local"
+              value={dueAt}
+              onChange={(e) => setDueAt(e.target.value)}
+              className={cn('w-full min-h-11', !dueAt && 'text-transparent')}
+              aria-label="Set due date"
+            />
+            {!dueAt ? (
+              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-muted-foreground">
+                Set due date here
+              </span>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="rounded-full"
+              onClick={() => {
+                const d = new Date()
+                d.setHours(9, 0, 0, 0)
+                const pad = (n: number) => String(n).padStart(2, '0')
+                setDueAt(
+                  `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`,
+                )
+              }}
+            >
+              Today
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="rounded-full"
+              onClick={() => {
+                const d = new Date()
+                d.setDate(d.getDate() + 1)
+                d.setHours(9, 0, 0, 0)
+                const pad = (n: number) => String(n).padStart(2, '0')
+                setDueAt(
+                  `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`,
+                )
+              }}
+            >
+              Tomorrow
+            </Button>
+            {dueAt ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="rounded-full text-muted-foreground"
+                onClick={() => setDueAt('')}
+              >
+                Clear
+              </Button>
+            ) : null}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {dueAt ? 'This task will show on your calendar.' : 'Optional — add a date to place it on the calendar.'}
+          </p>
         </div>
-        {dueAt ? (
-          <p className="text-xs text-muted-foreground">This task will show on your calendar.</p>
-        ) : (
-          <p className="text-xs text-muted-foreground">Add a due date to place it on the calendar.</p>
-        )}
-        {showMore && (
-          <div className="grid gap-2 sm:grid-cols-2">
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <p className="text-xs font-medium text-muted-foreground">Priority</p>
             <Select value={priority} onValueChange={(v) => setPriority(v as TaskPriority)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Priority" />
+              <SelectTrigger className="min-h-11">
+                <SelectValue placeholder="Choose priority" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="high">Important</SelectItem>
@@ -318,9 +330,12 @@ export default function TasksPage() {
                 <SelectItem value="low">Whenever</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+          <div className="space-y-1.5">
+            <p className="text-xs font-medium text-muted-foreground">Repeat</p>
             <Select value={recurrence} onValueChange={(v) => setRecurrence(v as Recurrence)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Repeat" />
+              <SelectTrigger className="min-h-11">
+                <SelectValue placeholder="Does it repeat?" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Once</SelectItem>
@@ -330,7 +345,7 @@ export default function TasksPage() {
               </SelectContent>
             </Select>
           </div>
-        )}
+        </div>
       </form>
 
       <div className="mb-4 flex flex-wrap gap-2">
