@@ -66,17 +66,20 @@ export default function SharedPage() {
 
   return (
     <motion.div {...pageEnterSubtle} className="kp-page">
-      <PageHeader title="Shared" description="Tasks, events, and more with friends." eyebrow="Together" />
+      <PageHeader title="Shared" description="Tasks and plans with friends and circles." eyebrow="Together" />
       {items.length === 0 ? (
         <>
           <TogetherSetup highlight="shared" className="mb-4" />
           <EmptyState
             title="Nothing shared yet"
-            description="Open a task or habit, tap Share, pick a friend — it lands here."
+            description="Open a task, tap Share, pick a circle or friend — it lands here."
             action={
               <div className="flex flex-wrap justify-center gap-2">
                 <Button asChild>
                   <Link to="/tasks">Open Tasks → pick one → Share</Link>
+                </Button>
+                <Button asChild variant="outline">
+                  <Link to="/circles">Open Circles</Link>
                 </Button>
                 <Button asChild variant="outline">
                   <Link to="/friends">Find friends</Link>
@@ -89,6 +92,9 @@ export default function SharedPage() {
         <ul className="space-y-2">
           {items.map((item) => {
             const mine = item.ownerId === cloudUser.uid
+            const circleNames = Array.isArray(item.data?.sharedCircleNames)
+              ? (item.data.sharedCircleNames as string[]).filter(Boolean)
+              : []
             return (
             <li key={item.id}>
               <button
@@ -104,9 +110,13 @@ export default function SharedPage() {
                   {item.body ? (
                     <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{item.body}</p>
                   ) : null}
-                  <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                  <p className="mt-1 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
                     <Users className="h-3 w-3" />
-                    {item.memberIds.length} people · {formatShortDate(item.updatedAt)}
+                    {circleNames.length > 0
+                      ? `${circleNames.join(', ')} · ${item.memberIds.length} people`
+                      : `${item.memberIds.length} people`}
+                    {' · '}
+                    {formatShortDate(item.updatedAt)}
                   </p>
                 </div>
               </button>
@@ -124,6 +134,12 @@ export default function SharedPage() {
                 <DialogTitle className="font-display text-xl tracking-tight">{selected.title}</DialogTitle>
               </DialogHeader>
               <p className="text-xs uppercase tracking-wide text-muted-foreground">{selected.kind}</p>
+              {Array.isArray(selected.data?.sharedCircleNames) &&
+              (selected.data.sharedCircleNames as string[]).length > 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Shared via {(selected.data.sharedCircleNames as string[]).join(', ')}
+                </p>
+              ) : null}
               {selected.body ? <p className="text-sm text-muted-foreground">{selected.body}</p> : null}
               <div>
                 <p className="mb-2 text-sm font-medium">People</p>
