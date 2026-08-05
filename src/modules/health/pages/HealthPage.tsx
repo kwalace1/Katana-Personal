@@ -71,13 +71,11 @@ export default function HealthPage() {
   const waterStatusCopy = (() => {
     if (waterGoalMet) return 'Cheers! You’re hydrated — Circles streak is locked for today.'
     if (water.glasses <= 0) {
-      return `Hit ${WATER_GOAL_GLASSES} glasses to keep your hydration streak for Circles. Log a lift under Lift to keep your lift streak.`
+      return `Hit ${WATER_GOAL_GLASSES} glasses to keep your hydration streak for Circles.`
     }
     const left = WATER_GOAL_GLASSES - water.glasses
-    if (water.glasses === 1) return 'Nice start — keep sipping.'
     if (left === 1) return 'One more glass — almost cheers!'
-    if (waterProgress < 0.5) return `Building up — ${left} to go.`
-    return `Getting close — ${left} left to lock your streak.`
+    return `${left} glasses left to lock your hydration streak.`
   })()
 
   const sleep = useMemo(() => {
@@ -133,98 +131,54 @@ export default function HealthPage() {
 
       <div
         ref={waterBoxRef}
-        className="relative mb-6 overflow-hidden rounded-[1.25rem] border p-5 transition-[border-color,box-shadow] duration-500"
+        className="relative mb-6 overflow-hidden rounded-[1.25rem] border border-border/70 p-5 transition-[border-color,box-shadow] duration-500"
         style={{
           borderColor:
-            waterProgress <= 0
-              ? undefined
-              : `color-mix(in srgb, rgb(45 212 191 / ${0.15 + waterProgress * 0.45}) ${waterProgress * 100}%, hsl(var(--border)))`,
+            waterProgress > 0
+              ? `rgb(20 184 166 / ${0.2 + waterProgress * 0.35})`
+              : undefined,
           boxShadow:
-            waterProgress > 0.15
-              ? `0 0 0 1px rgb(45 212 191 / ${waterProgress * 0.28}), 0 8px 24px rgb(14 116 144 / ${waterProgress * 0.12})`
+            waterProgress > 0.2
+              ? `0 8px 28px rgb(14 116 144 / ${waterProgress * 0.1})`
               : undefined,
         }}
       >
-        {/* Base surface */}
-        <div className="pointer-events-none absolute inset-0 bg-card/70 backdrop-blur-sm" />
-        {/* Celebration wash — opacity climbs with each glass */}
+        {/* Base surface — always opaque enough for readable text */}
+        <div className="pointer-events-none absolute inset-0 bg-card" />
+        {/* Soft teal wash — capped so type stays readable */}
         <div
-          className="pointer-events-none absolute inset-0 bg-gradient-to-br from-teal-400/40 via-sky-400/35 to-cyan-300/30 transition-opacity duration-500"
-          style={{ opacity: waterProgress }}
+          className="pointer-events-none absolute inset-0 bg-gradient-to-br from-teal-300/50 via-sky-300/35 to-cyan-200/30 transition-opacity duration-500"
+          style={{ opacity: waterProgress * 0.55 }}
           aria-hidden
         />
         <div className="relative z-10">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p
-                className="text-sm transition-colors duration-500"
-                style={{
-                  color:
-                    waterProgress > 0.35
-                      ? `color-mix(in srgb, rgb(19 78 74) ${40 + waterProgress * 60}%, hsl(var(--muted-foreground)))`
-                      : undefined,
-                  fontWeight: waterGoalMet ? 600 : undefined,
-                }}
-              >
-                <span className={waterProgress <= 0.35 ? 'text-muted-foreground' : undefined}>
-                  Water · {logDate === todayKey() ? 'today' : logDate}
-                  {waterGoalMet ? ' · goal hit' : water.glasses > 0 ? ` · ${Math.round(waterProgress * 100)}%` : ''}
-                </span>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+            <div className="min-w-0 rounded-xl bg-background/80 px-3 py-2 shadow-sm ring-1 ring-border/40 backdrop-blur-[2px]">
+              <p className="text-sm font-medium text-foreground">
+                Water · {logDate === todayKey() ? 'today' : logDate}
+                {waterGoalMet ? ' · goal hit' : ''}
               </p>
-              <p
-                className="font-display text-3xl tracking-tight transition-colors duration-500"
-                style={{
-                  color:
-                    waterProgress > 0.4
-                      ? `color-mix(in srgb, rgb(4 47 46) ${waterProgress * 100}%, hsl(var(--foreground)))`
-                      : undefined,
-                }}
-              >
+              <p className="font-display text-3xl tracking-tight text-foreground">
                 {water.glasses}
-                <span
-                  className={cn(
-                    'ml-1 text-lg font-sans font-medium transition-colors duration-500',
-                    waterProgress <= 0.4 && 'text-muted-foreground',
-                  )}
-                  style={
-                    waterProgress > 0.4
-                      ? {
-                          color: `color-mix(in srgb, rgb(17 94 89) ${50 + waterProgress * 50}%, hsl(var(--muted-foreground)))`,
-                        }
-                      : undefined
-                  }
-                >
+                <span className="ml-1 text-lg font-sans font-medium text-foreground/70">
                   / {WATER_GOAL_GLASSES} glasses
                 </span>
               </p>
               <p
                 className={cn(
-                  'mt-1 text-xs transition-colors duration-500',
-                  waterProgress <= 0.35 && 'text-muted-foreground',
-                  waterGoalMet && 'font-medium',
+                  'mt-1 min-h-[2.75rem] text-sm leading-snug text-foreground/85',
+                  waterGoalMet && 'font-semibold text-foreground',
                 )}
-                style={
-                  waterProgress > 0.35
-                    ? {
-                        color: `color-mix(in srgb, rgb(19 78 74) ${35 + waterProgress * 65}%, hsl(var(--muted-foreground)))`,
-                      }
-                    : undefined
-                }
               >
                 {waterStatusCopy}
               </p>
             </div>
             <Button
               size="lg"
-              className="gap-2 transition-colors duration-500"
-              style={
-                waterProgress > 0.2
-                  ? {
-                      backgroundColor: `color-mix(in srgb, rgb(15 118 110) ${waterProgress * 100}%, hsl(var(--primary)))`,
-                      color: waterProgress > 0.45 ? '#fff' : undefined,
-                    }
-                  : undefined
-              }
+              className={cn(
+                'h-11 w-full shrink-0 gap-2 sm:w-auto sm:justify-self-end',
+                waterGoalMet && 'bg-teal-700 text-white hover:bg-teal-800',
+              )}
               onClick={() => {
                 healthApi.addGlass(userId, logDate)
                 refresh()
@@ -234,10 +188,9 @@ export default function HealthPage() {
               Log a glass
             </Button>
           </div>
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-4 flex min-h-10 flex-wrap gap-2">
             {Array.from({ length: Math.max(WATER_GOAL_GLASSES, water.glasses) }, (_, i) => {
               const filled = i < water.glasses
-              // Each filled glass intensifies with overall progress
               const fillStrength = filled ? Math.min(1, (i + 1) / WATER_GOAL_GLASSES) : 0
               return (
                 <button
@@ -249,14 +202,14 @@ export default function HealthPage() {
                     refresh()
                   }}
                   className={cn(
-                    'flex h-10 w-8 items-end justify-center rounded-b-md rounded-t-lg border-2 transition-all duration-500',
-                    !filled && 'border-border/60 bg-secondary/40 hover:border-sky-400/40',
+                    'flex h-10 w-8 items-end justify-center rounded-b-md rounded-t-lg border-2 transition-colors duration-500',
+                    !filled && 'border-border/60 bg-secondary/50 hover:border-sky-400/40',
                   )}
                   style={
                     filled
                       ? {
-                          borderColor: `color-mix(in srgb, rgb(13 148 136) ${30 + fillStrength * 70}%, rgb(14 165 233))`,
-                          backgroundColor: `color-mix(in srgb, rgb(45 212 191 / ${0.25 + fillStrength * 0.35}) ${fillStrength * 100}%, rgb(56 189 248 / 0.35))`,
+                          borderColor: `rgb(13 148 136 / ${0.45 + fillStrength * 0.4})`,
+                          backgroundColor: `rgb(45 212 191 / ${0.3 + fillStrength * 0.35})`,
                         }
                       : undefined
                   }
@@ -265,9 +218,7 @@ export default function HealthPage() {
                     className={cn('mb-1 h-5 w-4 rounded-sm transition-colors duration-500', !filled && 'bg-transparent')}
                     style={
                       filled
-                        ? {
-                            backgroundColor: `color-mix(in srgb, rgb(13 148 136) ${fillStrength * 100}%, rgb(14 165 233))`,
-                          }
+                        ? { backgroundColor: `rgb(15 118 110 / ${0.55 + fillStrength * 0.4})` }
                         : undefined
                     }
                   />
@@ -279,15 +230,7 @@ export default function HealthPage() {
             <Button
               size="sm"
               variant="outline"
-              className="transition-colors duration-500"
-              style={
-                waterProgress > 0.4
-                  ? {
-                      borderColor: `rgb(15 118 110 / ${0.25 + waterProgress * 0.25})`,
-                      backgroundColor: `rgb(255 255 255 / ${0.25 + waterProgress * 0.2})`,
-                    }
-                  : undefined
-              }
+              className="shrink-0 bg-background/70"
               onClick={() => {
                 healthApi.setWater(userId, water.glasses - 1, logDate)
                 refresh()
@@ -295,30 +238,11 @@ export default function HealthPage() {
             >
               <Minus className="h-4 w-4" />
             </Button>
-            <span
-              className={cn('text-xs transition-colors duration-500', waterProgress <= 0.35 && 'text-muted-foreground')}
-              style={
-                waterProgress > 0.35
-                  ? {
-                      color: `color-mix(in srgb, rgb(19 78 74) ${waterProgress * 100}%, hsl(var(--muted-foreground)))`,
-                    }
-                  : undefined
-              }
-            >
-              Adjust count
-            </span>
+            <span className="text-xs text-foreground/70">Adjust count</span>
             <Button
               size="sm"
               variant="outline"
-              className="transition-colors duration-500"
-              style={
-                waterProgress > 0.4
-                  ? {
-                      borderColor: `rgb(15 118 110 / ${0.25 + waterProgress * 0.25})`,
-                      backgroundColor: `rgb(255 255 255 / ${0.25 + waterProgress * 0.2})`,
-                    }
-                  : undefined
-              }
+              className="shrink-0 bg-background/70"
               onClick={() => {
                 healthApi.setWater(userId, water.glasses + 1, logDate)
                 refresh()
