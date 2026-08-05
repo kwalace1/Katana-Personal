@@ -1,4 +1,4 @@
-import { NavLink, useNavigate, useLocation } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import {
   CalendarDays,
   CheckSquare,
@@ -13,13 +13,14 @@ import {
   Settings,
   Sparkles,
   Search,
-  MoreHorizontal,
   Plus,
   Users,
   Trophy,
   Share2,
+  Menu,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { AnimatePresence, motion, type PanInfo } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
@@ -31,12 +32,6 @@ import { NotificationBell, useNotificationToasts } from '@/components/Notificati
 import { BackupNudge } from '@/components/BackupNudge'
 import { PwaInstallNudge } from '@/components/PwaInstallNudge'
 import { WorkspaceSyncHost } from '@/components/WorkspaceSyncHost'
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet'
 import { SocialInboxProvider, useSharedSocialInbox } from '@/contexts/SocialInboxContext'
 
 export const PRIMARY = [
@@ -63,6 +58,11 @@ export const SOCIAL = [
   { to: '/shared', label: 'Shared', icon: Share2 },
   { to: '/circles', label: 'Circles', icon: Trophy },
 ] as const
+
+const DRAWER_WIDTH = 280
+const EDGE_OPEN_PX = 28
+const SWIPE_OPEN_PX = 56
+const SWIPE_CLOSE_PX = 80
 
 function NavGroup({
   label,
@@ -110,11 +110,13 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   const { profile, signOut } = useAuth()
   const { cloudUser } = useCloudAuth()
   const navigate = useNavigate()
-  const location = useLocation()
-  const [moreOpen, setMoreOpen] = useState(false)
+  const [navOpen, setNavOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const { pendingCount: pendingFriends } = useSharedSocialInbox()
   useNotificationToasts()
+
+  const closeNav = useCallback(() => setNavOpen(false), [])
+  const openNav = useCallback(() => setNavOpen(true), [])
 
   async function handleSignOut() {
     await signOut()
@@ -129,14 +131,14 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
 
   const nav = (
     <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-2.5 py-2" aria-label="Main">
-      <NavGroup items={PRIMARY} onNavigate={() => setMoreOpen(false)} />
-      <NavGroup label="Plan" items={PLAN} onNavigate={() => setMoreOpen(false)} />
-      <NavGroup label="Life" items={LIFE} onNavigate={() => setMoreOpen(false)} />
-      <NavGroup label="Together" items={togetherItems} onNavigate={() => setMoreOpen(false)} />
+      <NavGroup items={PRIMARY} onNavigate={closeNav} />
+      <NavGroup label="Plan" items={PLAN} onNavigate={closeNav} />
+      <NavGroup label="Life" items={LIFE} onNavigate={closeNav} />
+      <NavGroup label="Together" items={togetherItems} onNavigate={closeNav} />
       <div className="mt-2">
         <NavLink
           to="/settings"
-          onClick={() => setMoreOpen(false)}
+          onClick={closeNav}
           className={({ isActive }) =>
             cn(
               'flex items-center gap-3 rounded-xl px-3 py-2 text-[0.925rem] font-medium transition-all',
@@ -153,13 +155,31 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
     </nav>
   )
 
-  const isToday = location.pathname === '/dashboard'
-  const isTasks = location.pathname.startsWith('/tasks')
-  const isHabits = location.pathname.startsWith('/habits')
-  const isTogether = ['/friends', '/shared', '/circles'].includes(location.pathname)
+  const sidebarFooter = (
+    <div className="mt-auto space-y-3 border-t border-border/40 p-4">
+      <div className="px-1">
+        <p className="truncate text-sm font-semibold tracking-tight">{profile?.display_name || 'You'}</p>
+        <p className="truncate text-xs text-muted-foreground">
+          {cloudUser ? 'Cloud sync on · Save a copy as backup' : 'This device · Save a copy to move'}
+        </p>
+      </div>
+      <div className="flex items-center gap-1">
+        <SimpleThemeToggle />
+        <Button
+          variant="ghost"
+          size="sm"
+          className="flex-1 justify-start gap-2 rounded-xl text-muted-foreground"
+          onClick={handleSignOut}
+        >
+          <LogOut className="h-4 w-4" />
+          Sign out
+        </Button>
+      </div>
+    </div>
+  )
 
   return (
-    <div className="flex min-h-screen pb-[calc(4.25rem+env(safe-area-inset-bottom))] md:pb-[env(safe-area-inset-bottom)]">
+    <div className="flex min-h-screen pb-[env(safe-area-inset-bottom)]">
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-xl focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground"
@@ -184,31 +204,24 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
           </div>
         </div>
         {nav}
-        <div className="mt-auto space-y-3 border-t border-border/40 p-4">
-          <div className="px-1">
-            <p className="truncate text-sm font-semibold tracking-tight">{profile?.display_name || 'You'}</p>
-            <p className="truncate text-xs text-muted-foreground">
-              {cloudUser ? 'Cloud sync on · Save a copy as backup' : 'This device · Save a copy to move'}
-            </p>
-          </div>
-          <div className="flex items-center gap-1">
-            <SimpleThemeToggle />
-            <Button
-              variant="ghost"
-              size="sm"
-              className="flex-1 justify-start gap-2 rounded-xl text-muted-foreground"
-              onClick={handleSignOut}
-            >
-              <LogOut className="h-4 w-4" />
-              Sign out
-            </Button>
-          </div>
-        </div>
+        {sidebarFooter}
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border/40 bg-background/75 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur-xl md:hidden">
-          <BrandMark compact />
+        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border/40 bg-background/75 px-3 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur-xl md:hidden">
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="rounded-xl"
+              aria-label="Open menu"
+              aria-expanded={navOpen}
+              onClick={openNav}
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+            <BrandMark compact />
+          </div>
           <div className="flex items-center gap-1">
             <NotificationBell />
             <Button
@@ -232,121 +245,170 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
         </main>
       </div>
 
-      <nav
-        className="fixed inset-x-0 bottom-0 z-30 border-t border-border/40 bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden"
-        aria-label="Mobile"
-      >
-        <div className="grid grid-cols-5 gap-0.5 px-1 py-1">
-          <NavLink
-            to="/dashboard"
-            className={cn(
-              'flex min-h-[3.25rem] flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1.5 text-[0.65rem] font-medium',
-              isToday ? 'text-primary' : 'text-muted-foreground',
-            )}
-          >
-            <Sun className="h-5 w-5" />
-            Today
-          </NavLink>
-          <NavLink
-            to="/tasks"
-            className={cn(
-              'flex min-h-[3.25rem] flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1.5 text-[0.65rem] font-medium',
-              isTasks ? 'text-primary' : 'text-muted-foreground',
-            )}
-          >
-            <CheckSquare className="h-5 w-5" />
-            Tasks
-          </NavLink>
-          <NavLink
-            to="/habits"
-            className={cn(
-              'flex min-h-[3.25rem] flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1.5 text-[0.65rem] font-medium',
-              isHabits ? 'text-primary' : 'text-muted-foreground',
-            )}
-          >
-            <Flame className="h-5 w-5" />
-            Habits
-          </NavLink>
-          <NavLink
-            to="/friends"
-            className={cn(
-              'relative flex min-h-[3.25rem] flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1.5 text-[0.65rem] font-medium',
-              isTogether ? 'text-primary' : 'text-muted-foreground',
-            )}
-          >
-            <Users className="h-5 w-5" />
-            Together
+      {/* Left-edge swipe zone — slide right to open menu on phone */}
+      <EdgeSwipeOpen enabled={!navOpen} onOpen={openNav} />
+
+      <MobileNavDrawer open={navOpen} onOpenChange={setNavOpen}>
+        <div className="flex h-full flex-col pt-[env(safe-area-inset-top)]">
+          <div className="flex items-center justify-between gap-2 px-5 pb-2 pt-5">
+            <div onClick={closeNav}>
+              <BrandMark to="/dashboard" />
+            </div>
             {pendingFriends > 0 ? (
-              <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[0.55rem] font-semibold text-primary-foreground">
-                {pendingFriends > 9 ? '9+' : pendingFriends}
+              <span className="rounded-full bg-primary px-2 py-0.5 text-[0.65rem] font-semibold text-primary-foreground">
+                {pendingFriends > 9 ? '9+' : pendingFriends} pending
               </span>
             ) : null}
-          </NavLink>
-          <button
-            type="button"
-            className={cn(
-              'flex min-h-[3.25rem] flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1.5 text-[0.65rem] font-medium',
-              moreOpen ? 'text-primary' : 'text-muted-foreground',
-            )}
-            onClick={() => setMoreOpen(true)}
-          >
-            <MoreHorizontal className="h-5 w-5" />
-            More
-          </button>
+          </div>
+          {nav}
+          {sidebarFooter}
         </div>
-      </nav>
-
-      <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
-        <SheetContent side="bottom" className="max-h-[85vh] rounded-t-3xl pb-[env(safe-area-inset-bottom)]">
-          <SheetHeader>
-            <SheetTitle className="font-display text-left text-xl">More</SheetTitle>
-          </SheetHeader>
-          <p className="mt-1 px-1 text-xs text-muted-foreground">
-            This device · use Settings → Save a copy to move to another phone or computer
-          </p>
-          <div className="mt-2 max-h-[65vh] overflow-y-auto">
-            <NavGroup
-              label="Capture & plan"
-              items={[
-                { to: '/ask', label: 'Ask', icon: Sparkles },
-                { to: '/calendar', label: 'Calendar', icon: CalendarDays },
-                { to: '/goals', label: 'Goals', icon: Target },
-              ]}
-              onNavigate={() => setMoreOpen(false)}
-            />
-            <NavGroup
-              label="Life"
-              items={LIFE.filter((i) => i.to !== '/habits')}
-              onNavigate={() => setMoreOpen(false)}
-            />
-            <NavGroup label="Together" items={togetherItems} onNavigate={() => setMoreOpen(false)} />
-            <NavLink
-              to="/settings"
-              onClick={() => setMoreOpen(false)}
-              className={({ isActive }) =>
-                cn(
-                  'mt-2 flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-[0.925rem] font-medium',
-                  isActive
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-muted-foreground hover:bg-secondary/80 hover:text-foreground',
-                )
-              }
-            >
-              <Settings className="h-[1.05rem] w-[1.05rem] shrink-0 opacity-80" />
-              Settings
-            </NavLink>
-          </div>
-          <div className="mt-3 border-t border-border/40 pt-3">
-            <Button variant="outline" className="min-h-11 w-full gap-2 rounded-xl" onClick={handleSignOut}>
-              <LogOut className="h-4 w-4" />
-              Sign out
-            </Button>
-          </div>
-        </SheetContent>
-      </Sheet>
+      </MobileNavDrawer>
 
       <CommandPaletteControlled open={paletteOpen} onOpenChange={setPaletteOpen} />
     </div>
+  )
+}
+
+/** Invisible left-edge zone: swipe right from the edge to open the nav drawer. */
+function EdgeSwipeOpen({ enabled, onOpen }: { enabled: boolean; onOpen: () => void }) {
+  const start = useRef<{ x: number; y: number } | null>(null)
+
+  useEffect(() => {
+    if (!enabled) return
+
+    const onTouchStart = (e: TouchEvent) => {
+      const t = e.touches[0]
+      if (!t || t.clientX > EDGE_OPEN_PX) {
+        start.current = null
+        return
+      }
+      start.current = { x: t.clientX, y: t.clientY }
+    }
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (!start.current) return
+      const t = e.touches[0]
+      if (!t) return
+      const dx = t.clientX - start.current.x
+      const dy = Math.abs(t.clientY - start.current.y)
+      if (dy > 40) {
+        start.current = null
+        return
+      }
+      if (dx >= SWIPE_OPEN_PX) {
+        start.current = null
+        onOpen()
+      }
+    }
+
+    const onTouchEnd = () => {
+      start.current = null
+    }
+
+    document.addEventListener('touchstart', onTouchStart, { passive: true })
+    document.addEventListener('touchmove', onTouchMove, { passive: true })
+    document.addEventListener('touchend', onTouchEnd, { passive: true })
+    document.addEventListener('touchcancel', onTouchEnd, { passive: true })
+
+    return () => {
+      document.removeEventListener('touchstart', onTouchStart)
+      document.removeEventListener('touchmove', onTouchMove)
+      document.removeEventListener('touchend', onTouchEnd)
+      document.removeEventListener('touchcancel', onTouchEnd)
+    }
+  }, [enabled, onOpen])
+
+  return (
+    <div
+      className="fixed inset-y-0 left-0 z-30 w-3 touch-pan-y md:hidden"
+      aria-hidden
+      onPointerDown={(e) => {
+        // Mouse/trackpad fallback for desktop testing in narrow viewports
+        if (e.pointerType === 'touch') return
+        const originX = e.clientX
+        const originY = e.clientY
+        const onMove = (ev: PointerEvent) => {
+          const dx = ev.clientX - originX
+          const dy = Math.abs(ev.clientY - originY)
+          if (dy > 40) {
+            cleanup()
+            return
+          }
+          if (dx >= SWIPE_OPEN_PX) {
+            cleanup()
+            onOpen()
+          }
+        }
+        const cleanup = () => {
+          window.removeEventListener('pointermove', onMove)
+          window.removeEventListener('pointerup', cleanup)
+        }
+        window.addEventListener('pointermove', onMove)
+        window.addEventListener('pointerup', cleanup)
+      }}
+    />
+  )
+}
+
+function MobileNavDrawer({
+  open,
+  onOpenChange,
+  children,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  children: React.ReactNode
+}) {
+  const handleDragEnd = (_: unknown, info: PanInfo) => {
+    if (info.offset.x < -SWIPE_CLOSE_PX || info.velocity.x < -400) {
+      onOpenChange(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!open) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [open])
+
+  return (
+    <AnimatePresence>
+      {open ? (
+        <>
+          <motion.button
+            type="button"
+            aria-label="Close menu"
+            className="fixed inset-0 z-40 bg-black/50 md:hidden"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={() => onOpenChange(false)}
+          />
+          <motion.aside
+            role="dialog"
+            aria-modal="true"
+            aria-label="Navigation"
+            className="fixed inset-y-0 left-0 z-50 flex w-[min(17.5rem,85vw)] flex-col border-r border-border/40 bg-background shadow-xl md:hidden"
+            style={{ width: `min(${DRAWER_WIDTH}px, 85vw)` }}
+            initial={{ x: '-100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '-100%' }}
+            transition={{ type: 'spring', damping: 32, stiffness: 340, mass: 0.85 }}
+            drag="x"
+            dragConstraints={{ left: -DRAWER_WIDTH, right: 0 }}
+            dragElastic={0.08}
+            onDragEnd={handleDragEnd}
+          >
+            {children}
+          </motion.aside>
+        </>
+      ) : null}
+    </AnimatePresence>
   )
 }
 

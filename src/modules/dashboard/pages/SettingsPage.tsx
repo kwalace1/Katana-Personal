@@ -441,7 +441,7 @@ export default function SettingsPage() {
         <h2 className="font-semibold">Install on your phone</h2>
         <p className="text-sm text-muted-foreground">
           On iPhone Safari: Share → <span className="font-medium text-foreground">Add to Home Screen</span>.
-          On Android Chrome: menu → Install app. You’ll get an app-like feel with the bottom tabs.
+          On Android Chrome: menu → Install app. You’ll get an app-like feel; swipe from the left edge for navigation.
         </p>
         <p className="text-xs text-muted-foreground">
           Three calm layers: Home Screen for the feel, Cloud sync for devices when signed in, and a
