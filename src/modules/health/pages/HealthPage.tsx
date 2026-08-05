@@ -14,6 +14,7 @@ import { pageEnterSubtle } from '@/lib/motion-ui'
 import { useLocalRefresh } from '@/hooks/useLocalRefresh'
 import { todayKey } from '@/lib/dates'
 import { healthApi, WATER_GOAL_GLASSES } from '../api'
+import { LiftTrackingPanel } from '../components/LiftTrackingPanel'
 import type { SleepLog } from '../types'
 import { cn } from '@/lib/utils'
 
@@ -107,7 +108,7 @@ export default function HealthPage() {
 
   return (
     <motion.div {...pageEnterSubtle} className="kp-page">
-      <PageHeader title="Health" description="How your body is doing." eyebrow="Life" />
+      <PageHeader title="Health" description="Lift, move, fuel, and rest." eyebrow="Life" />
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <Input type="date" value={logDate} onChange={(e) => setLogDate(e.target.value)} className="w-auto" />
@@ -210,12 +211,32 @@ export default function HealthPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="workouts">
-        <TabsList>
-          <TabsTrigger value="workouts">Workouts</TabsTrigger>
+      <Tabs defaultValue="lift">
+        <TabsList className="flex h-auto flex-wrap gap-1">
+          <TabsTrigger value="lift">Lift</TabsTrigger>
+          <TabsTrigger value="splits">Splits</TabsTrigger>
+          <TabsTrigger value="progress">Progress</TabsTrigger>
+          <TabsTrigger value="weight">Weight</TabsTrigger>
+          <TabsTrigger value="workouts">Cardio</TabsTrigger>
           <TabsTrigger value="nutrition">Nutrition</TabsTrigger>
           <TabsTrigger value="sleep">Sleep</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="lift" className="space-y-4">
+          <LiftTrackingPanel userId={userId} logDate={logDate} tick={tick} refresh={refresh} panel="lift" />
+        </TabsContent>
+
+        <TabsContent value="splits" className="space-y-4">
+          <LiftTrackingPanel userId={userId} logDate={logDate} tick={tick} refresh={refresh} panel="splits" />
+        </TabsContent>
+
+        <TabsContent value="progress" className="space-y-4">
+          <LiftTrackingPanel userId={userId} logDate={logDate} tick={tick} refresh={refresh} panel="progress" />
+        </TabsContent>
+
+        <TabsContent value="weight" className="space-y-4">
+          <LiftTrackingPanel userId={userId} logDate={logDate} tick={tick} refresh={refresh} panel="weight" />
+        </TabsContent>
 
         <TabsContent value="workouts" className="space-y-4">
           <form onSubmit={addWorkout} className="kp-surface grid gap-3 p-4 sm:grid-cols-3">

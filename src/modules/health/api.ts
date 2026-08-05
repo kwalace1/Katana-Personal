@@ -23,7 +23,15 @@ export const healthApi = {
 
   addWorkout(
     userId: string,
-    input: { activity: string; duration_minutes: number; notes?: string; date?: string },
+    input: {
+      activity: string
+      duration_minutes: number
+      notes?: string
+      date?: string
+      lift_session_id?: string
+      /** Skip Circles check-in toast (lift logger notifies separately). */
+      silent?: boolean
+    },
   ): Workout {
     const row = localDb.insert(WORKOUTS, userId, {
       id: createId(),
@@ -33,8 +41,11 @@ export const healthApi = {
       duration_minutes: input.duration_minutes,
       notes: input.notes || '',
       created_at: now(),
+      lift_session_id: input.lift_session_id ?? null,
     })
-    notifyCheckIn(`Logged a workout: ${row.activity}`)
+    if (!input.silent) {
+      notifyCheckIn(`Logged a workout: ${row.activity}`)
+    }
     return row
   },
 
