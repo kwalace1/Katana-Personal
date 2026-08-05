@@ -6,8 +6,8 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { EmptyState } from '@/components/ui/empty-state'
 import { todayKey } from '@/lib/dates'
-import { formatCardioDuration, healthApi } from '../../api'
-import { formatLiftDate } from '../lift/LiftLineChart'
+import { formatCardioDuration, healthApi } from '../api'
+import { formatLiftDate } from './lift/LiftLineChart'
 
 type Props = {
   userId: string

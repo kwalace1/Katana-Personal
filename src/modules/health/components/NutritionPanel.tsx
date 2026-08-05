@@ -13,9 +13,9 @@ import {
   formatMealTime,
   healthApi,
   MEAL_CATEGORIES,
-} from '../../api'
-import type { MealCategory } from '../../types'
-import { formatLiftDate } from '../lift/LiftLineChart'
+} from '../api'
+import type { MealCategory } from '../types'
+import { formatLiftDate } from './lift/LiftLineChart'
 
 type Props = {
   userId: string
