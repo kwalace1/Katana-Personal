@@ -145,7 +145,8 @@ export default function HealthPage() {
               </span>
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Hit {WATER_GOAL_GLASSES} glasses to keep your hydration streak for Circles.
+              Hit {WATER_GOAL_GLASSES} glasses to keep your hydration streak for Circles. Log a lift under Lift
+          to keep your lift streak.
             </p>
           </div>
           <Button

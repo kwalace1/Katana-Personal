@@ -7,6 +7,7 @@ import {
   Moon,
   Salad,
   Dumbbell,
+  Footprints,
   RefreshCw,
   Plus,
   Settings2,
@@ -53,7 +54,7 @@ import { addDays } from '@/lib/dates'
 import { CircleSchedule } from '../components/CircleSchedule'
 import { CircleBoardExtras } from '../components/CircleBoardExtras'
 
-type BoardMetric = 'water' | 'sleep' | 'nutrition' | 'workout' | 'habit'
+type BoardMetric = 'water' | 'sleep' | 'nutrition' | 'workout' | 'lift' | 'habit'
 
 const METRICS: {
   id: BoardMetric
@@ -80,10 +81,18 @@ const METRICS: {
     accent: 'from-orange-500/20 to-transparent',
   },
   {
+    id: 'lift',
+    label: 'Lifts',
+    short: 'Lift',
+    icon: Dumbbell,
+    score: (s) => s.liftStreak ?? 0,
+    accent: 'from-rose-500/20 to-transparent',
+  },
+  {
     id: 'workout',
     label: 'Workouts',
     short: 'Move',
-    icon: Dumbbell,
+    icon: Footprints,
     score: (s) => s.workoutStreak,
     accent: 'from-emerald-500/20 to-transparent',
   },

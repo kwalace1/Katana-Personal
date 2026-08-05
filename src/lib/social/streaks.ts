@@ -2,6 +2,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { getDb } from '@/lib/firebase'
 import { habitsApi } from '@/modules/habits/api'
 import { healthApi } from '@/modules/health/api'
+import { liftApi } from '@/modules/health/lift-api'
 import { todayKey, addDays } from '@/lib/dates'
 import { getCloudProfile, listFriendProfiles } from './friends'
 import type { SharePrefs, StreakSnapshot } from './types'
@@ -24,8 +25,33 @@ function consecutiveDays(predicate: (date: string) => boolean, max = 365): numbe
   return streak
 }
 
+function emptyStreakNumbers(): Pick<
+  StreakSnapshot,
+  | 'waterStreak'
+  | 'sleepStreak'
+  | 'nutritionStreak'
+  | 'workoutStreak'
+  | 'liftStreak'
+  | 'habitStreakBest'
+  | 'waterGlassesToday'
+  | 'sleepHoursLast'
+> {
+  return {
+    waterStreak: 0,
+    sleepStreak: 0,
+    nutritionStreak: 0,
+    workoutStreak: 0,
+    liftStreak: 0,
+    habitStreakBest: 0,
+    waterGlassesToday: 0,
+    sleepHoursLast: 0,
+  }
+}
+
 /** Compute local streaks for the signed-in person's local workspace. */
-export function computeLocalStreaks(localUserId: string): Omit<StreakSnapshot, 'uid' | 'displayName' | 'visible' | 'updatedAt'> {
+export function computeLocalStreaks(
+  localUserId: string,
+): Omit<StreakSnapshot, 'uid' | 'displayName' | 'visible' | 'updatedAt'> {
   const waterStreak = consecutiveDays((date) => healthApi.getWater(localUserId, date).glasses >= 6)
   const sleepStreak = consecutiveDays((date) => {
     const logs = healthApi.listSleep(localUserId).filter((s) => s.date === date)
@@ -34,8 +60,12 @@ export function computeLocalStreaks(localUserId: string): Omit<StreakSnapshot, '
   const nutritionStreak = consecutiveDays((date) =>
     healthApi.listNutrition(localUserId).some((n) => n.date === date),
   )
+  // Move board = cardio / general workouts only (lift-linked rows counted under Lift)
   const workoutStreak = consecutiveDays((date) =>
-    healthApi.listWorkouts(localUserId).some((w) => w.date === date),
+    healthApi.listWorkouts(localUserId).some((w) => w.date === date && !w.lift_session_id),
+  )
+  const liftStreak = consecutiveDays((date) =>
+    liftApi.listSessions(localUserId).some((s) => s.date === date),
   )
   const habits = habitsApi.list(localUserId)
   let habitStreakBest = 0
@@ -47,6 +77,7 @@ export function computeLocalStreaks(localUserId: string): Omit<StreakSnapshot, '
     sleepStreak,
     nutritionStreak,
     workoutStreak,
+    liftStreak,
     habitStreakBest,
     waterGlassesToday: healthApi.getWater(localUserId).glasses,
     sleepHoursLast: healthApi.listSleep(localUserId)[0]?.hours ?? 0,
@@ -70,6 +101,7 @@ export async function publishStreaks(input: {
       healthSleep: input.sharePrefs.healthSleep,
       healthNutrition: input.sharePrefs.healthNutrition,
       healthWorkouts: input.sharePrefs.healthWorkouts,
+      healthLifts: input.sharePrefs.healthLifts,
       habits: input.sharePrefs.habits,
     },
   }
@@ -80,6 +112,7 @@ export async function publishStreaks(input: {
     sleepStreak: input.sharePrefs.healthSleep ? snapshot.sleepStreak : 0,
     nutritionStreak: input.sharePrefs.healthNutrition ? snapshot.nutritionStreak : 0,
     workoutStreak: input.sharePrefs.healthWorkouts ? snapshot.workoutStreak : 0,
+    liftStreak: input.sharePrefs.healthLifts ? snapshot.liftStreak : 0,
     habitStreakBest: input.sharePrefs.habits ? snapshot.habitStreakBest : 0,
     waterGlassesToday: input.sharePrefs.healthWater ? snapshot.waterGlassesToday : 0,
     sleepHoursLast: input.sharePrefs.healthSleep ? snapshot.sleepHoursLast : 0,
@@ -109,17 +142,12 @@ export async function loadCirclesBoard(
             uid,
             displayName: profile.displayName,
             updatedAt: new Date().toISOString(),
-            waterStreak: 0,
-            sleepStreak: 0,
-            nutritionStreak: 0,
-            workoutStreak: 0,
-            habitStreakBest: 0,
-            waterGlassesToday: 0,
-            sleepHoursLast: 0,
+            ...emptyStreakNumbers(),
             visible: profile.sharePrefs,
           } satisfies StreakSnapshot
         }
-        return docSnap.data() as StreakSnapshot
+        const data = docSnap.data() as StreakSnapshot
+        return { ...emptyStreakNumbers(), ...data, liftStreak: data.liftStreak ?? 0 }
       } catch {
         return null
       }
@@ -131,13 +159,7 @@ export async function loadCirclesBoard(
       uid: cloudUid,
       displayName: me.displayName,
       updatedAt: new Date().toISOString(),
-      waterStreak: 0,
-      sleepStreak: 0,
-      nutritionStreak: 0,
-      workoutStreak: 0,
-      habitStreakBest: 0,
-      waterGlassesToday: 0,
-      sleepHoursLast: 0,
+      ...emptyStreakNumbers(),
       visible: me.sharePrefs,
     })
   }
@@ -145,10 +167,7 @@ export async function loadCirclesBoard(
 }
 
 /** Soft activity ping friends can see if activityFeed is on. */
-export async function publishActivity(
-  cloudUid: string,
-  message: string,
-): Promise<void> {
+export async function publishActivity(cloudUid: string, message: string): Promise<void> {
   await setDoc(
     doc(getDb(), 'activity', cloudUid),
     {

@@ -61,6 +61,7 @@ export function TogetherTodayCard() {
                 row.habitStreakBest,
                 row.waterStreak,
                 row.workoutStreak,
+                row.liftStreak ?? 0,
                 row.sleepStreak,
               ),
               you: row.uid === cloudUser.uid,

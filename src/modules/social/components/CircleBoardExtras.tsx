@@ -1,13 +1,15 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Droplets, MessageSquare, Minus, Plus, Send, Trash2 } from 'lucide-react'
+import { Droplets, Dumbbell, MessageSquare, Minus, Plus, Send, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
 import { useLocalRefresh } from '@/hooks/useLocalRefresh'
 import { healthApi, WATER_GOAL_GLASSES } from '@/modules/health/api'
+import { liftApi } from '@/modules/health/lift-api'
+import { todayKey } from '@/lib/dates'
 import {
   createCirclePost,
   deleteCirclePost,
@@ -73,6 +75,12 @@ export function CircleBoardExtras({
     return user ? healthApi.getWater(user.id) : { glasses: 0 }
   }, [user, tick])
 
+  const liftedToday = useMemo(() => {
+    void tick
+    if (!user) return false
+    return liftApi.listSessions(user.id).some((s) => s.date === todayKey())
+  }, [user, tick])
+
   useEffect(() => {
     const unsub = subscribeCirclePosts(
       circleId,
@@ -85,6 +93,7 @@ export function CircleBoardExtras({
   const prefs = cloudProfile?.sharePrefs
   const needsWaterShare = metric === 'water' && prefs && !prefs.healthWater
   const needsHabitsShare = metric === 'habit' && prefs && !prefs.habits
+  const needsLiftShare = metric === 'lift' && prefs && !prefs.healthLifts
   const needsActivityShare = prefs && !prefs.activityFeed
 
   async function enablePref(key: keyof SharePrefs) {
@@ -150,7 +159,7 @@ export function CircleBoardExtras({
 
   return (
     <div className="space-y-6">
-      {needsWaterShare || needsHabitsShare || needsActivityShare ? (
+      {needsWaterShare || needsHabitsShare || needsLiftShare || needsActivityShare ? (
         <div className="rounded-2xl border border-amber-500/25 bg-amber-500/5 px-4 py-3 text-sm">
           <p className="font-medium">Sharing is off for some Circles features</p>
           <p className="mt-0.5 text-muted-foreground">
@@ -165,6 +174,11 @@ export function CircleBoardExtras({
             {needsHabitsShare ? (
               <Button size="sm" onClick={() => void enablePref('habits')}>
                 Share habits
+              </Button>
+            ) : null}
+            {needsLiftShare ? (
+              <Button size="sm" onClick={() => void enablePref('healthLifts')}>
+                Share lifts
               </Button>
             ) : null}
             {needsActivityShare ? (
@@ -242,6 +256,31 @@ export function CircleBoardExtras({
               }}
             >
               <Plus className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </section>
+      ) : null}
+
+      {metric === 'lift' && user ? (
+        <section className="kp-surface p-4 sm:p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="kp-section-label flex items-center gap-1.5">
+                <Dumbbell className="h-3.5 w-3.5" />
+                Your lifts today
+              </p>
+              <p className="mt-1 font-display text-2xl tracking-tight">
+                {liftedToday ? 'Logged' : 'Not yet'}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Log a session in Health — it counts toward the Lift board when sharing is on.
+              </p>
+            </div>
+            <Button className="gap-1.5" asChild>
+              <Link to="/health">
+                <Dumbbell className="h-4 w-4" />
+                Open Health
+              </Link>
             </Button>
           </div>
         </section>

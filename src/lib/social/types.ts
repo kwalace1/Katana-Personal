@@ -20,6 +20,8 @@ export interface SharePrefs {
   healthSleep: boolean
   healthNutrition: boolean
   healthWorkouts: boolean
+  /** Lift / strength session days on Circles */
+  healthLifts: boolean
   notes: boolean
   files: boolean
   activityFeed: boolean
@@ -33,6 +35,7 @@ export const DEFAULT_SHARE_PREFS: SharePrefs = {
   healthSleep: false,
   healthNutrition: false,
   healthWorkouts: false,
+  healthLifts: false,
   notes: false,
   files: false,
   activityFeed: false,
@@ -71,6 +74,8 @@ export interface StreakSnapshot {
   sleepStreak: number
   nutritionStreak: number
   workoutStreak: number
+  /** Consecutive days with a logged lift session */
+  liftStreak: number
   habitStreakBest: number
   waterGlassesToday: number
   sleepHoursLast: number
@@ -78,7 +83,7 @@ export interface StreakSnapshot {
   visible: Partial<SharePrefs>
 }
 
-export type CircleChallengeMetric = 'water' | 'habit' | 'workout' | 'sleep' | 'nutrition'
+export type CircleChallengeMetric = 'water' | 'habit' | 'workout' | 'lift' | 'sleep' | 'nutrition'
 
 /** Optional time-boxed streak focus on a Circle */
 export interface CircleChallenge {

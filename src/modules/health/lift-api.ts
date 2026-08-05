@@ -104,6 +104,16 @@ export const liftApi = {
     })
   },
 
+  /** Find by name (case-insensitive) or create. */
+  findOrCreateExercise(userId: string, name: string, muscle?: string): LiftExercise {
+    const trimmed = name.trim()
+    const existing = liftApi
+      .listExercises(userId)
+      .find((e) => e.name.toLowerCase() === trimmed.toLowerCase())
+    if (existing) return existing
+    return liftApi.addExercise(userId, { name: trimmed, muscle })
+  },
+
   removeExercise(userId: string, id: string): boolean {
     const used = localDb.list<LiftSet>(SETS, userId).some((s) => s.exercise_id === id)
     if (used) return false
