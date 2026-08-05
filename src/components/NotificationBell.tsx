@@ -33,18 +33,19 @@ function useLiveNotifications(uid: string | undefined) {
       setItems([])
       return
     }
+    const userId = uid
 
-    void listNotifications(uid).then(setItems).catch(() => {})
+    void listNotifications(userId).then(setItems).catch(() => {})
 
-    const unsub = subscribeNotifications(uid, setItems)
+    const unsub = subscribeNotifications(userId, setItems)
 
     const poll = window.setInterval(() => {
-      void listNotifications(uid).then(setItems).catch(() => {})
+      void listNotifications(userId).then(setItems).catch(() => {})
     }, POLL_MS)
 
     function onVisible() {
       if (document.visibilityState === 'visible') {
-        void listNotifications(uid).then(setItems).catch(() => {})
+        void listNotifications(userId).then(setItems).catch(() => {})
       }
     }
     document.addEventListener('visibilitychange', onVisible)
