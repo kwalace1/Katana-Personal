@@ -572,27 +572,110 @@ function answerCapabilities(_snap: LifeSnapshot): AskReply {
   }
 }
 
-function answerDefault(snap: LifeSnapshot): AskReply {
-  const top = snap.priorityTasks[0]
-  const hint = top
-    ? `If you’re unsure, start with “${top.title}”.`
-    : 'If you’re unsure, ask what I can do — or say “briefing” for a fresh overview.'
+function answerAttention(snap: LifeSnapshot): AskReply {
+  const items: string[] = []
+  const actions: AskAction[] = []
+
+  const pendingHabits = snap.habitsDue.filter((h) => !snap.habitsDoneIds.includes(h.id))
+  if (pendingHabits.length > 0) {
+    items.push(
+      `${pendingHabits.length} habit${pendingHabits.length === 1 ? '' : 's'} still open: ${listTitles(pendingHabits, 4)}.`,
+    )
+    actions.push({
+      id: createId(),
+      label: `Check in “${pendingHabits[0].title}”`,
+      kind: 'toggle_habit',
+      habitId: pendingHabits[0].id,
+    })
+  }
+
+  if (snap.behindGoals.length > 0) {
+    items.push(`Goals needing attention: ${listTitles(snap.behindGoals, 3)}.`)
+    actions.push({
+      id: createId(),
+      label: `Open “${snap.behindGoals[0].title}”`,
+      kind: 'open_route',
+      route: `/goals?id=${snap.behindGoals[0].id}`,
+    })
+  }
+
+  if (snap.priorityTasks.length > 0) {
+    items.push(
+      `Priority task${snap.priorityTasks.length === 1 ? '' : 's'}: ${listTitles(snap.priorityTasks, 3)}.`,
+    )
+    actions.push({
+      id: createId(),
+      label: `Mark “${snap.priorityTasks[0].title}” done`,
+      kind: 'complete_task',
+      taskId: snap.priorityTasks[0].id,
+    })
+  } else if (snap.todayTasks.length > 0) {
+    items.push(`Due today: ${listTitles(snap.todayTasks, 3)}.`)
+  } else if (snap.openTasks.length > 0) {
+    items.push(`${snap.openTasks.length} open task${snap.openTasks.length === 1 ? '' : 's'} waiting.`)
+    actions.push({ id: createId(), label: 'Open tasks', kind: 'open_route', route: '/tasks' })
+  }
+
+  if (snap.waterGlasses < 6) {
+    items.push(`Water is at ${snap.waterGlasses}/6 glasses for your Circles streak.`)
+    actions.push({ id: createId(), label: 'Log a glass of water', kind: 'log_water' })
+  }
+
+  if (!snap.journalToday) {
+    items.push('No journal entry for today yet.')
+    actions.push({ id: createId(), label: 'Open journal', kind: 'open_route', route: '/journal' })
+  }
+
+  if (snap.todayEvents.length > 0) {
+    items.push(`On the calendar today: ${listTitles(snap.todayEvents, 3)}.`)
+  }
+
+  if (items.length === 0) {
+    return {
+      text: 'Nothing major needing attention right now — habits, tasks, and goals look settled. Enjoy the calm, or capture something small if it’s on your mind.',
+      actions: [
+        { id: createId(), label: 'Open Today', kind: 'open_route', route: '/dashboard' },
+        { id: createId(), label: 'Add a task', kind: 'open_route', route: '/tasks' },
+      ],
+    }
+  }
+
   return {
-    text: `I didn’t catch a specific ask there. ${hint} You can also say “tell me about myself,” “what should I work on today,” “close my day,” or “add gym tomorrow.”`,
+    text: `Here’s what needs attention:\n\n${items.map((line, i) => `${i + 1}. ${line}`).join('\n')}`,
+    actions: actions.slice(0, 4),
+  }
+}
+
+function answerGreeting(snap: LifeSnapshot): AskReply {
+  const hour = new Date().getHours()
+  const hello = hour < 12 ? 'Good morning' : hour < 18 ? 'Hi' : 'Good evening'
+  const attn = answerAttention(snap)
+  const calm =
+    attn.text.startsWith('Nothing major')
+      ? `${hello}, ${snap.name}. You’re in good shape today — nothing urgent jumping out.`
+      : `${hello}, ${snap.name}. ${attn.text}`
+  return {
+    text: calm,
+    actions: attn.actions.slice(0, 3),
+  }
+}
+
+function answerThanks(_snap: LifeSnapshot): AskReply {
+  return {
+    text: 'You’re welcome. I’m here whenever you want a briefing, a focus list, or help closing the day.',
     actions: [
-      ...(top
-        ? [
-            {
-              id: createId(),
-              label: `Finish “${top.title}”`,
-              kind: 'complete_task' as const,
-              taskId: top.id,
-            },
-          ]
-        : []),
+      { id: createId(), label: 'What’s needing attention?', kind: 'open_route', route: '/ask?q=what%20needs%20attention' },
       { id: createId(), label: 'Open Today', kind: 'open_route', route: '/dashboard' },
-      { id: createId(), label: 'Daily briefing', kind: 'open_route', route: '/ask?q=briefing' },
     ],
+  }
+}
+
+function answerDefault(snap: LifeSnapshot): AskReply {
+  // Always answer from life data — never leave the user with “I didn’t catch that.”
+  const attn = answerAttention(snap)
+  return {
+    text: `${attn.text}\n\nYou can also ask for a briefing, what to focus on, help closing the day, or say “what can you do.”`,
+    actions: attn.actions.slice(0, 4),
   }
 }
 
@@ -602,7 +685,23 @@ export function answerQuestion(userId: string, question: string, displayName?: s
 
 type Intent = { test: (q: string) => boolean; answer: (snap: LifeSnapshot) => AskReply }
 
+function isGreeting(q: string): boolean {
+  const cleaned = q.replace(/[!?.,]+$/g, '').trim()
+  return /^(hi|hey|hello|yo|sup|hiya|howdy|good morning|good afternoon|good evening|morning|evening)(\s+there)?$/.test(
+    cleaned,
+  )
+}
+
 const INTENTS: Intent[] = [
+  {
+    test: (q) => isGreeting(q),
+    answer: answerGreeting,
+  },
+  {
+    test: (q) =>
+      q.includes('thank') || q === 'ty' || q === 'thx' || q.includes('appreciate'),
+    answer: answerThanks,
+  },
   {
     test: (q) =>
       q.includes('what can you') ||
@@ -610,7 +709,9 @@ const INTENTS: Intent[] = [
       q.includes('what are you') ||
       q.includes('your capabilities') ||
       q.includes('how do you work') ||
-      (q.includes('help') && (q.includes('what') || q.includes('how') || q === 'help' || q.endsWith(' help'))),
+      q === 'help' ||
+      q === 'commands' ||
+      (q.includes('help') && (q.includes('what') || q.includes('how') || q.endsWith(' help'))),
     answer: answerCapabilities,
   },
   {
@@ -625,11 +726,38 @@ const INTENTS: Intent[] = [
   },
   {
     test: (q) =>
+      q.includes('attention') ||
+      q.includes('need attention') ||
+      q.includes('needing attention') ||
+      q.includes('catch me up') ||
+      q.includes('catch up') ||
+      q.includes('what did i miss') ||
+      q.includes('what am i missing') ||
+      q.includes('outstanding') ||
+      q.includes('left to do') ||
+      q.includes('still open') ||
+      q.includes('loose end') ||
+      q.includes('am i behind') ||
+      q.includes('falling behind') ||
+      q.includes('what needs') ||
+      q.includes('anything need') ||
+      q.includes('anything i need') ||
+      q.includes('anything i should') ||
+      q.includes('what should i know') ||
+      q.includes('what’s left') ||
+      q.includes("what's left") ||
+      q.includes('whats left') ||
+      q.includes('pending') ||
+      (q.includes('open') && (q.includes('item') || q.includes('task') || q.includes('what'))),
+    answer: answerAttention,
+  },
+  {
+    test: (q) =>
       q.includes('close') ||
-      q.includes('evening') ||
       q.includes('wrap up') ||
       q.includes('end my day') ||
-      q.includes('end the day'),
+      q.includes('end the day') ||
+      (q.includes('evening') && (q.includes('close') || q.includes('wrap') || q.includes('end'))),
     answer: answerCloseDay,
   },
   {
@@ -643,8 +771,8 @@ const INTENTS: Intent[] = [
   {
     test: (q) =>
       q.includes('clear my morning') ||
-      q.includes('morning') ||
-      (q.includes('clear') && q.includes('am')),
+      q.includes('clear the morning') ||
+      (q.includes('morning') && (q.includes('clear') || q.includes('plan') || q.includes('start'))),
     answer: answerClearMorning,
   },
   {
@@ -666,7 +794,15 @@ const INTENTS: Intent[] = [
       q.includes('focus') ||
       q.includes('priorit') ||
       q.includes('should i do') ||
-      (q.includes('today') && (q.includes('what') || q.includes('should'))),
+      q.includes('what next') ||
+      q.includes('what’s next') ||
+      q.includes("what's next") ||
+      q.includes('whats next') ||
+      q.includes('to do') ||
+      q.includes('todo') ||
+      q.includes('get done') ||
+      q.includes('most important') ||
+      (q.includes('today') && (q.includes('what') || q.includes('should') || q.includes('do'))),
     answer: answerFocus,
   },
   {
@@ -688,11 +824,63 @@ const INTENTS: Intent[] = [
       q.includes('sleep') ||
       q.includes('nutrition') ||
       q.includes('lift') ||
-      q.includes('meal'),
+      q.includes('meal') ||
+      q.includes('hydrat'),
     answer: answerHealth,
   },
   {
-    test: (q) => q.includes('brief') || q.includes('overview') || q.includes('how am i') || q.includes('status'),
+    test: (q) =>
+      q.includes('task') ||
+      q.includes('to-do') ||
+      q.includes('checklist'),
+    answer: answerFocus,
+  },
+  {
+    test: (q) =>
+      q.includes('calendar') ||
+      q.includes('schedule') ||
+      q.includes('event') ||
+      q.includes('meeting') ||
+      q.includes('what’s on') ||
+      q.includes("what's on") ||
+      q.includes('whats on'),
+    answer: (snap) => {
+      if (snap.todayEvents.length === 0 && snap.upcomingEvents.length === 0) {
+        return {
+          text: 'Your calendar is clear — nothing scheduled soon.',
+          actions: [{ id: createId(), label: 'Open calendar', kind: 'open_route', route: '/calendar' }],
+        }
+      }
+      if (snap.todayEvents.length > 0) {
+        return {
+          text: `Today: ${listTitles(snap.todayEvents, 5)}.${
+            snap.upcomingEvents.length > snap.todayEvents.length
+              ? ` Coming up next: ${listTitles(
+                  snap.upcomingEvents.filter((e) => !snap.todayEvents.some((t) => t.id === e.id)),
+                  3,
+                )}.`
+              : ''
+          }`,
+          actions: [{ id: createId(), label: 'Open calendar', kind: 'open_route', route: '/calendar' }],
+        }
+      }
+      return {
+        text: `Nothing today. Next up: ${listTitles(snap.upcomingEvents, 4)}.`,
+        actions: [{ id: createId(), label: 'Open calendar', kind: 'open_route', route: '/calendar' }],
+      }
+    },
+  },
+  {
+    test: (q) =>
+      q.includes('brief') ||
+      q.includes('overview') ||
+      q.includes('how am i') ||
+      q.includes('status') ||
+      q.includes('how’s my day') ||
+      q.includes("how's my day") ||
+      q.includes('how is my day') ||
+      q.includes('update me') ||
+      q.includes('fill me in'),
     answer: (snap) => ({ text: buildDailyBriefing(snap), actions: briefingActions(snap) }),
   },
 ]

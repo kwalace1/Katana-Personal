@@ -35,13 +35,31 @@ describe('Ask engine (no LLM)', () => {
   it('answers tell me about myself', () => {
     const reply = answerQuestionWithActions(USER, 'Tell me about myself', 'Alex')
     expect(reply.text.toLowerCase()).toMatch(/snapshot|alex|task|habit/)
-    expect(reply.text.toLowerCase()).not.toMatch(/you can also ask things like/)
+    expect(reply.text.toLowerCase()).not.toMatch(/didn.t catch/)
   })
 
   it('answers what can you do', () => {
     const reply = answerQuestionWithActions(USER, 'What can you do?', 'Alex')
     expect(reply.text.toLowerCase()).toMatch(/day guide|brief|habit|health/)
-    expect(reply.text.toLowerCase()).not.toMatch(/you can also ask things like/)
+    expect(reply.text.toLowerCase()).not.toMatch(/didn.t catch/)
+  })
+
+  it('answers hi with a greeting', () => {
+    const reply = answerQuestionWithActions(USER, 'hi', 'Alex')
+    expect(reply.text.toLowerCase()).toMatch(/hi|morning|evening|alex/)
+    expect(reply.text.toLowerCase()).not.toMatch(/didn.t catch/)
+  })
+
+  it('answers anything needing attention', () => {
+    const reply = answerQuestionWithActions(USER, 'anything needing attention', 'Alex')
+    expect(reply.text.toLowerCase()).toMatch(/attention|nothing major|habit|task|water|journal/)
+    expect(reply.text.toLowerCase()).not.toMatch(/didn.t catch/)
+  })
+
+  it('never says it did not catch the ask', () => {
+    const reply = answerQuestionWithActions(USER, 'asdfgh random nonsense', 'Alex')
+    expect(reply.text.toLowerCase()).not.toMatch(/didn.t catch/)
+    expect(reply.text.length).toBeGreaterThan(20)
   })
 
   it('builds a snapshot', () => {
