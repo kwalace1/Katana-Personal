@@ -1,6 +1,7 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Minus, Plus, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,6 +14,7 @@ import { useCloudAuth } from '@/contexts/CloudAuthContext'
 import { pageEnterSubtle } from '@/lib/motion-ui'
 import { useLocalRefresh } from '@/hooks/useLocalRefresh'
 import { todayKey } from '@/lib/dates'
+import { burstConfetti } from '@/lib/celebrate'
 import { healthApi, WATER_GOAL_GLASSES } from '../api'
 import { CardioPanel } from '../components/CardioPanel'
 import { LiftTrackingPanel } from '../components/LiftTrackingPanel'
@@ -41,6 +43,28 @@ export default function HealthPage() {
     void tick
     return healthApi.getWater(userId, logDate)
   }, [userId, logDate, tick])
+
+  const waterGoalMet = water.glasses >= WATER_GOAL_GLASSES
+  const waterBoxRef = useRef<HTMLDivElement>(null)
+  const prevGlassesRef = useRef(water.glasses)
+  const waterDateRef = useRef(logDate)
+
+  useEffect(() => {
+    if (waterDateRef.current !== logDate) {
+      waterDateRef.current = logDate
+      prevGlassesRef.current = water.glasses
+      return
+    }
+    const prev = prevGlassesRef.current
+    prevGlassesRef.current = water.glasses
+    if (prev < WATER_GOAL_GLASSES && water.glasses >= WATER_GOAL_GLASSES) {
+      burstConfetti(waterBoxRef.current)
+      toast.success('Hydration goal crushed!', {
+        description: 'Cheers — streak locked in for Circles.',
+        duration: 2800,
+      })
+    }
+  }, [water.glasses, logDate])
 
   const sleep = useMemo(() => {
     void tick
@@ -93,26 +117,56 @@ export default function HealthPage() {
         </div>
       </div>
 
-      <div className="kp-surface mb-6 p-5">
+      <div
+        ref={waterBoxRef}
+        className={cn(
+          'mb-6 p-5 transition-colors duration-500',
+          waterGoalMet
+            ? 'rounded-[1.25rem] border border-teal-400/50 bg-gradient-to-br from-teal-400/35 via-sky-400/30 to-cyan-300/25 shadow-sm ring-1 ring-teal-400/30'
+            : 'kp-surface',
+        )}
+      >
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-sm text-muted-foreground">
+            <p
+              className={cn(
+                'text-sm',
+                waterGoalMet ? 'font-medium text-teal-900 dark:text-teal-100' : 'text-muted-foreground',
+              )}
+            >
               Water · {logDate === todayKey() ? 'today' : logDate}
+              {waterGoalMet ? ' · goal hit' : ''}
             </p>
-            <p className="font-display text-3xl tracking-tight">
+            <p
+              className={cn(
+                'font-display text-3xl tracking-tight',
+                waterGoalMet && 'text-teal-950 dark:text-teal-50',
+              )}
+            >
               {water.glasses}
-              <span className="ml-1 text-lg font-sans font-medium text-muted-foreground">
+              <span
+                className={cn(
+                  'ml-1 text-lg font-sans font-medium',
+                  waterGoalMet ? 'text-teal-800/80 dark:text-teal-100/80' : 'text-muted-foreground',
+                )}
+              >
                 / {WATER_GOAL_GLASSES} glasses
               </span>
             </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Hit {WATER_GOAL_GLASSES} glasses to keep your hydration streak for Circles. Log a lift under Lift
-          to keep your lift streak.
+            <p
+              className={cn(
+                'mt-1 text-xs',
+                waterGoalMet ? 'font-medium text-teal-900/90 dark:text-teal-50/90' : 'text-muted-foreground',
+              )}
+            >
+              {waterGoalMet
+                ? 'Cheers! You’re hydrated — Circles streak is locked for today.'
+                : `Hit ${WATER_GOAL_GLASSES} glasses to keep your hydration streak for Circles. Log a lift under Lift to keep your lift streak.`}
             </p>
           </div>
           <Button
             size="lg"
-            className="gap-2"
+            className={cn('gap-2', waterGoalMet && 'bg-teal-700 text-white hover:bg-teal-800')}
             onClick={() => {
               healthApi.addGlass(userId, logDate)
               refresh()
@@ -135,14 +189,20 @@ export default function HealthPage() {
               className={cn(
                 'flex h-10 w-8 items-end justify-center rounded-b-md rounded-t-lg border-2 transition',
                 i < water.glasses
-                  ? 'border-sky-500/50 bg-sky-400/40'
+                  ? waterGoalMet
+                    ? 'border-teal-600/60 bg-teal-400/55'
+                    : 'border-sky-500/50 bg-sky-400/40'
                   : 'border-border/60 bg-secondary/40 hover:border-sky-400/40',
               )}
             >
               <span
                 className={cn(
                   'mb-1 h-5 w-4 rounded-sm',
-                  i < water.glasses ? 'bg-sky-500/80' : 'bg-transparent',
+                  i < water.glasses
+                    ? waterGoalMet
+                      ? 'bg-teal-600'
+                      : 'bg-sky-500/80'
+                    : 'bg-transparent',
                 )}
               />
             </button>
@@ -152,6 +212,7 @@ export default function HealthPage() {
           <Button
             size="sm"
             variant="outline"
+            className={waterGoalMet ? 'border-teal-700/40 bg-white/40 dark:bg-teal-950/30' : undefined}
             onClick={() => {
               healthApi.setWater(userId, water.glasses - 1, logDate)
               refresh()
@@ -159,10 +220,18 @@ export default function HealthPage() {
           >
             <Minus className="h-4 w-4" />
           </Button>
-          <span className="text-xs text-muted-foreground">Adjust count</span>
+          <span
+            className={cn(
+              'text-xs',
+              waterGoalMet ? 'text-teal-900/80 dark:text-teal-100/80' : 'text-muted-foreground',
+            )}
+          >
+            Adjust count
+          </span>
           <Button
             size="sm"
             variant="outline"
+            className={waterGoalMet ? 'border-teal-700/40 bg-white/40 dark:bg-teal-950/30' : undefined}
             onClick={() => {
               healthApi.setWater(userId, water.glasses + 1, logDate)
               refresh()
