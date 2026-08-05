@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
 import {
+  listNotifications,
   markAllNotificationsRead,
   markNotificationRead,
   subscribeNotifications,
@@ -22,19 +23,49 @@ import {
 import { formatShortDate } from '@/lib/dates'
 import { cn } from '@/lib/utils'
 
-export function NotificationBell() {
-  const { cloudUser } = useCloudAuth()
-  const navigate = useNavigate()
+const POLL_MS = 3000
+
+function useLiveNotifications(uid: string | undefined) {
   const [items, setItems] = useState<AppNotification[]>([])
-  const [open, setOpen] = useState(false)
 
   useEffect(() => {
-    if (!cloudUser) {
+    if (!uid) {
       setItems([])
       return
     }
-    return subscribeNotifications(cloudUser.uid, setItems)
-  }, [cloudUser?.uid])
+
+    void listNotifications(uid).then(setItems).catch(() => {})
+
+    const unsub = subscribeNotifications(uid, setItems)
+
+    const poll = window.setInterval(() => {
+      void listNotifications(uid).then(setItems).catch(() => {})
+    }, POLL_MS)
+
+    function onVisible() {
+      if (document.visibilityState === 'visible') {
+        void listNotifications(uid).then(setItems).catch(() => {})
+      }
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+
+    return () => {
+      unsub()
+      window.clearInterval(poll)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
+    }
+  }, [uid])
+
+  return [items, setItems] as const
+}
+
+export function NotificationBell() {
+  const { cloudUser } = useCloudAuth()
+  const navigate = useNavigate()
+  const [items, setItems] = useLiveNotifications(cloudUser?.uid)
+  const [open, setOpen] = useState(false)
 
   if (!cloudUser) return null
 
@@ -61,6 +92,7 @@ export function NotificationBell() {
               className="text-xs text-primary hover:underline"
               onClick={async () => {
                 await markAllNotificationsRead(cloudUser.uid)
+                setItems((prev) => prev.map((n) => ({ ...n, read: true })))
               }}
             >
               Mark all read
@@ -77,6 +109,7 @@ export function NotificationBell() {
               className={cn('flex cursor-pointer flex-col items-start gap-0.5 py-2.5', !n.read && 'bg-accent/40')}
               onClick={async () => {
                 await markNotificationRead(n.id)
+                setItems((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)))
                 const href =
                   n.href ||
                   (n.kind === 'circle_invite' || n.kind === 'friend_request'
@@ -98,7 +131,7 @@ export function NotificationBell() {
   )
 }
 
-/** Toast when a new notification arrives via realtime snapshot. */
+/** Toast when a new notification arrives via realtime snapshot / poll. */
 export function useNotificationToasts() {
   const { cloudUser } = useCloudAuth()
   const primed = useRef(false)
@@ -108,7 +141,8 @@ export function useNotificationToasts() {
     if (!cloudUser) return
     primed.current = false
     lastIds.current = new Set()
-    return subscribeNotifications(cloudUser.uid, (items) => {
+
+    function consider(items: AppNotification[]) {
       if (primed.current) {
         for (const item of items) {
           if (!item.read && !lastIds.current.has(item.id)) {
@@ -118,6 +152,16 @@ export function useNotificationToasts() {
       }
       lastIds.current = new Set(items.map((i) => i.id))
       primed.current = true
-    }, 10)
+    }
+
+    const unsub = subscribeNotifications(cloudUser.uid, consider, 10)
+    const poll = window.setInterval(() => {
+      void listNotifications(cloudUser.uid, 10).then(consider).catch(() => {})
+    }, POLL_MS)
+
+    return () => {
+      unsub()
+      window.clearInterval(poll)
+    }
   }, [cloudUser?.uid])
 }

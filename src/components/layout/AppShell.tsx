@@ -19,7 +19,7 @@ import {
   Trophy,
   Share2,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
@@ -37,8 +37,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
-import { listFriendships } from '@/lib/social/friends'
-import { listMyPendingCircleInvites } from '@/lib/social/invites'
+import { SocialInboxProvider, useSharedSocialInbox } from '@/contexts/SocialInboxContext'
 
 export const PRIMARY = [
   { to: '/dashboard', label: 'Today', icon: Sun },
@@ -100,38 +99,22 @@ function NavGroup({
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  return (
+    <SocialInboxProvider>
+      <AppShellInner>{children}</AppShellInner>
+    </SocialInboxProvider>
+  )
+}
+
+function AppShellInner({ children }: { children: React.ReactNode }) {
   const { profile, signOut } = useAuth()
   const { cloudUser } = useCloudAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [moreOpen, setMoreOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
-  const [pendingFriends, setPendingFriends] = useState(0)
+  const { pendingCount: pendingFriends } = useSharedSocialInbox()
   useNotificationToasts()
-
-  useEffect(() => {
-    if (!cloudUser) {
-      setPendingFriends(0)
-      return
-    }
-    let cancelled = false
-    void Promise.all([
-      listFriendships(cloudUser.uid),
-      listMyPendingCircleInvites(cloudUser.uid).catch(() => []),
-    ])
-      .then(([list, circleInvites]) => {
-        if (cancelled) return
-        const friends = list.filter((f) => f.status === 'pending' && f.requestedBy !== cloudUser.uid)
-          .length
-        setPendingFriends(friends + circleInvites.length)
-      })
-      .catch(() => {
-        if (!cancelled) setPendingFriends(0)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [cloudUser?.uid, location.pathname])
 
   async function handleSignOut() {
     await signOut()

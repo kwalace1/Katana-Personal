@@ -3,11 +3,13 @@ import {
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
   query,
   setDoc,
   updateDoc,
   where,
   deleteDoc,
+  type Unsubscribe,
 } from 'firebase/firestore'
 import { getDb } from '@/lib/firebase'
 import {
@@ -143,7 +145,7 @@ export async function requestFriend(fromUid: string, toUid: string): Promise<Fri
     kind: 'friend_request',
     title: 'Friend request',
     body: `${from?.displayName || 'Someone'} sent you a friend request.`,
-    href: '/friends',
+    href: '/friends#invites',
     meta: { fromUid },
   })
   return friendship
@@ -187,6 +189,53 @@ export async function listFriendships(uid: string): Promise<Friendship[]> {
     map.set(s.id, s.data() as Friendship)
   }
   return [...map.values()].sort((x, y) => y.updatedAt.localeCompare(x.updatedAt))
+}
+
+/** Live friendship list — dual listeners (a == uid | b == uid). */
+export function subscribeFriendships(
+  uid: string,
+  onChange: (items: Friendship[]) => void,
+  onError?: (err: Error) => void,
+): Unsubscribe {
+  const db = getDb()
+  const mapA = new Map<string, Friendship>()
+  const mapB = new Map<string, Friendship>()
+  let aReady = false
+  let bReady = false
+
+  function mergeEmit() {
+    if (!aReady || !bReady) return
+    const merged = new Map<string, Friendship>()
+    for (const [id, f] of mapA) merged.set(id, f)
+    for (const [id, f] of mapB) merged.set(id, f)
+    onChange([...merged.values()].sort((x, y) => y.updatedAt.localeCompare(x.updatedAt)))
+  }
+
+  const unsubA = onSnapshot(
+    query(collection(db, 'friendships'), where('a', '==', uid)),
+    (snap) => {
+      mapA.clear()
+      for (const d of snap.docs) mapA.set(d.id, d.data() as Friendship)
+      aReady = true
+      mergeEmit()
+    },
+    (err) => onError?.(err),
+  )
+  const unsubB = onSnapshot(
+    query(collection(db, 'friendships'), where('b', '==', uid)),
+    (snap) => {
+      mapB.clear()
+      for (const d of snap.docs) mapB.set(d.id, d.data() as Friendship)
+      bReady = true
+      mergeEmit()
+    },
+    (err) => onError?.(err),
+  )
+
+  return () => {
+    unsubA()
+    unsubB()
+  }
 }
 
 export async function listFriendProfiles(uid: string): Promise<CloudProfile[]> {

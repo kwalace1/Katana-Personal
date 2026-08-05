@@ -3,11 +3,13 @@ import {
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
   query,
   setDoc,
   updateDoc,
   where,
   arrayUnion,
+  type Unsubscribe,
 } from 'firebase/firestore'
 import { getDb } from '@/lib/firebase'
 import { createId } from '@/lib/id'
@@ -144,6 +146,31 @@ export async function listMyPendingCircleInvites(uid: string): Promise<CircleInv
     .map((d) => d.data() as CircleInvite)
     .filter((inv) => new Date(inv.expiresAt).getTime() >= now)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+}
+
+export function subscribeMyPendingCircleInvites(
+  uid: string,
+  onChange: (items: CircleInvite[]) => void,
+  onError?: (err: Error) => void,
+): Unsubscribe {
+  const q = query(
+    collection(getDb(), 'circleInvites'),
+    where('inviteeUid', '==', uid),
+    where('status', '==', 'pending'),
+  )
+  return onSnapshot(
+    q,
+    (snap) => {
+      const now = Date.now()
+      onChange(
+        snap.docs
+          .map((d) => d.data() as CircleInvite)
+          .filter((inv) => new Date(inv.expiresAt).getTime() >= now)
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+      )
+    },
+    (err) => onError?.(err),
+  )
 }
 
 /** Pending invites I sent for a circle (to show “Pending” on Manage). */

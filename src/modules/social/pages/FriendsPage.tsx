@@ -8,23 +8,18 @@ import { Input } from '@/components/ui/input'
 import { EmptyState } from '@/components/ui/empty-state'
 import { TogetherSetup } from '@/components/TogetherSetup'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
+import { useSharedSocialInbox } from '@/contexts/SocialInboxContext'
 import { pageEnterSubtle } from '@/lib/motion-ui'
 import {
   acceptFriend,
   blockUser,
   findUidByFriendCode,
   getCloudProfile,
-  listFriendships,
   removeFriendship,
   requestFriend,
 } from '@/lib/social/friends'
-import {
-  acceptCircleInvite,
-  declineCircleInvite,
-  listMyPendingCircleInvites,
-  type CircleInvite,
-} from '@/lib/social/invites'
-import type { CloudProfile, Friendship } from '@/lib/social/types'
+import { acceptCircleInvite, declineCircleInvite } from '@/lib/social/invites'
+import type { CloudProfile } from '@/lib/social/types'
 import { Link, useNavigate } from 'react-router-dom'
 
 export default function FriendsPage() {
@@ -32,54 +27,42 @@ export default function FriendsPage() {
   const navigate = useNavigate()
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
-  const [friendships, setFriendships] = useState<Friendship[]>([])
   const [profiles, setProfiles] = useState<Record<string, CloudProfile>>({})
-  const [circleInvites, setCircleInvites] = useState<CircleInvite[]>([])
-  const [tick, setTick] = useState(0)
-  const refresh = () => setTick((n) => n + 1)
+  const { friendships, circleInvites, revision, refresh } = useSharedSocialInbox()
 
   useEffect(() => {
     if (typeof window === 'undefined') return
     if (window.location.hash === '#invites') {
       document.getElementById('invites')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
-  }, [cloudUser, tick, circleInvites.length])
+  }, [cloudUser, revision, circleInvites.length])
 
   useEffect(() => {
     if (!cloudUser) return
     let cancelled = false
     ;(async () => {
-      try {
-        const [list, invites] = await Promise.all([
-          listFriendships(cloudUser.uid),
-          listMyPendingCircleInvites(cloudUser.uid).catch(() => [] as CircleInvite[]),
-        ])
-        if (cancelled) return
-        setFriendships(list)
-        setCircleInvites(invites)
-        const ids = new Set<string>()
-        for (const f of list) {
-          ids.add(f.a === cloudUser.uid ? f.b : f.a)
-        }
-        for (const inv of invites) {
-          ids.add(inv.createdBy)
-        }
-        const map: Record<string, CloudProfile> = {}
-        await Promise.all(
-          [...ids].map(async (id) => {
-            const p = await getCloudProfile(id)
-            if (p) map[id] = p
-          }),
-        )
-        if (!cancelled) setProfiles(map)
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : 'Couldn’t load friends')
+      const ids = new Set<string>()
+      for (const f of friendships) {
+        ids.add(f.a === cloudUser.uid ? f.b : f.a)
+      }
+      for (const inv of circleInvites) {
+        ids.add(inv.createdBy)
+      }
+      const fetched: Record<string, CloudProfile> = {}
+      await Promise.all(
+        [...ids].map(async (id) => {
+          const p = await getCloudProfile(id)
+          if (p) fetched[id] = p
+        }),
+      )
+      if (!cancelled) {
+        setProfiles((prev) => ({ ...prev, ...fetched }))
       }
     })()
     return () => {
       cancelled = true
     }
-  }, [cloudUser, tick])
+  }, [cloudUser, friendships, circleInvites, revision])
 
   const incoming = useMemo(
     () =>
