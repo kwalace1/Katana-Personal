@@ -16,11 +16,31 @@ import {
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
 import { listFriendProfiles } from '@/lib/social/friends'
 import { listMyCircles } from '@/lib/social/circles'
+import { createCircleEvent } from '@/lib/social/circle-events'
 import { createSharedItem } from '@/lib/social/shared'
 import { publishActivity } from '@/lib/social/streaks'
 import type { CircleGroup, CloudProfile, SharedKind, SharePrefs } from '@/lib/social/types'
 import { DEFAULT_SHARE_PREFS } from '@/lib/social/types'
+import { endOfDay, startOfDay } from '@/lib/dates'
+import { categoryLabel } from '@/modules/calendar/categories'
 import { cn } from '@/lib/utils'
+
+function timingFromDueAt(dueAt: string): { startsAt: string; endsAt: string; allDay: boolean } {
+  const due = new Date(dueAt)
+  const timed = due.getHours() !== 0 || due.getMinutes() !== 0 || due.getSeconds() !== 0
+  if (timed) {
+    return {
+      startsAt: due.toISOString(),
+      endsAt: new Date(due.getTime() + 60 * 60 * 1000).toISOString(),
+      allDay: false,
+    }
+  }
+  return {
+    startsAt: startOfDay(due).toISOString(),
+    endsAt: endOfDay(due).toISOString(),
+    allDay: true,
+  }
+}
 
 function prefForKind(kind: SharedKind): keyof SharePrefs | null {
   if (kind === 'habit') return 'habits'
@@ -136,15 +156,25 @@ export function ShareWithFriendsButton({
       return
     }
 
+    const dueAt = typeof data?.due_at === 'string' ? data.due_at : null
+    if (kind === 'task' && pickedCircles.length > 0 && !dueAt) {
+      toast.error('Set a due date on this task first so it can show on the circle calendar')
+      return
+    }
+
     setBusy(true)
     try {
       const circleNames = pickedCircles.map((c) => c.name)
+      const category =
+        typeof data?.category === 'string' && data.category ? String(data.category) : 'personal'
+
       await createSharedItem({
         kind,
         title,
         body,
         data: {
           ...(data || {}),
+          category,
           ...(pickedCircles.length
             ? {
                 sharedCircleIds: pickedCircles.map((c) => c.id),
@@ -155,6 +185,30 @@ export function ShareWithFriendsButton({
         ownerId: cloudUser.uid,
         memberIds: [...memberIds],
       })
+
+      // Dated tasks shared to a circle also land on that circle’s schedule/calendar
+      if (kind === 'task' && dueAt && pickedCircles.length > 0) {
+        const timing = timingFromDueAt(dueAt)
+        const noteParts = [
+          body?.trim() || '',
+          `Shared task · ${categoryLabel(category)}`,
+        ].filter(Boolean)
+        await Promise.all(
+          pickedCircles.map((circle) =>
+            createCircleEvent({
+              circleId: circle.id,
+              title,
+              notes: noteParts.join('\n'),
+              startsAt: timing.startsAt,
+              endsAt: timing.endsAt,
+              allDay: timing.allDay,
+              category,
+              createdBy: cloudUser.uid,
+            }),
+          ),
+        )
+      }
+
       if (cloudProfile.sharePrefs.activityFeed) {
         const audience =
           circleNames.length > 0
@@ -167,11 +221,13 @@ export function ShareWithFriendsButton({
         await publishActivity(cloudUser.uid, ping)
       }
       const toastLabel =
-        circleNames.length > 0 && friendIds.length === 0
-          ? `Shared with ${circleNames.join(', ')}`
-          : circleNames.length > 0
-            ? 'Shared with circles & friends'
-            : 'Shared with friends'
+        kind === 'task' && circleNames.length > 0 && dueAt
+          ? `Shared — on calendar for ${circleNames.join(', ')}`
+          : circleNames.length > 0 && friendIds.length === 0
+            ? `Shared with ${circleNames.join(', ')}`
+            : circleNames.length > 0
+              ? 'Shared with circles & friends'
+              : 'Shared with friends'
       toast.success(toastLabel, {
         action: {
           label: 'View Shared',

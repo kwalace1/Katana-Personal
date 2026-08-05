@@ -11,12 +11,16 @@ function now() {
 }
 
 function normalizeTask(task: Task): Task {
+  const raw = task.category || 'personal'
+  const legacy =
+    raw === 'General' || raw === 'general' ? 'personal' : raw
+  const known = ['personal', 'work', 'health', 'errand', 'social', 'other'].includes(legacy)
   return {
     ...task,
     sort_order: typeof task.sort_order === 'number' ? task.sort_order : 0,
     goal_id: task.goal_id ?? null,
     notes: task.notes ?? '',
-    category: task.category || 'General',
+    category: known ? legacy : 'personal',
     completed_at: task.completed_at ?? null,
   }
 }
@@ -106,7 +110,7 @@ export const tasksApi = {
         due_at: input.due_at ?? null,
         completed_at: input.status === 'done' ? ts : null,
         recurrence: input.recurrence || 'none',
-        category: input.category || 'General',
+        category: input.category || 'personal',
         sort_order: input.sort_order ?? maxOrder + 1,
         goal_id: input.goal_id ?? null,
         created_at: ts,

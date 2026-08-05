@@ -4,7 +4,7 @@ import type { Task } from '@/modules/tasks/types'
 import type { Goal } from '@/modules/goals/types'
 import type { Habit } from '@/modules/habits/types'
 import type { CircleEvent } from '@/lib/social/types'
-import { categoryColor, circleCategoryColor } from './categories'
+import { categoryColor, categoryLabel, circleCategoryColor } from './categories'
 
 export type AgendaKind = 'event' | 'task' | 'goal' | 'habit' | 'circle'
 
@@ -72,8 +72,8 @@ export function taskToAgenda(task: Task, listName?: string): AgendaItem | null {
     starts_at: start.toISOString(),
     ends_at: end.toISOString(),
     all_day: !timed,
-    color: '#d97706',
-    sourceLabel: listName || 'Task',
+    color: categoryColor(task.category),
+    sourceLabel: listName || categoryLabel(task.category) || 'Task',
     href: `/tasks?id=${task.id}`,
     done: false,
   }

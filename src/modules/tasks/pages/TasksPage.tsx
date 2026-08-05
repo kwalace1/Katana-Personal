@@ -27,6 +27,7 @@ import { cn } from '@/lib/utils'
 import { tasksApi } from '../api'
 import { goalsApi } from '@/modules/goals/api'
 import { ShareWithFriendsButton } from '@/components/ShareWithFriendsButton'
+import { EVENT_CATEGORIES, categoryColor, categoryLabel, type EventCategory } from '@/modules/calendar/categories'
 import type { Recurrence, Task, TaskPriority, TaskStatus } from '../types'
 import type { Goal } from '@/modules/goals/types'
 import type { TaskList } from '../types'
@@ -189,6 +190,33 @@ function TaskEditFields({
         </div>
       </div>
       <div className="space-y-1.5">
+        <p className="text-xs font-medium text-muted-foreground">Category</p>
+        <Select
+          value={(EVENT_CATEGORIES.some((c) => c.id === task.category) ? task.category : 'personal') as EventCategory}
+          onValueChange={(v) => {
+            tasksApi.updateTask(userId, task.id, { category: v })
+            refresh()
+          }}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {EVENT_CATEGORIES.map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                <span className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ background: c.color }} />
+                  {c.label}
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">
+          Colors match Calendar (and Circles when you share).
+        </p>
+      </div>
+      <div className="space-y-1.5">
         <p className="text-xs font-medium text-muted-foreground">Linked goal</p>
         <Select
           value={task.goal_id || 'none'}
@@ -213,13 +241,20 @@ function TaskEditFields({
       <div className="space-y-1.5 rounded-xl border border-primary/20 bg-primary/5 p-3">
         <p className="text-xs font-medium text-muted-foreground">Share with a circle or friends</p>
         <p className="text-xs text-muted-foreground">
-          Send this task to everyone in a Circle, or pick individual friends. It shows up under Shared.
+          {task.due_at
+            ? 'Sharing to a circle also adds this dated task to the circle calendar.'
+            : 'Set a due date first if you want it on the circle calendar.'}
         </p>
         <ShareWithFriendsButton
           kind="task"
           title={task.title}
           body={task.notes}
-          data={{ due_at: task.due_at, priority: task.priority, localTaskId: task.id }}
+          data={{
+            due_at: task.due_at,
+            priority: task.priority,
+            category: task.category || 'personal',
+            localTaskId: task.id,
+          }}
           label="Share with circle or friends"
           fullWidth
         />
@@ -298,7 +333,14 @@ function SortableTask({
             />
           </div>
           <p className="text-xs text-muted-foreground">
-            {task.priority === 'high' ? 'Important' : task.priority === 'low' ? 'Whenever' : 'Normal'}
+            <span className="mr-1 inline-flex items-center gap-1">
+              <span
+                className="inline-block h-2 w-2 rounded-full"
+                style={{ background: categoryColor(task.category) }}
+              />
+              {categoryLabel(task.category)}
+            </span>
+            · {task.priority === 'high' ? 'Important' : task.priority === 'low' ? 'Whenever' : 'Normal'}
             {task.due_at ? ` · due ${formatShortDate(task.due_at)}` : ''}
             {task.completed_at ? ` · done ${formatShortDate(task.completed_at)}` : ''}
             {overdue ? ' · Overdue' : ''}
@@ -353,6 +395,7 @@ export default function TasksPage() {
   const [priority, setPriority] = useState<TaskPriority>('medium')
   const [dueAt, setDueAt] = useState('')
   const [recurrence, setRecurrence] = useState<Recurrence>('none')
+  const [category, setCategory] = useState<EventCategory>('personal')
   const [filter, setFilter] = useState<'open' | 'done' | 'all' | 'overdue'>(() => {
     const f = params.get('filter')
     return f === 'overdue' || f === 'done' || f === 'all' || f === 'open' ? f : 'open'
@@ -379,12 +422,14 @@ export default function TasksPage() {
       priority,
       due_at: dueAt ? new Date(dueAt).toISOString() : null,
       recurrence,
+      category,
       list_id: targetList || null,
     })
     setTitle('')
     setDueAt('')
     setRecurrence('none')
     setPriority('medium')
+    setCategory('personal')
     setSelectedId(task.id)
     setParams({ id: task.id })
     refresh()
@@ -556,6 +601,24 @@ export default function TasksPage() {
             </Select>
           </div>
           <div className="space-y-1.5">
+            <p className="text-xs font-medium text-muted-foreground">Category</p>
+            <Select value={category} onValueChange={(v) => setCategory(v as EventCategory)}>
+              <SelectTrigger className="min-h-11">
+                <SelectValue placeholder="Category" />
+              </SelectTrigger>
+              <SelectContent>
+                {EVENT_CATEGORIES.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    <span className="flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ background: c.color }} />
+                      {c.label}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
             <p className="text-xs font-medium text-muted-foreground">Repeat</p>
             <Select value={recurrence} onValueChange={(v) => setRecurrence(v as Recurrence)}>
               <SelectTrigger className="min-h-11">
