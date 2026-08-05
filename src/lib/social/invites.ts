@@ -62,6 +62,10 @@ export async function createCircleInvite(input: {
   return { invite, url: inviteUrl(token) }
 }
 
+function directInviteId(circleId: string, inviteeUid: string) {
+  return `direct_${circleId}_${inviteeUid}`
+}
+
 /** Invite an existing friend — they accept from Friends / notifications. */
 export async function inviteFriendToCircle(input: {
   circle: CircleGroup
@@ -76,12 +80,17 @@ export async function inviteFriendToCircle(input: {
     throw new Error('You can’t invite yourself.')
   }
 
-  const existing = await listPendingInvitesForCircle(input.circle.id, input.inviteeUid)
-  if (existing.length > 0) {
-    throw new Error('Invite already sent — waiting for them to accept.')
+  // Deterministic id + getDoc — no list query (list rules/indexes were blocking send).
+  const token = directInviteId(input.circle.id, input.inviteeUid)
+  const ref = doc(getDb(), 'circleInvites', token)
+  const existingSnap = await getDoc(ref)
+  if (existingSnap.exists()) {
+    const existing = existingSnap.data() as CircleInvite
+    if (existing.status === 'pending') {
+      throw new Error('Invite already sent — waiting for them to accept.')
+    }
   }
 
-  const token = createId().replace(/-/g, '').slice(0, 12)
   const now = new Date()
   const expires = new Date(now)
   expires.setDate(expires.getDate() + (input.daysValid ?? 14))
@@ -95,18 +104,23 @@ export async function inviteFriendToCircle(input: {
     usedBy: [],
     inviteeUid: input.inviteeUid,
     status: 'pending',
+    respondedAt: null,
   }
-  await setDoc(doc(getDb(), 'circleInvites', token), invite)
+  await setDoc(ref, invite)
 
-  const inviter = await getCloudProfile(input.createdBy)
-  await createNotification({
-    uid: input.inviteeUid,
-    kind: 'circle_invite',
-    title: 'Circle invite',
-    body: `${inviter?.displayName || 'A friend'} invited you to “${input.circle.name}”.`,
-    href: '/friends#invites',
-    meta: { circleId: input.circle.id, token },
-  })
+  try {
+    const inviter = await getCloudProfile(input.createdBy)
+    await createNotification({
+      uid: input.inviteeUid,
+      kind: 'circle_invite',
+      title: 'Circle invite',
+      body: `${inviter?.displayName || 'A friend'} invited you to “${input.circle.name}”.`,
+      href: '/friends#invites',
+      meta: { circleId: input.circle.id, token },
+    })
+  } catch {
+    // Invite is saved even if the bell ping fails
+  }
 
   return invite
 }
@@ -132,21 +146,14 @@ export async function listMyPendingCircleInvites(uid: string): Promise<CircleInv
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
 }
 
-async function listPendingInvitesForCircle(circleId: string, inviteeUid: string): Promise<CircleInvite[]> {
-  const q = query(
-    collection(getDb(), 'circleInvites'),
-    where('circleId', '==', circleId),
-    where('inviteeUid', '==', inviteeUid),
-    where('status', '==', 'pending'),
-  )
-  const snap = await getDocs(q)
-  return snap.docs.map((d) => d.data() as CircleInvite)
-}
-
 /** Pending invites I sent for a circle (to show “Pending” on Manage). */
-export async function listOutgoingPendingForCircle(circleId: string): Promise<CircleInvite[]> {
+export async function listOutgoingPendingForCircle(
+  circleId: string,
+  createdBy: string,
+): Promise<CircleInvite[]> {
   const q = query(
     collection(getDb(), 'circleInvites'),
+    where('createdBy', '==', createdBy),
     where('circleId', '==', circleId),
     where('status', '==', 'pending'),
   )

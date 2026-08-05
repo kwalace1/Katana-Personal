@@ -356,7 +356,7 @@ export default function CirclesPage() {
     if (!active || !cloudUser) return
     setEditName(active.name)
     try {
-      const pending = await listOutgoingPendingForCircle(active.id)
+      const pending = await listOutgoingPendingForCircle(active.id, cloudUser.uid)
       setPendingInvites(
         pending
           .filter((p) => p.inviteeUid)
@@ -391,12 +391,20 @@ export default function CirclesPage() {
         inviteeUid: friendUid,
       })
       toast.success('Invite sent — they’ll see it in Friends')
-      const pending = await listOutgoingPendingForCircle(active.id)
-      setPendingInvites(
-        pending
-          .filter((p) => p.inviteeUid)
-          .map((p) => ({ token: p.token, inviteeUid: p.inviteeUid as string })),
-      )
+      try {
+        const pending = await listOutgoingPendingForCircle(active.id, cloudUser.uid)
+        setPendingInvites(
+          pending
+            .filter((p) => p.inviteeUid)
+            .map((p) => ({ token: p.token, inviteeUid: p.inviteeUid as string })),
+        )
+      } catch {
+        setPendingInvites((prev) =>
+          prev.some((p) => p.inviteeUid === friendUid)
+            ? prev
+            : [...prev, { token: `direct_${active.id}_${friendUid}`, inviteeUid: friendUid }],
+        )
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Couldn’t invite')
     } finally {
