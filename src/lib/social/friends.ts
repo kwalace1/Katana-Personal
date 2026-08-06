@@ -28,6 +28,31 @@ function pairId(a: string, b: string) {
   return [a, b].sort().join('_')
 }
 
+/** Public Add-me invite URL for a friend code. */
+export function getAddMeUrl(friendCode: string, origin = typeof window !== 'undefined' ? window.location.origin : ''): string {
+  return `${origin}/invite/friend/${friendCode}`
+}
+
+/** Share or copy Add-me link — returns how it was delivered. */
+export async function shareAddMeLink(friendCode: string): Promise<'shared' | 'copied'> {
+  const url = getAddMeUrl(friendCode)
+  if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+    try {
+      await navigator.share({
+        title: 'Add me on Katana',
+        text: 'Join me on Katana Personal',
+        url,
+      })
+      return 'shared'
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') throw err
+      // fall through to clipboard
+    }
+  }
+  await navigator.clipboard.writeText(url)
+  return 'copied'
+}
+
 function blockId(blocker: string, blocked: string) {
   return `${blocker}_${blocked}`
 }

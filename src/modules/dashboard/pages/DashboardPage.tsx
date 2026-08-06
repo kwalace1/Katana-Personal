@@ -9,7 +9,6 @@ import {
   Target,
   Plus,
   BookOpen,
-  X,
   Sparkles,
   ArrowRight,
   AlertCircle,
@@ -28,6 +27,8 @@ import { format, formatTime, formatShortDate, todayKey, addDays } from '@/lib/da
 import { pageEnterSubtle, springSoft } from '@/lib/motion-ui'
 import { useLocalRefresh } from '@/hooks/useLocalRefresh'
 import { parseCapture, commitCapture } from '@/lib/capture'
+import { burstConfetti } from '@/lib/celebrate'
+import { DayClosedMoment } from '@/components/DayClosedMoment'
 import { tasksApi } from '@/modules/tasks/api'
 import { calendarApi } from '@/modules/calendar/api'
 import { habitsApi } from '@/modules/habits/api'
@@ -49,6 +50,8 @@ import {
   isSectionVisible,
   toggleSection,
 } from '@/modules/dashboard/today-layout'
+import { FirstRitual } from '@/modules/dashboard/components/FirstRitual'
+import { seedDemoWorkspace } from '@/lib/seed-demo'
 import { toast } from 'sonner'
 import { listFriendships } from '@/lib/social/friends'
 import { listMyCircles } from '@/lib/social/circles'
@@ -112,6 +115,10 @@ export default function DashboardPage() {
   const [spentBriefing, setSpentBriefing] = useState<Record<string, true>>({})
   const [editingLayout, setEditingLayout] = useState(false)
   const [togetherCue, setTogetherCue] = useState<{ label: string; to: string } | null>(null)
+  const [closeMoment, setCloseMoment] = useState<{ open: boolean; parked: number }>({
+    open: false,
+    parked: 0,
+  })
   const prefs = profile?.preferences
 
   function cheerTogether() {
@@ -222,9 +229,11 @@ export default function DashboardPage() {
   function onCapture(e: FormEvent) {
     e.preventDefault()
     if (!draft) return
+    const firstCapture = !localStorage.getItem('katana-personal:captured-once')
     const result = commitCapture(userId, draft)
     localStorage.setItem('katana-personal:captured-once', '1')
     setCapture('')
+    if (firstCapture) burstConfetti()
     toast.success(result.summary, {
       action: {
         label: 'Open',
@@ -264,9 +273,13 @@ export default function DashboardPage() {
     markClosed()
     setDayClosed(true)
     setCloseNote('')
-    toast.success(n ? `Parked ${n} task${n === 1 ? '' : 's'} for tomorrow` : 'Day closed')
-    offerPwaNudge()
+    setCloseMoment({ open: true, parked: n })
     refresh()
+  }
+
+  function finishCloseMoment() {
+    setCloseMoment({ open: false, parked: 0 })
+    offerPwaNudge()
   }
 
   return (
@@ -274,8 +287,13 @@ export default function DashboardPage() {
       <PageHeader
         eyebrow={format(new Date(), 'EEEE · MMMM d')}
         title={`${greeting}, ${profile?.display_name || 'there'}`}
-        description="One next step. Everything else can wait."
+        description={
+          cloudUser
+            ? 'One next step. Only what you choose to share.'
+            : 'One next step — private on this device.'
+        }
         actions={
+          onboardingDone ? (
           <div className="flex flex-wrap items-center gap-2">
             <Button
               type="button"
@@ -293,10 +311,11 @@ export default function DashboardPage() {
               </Link>
             </Button>
           </div>
+          ) : null
         }
       />
 
-      {editingLayout && (
+      {onboardingDone && editingLayout && (
         <section className="mb-6 kp-surface p-5 sm:p-6">
           <p className="kp-section-label">Today layout</p>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -327,64 +346,18 @@ export default function DashboardPage() {
         </section>
       )}
 
-      {!onboardingDone && (
-        <div className="relative mb-6 kp-surface p-6">
-          <Button
-            size="icon"
-            variant="ghost"
-            className="absolute right-3 top-3"
-            onClick={markOnboardingDone}
-            aria-label="Dismiss tips"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-          <p className="kp-section-label">Getting started</p>
-          <p className="mt-2 font-display text-xl tracking-tight">Make Today yours</p>
-          <p className="mt-1 text-sm text-muted-foreground">A few small steps — under a minute.</p>
-          <ul className="mt-5 space-y-2">
-            {(
-              [
-                { done: data.hasCapture || data.hasTask, label: 'Capture something above', to: null as string | null },
-                { done: data.hasHabit, label: 'Start a habit', to: '/habits' },
-                { done: data.hasJournal, label: 'Write today’s journal', to: '/journal' },
-                ...(cloudEnabled
-                  ? [
-                      {
-                        done: Boolean(cloudUser),
-                        label: cloudUser ? 'Cloud connected — try Friends' : 'Connect Cloud (optional)',
-                        to: cloudUser ? '/friends' : '/settings',
-                      },
-                    ]
-                  : []),
-              ] as { done: boolean; label: string; to: string | null }[]
-            ).map((step, i) => (
-              <li
-                key={`${step.label}-${i}`}
-                className="flex items-center justify-between gap-3 rounded-2xl bg-secondary/60 px-4 py-3"
-              >
-                <span className="text-sm font-medium">
-                  <span className="mr-2 text-muted-foreground">{step.done ? '✓' : `${i + 1}.`}</span>
-                  {step.label}
-                </span>
-                {step.to ? (
-                  <Button asChild size="sm" variant={step.done ? 'secondary' : 'default'}>
-                    <Link to={step.to}>{step.done ? 'Open' : 'Go'}</Link>
-                  </Button>
-                ) : (
-                  <span className="text-xs text-muted-foreground">{step.done ? 'Done' : 'Use the bar'}</span>
-                )}
-              </li>
-            ))}
-          </ul>
-          {(data.hasCapture || data.hasTask) && data.hasHabit && data.hasJournal && (
-            <Button className="mt-5" onClick={markOnboardingDone}>
-              Looks good — hide tips
-            </Button>
-          )}
-        </div>
-      )}
+      {!onboardingDone ? (
+        <FirstRitual
+          tick={tick}
+          onRefresh={refresh}
+          onFinished={() => {
+            markOnboardingDone()
+            toast.success('Today is yours')
+          }}
+        />
+      ) : null}
 
-      {weekCardVisible && (
+      {onboardingDone && weekCardVisible && (
         <WeeklyReviewCard
           snap={data.snap}
           onDone={() => {
@@ -394,6 +367,7 @@ export default function DashboardPage() {
         />
       )}
 
+      {onboardingDone && (
       <form onSubmit={onCapture} className="mb-4 kp-surface p-3 sm:p-4">
         <div className="flex gap-2">
           <Input
@@ -401,9 +375,9 @@ export default function DashboardPage() {
             onChange={(e) => setCapture(e.target.value)}
             placeholder="Call Mom Friday 3pm ·  # idea  ·  @ dentist tomorrow"
             aria-label="Quick capture"
-            className="flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0"
+            className="min-h-11 flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0"
           />
-          <Button type="submit" size="icon" aria-label="Capture" disabled={!draft}>
+          <Button type="submit" size="icon" className="h-11 w-11 shrink-0" aria-label="Capture" disabled={!draft}>
             <Plus className="h-4 w-4" />
           </Button>
         </div>
@@ -425,10 +399,12 @@ export default function DashboardPage() {
           </p>
         )}
       </form>
+      )}
 
+      {onboardingDone && (
       <div className="mb-6 flex flex-wrap gap-2">
         {QUICK.map(({ to, label, icon: Icon }) => (
-          <Button key={to} asChild variant="outline" size="sm" className="gap-1.5">
+          <Button key={to} asChild variant="outline" size="sm" className="min-h-10 gap-1.5">
             <Link to={to}>
               <Icon className="h-3.5 w-3.5" />
               {label}
@@ -436,7 +412,10 @@ export default function DashboardPage() {
           </Button>
         ))}
       </div>
+      )}
 
+      {onboardingDone && (
+      <>
       {data.overdue.length > 0 && (
         <section className="mb-4 flex items-start gap-3 rounded-2xl border border-destructive/25 bg-destructive/5 px-4 py-3">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
@@ -551,7 +530,37 @@ export default function DashboardPage() {
         ) : (
           <div className="relative mt-3">
             <h2 className="font-display text-2xl tracking-tight sm:text-3xl">Nothing urgent</h2>
-            <p className="mt-1.5 text-sm text-muted-foreground">Protect the calm — or capture what’s next.</p>
+            <p className="mt-1.5 text-sm text-muted-foreground">
+              Protect the calm — or capture what’s next.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-11"
+                onClick={() => setCapture('Call Mom Friday 3pm')}
+              >
+                Try “Call Mom Friday 3pm”
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                className="min-h-11"
+                onClick={() => {
+                  const result = seedDemoWorkspace(userId)
+                  if (result.seeded) {
+                    toast.success('Demo day loaded')
+                    refresh()
+                  } else if (result.reason === 'already') {
+                    toast.message('Demo day already loaded')
+                  } else {
+                    toast.message('Clear tasks first, or capture above')
+                  }
+                }}
+              >
+                Load demo day
+              </Button>
+            </div>
           </div>
         )}
       </motion.section>
@@ -651,7 +660,7 @@ export default function DashboardPage() {
         {data.briefingActions.length > 0 || togetherCue ? (
           <div className="mt-4 flex flex-wrap gap-2">
             {togetherCue ? (
-              <Button asChild size="sm" variant="default" className="h-8 rounded-full text-xs">
+              <Button asChild size="sm" variant="default" className="min-h-11 rounded-full px-4 text-xs">
                 <Link to={togetherCue.to}>{togetherCue.label}</Link>
               </Button>
             ) : null}
@@ -664,7 +673,7 @@ export default function DashboardPage() {
                   size="sm"
                   variant="secondary"
                   disabled={used}
-                  className="h-8 rounded-full text-xs"
+                  className="min-h-11 rounded-full px-4 text-xs"
                   onClick={() => {
                     if (action.kind === 'open_route' && action.route) {
                       window.location.href = action.route
@@ -718,6 +727,7 @@ export default function DashboardPage() {
                   <Button
                     size="sm"
                     variant="secondary"
+                    className="min-h-11"
                     onClick={() => {
                       habitsApi.toggleToday(userId, h.id)
                       cheerTogether()
@@ -731,19 +741,25 @@ export default function DashboardPage() {
             </ul>
           )}
           <Input
-            className="relative mt-3"
+            className="relative mt-3 min-h-12"
             value={closeNote}
             onChange={(e) => setCloseNote(e.target.value)}
             placeholder="One line for your journal (optional)"
           />
-          <Button className="relative mt-4" onClick={parkUnfinished}>
+          <Button className="relative mt-4 min-h-12 w-full sm:w-auto" onClick={parkUnfinished}>
             Park unfinished & close day
           </Button>
         </motion.section>
       )}
 
+      <DayClosedMoment
+        open={closeMoment.open}
+        parkedCount={closeMoment.parked}
+        onDone={finishCloseMoment}
+      />
+
       <div className="mt-8 grid gap-3 lg:grid-cols-2">
-        {isSectionVisible(prefs, 'coming_up') && (
+        {isSectionVisible(prefs, 'coming_up') && data.events.length > 0 && (
         <section className="px-1 py-2 sm:px-0">
           <div className="mb-2 flex items-baseline justify-between gap-2">
             <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
@@ -753,9 +769,6 @@ export default function DashboardPage() {
               Calendar
             </Link>
           </div>
-          {data.events.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Calendar is clear.</p>
-          ) : (
             <ul className="space-y-1.5">
               {data.events.slice(0, 4).map((event) => (
                 <li key={event.id}>
@@ -772,11 +785,10 @@ export default function DashboardPage() {
                 </li>
               ))}
             </ul>
-          )}
         </section>
         )}
 
-        {isSectionVisible(prefs, 'goals') && (
+        {isSectionVisible(prefs, 'goals') && data.goals.length > 0 && (
         <section className="px-1 py-2 sm:px-0">
           <div className="mb-2 flex items-baseline justify-between gap-2">
             <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
@@ -786,9 +798,6 @@ export default function DashboardPage() {
               View
             </Link>
           </div>
-          {data.goals.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Set a direction when you’re ready.</p>
-          ) : (
             <ul className="space-y-3">
               {data.goals.slice(0, 3).map((goal) => {
                 const pct = Math.min(100, Math.round((goal.progress / Math.max(goal.target, 1)) * 100))
@@ -810,7 +819,6 @@ export default function DashboardPage() {
                 )
               })}
             </ul>
-          )}
         </section>
         )}
 
@@ -838,6 +846,9 @@ export default function DashboardPage() {
         </section>
         )}
       </div>
+      </>
+      )}
+
     </motion.div>
   )
 }

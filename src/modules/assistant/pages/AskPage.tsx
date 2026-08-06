@@ -10,6 +10,7 @@ import { pageEnterSubtle } from '@/lib/motion-ui'
 import { cn } from '@/lib/utils'
 import { answerQuestionWithActions, runAskAction, suggestedAsksForHour } from '../engine'
 import { askApi, type AskAction, type AskMessage } from '../ask-api'
+import { createId } from '@/lib/id'
 import { toast } from 'sonner'
 
 export default function AskPage() {
@@ -81,10 +82,34 @@ export default function AskPage() {
       toast.success(result)
       askApi.consumeAction(userId, message.id, action.id)
       setSpent((s) => ({ ...s, [key]: true }))
+      const hour = new Date().getHours()
+      const followUps: AskAction[] = [
+        {
+          id: createId(),
+          label: 'What’s next?',
+          kind: 'open_route',
+          route: '/ask?q=What%20should%20I%20work%20on%20today',
+        },
+      ]
+      if (hour >= 17) {
+        followUps.push({
+          id: createId(),
+          label: 'Close my day',
+          kind: 'open_route',
+          route: '/ask?q=Close%20my%20day',
+        })
+      } else {
+        followUps.push({
+          id: createId(),
+          label: 'Invite a friend',
+          kind: 'open_route',
+          route: '/friends',
+        })
+      }
       askApi.append(userId, {
         role: 'katana',
-        text: result,
-        actions: [],
+        text: `${result} What’s next?`,
+        actions: followUps,
       })
       refresh()
     }

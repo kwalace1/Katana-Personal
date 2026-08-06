@@ -25,6 +25,7 @@ import { pageEnterSubtle } from '@/lib/motion-ui'
 import { remindersEnabled, requestReminderPermission } from '@/lib/reminders'
 import { seedDemoWorkspace } from '@/lib/seed-demo'
 import { DEFAULT_SHARE_PREFS, type SharePrefs } from '@/lib/social/types'
+import { getAddMeUrl } from '@/lib/social/friends'
 import {
   mergeWorkspaceBothWays,
   subscribeWorkspaceSyncStatus,
@@ -268,10 +269,10 @@ export default function SettingsPage() {
 
       <section ref={cloudSectionRef} id="cloud" className="kp-surface mb-4 scroll-mt-24 space-y-4 p-5">
         <div>
-          <h2 className="font-semibold">Cloud account</h2>
+          <h2 className="font-semibold">Together (optional)</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Free Firebase-backed friends, sharing, and Circles. Private data stays on this device until you
-            opt in.
+            Friends, shared plans, and Circles — only what you choose to share leaves this device.
+            Everything else stays private here.
           </p>
         </div>
         {!cloudEnabled ? (
@@ -296,7 +297,7 @@ export default function SettingsPage() {
                   size="sm"
                   variant="outline"
                   onClick={async () => {
-                    const url = `${window.location.origin}/invite/friend/${cloudProfile.friendCode}`
+                    const url = getAddMeUrl(cloudProfile.friendCode)
                     await navigator.clipboard.writeText(url)
                     toast.success('Add-me link copied')
                   }}

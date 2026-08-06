@@ -18,6 +18,7 @@ import {
   Trophy,
   Share2,
   Menu,
+  ChevronDown,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -59,6 +60,7 @@ export const SOCIAL = [
   { to: '/circles', label: 'Circles', icon: Trophy },
 ] as const
 
+const MORE_KEY = 'katana-personal:nav-more'
 const DRAWER_WIDTH = 280
 const EDGE_OPEN_PX = 28
 const SWIPE_OPEN_PX = 56
@@ -82,7 +84,7 @@ function NavGroup({
           onClick={onNavigate}
           className={({ isActive }) =>
             cn(
-              'group flex items-center gap-3 rounded-xl px-3 py-2 text-[0.925rem] font-medium transition-all duration-200',
+              'group flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-[0.925rem] font-medium transition-all duration-200',
               isActive
                 ? 'bg-primary/10 text-primary shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.12)]'
                 : 'text-muted-foreground hover:bg-secondary/80 hover:text-foreground',
@@ -106,41 +108,82 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 }
 
 function AppShellInner({ children }: { children: React.ReactNode }) {
-  const { profile, signOut } = useAuth()
+  const { profile, signOut, onboardingDone } = useAuth()
   const { cloudUser } = useCloudAuth()
   const navigate = useNavigate()
   const [navOpen, setNavOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(() => {
+    try {
+      return localStorage.getItem(MORE_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
   const { pendingCount: pendingFriends } = useSharedSocialInbox()
   useNotificationToasts()
 
   const closeNav = useCallback(() => setNavOpen(false), [])
   const openNav = useCallback(() => setNavOpen(true), [])
 
+  function toggleMore() {
+    setMoreOpen((v) => {
+      const next = !v
+      try {
+        localStorage.setItem(MORE_KEY, next ? '1' : '0')
+      } catch {
+        // ignore
+      }
+      return next
+    })
+  }
+
   async function handleSignOut() {
     await signOut()
     navigate('/')
   }
 
-  const togetherItems = SOCIAL.map((item) =>
-    item.to === '/friends' && pendingFriends > 0
-      ? { ...item, label: `Friends (${pendingFriends})` }
-      : item,
-  )
+  const friendsItem = {
+    to: '/friends' as const,
+    label: pendingFriends > 0 ? `Friends (${pendingFriends})` : 'Friends',
+    icon: Users,
+  }
+
+  const moreSocial = SOCIAL.filter((item) => item.to !== '/friends')
 
   const nav = (
     <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-2.5 py-2" aria-label="Main">
       <NavGroup items={PRIMARY} onNavigate={closeNav} />
-      <NavGroup label="Plan" items={PLAN} onNavigate={closeNav} />
-      <NavGroup label="Life" items={LIFE} onNavigate={closeNav} />
-      <NavGroup label="Together" items={togetherItems} onNavigate={closeNav} />
+      <NavGroup items={[friendsItem]} onNavigate={closeNav} />
+      <div className="pt-2">
+        <button
+          type="button"
+          onClick={toggleMore}
+          className="flex min-h-11 w-full items-center justify-between rounded-xl px-3 py-2 text-[0.925rem] font-medium text-muted-foreground transition hover:bg-secondary/80 hover:text-foreground"
+          aria-expanded={moreOpen}
+        >
+          <span>More</span>
+          <ChevronDown className={cn('h-4 w-4 transition', moreOpen && 'rotate-180')} />
+        </button>
+        {moreOpen ? (
+          <div className="mt-1 space-y-1 border-l border-border/50 pl-1">
+            <NavGroup label="Plan" items={PLAN} onNavigate={closeNav} />
+            <NavGroup label="Life" items={LIFE} onNavigate={closeNav} />
+            <NavGroup label="Together" items={moreSocial} onNavigate={closeNav} />
+          </div>
+        ) : !onboardingDone ? (
+          <p className="px-3 pb-1 text-[0.7rem] text-muted-foreground">
+            Tasks, habits, and more after your first minute
+          </p>
+        ) : null}
+      </div>
       <div className="mt-2">
         <NavLink
           to="/settings"
           onClick={closeNav}
           className={({ isActive }) =>
             cn(
-              'flex items-center gap-3 rounded-xl px-3 py-2 text-[0.925rem] font-medium transition-all',
+              'flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-[0.925rem] font-medium transition-all',
               isActive
                 ? 'bg-primary/10 text-primary'
                 : 'text-muted-foreground hover:bg-secondary/80 hover:text-foreground',
@@ -212,7 +255,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
             <Button
               variant="ghost"
               size="icon"
-              className="rounded-xl"
+              className="h-11 w-11 rounded-xl"
               aria-label="Open menu"
               aria-expanded={navOpen}
               onClick={openNav}
@@ -226,7 +269,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
             <Button
               variant="ghost"
               size="icon"
-              className="rounded-xl"
+              className="h-11 w-11 rounded-xl"
               aria-label="Search or capture"
               onClick={() => setPaletteOpen(true)}
             >

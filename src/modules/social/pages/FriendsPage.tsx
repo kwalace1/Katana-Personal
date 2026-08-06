@@ -14,6 +14,7 @@ import {
   acceptFriend,
   blockUser,
   findUidByFriendCode,
+  getAddMeUrl,
   getCloudProfile,
   removeFriendship,
   requestFriend,
@@ -198,7 +199,7 @@ export default function FriendsPage() {
             variant="outline"
             className="gap-1.5"
             onClick={async () => {
-              const url = `${window.location.origin}/invite/friend/${cloudProfile.friendCode}`
+              const url = getAddMeUrl(cloudProfile.friendCode)
               await navigator.clipboard.writeText(url)
               toast.success('Add-me link copied')
             }}
@@ -211,7 +212,7 @@ export default function FriendsPage() {
           <img
             alt="QR code to add you as a friend"
             className="h-28 w-28 rounded-xl border border-border/50 bg-white p-1"
-            src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(`${window.location.origin}/invite/friend/${cloudProfile.friendCode}`)}`}
+            src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(getAddMeUrl(cloudProfile.friendCode))}`}
           />
           <p className="max-w-xs text-sm text-muted-foreground">
             Share your link or QR — friends open it, sign in to the cloud, and send you a request in one tap.

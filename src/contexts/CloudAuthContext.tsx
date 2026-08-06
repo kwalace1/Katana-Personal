@@ -28,6 +28,7 @@ import { DEFAULT_SHARE_PREFS, type CloudProfile, type SharePrefs } from '@/lib/s
 import { publishActivity, publishStreaks } from '@/lib/social/streaks'
 import { registerActivityPing, registerStreakSync } from '@/lib/social/streak-sync'
 import { useAuth } from '@/contexts/AuthContext'
+import { toast } from 'sonner'
 
 interface CloudAuthContextType {
   cloudEnabled: boolean
@@ -55,7 +56,22 @@ export function CloudAuthProvider({ children }: { children: React.ReactNode }) {
   const [cloudProfile, setCloudProfile] = useState<CloudProfile | null>(null)
   const [cloudLoading, setCloudLoading] = useState(firebaseConfigured)
   const localNameRef = React.useRef(localProfile?.display_name)
+  const prevCloudUserRef = React.useRef<User | null | undefined>(undefined)
   localNameRef.current = localProfile?.display_name
+
+  useEffect(() => {
+    if (cloudLoading) return
+    if (prevCloudUserRef.current === undefined) {
+      prevCloudUserRef.current = cloudUser
+      return
+    }
+    if (!prevCloudUserRef.current && cloudUser) {
+      toast.success('Connected', {
+        description: 'Only what you choose to share. Private life stays on this device.',
+      })
+    }
+    prevCloudUserRef.current = cloudUser
+  }, [cloudUser, cloudLoading])
 
   useEffect(() => {
     if (!firebaseConfigured) {

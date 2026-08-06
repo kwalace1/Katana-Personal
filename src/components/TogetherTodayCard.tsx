@@ -8,6 +8,7 @@ import { listFriendships, getCloudProfile } from '@/lib/social/friends'
 import { listMyCircles } from '@/lib/social/circles'
 import { listSharedItems } from '@/lib/social/shared'
 import { loadCirclesBoard } from '@/lib/social/streaks'
+import { InviteFriendButton } from '@/components/InviteFriendButton'
 import { springSoft } from '@/lib/motion-ui'
 import { cn } from '@/lib/utils'
 import type { StreakSnapshot } from '@/lib/social/types'
@@ -147,6 +148,7 @@ export function TogetherTodayCard() {
               <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </Button>
+          <p className="mt-2 text-xs text-muted-foreground">Only what you choose to share.</p>
         </div>
       )}
 
@@ -226,12 +228,7 @@ export function TogetherTodayCard() {
             </p>
           ) : null}
           <div className="mt-4 flex flex-wrap gap-2">
-            <Button asChild size="sm" className="gap-1.5">
-              <Link to="/friends">
-                <Users className="h-3.5 w-3.5" />
-                Invite
-              </Link>
-            </Button>
+            <InviteFriendButton size="sm" />
             <Button asChild size="sm" variant="outline" className="gap-1.5">
               <Link to="/shared">
                 <Share2 className="h-3.5 w-3.5" />

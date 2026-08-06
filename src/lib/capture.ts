@@ -147,9 +147,10 @@ export function parseCapture(raw: string): ParsedCapture | null {
     if (allDay) {
       end.setHours(23, 59, 0, 0)
     }
-    const summary = allDay
-      ? `Event · ${title} · ${formatDayLabel(start)}`
-      : `Event · ${title} · ${formatDayLabel(start)} ${formatClock(start)}`
+    const when = allDay
+      ? formatCaptureDay(start)
+      : `${formatCaptureDay(start)} ${formatClock(start)}`
+    const summary = `Event · ${title} · ${when}`
     return { kind, title, dueAt: null, priority, eventStart: start, eventEnd: end, allDay, summary }
   }
 
@@ -178,10 +179,10 @@ export function parseCapture(raw: string): ParsedCapture | null {
     }
   }
 
+  // Clear preview grammar: "Task · Call Mom · Fri 3pm"
   const bits = [`Task · ${title}`]
   if (priority === 'high') bits.push('high priority')
-  if (dueAt) bits.push(formatDueLabel(dueAt))
-  else bits.push('no due date')
+  if (dueAt) bits.push(formatCaptureWhen(dueAt))
 
   return {
     kind,
@@ -203,17 +204,19 @@ function formatClock(d: Date) {
   return m ? `${hr}:${String(m).padStart(2, '0')}${ampm}` : `${hr}${ampm}`
 }
 
-function formatDayLabel(d: Date) {
+function formatCaptureDay(d: Date) {
   const key = todayKey(d)
   if (key === todayKey()) return 'today'
   if (key === todayKey(addDays(new Date(), 1))) return 'tomorrow'
-  return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+  return d.toLocaleDateString(undefined, { weekday: 'short' })
 }
 
-function formatDueLabel(iso: string) {
+/** Short when-label for capture preview: "Fri 3pm", "tomorrow", "today 9am". */
+function formatCaptureWhen(iso: string) {
   const d = new Date(iso)
+  const day = formatCaptureDay(d)
   const hasTime = d.getHours() !== 17 || d.getMinutes() !== 0
-  return hasTime ? `due ${formatDayLabel(d)} ${formatClock(d)}` : `due ${formatDayLabel(d)}`
+  return hasTime ? `${day} ${formatClock(d)}` : day
 }
 
 /** Commit a parsed capture to local storage. */

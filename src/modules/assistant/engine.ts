@@ -90,6 +90,11 @@ function listTitles(items: { title: string }[], limit = 4): string {
     .join(', ')
 }
 
+/** Keep Ask replies scannable — a few short sentences. */
+function keepShort(sentences: string[], max = 3): string {
+  return sentences.filter(Boolean).slice(0, max).join(' ')
+}
+
 export function buildDailyBriefing(snap: LifeSnapshot): string {
   const parts: string[] = []
   const hour = new Date().getHours()
@@ -566,13 +571,11 @@ function answerAboutMe(snap: LifeSnapshot): AskReply {
 
 function answerCapabilities(_snap: LifeSnapshot): AskReply {
   return {
-    text: [
-      'I’m your local day guide — no cloud AI, just what’s already in Katana.',
-      'I can brief your day, suggest what to focus on, help close the evening, prep tomorrow, check habits and goals, and point you to health (water, lifts, sleep, meals).',
-      'Together is opt-in: invite friends, see what’s shared, and open Circles for streaks and challenges.',
-      'You can also say things like “add gym tomorrow” or “add a task called call Mom” and I’ll create them.',
-      'Ask in your own words — try “what should I work on today,” “invite a friend,” or “close my day.”',
-    ].join(' '),
+    text: keepShort([
+      'I’m your local day guide — no cloud AI.',
+      'I can brief the day, focus you, close the evening, and open Friends or Circles.',
+      'Try “what should I work on” or “invite a friend.”',
+    ]),
     actions: [
       { id: createId(), label: 'Open Today', kind: 'open_route', route: '/dashboard' },
       { id: createId(), label: 'Invite a friend', kind: 'open_route', route: '/friends' },
@@ -590,42 +593,36 @@ function answerTogether(q: string): AskReply {
     q.includes('accountability')
   ) {
     return {
-      text: [
-        'Together starts with friends — people you trust.',
-        'Connect cloud in Settings if you haven’t, then open Friends for your invite link, QR, or code.',
-        'Shared is plans you copy in; Circle Schedule is what shows on the calendar.',
-      ].join(' '),
+      text: keepShort([
+        'Together starts with friends.',
+        'Connect cloud if needed, then share your Add-me link from Today or Friends.',
+      ]),
       actions: [
         { id: createId(), label: 'Invite a friend', kind: 'open_route', route: '/friends' },
         { id: createId(), label: 'Open Shared', kind: 'open_route', route: '/shared' },
-        { id: createId(), label: 'Open Circles', kind: 'open_route', route: '/circles' },
       ],
     }
   }
   if (q.includes('shared') || q.includes('share')) {
     return {
-      text: [
-        'Shared holds plans friends send you — tasks, events, habits.',
-        'Copy a shared task into your own list; it doesn’t auto-appear on Calendar.',
-        'For things that show on Calendar for the group, use Circle Schedule.',
-      ].join(' '),
+      text: keepShort([
+        'Shared is a plans inbox you copy into your tasks.',
+        'Circle Schedule is what shows on Calendar.',
+      ]),
       actions: [
         { id: createId(), label: 'Open Shared', kind: 'open_route', route: '/shared' },
         { id: createId(), label: 'Share from Tasks', kind: 'open_route', route: '/tasks' },
-        { id: createId(), label: 'Open Circles', kind: 'open_route', route: '/circles' },
       ],
     }
   }
   return {
-    text: [
-      'Circles are streak boards and optional 7-day challenges with people you trust.',
-      'Check in on habits and water here — they sync when cloud is connected.',
-      'Circle Schedule is the shared calendar; Shared is the plans inbox.',
-    ].join(' '),
+    text: keepShort([
+      'Circles are streak boards and optional 7-day challenges.',
+      'Check in on habits and water — they sync when cloud is on.',
+    ]),
     actions: [
       { id: createId(), label: 'Open Circles', kind: 'open_route', route: '/circles' },
       { id: createId(), label: 'Open Friends', kind: 'open_route', route: '/friends' },
-      { id: createId(), label: 'Open Shared', kind: 'open_route', route: '/shared' },
     ],
   }
 }
@@ -690,7 +687,10 @@ function answerAttention(snap: LifeSnapshot): AskReply {
 
   if (items.length === 0) {
     return {
-      text: 'Nothing major needing attention right now — habits, tasks, and goals look settled. Enjoy the calm, or capture something small if it’s on your mind.',
+      text: keepShort([
+        'Nothing major needing attention — habits, tasks, and goals look settled.',
+        'Enjoy the calm, or capture something small.',
+      ]),
       actions: [
         { id: createId(), label: 'Open Today', kind: 'open_route', route: '/dashboard' },
         { id: createId(), label: 'Add a task', kind: 'open_route', route: '/tasks' },
@@ -699,7 +699,10 @@ function answerAttention(snap: LifeSnapshot): AskReply {
   }
 
   return {
-    text: `Here’s what needs attention:\n\n${items.map((line, i) => `${i + 1}. ${line}`).join('\n')}`,
+    text: keepShort(
+      [`Here’s what needs attention:`, ...items.map((line, i) => `${i + 1}. ${line}`)],
+      5,
+    ),
     actions: actions.slice(0, 4),
   }
 }
@@ -708,10 +711,9 @@ function answerGreeting(snap: LifeSnapshot): AskReply {
   const hour = new Date().getHours()
   const hello = hour < 12 ? 'Good morning' : hour < 18 ? 'Hi' : 'Good evening'
   const attn = answerAttention(snap)
-  const calm =
-    attn.text.startsWith('Nothing major')
-      ? `${hello}, ${snap.name}. You’re in good shape today — nothing urgent jumping out.`
-      : `${hello}, ${snap.name}. ${attn.text}`
+  const calm = attn.text.startsWith('Nothing major')
+    ? keepShort([`${hello}, ${snap.name}.`, 'You’re in good shape today — nothing urgent jumping out.'])
+    : keepShort([`${hello}, ${snap.name}.`, attn.text.split('\n')[0] || attn.text])
   return {
     text: calm,
     actions: attn.actions.slice(0, 3),
@@ -720,7 +722,7 @@ function answerGreeting(snap: LifeSnapshot): AskReply {
 
 function answerThanks(_snap: LifeSnapshot): AskReply {
   return {
-    text: 'You’re welcome. I’m here whenever you want a briefing, a focus list, or help closing the day.',
+    text: keepShort(['You’re welcome.', 'Ask for a briefing, a focus list, or help closing the day anytime.']),
     actions: [
       { id: createId(), label: 'What’s needing attention?', kind: 'open_route', route: '/ask?q=what%20needs%20attention' },
       { id: createId(), label: 'Open Today', kind: 'open_route', route: '/dashboard' },
@@ -729,10 +731,9 @@ function answerThanks(_snap: LifeSnapshot): AskReply {
 }
 
 function answerDefault(snap: LifeSnapshot): AskReply {
-  // Always answer from life data — never leave the user with “I didn’t catch that.”
   const attn = answerAttention(snap)
   return {
-    text: `${attn.text}\n\nYou can also ask for a briefing, what to focus on, help closing the day, or say “what can you do.”`,
+    text: keepShort([attn.text.split('\n')[0] || attn.text, 'Or ask for a briefing, focus list, or “what can you do.”']),
     actions: attn.actions.slice(0, 4),
   }
 }
@@ -1072,12 +1073,12 @@ export const SUGGESTED_ASKS = [
 /** Time-aware chips for Ask — keeps demos feeling alive without an LLM. */
 export function suggestedAsksForHour(hour = new Date().getHours()): string[] {
   if (hour < 12) {
-    return ['Clear my morning', 'What should I work on today?', 'Invite a friend', 'Add gym tomorrow']
+    return ['Clear my morning', 'What should I work on today?', 'Invite a friend']
   }
   if (hour < 17) {
-    return ['What should I work on today?', 'What’s shared with me?', 'How are my Circles?', 'Review my week']
+    return ['What should I work on today?', 'What’s shared with me?', 'How are my Circles?']
   }
-  return ['Close my day', 'Prep for tomorrow', 'How are my Circles?', 'Review my week']
+  return ['Close my day', 'Prep for tomorrow', 'How are my Circles?']
 }
 
 function tryParseCreate(question: string): AskReply | null {
