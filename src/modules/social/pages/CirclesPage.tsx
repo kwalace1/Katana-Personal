@@ -21,6 +21,8 @@ import {
   Crown,
   Medal,
   CalendarDays,
+  UserPlus,
+  UserCheck,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -50,8 +52,8 @@ import {
   setCircleChallenge,
 } from '@/lib/social/circles'
 import { createCircleInvite, inviteFriendToCircle, listOutgoingPendingForCircle } from '@/lib/social/invites'
-import { listFriendProfiles } from '@/lib/social/friends'
-import type { CircleChallengeMetric, CircleGroup, CloudProfile, StreakSnapshot } from '@/lib/social/types'
+import { listFriendProfiles, getCloudProfiles, friendshipRelation, requestFriend, acceptFriend, listFriendships } from '@/lib/social/friends'
+import type { CircleChallengeMetric, CircleGroup, CloudProfile, Friendship, StreakSnapshot } from '@/lib/social/types'
 import { cn } from '@/lib/utils'
 import { addDays } from '@/lib/dates'
 import { CircleSchedule } from '../components/CircleSchedule'
@@ -177,6 +179,9 @@ export default function CirclesPage() {
   const [circles, setCircles] = useState<CircleGroup[]>([])
   const [board, setBoard] = useState<StreakSnapshot[]>([])
   const [friends, setFriends] = useState<CloudProfile[]>([])
+  const [memberDirectory, setMemberDirectory] = useState<CloudProfile[]>([])
+  const [friendships, setFriendships] = useState<Friendship[]>([])
+  const [friendBusy, setFriendBusy] = useState<string | null>(null)
   const [activity, setActivity] = useState<ActivityFeedItem[]>([])
   const [busy, setBusy] = useState(false)
   const [newName, setNewName] = useState('')
@@ -209,7 +214,73 @@ export default function CirclesPage() {
     if (!cloudUser) return
     const list = await listMyCircles(cloudUser.uid)
     setCircles(list)
+    const memberIds = Array.from(new Set(list.flatMap((c) => c.memberIds)))
+    try {
+      const [profiles, rels] = await Promise.all([
+        getCloudProfiles(memberIds),
+        listFriendships(cloudUser.uid),
+      ])
+      setMemberDirectory(profiles)
+      setFriendships(rels)
+    } catch {
+      // optional — names fall back to friends list
+    }
     return list
+  }
+
+  async function refreshFriendships() {
+    if (!cloudUser) return
+    try {
+      const [friendList, rels] = await Promise.all([
+        listFriendProfiles(cloudUser.uid),
+        listFriendships(cloudUser.uid),
+      ])
+      setFriends(friendList)
+      setFriendships(rels)
+    } catch {
+      // optional
+    }
+  }
+
+  function displayNameFor(uid: string) {
+    if (cloudUser && uid === cloudUser.uid) return 'You'
+    return (
+      memberDirectory.find((p) => p.uid === uid)?.displayName ||
+      friends.find((f) => f.uid === uid)?.displayName ||
+      'Member'
+    )
+  }
+
+  async function addMemberAsFriend(uid: string) {
+    if (!cloudUser) return
+    setFriendBusy(uid)
+    try {
+      await requestFriend(cloudUser.uid, uid)
+      toast.success('Friend request sent')
+      await refreshFriendships()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Couldn’t send request')
+    } finally {
+      setFriendBusy(null)
+    }
+  }
+
+  async function acceptMemberFriend(uid: string) {
+    if (!cloudUser) return
+    const row = friendships.find(
+      (f) => f.status === 'pending' && (f.a === uid || f.b === uid) && f.requestedBy !== cloudUser.uid,
+    )
+    if (!row) return
+    setFriendBusy(uid)
+    try {
+      await acceptFriend(cloudUser.uid, row.id)
+      toast.success('Friend request accepted')
+      await refreshFriendships()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Couldn’t accept')
+    } finally {
+      setFriendBusy(null)
+    }
   }
 
   async function reloadBoard(circle?: CircleGroup | null) {
@@ -239,13 +310,23 @@ export default function CirclesPage() {
     let cancelled = false
     void (async () => {
       try {
-        const [list, friendList] = await Promise.all([
+        const [list, friendList, rels] = await Promise.all([
           listMyCircles(cloudUser.uid),
           listFriendProfiles(cloudUser.uid),
+          listFriendships(cloudUser.uid),
         ])
         if (cancelled) return
         setCircles(list)
         setFriends(friendList)
+        setFriendships(rels)
+
+        try {
+          const memberIds = Array.from(new Set(list.flatMap((c) => c.memberIds)))
+          const profiles = await getCloudProfiles(memberIds)
+          if (!cancelled) setMemberDirectory(profiles)
+        } catch {
+          // optional
+        }
 
         const id = params.get('id')
         const circle = (id && list.find((c) => c.id === id)) || null
@@ -559,6 +640,75 @@ export default function CirclesPage() {
           </div>
         ) : null}
 
+        {active.memberIds.length > 1 ? (
+          <section className="mb-6 kp-surface p-4 sm:p-5">
+            <div className="mb-3 flex items-center gap-2">
+              <Users className="h-4 w-4 text-primary" />
+              <div>
+                <p className="text-sm font-semibold tracking-tight">People in this circle</p>
+                <p className="text-xs text-muted-foreground">
+                  See everyone here — add circle mates you aren’t friends with yet.
+                </p>
+              </div>
+            </div>
+            <ul className="space-y-2">
+              {active.memberIds.map((uid) => {
+                const rel = friendshipRelation(cloudUser.uid, uid, friendships)
+                const role = circleRole(active, uid)
+                return (
+                  <li
+                    key={uid}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-secondary/50 px-3 py-2.5"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{displayNameFor(uid)}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {role === 'owner' ? 'Owner' : role === 'moderator' ? 'Moderator' : 'Member'}
+                        {rel === 'friends' ? ' · Friends' : ''}
+                      </p>
+                    </div>
+                    {rel === 'none' ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5"
+                        disabled={friendBusy === uid}
+                        onClick={() => void addMemberAsFriend(uid)}
+                      >
+                        <UserPlus className="h-3.5 w-3.5" />
+                        {friendBusy === uid ? 'Sending…' : 'Add friend'}
+                      </Button>
+                    ) : null}
+                    {rel === 'pending_out' ? (
+                      <span className="text-xs text-muted-foreground">Request sent</span>
+                    ) : null}
+                    {rel === 'pending_in' ? (
+                      <Button
+                        size="sm"
+                        className="gap-1.5"
+                        disabled={friendBusy === uid}
+                        onClick={() => void acceptMemberFriend(uid)}
+                      >
+                        <UserCheck className="h-3.5 w-3.5" />
+                        {friendBusy === uid ? '…' : 'Accept'}
+                      </Button>
+                    ) : null}
+                    {rel === 'friends' ? (
+                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                        <UserCheck className="h-3.5 w-3.5" />
+                        Friends
+                      </span>
+                    ) : null}
+                    {rel === 'self' ? (
+                      <span className="text-xs text-muted-foreground">You</span>
+                    ) : null}
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
+        ) : null}
+
         {activeChallenge ? (
           <div className="mb-6 overflow-hidden rounded-2xl border border-primary/25 bg-primary/5 px-4 py-4 sm:px-5">
             <p className="kp-section-label">Active challenge</p>
@@ -639,6 +789,7 @@ export default function CirclesPage() {
             selfUid={cloudUser.uid}
             selfName={cloudProfile?.displayName}
             friends={friends}
+            memberProfiles={memberDirectory}
           />
         ) : (
           <>
@@ -889,6 +1040,7 @@ export default function CirclesPage() {
           editName={editName}
           setEditName={setEditName}
           friends={friends}
+          memberProfiles={memberDirectory}
           circle={active}
           selfUid={cloudUser.uid}
           pendingInviteeIds={pendingInvites.map((p) => p.inviteeUid)}
@@ -1011,7 +1163,11 @@ export default function CirclesPage() {
           {circles.map((c, index) => {
             const memberNames = c.memberIds.map((uid) => {
               if (uid === cloudUser.uid) return cloudProfile?.displayName || 'You'
-              return friends.find((f) => f.uid === uid)?.displayName || 'Member'
+              return (
+                memberDirectory.find((p) => p.uid === uid)?.displayName ||
+                friends.find((f) => f.uid === uid)?.displayName ||
+                'Member'
+              )
             })
             return (
               <motion.li
@@ -1103,6 +1259,7 @@ export default function CirclesPage() {
         editName={editName}
         setEditName={setEditName}
         friends={friends}
+        memberProfiles={memberDirectory}
         circle={active}
         selfUid={cloudUser.uid}
         pendingInviteeIds={pendingInvites.map((p) => p.inviteeUid)}
@@ -1128,6 +1285,7 @@ function ManageDialog({
   editName,
   setEditName,
   friends,
+  memberProfiles,
   circle,
   selfUid,
   pendingInviteeIds,
@@ -1142,6 +1300,7 @@ function ManageDialog({
   editName: string
   setEditName: (v: string) => void
   friends: CloudProfile[]
+  memberProfiles: CloudProfile[]
   circle: CircleGroup | null
   selfUid: string
   pendingInviteeIds: string[]
@@ -1156,6 +1315,7 @@ function ManageDialog({
   const memberIds = circle.memberIds
   const moderatorIds = new Set(circle.moderatorIds || [])
   const friendByUid = new Map(friends.map((f) => [f.uid, f]))
+  const profileByUid = new Map(memberProfiles.map((p) => [p.uid, p]))
   const inviteable = friends.filter((f) => !memberIds.includes(f.uid))
   const pendingSet = new Set(pendingInviteeIds)
   const canManage = canManageCircle(circle, selfUid)
@@ -1163,7 +1323,9 @@ function ManageDialog({
   const memberRows = memberIds.map((uid) => {
     const role = circleRole(circle, uid)
     const name =
-      uid === selfUid ? 'You' : friendByUid.get(uid)?.displayName || 'Member'
+      uid === selfUid
+        ? 'You'
+        : profileByUid.get(uid)?.displayName || friendByUid.get(uid)?.displayName || 'Member'
     return { uid, role, name }
   })
 

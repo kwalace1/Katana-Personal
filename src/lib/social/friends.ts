@@ -70,6 +70,28 @@ export async function getCloudProfile(uid: string): Promise<CloudProfile | null>
   return { ...data, sharePrefs: { ...DEFAULT_SHARE_PREFS, ...(data.sharePrefs || {}) } }
 }
 
+/** Batch-fetch profiles by uid (e.g. circle members who may not be friends yet). */
+export async function getCloudProfiles(uids: string[]): Promise<CloudProfile[]> {
+  const unique = Array.from(new Set(uids.filter(Boolean)))
+  const profiles = await Promise.all(unique.map((id) => getCloudProfile(id)))
+  return profiles.filter(Boolean) as CloudProfile[]
+}
+
+export type FriendshipRelation = 'self' | 'friends' | 'pending_out' | 'pending_in' | 'none'
+
+export function friendshipRelation(
+  selfUid: string,
+  otherUid: string,
+  friendships: Friendship[],
+): FriendshipRelation {
+  if (selfUid === otherUid) return 'self'
+  const row = friendships.find((f) => f.a === otherUid || f.b === otherUid)
+  if (!row) return 'none'
+  if (row.status === 'accepted') return 'friends'
+  if (row.requestedBy === selfUid) return 'pending_out'
+  return 'pending_in'
+}
+
 export async function updateCloudProfile(
   uid: string,
   patch: Partial<Pick<CloudProfile, 'displayName' | 'sharePrefs'>>,

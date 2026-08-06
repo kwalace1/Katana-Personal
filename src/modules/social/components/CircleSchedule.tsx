@@ -54,10 +54,15 @@ function memberName(
   friends: CloudProfile[],
   selfUid: string,
   selfName?: string,
+  memberProfiles?: CloudProfile[],
 ) {
   if (!uid) return null
   if (uid === selfUid) return selfName || 'You'
-  return friends.find((f) => f.uid === uid)?.displayName || 'Member'
+  return (
+    memberProfiles?.find((p) => p.uid === uid)?.displayName ||
+    friends.find((f) => f.uid === uid)?.displayName ||
+    'Member'
+  )
 }
 
 export function CircleSchedule({
@@ -65,11 +70,13 @@ export function CircleSchedule({
   selfUid,
   selfName,
   friends,
+  memberProfiles = [],
 }: {
   circle: CircleGroup
   selfUid: string
   selfName?: string
   friends: CloudProfile[]
+  memberProfiles?: CloudProfile[]
 }) {
   const [events, setEvents] = useState<CircleEvent[]>([])
   const [cursor, setCursor] = useState(() => new Date())
@@ -106,9 +113,9 @@ export function CircleSchedule({
   const members = useMemo(() => {
     return circle.memberIds.map((uid) => ({
       uid,
-      name: memberName(uid, friends, selfUid, selfName) || 'Member',
+      name: memberName(uid, friends, selfUid, selfName, memberProfiles) || 'Member',
     }))
-  }, [circle.memberIds, friends, selfUid, selfName])
+  }, [circle.memberIds, friends, memberProfiles, selfUid, selfName])
 
   function openAdd(day?: Date) {
     setTitle('')
@@ -209,7 +216,7 @@ export function CircleSchedule({
               </div>
               <ul className="space-y-1.5">
                 {dayEvents.map((ev) => {
-                  const who = memberName(ev.assigneeId, friends, selfUid, selfName)
+                  const who = memberName(ev.assigneeId, friends, selfUid, selfName, memberProfiles)
                   return (
                     <li key={ev.id}>
                       <button
