@@ -52,6 +52,7 @@ export default function LandingPage() {
   const { user, loading, startWorkspace } = useAuth()
   const {
     cloudEnabled,
+    appleSignInAvailable,
     cloudUser,
     signInCloud,
     signUpCloud,
@@ -394,7 +395,7 @@ export default function LandingPage() {
                     'Sign in & open'
                   )}
                 </Button>
-                {cloudEnabled ? (
+                {cloudEnabled && appleSignInAvailable ? (
                   <>
                     <p className="text-center text-xs text-muted-foreground">or</p>
                     <Button
@@ -407,11 +408,11 @@ export default function LandingPage() {
                       Continue with Apple
                     </Button>
                   </>
-                ) : (
+                ) : !cloudEnabled ? (
                   <p className="text-center text-xs text-muted-foreground">
                     Cloud sign-in isn’t available in this build.
                   </p>
-                )}
+                ) : null}
                 <p className="text-center text-xs text-muted-foreground">
                   Signs you into Friends, Circles, and cloud sync for this device.
                 </p>

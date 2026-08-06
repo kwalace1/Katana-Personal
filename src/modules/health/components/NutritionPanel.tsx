@@ -85,7 +85,10 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
       <form onSubmit={save} className="kp-surface space-y-4 p-4">
         <div>
           <p className="text-xs text-muted-foreground">Nutrition</p>
-          <h3 className="font-display text-xl tracking-tight">Log meal</h3>
+          <h3 className="font-display text-xl tracking-tight">Log a meal</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Name it, optional macros — saves to today so Circles nutrition streaks can count.
+          </p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <Input
@@ -171,7 +174,10 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
         <p className="text-xs text-muted-foreground">History</p>
         <h3 className="mb-3 font-display text-lg tracking-tight">Meal log</h3>
         {meals.length === 0 ? (
-          <EmptyState title="No meals yet" description="Log a meal to start tracking calories and macros." />
+          <EmptyState
+            title="No meals yet"
+            description="Use Log a meal above — even a rough calorie count is enough to start."
+          />
         ) : (
           <div className="space-y-5">
             {dates.map((dateISO) => {

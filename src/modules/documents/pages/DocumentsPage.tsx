@@ -112,7 +112,7 @@ export default function DocumentsPage() {
     <motion.div {...pageEnterSubtle} className="kp-page">
       <PageHeader
         title="Documents"
-        description="Files that matter to you."
+        description="Local files on this device — include them when you Save a copy."
         eyebrow="Life"
         actions={
           <>
@@ -131,6 +131,9 @@ export default function DocumentsPage() {
         }
       />
 
+      <p className="mb-4 text-sm text-muted-foreground">
+        Files stay in this browser. Clear site data and they’re gone — use Settings → Save a copy, or cloud sync when connected.
+      </p>
       <div className="relative mb-4">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -171,7 +174,7 @@ export default function DocumentsPage() {
       {docs.length === 0 && !busy ? (
         <EmptyState
           title="No files yet"
-          description="Add something important — it’ll stay on this device."
+          description="Add something important — it stays on this device. Back it up from Settings when you care about it."
           action={
             <Button onClick={() => inputRef.current?.click()}>
               <FileUp className="mr-2 h-4 w-4" />

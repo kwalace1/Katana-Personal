@@ -9,7 +9,7 @@ import { notesApi } from '@/modules/notes/api'
 import { parseCapture } from '@/lib/capture'
 import { addDays, format, formatShortDate, formatTime, todayKey } from '@/lib/dates'
 import { createId } from '@/lib/id'
-import { weekLabel } from '@/lib/week-review'
+import { buildWeekStats, type WeekStats } from '@/lib/week-review'
 import type { Task } from '@/modules/tasks/types'
 import type { CalendarEvent } from '@/modules/calendar/types'
 import type { Habit } from '@/modules/habits/types'
@@ -36,6 +36,7 @@ export interface LifeSnapshot {
   sleepHoursLast: number
   caloriesToday: number
   recentNotes: number
+  week: WeekStats
 }
 
 export interface AskReply {
@@ -77,6 +78,7 @@ export function buildSnapshot(userId: string, displayName = 'there'): LifeSnapsh
       .filter((n) => n.date === todayKey())
       .reduce((s, n) => s + (n.calories || 0), 0),
     recentNotes: notesApi.listNotes(userId).length,
+    week: buildWeekStats(userId, today),
   }
 }
 
@@ -247,31 +249,37 @@ function answerWorkout(snap: LifeSnapshot): AskReply {
 }
 
 function answerWeek(snap: LifeSnapshot): AskReply {
+  const w = snap.week
   const bits: string[] = []
-  bits.push(`Week of ${weekLabel()}.`)
-  bits.push(`${snap.openTasks.length} open task${snap.openTasks.length === 1 ? '' : 's'}.`)
+  bits.push(`Week of ${w.label}.`)
+  bits.push(
+    w.tasksCompleted > 0
+      ? `You finished ${w.tasksCompleted} task${w.tasksCompleted === 1 ? '' : 's'} this week.`
+      : 'No tasks marked done this week yet.',
+  )
+  bits.push(
+    w.habitCheckInDays > 0
+      ? `Habits checked in on ${w.habitCheckInDays} day${w.habitCheckInDays === 1 ? '' : 's'}.`
+      : 'No habit check-ins logged this week.',
+  )
+  const movement = w.workouts + w.lifts
+  bits.push(
+    movement > 0
+      ? `Movement: ${w.workouts} workout${w.workouts === 1 ? '' : 's'}, ${w.lifts} lift session${w.lifts === 1 ? '' : 's'}.`
+      : 'No workouts or lifts logged this week yet.',
+  )
+  if (w.journalDays > 0) {
+    bits.push(`Journal on ${w.journalDays} day${w.journalDays === 1 ? '' : 's'}.`)
+  }
   bits.push(
     snap.upcomingEvents.length > 0
       ? `Coming up: ${listTitles(snap.upcomingEvents, 4)}.`
       : 'The calendar ahead looks light.',
   )
-  bits.push(
-    snap.habitsDue.length > 0
-      ? `Habits today: ${snap.habitsDoneIds.length} of ${snap.habitsDue.length} done.`
-      : 'No habits set yet.',
-  )
-  if (snap.activeGoals.length > 0) {
-    bits.push(
-      snap.behindGoals.length > 0
-        ? `Goals needing love: ${listTitles(snap.behindGoals, 3)}.`
-        : 'Your goals are in decent shape.',
-    )
+  if (snap.behindGoals.length > 0) {
+    bits.push(`Goals needing love: ${listTitles(snap.behindGoals, 3)}.`)
   }
-  bits.push(
-    snap.recentWorkouts > 0
-      ? `You’ve logged ${snap.recentWorkouts} workout${snap.recentWorkouts === 1 ? '' : 's'} in the last week.`
-      : 'No workouts logged this week yet.',
-  )
+  if (w.lookAhead) bits.push(w.lookAhead)
 
   const actions: AskAction[] = []
   const top = snap.priorityTasks[0]
@@ -561,13 +569,63 @@ function answerCapabilities(_snap: LifeSnapshot): AskReply {
     text: [
       'I’m your local day guide — no cloud AI, just what’s already in Katana.',
       'I can brief your day, suggest what to focus on, help close the evening, prep tomorrow, check habits and goals, and point you to health (water, lifts, sleep, meals).',
+      'Together is opt-in: invite friends, see what’s shared, and open Circles for streaks and challenges.',
       'You can also say things like “add gym tomorrow” or “add a task called call Mom” and I’ll create them.',
-      'Ask in your own words — try “tell me about myself,” “what should I work on today,” or “close my day.”',
+      'Ask in your own words — try “what should I work on today,” “invite a friend,” or “close my day.”',
     ].join(' '),
     actions: [
       { id: createId(), label: 'Open Today', kind: 'open_route', route: '/dashboard' },
-      { id: createId(), label: 'Open Health', kind: 'open_route', route: '/health' },
-      { id: createId(), label: 'Open Habits', kind: 'open_route', route: '/habits' },
+      { id: createId(), label: 'Invite a friend', kind: 'open_route', route: '/friends' },
+      { id: createId(), label: 'Open Circles', kind: 'open_route', route: '/circles' },
+    ],
+  }
+}
+
+function answerTogether(q: string): AskReply {
+  if (
+    q.includes('invite') ||
+    q.includes('friend') ||
+    q.includes('add me') ||
+    q.includes('accountable') ||
+    q.includes('accountability')
+  ) {
+    return {
+      text: [
+        'Together starts with friends — people you trust.',
+        'Connect cloud in Settings if you haven’t, then open Friends for your invite link, QR, or code.',
+        'Shared is plans you copy in; Circle Schedule is what shows on the calendar.',
+      ].join(' '),
+      actions: [
+        { id: createId(), label: 'Invite a friend', kind: 'open_route', route: '/friends' },
+        { id: createId(), label: 'Open Shared', kind: 'open_route', route: '/shared' },
+        { id: createId(), label: 'Open Circles', kind: 'open_route', route: '/circles' },
+      ],
+    }
+  }
+  if (q.includes('shared') || q.includes('share')) {
+    return {
+      text: [
+        'Shared holds plans friends send you — tasks, events, habits.',
+        'Copy a shared task into your own list; it doesn’t auto-appear on Calendar.',
+        'For things that show on Calendar for the group, use Circle Schedule.',
+      ].join(' '),
+      actions: [
+        { id: createId(), label: 'Open Shared', kind: 'open_route', route: '/shared' },
+        { id: createId(), label: 'Share from Tasks', kind: 'open_route', route: '/tasks' },
+        { id: createId(), label: 'Open Circles', kind: 'open_route', route: '/circles' },
+      ],
+    }
+  }
+  return {
+    text: [
+      'Circles are streak boards and optional 7-day challenges with people you trust.',
+      'Check in on habits and water here — they sync when cloud is connected.',
+      'Circle Schedule is the shared calendar; Shared is the plans inbox.',
+    ].join(' '),
+    actions: [
+      { id: createId(), label: 'Open Circles', kind: 'open_route', route: '/circles' },
+      { id: createId(), label: 'Open Friends', kind: 'open_route', route: '/friends' },
+      { id: createId(), label: 'Open Shared', kind: 'open_route', route: '/shared' },
     ],
   }
 }
@@ -683,7 +741,7 @@ export function answerQuestion(userId: string, question: string, displayName?: s
   return answerQuestionWithActions(userId, question, displayName).text
 }
 
-type Intent = { test: (q: string) => boolean; answer: (snap: LifeSnapshot) => AskReply }
+type Intent = { test: (q: string) => boolean; answer: (snap: LifeSnapshot, q: string) => AskReply }
 
 function isGreeting(q: string): boolean {
   const cleaned = q.replace(/[!?.,]+$/g, '').trim()
@@ -723,6 +781,20 @@ const INTENTS: Intent[] = [
       q.includes('know about me') ||
       q.includes('tell me about my life'),
     answer: answerAboutMe,
+  },
+  {
+    test: (q) =>
+      q.includes('friend') ||
+      q.includes('invite') ||
+      q.includes('circle') ||
+      q.includes('shared') ||
+      q.includes('together') ||
+      q.includes('accountable') ||
+      q.includes('accountability') ||
+      q.includes('leaderboard') ||
+      q.includes('challenge') ||
+      (q.includes('share') && (q.includes('what') || q.includes('with') || q.includes('plan'))),
+    answer: (_snap, q) => answerTogether(q),
   },
   {
     test: (q) =>
@@ -901,7 +973,7 @@ export function answerQuestionWithActions(
   if (created) return created
 
   for (const intent of INTENTS) {
-    if (intent.test(q)) return intent.answer(snap)
+    if (intent.test(q)) return intent.answer(snap, q)
   }
 
   return answerDefault(snap)
@@ -991,18 +1063,21 @@ export const SUGGESTED_ASKS = [
   'Review my week',
   'Prep for tomorrow',
   'Close my day',
+  'Invite a friend',
+  'What’s shared with me?',
+  'How are my Circles?',
   'Add gym tomorrow',
 ] as const
 
 /** Time-aware chips for Ask — keeps demos feeling alive without an LLM. */
 export function suggestedAsksForHour(hour = new Date().getHours()): string[] {
   if (hour < 12) {
-    return ['Clear my morning', 'What should I work on today?', 'When should I work out?', 'Add gym tomorrow']
+    return ['Clear my morning', 'What should I work on today?', 'Invite a friend', 'Add gym tomorrow']
   }
   if (hour < 17) {
-    return ['What should I work on today?', 'Review my week', 'Prep for tomorrow', 'When should I work out?']
+    return ['What should I work on today?', 'What’s shared with me?', 'How are my Circles?', 'Review my week']
   }
-  return ['Close my day', 'Prep for tomorrow', 'Review my week', 'What should I work on today?']
+  return ['Close my day', 'Prep for tomorrow', 'How are my Circles?', 'Review my week']
 }
 
 function tryParseCreate(question: string): AskReply | null {

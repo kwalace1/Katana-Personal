@@ -108,7 +108,12 @@ export default function FriendsPage() {
         <TogetherSetup highlight="friends" className="mb-4" />
         <EmptyState
           title="Cloud isn’t connected yet"
-          description="Add free Firebase keys (see FIREBASE_SETUP.md) so friends can find you."
+          description="Connect cloud in Settings so friends can find you with a link or code."
+          action={
+            <Button asChild>
+              <Link to="/settings">Connect cloud</Link>
+            </Button>
+          }
         />
       </motion.div>
     )

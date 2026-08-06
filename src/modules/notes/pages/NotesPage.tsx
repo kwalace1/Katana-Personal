@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Eye, FolderPlus, Pin, Plus, Search, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -147,8 +147,15 @@ export default function NotesPage() {
       {notes.length === 0 ? (
         <EmptyState
           title="No notes yet"
-          description="Write something down when it comes to mind."
-          action={<Button onClick={createNote}>Start writing</Button>}
+          description="Capture from Today with a quick thought, or start a note here. Saves as you type."
+          action={
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button onClick={createNote}>Start writing</Button>
+              <Button asChild variant="outline">
+                <Link to="/dashboard">Back to Today</Link>
+              </Button>
+            </div>
+          }
         />
       ) : (
         <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
@@ -268,20 +275,28 @@ export default function NotesPage() {
                 </select>
               </div>
               {preview ? (
-                <div
-                  className="min-h-[360px] text-sm"
-                  dangerouslySetInnerHTML={{ __html: renderSimpleMarkdown(selected.body || '_Nothing yet_') }}
-                />
+                <div>
+                  <p className="mb-2 text-xs font-medium text-muted-foreground">Preview · saved as you type</p>
+                  <div
+                    className="prose-sm min-h-[360px] rounded-xl bg-secondary/40 p-4 text-sm leading-relaxed"
+                    dangerouslySetInnerHTML={{ __html: renderSimpleMarkdown(selected.body || '_Nothing yet_') }}
+                  />
+                </div>
               ) : (
-                <Textarea
-                  className="min-h-[360px] resize-y border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
-                  placeholder="Start writing… Use # headings, **bold**, and - lists."
-                  value={selected.body}
-                  onChange={(e) => {
-                    notesApi.updateNote(userId, selected.id, { body: e.target.value })
-                    refresh()
-                  }}
-                />
+                <div>
+                  <p className="mb-2 text-xs font-medium text-muted-foreground">
+                    Editing · saved as you type · # headings, **bold**, - lists
+                  </p>
+                  <Textarea
+                    className="min-h-[360px] resize-y"
+                    placeholder="Start writing…"
+                    value={selected.body}
+                    onChange={(e) => {
+                      notesApi.updateNote(userId, selected.id, { body: e.target.value })
+                      refresh()
+                    }}
+                  />
+                </div>
               )}
             </div>
           ) : null}

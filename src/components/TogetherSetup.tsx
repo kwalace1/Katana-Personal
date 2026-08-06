@@ -14,7 +14,7 @@ const STEPS = [
   {
     n: 2,
     title: 'Shared',
-    body: 'Plans from Tasks, Calendar, Habits — shared with friends.',
+    body: 'Plans inbox — copy into your tasks. (Circle Schedule is what shows on Calendar.)',
     to: '/shared',
     icon: Share2,
   },
@@ -81,6 +81,12 @@ export function TogetherSetup({
           )
         })}
       </ol>
+      {highlight === 'shared' ? (
+        <p className="mt-4 text-xs text-muted-foreground">
+          Shared is a plans list you can copy in. For events that appear on Calendar for the group,
+          use Circle Schedule.
+        </p>
+      ) : null}
       {highlight === 'circles' ? (
         <p className="mt-4 text-xs text-muted-foreground">
           Tip: turn on streak sharing in{' '}

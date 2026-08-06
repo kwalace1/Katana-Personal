@@ -19,7 +19,6 @@ import {
   Users,
   Zap,
   Crown,
-  Medal,
   CalendarDays,
   UserPlus,
   UserCheck,
@@ -55,9 +54,11 @@ import { createCircleInvite, inviteFriendToCircle, listOutgoingPendingForCircle 
 import { listFriendProfiles, getCloudProfiles, friendshipRelation, requestFriend, acceptFriend, listFriendships } from '@/lib/social/friends'
 import type { CircleChallengeMetric, CircleGroup, CloudProfile, Friendship, StreakSnapshot } from '@/lib/social/types'
 import { cn } from '@/lib/utils'
-import { addDays } from '@/lib/dates'
 import { CircleSchedule } from '../components/CircleSchedule'
 import { CircleBoardExtras } from '../components/CircleBoardExtras'
+import { CircleManageDialog } from '../components/CircleManageDialog'
+import { CircleChallengeDialog } from '../components/CircleChallengeDialog'
+import { CircleAvatar, CircleRankBadge } from '../components/circle-board-ui'
 
 type BoardMetric = 'water' | 'sleep' | 'nutrition' | 'workout' | 'lift' | 'habit'
 
@@ -118,59 +119,6 @@ const METRICS: {
     accent: 'from-lime-500/20 to-transparent',
   },
 ]
-
-function initials(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean)
-  if (parts.length === 0) return '?'
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
-  return `${parts[0][0] ?? ''}${parts[1][0] ?? ''}`.toUpperCase()
-}
-
-function Avatar({ name, you, size = 'md' }: { name: string; you?: boolean; size?: 'sm' | 'md' | 'lg' }) {
-  const dims = size === 'lg' ? 'h-16 w-16 text-lg' : size === 'sm' ? 'h-8 w-8 text-[0.65rem]' : 'h-11 w-11 text-sm'
-  return (
-    <div
-      className={cn(
-        'flex shrink-0 items-center justify-center rounded-full font-semibold tracking-tight',
-        dims,
-        you
-          ? 'bg-primary text-primary-foreground shadow-[0_0_0_3px_hsl(var(--primary)/0.25)]'
-          : 'bg-secondary text-foreground',
-      )}
-    >
-      {initials(name)}
-    </div>
-  )
-}
-
-function RankBadge({ rank }: { rank: number }) {
-  if (rank === 1) {
-    return (
-      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-400/90 text-amber-950 shadow-sm">
-        <Crown className="h-4 w-4" />
-      </span>
-    )
-  }
-  if (rank === 2) {
-    return (
-      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-300/90 text-slate-800">
-        <Medal className="h-4 w-4" />
-      </span>
-    )
-  }
-  if (rank === 3) {
-    return (
-      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-orange-300/80 text-orange-950">
-        <Medal className="h-4 w-4" />
-      </span>
-    )
-  }
-  return (
-    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-sm font-semibold tabular-nums">
-      {rank}
-    </span>
-  )
-}
 
 export default function CirclesPage() {
   const { cloudEnabled, cloudUser, cloudProfile, syncStreaksToCloud } = useCloudAuth()
@@ -857,7 +805,7 @@ export default function CirclesPage() {
                         #{place}
                       </span>
                     )}
-                    <Avatar
+                    <CircleAvatar
                       name={entry.row.displayName}
                       you={entry.row.uid === cloudUser.uid}
                       size={place === 1 ? 'lg' : 'md'}
@@ -898,8 +846,8 @@ export default function CirclesPage() {
                         style={{ width: `${width}%` }}
                       />
                       <div className="relative flex items-center gap-3 px-4 py-3.5">
-                        <RankBadge rank={index + 1} />
-                        <Avatar name={row.displayName} you={row.uid === cloudUser.uid} size="sm" />
+                        <CircleRankBadge rank={index + 1} />
+                        <CircleAvatar name={row.displayName} you={row.uid === cloudUser.uid} size="sm" />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-semibold">
                             {row.displayName}
@@ -1034,7 +982,7 @@ export default function CirclesPage() {
           )}
         </div>
 
-        <ManageDialog
+        <CircleManageDialog
           open={manageOpen}
           onOpenChange={setManageOpen}
           editName={editName}
@@ -1051,70 +999,20 @@ export default function CirclesPage() {
           onSave={saveManage}
         />
 
-        <Dialog open={challengeOpen} onOpenChange={setChallengeOpen}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>7-day challenge</DialogTitle>
-            </DialogHeader>
-            <form
-              className="space-y-4"
-              onSubmit={async (e) => {
-                e.preventDefault()
-                if (!active || !cloudUser) return
-                try {
-                  const startsAt = new Date().toISOString()
-                  const endsAt = addDays(new Date(), 7).toISOString()
-                  await setCircleChallenge(active.id, {
-                    title: challengeTitle.trim() || '7-day streak',
-                    metric: challengeMetric,
-                    startsAt,
-                    endsAt,
-                    startedBy: cloudUser.uid,
-                  })
-                  setMetric(challengeMetric)
-                  setChallengeOpen(false)
-                  toast.success('Challenge started — climb the board')
-                  await loadCirclesList()
-                } catch (err) {
-                  toast.error(err instanceof Error ? err.message : 'Couldn’t start challenge')
-                }
-              }}
-            >
-              <div className="space-y-2">
-                <label className="text-sm font-medium" htmlFor="challenge-title">
-                  Name
-                </label>
-                <Input
-                  id="challenge-title"
-                  value={challengeTitle}
-                  onChange={(e) => setChallengeTitle(e.target.value)}
-                  placeholder="Morning walk week"
-                />
-              </div>
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Metric</p>
-                <div className="flex flex-wrap gap-2">
-                  {METRICS.map(({ id, short, icon: Icon }) => (
-                    <Button
-                      key={id}
-                      type="button"
-                      size="sm"
-                      variant={challengeMetric === id ? 'default' : 'outline'}
-                      className="rounded-full gap-1.5"
-                      onClick={() => setChallengeMetric(id)}
-                    >
-                      <Icon className="h-3.5 w-3.5" />
-                      {short}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-              <Button type="submit" className="w-full min-h-11">
-                Start challenge
-              </Button>
-            </form>
-          </DialogContent>
-        </Dialog>
+        <CircleChallengeDialog
+          open={challengeOpen}
+          onOpenChange={setChallengeOpen}
+          circle={active}
+          selfUid={cloudUser.uid}
+          title={challengeTitle}
+          setTitle={setChallengeTitle}
+          metric={challengeMetric}
+          setMetric={setChallengeMetric}
+          onStarted={async (m) => {
+            setMetric(m)
+            await loadCirclesList()
+          }}
+        />
       </motion.div>
     )
   }
@@ -1147,7 +1045,7 @@ export default function CirclesPage() {
           <TogetherSetup highlight="circles" className="mb-4" />
           <EmptyState
             title="No circles yet"
-            description="Create one for gym buddies, family, or roommates. Enter it for leaderboards, a live timeline, and optional 7-day challenges."
+            description="Create one for gym buddies, family, or roommates. Leaderboards and challenges live here; Circle Schedule shows on Calendar. Shared is a separate plans inbox."
             action={
               <div className="flex flex-wrap justify-center gap-2">
                 <Button onClick={() => setCreateOpen(true)}>Create a circle</Button>
@@ -1199,7 +1097,7 @@ export default function CirclesPage() {
                             : ''}
                       </p>
                       <p className="mt-2 text-xs text-muted-foreground">
-                        Leaderboard · shared schedule
+                        Leaderboard · Circle Schedule on Calendar
                       </p>
                     </div>
                     <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
@@ -1213,7 +1111,7 @@ export default function CirclesPage() {
                         className="rounded-full ring-2 ring-background"
                         style={{ zIndex: 5 - i }}
                       >
-                        <Avatar name={name} you={name === 'You' || name === cloudProfile?.displayName} size="sm" />
+                        <CircleAvatar name={name} you={name === 'You' || name === cloudProfile?.displayName} size="sm" />
                       </div>
                     ))}
                     {memberNames.length > 5 ? (
@@ -1253,7 +1151,7 @@ export default function CirclesPage() {
         </DialogContent>
       </Dialog>
 
-      <ManageDialog
+      <CircleManageDialog
         open={manageOpen}
         onOpenChange={setManageOpen}
         editName={editName}
@@ -1270,175 +1168,5 @@ export default function CirclesPage() {
         onSave={saveManage}
       />
     </motion.div>
-  )
-}
-
-function roleLabel(role: 'owner' | 'moderator' | 'member') {
-  if (role === 'owner') return 'Owner'
-  if (role === 'moderator') return 'Moderator'
-  return 'Member'
-}
-
-function ManageDialog({
-  open,
-  onOpenChange,
-  editName,
-  setEditName,
-  friends,
-  memberProfiles,
-  circle,
-  selfUid,
-  pendingInviteeIds,
-  inviteBusy,
-  onInvite,
-  onRemove,
-  onSetModerator,
-  onSave,
-}: {
-  open: boolean
-  onOpenChange: (o: boolean) => void
-  editName: string
-  setEditName: (v: string) => void
-  friends: CloudProfile[]
-  memberProfiles: CloudProfile[]
-  circle: CircleGroup | null
-  selfUid: string
-  pendingInviteeIds: string[]
-  inviteBusy: string | null
-  onInvite: (uid: string) => void
-  onRemove: (uid: string) => void
-  onSetModerator: (uid: string, makeMod: boolean) => void
-  onSave: (e: FormEvent) => void
-}) {
-  if (!circle) return null
-
-  const memberIds = circle.memberIds
-  const moderatorIds = new Set(circle.moderatorIds || [])
-  const friendByUid = new Map(friends.map((f) => [f.uid, f]))
-  const profileByUid = new Map(memberProfiles.map((p) => [p.uid, p]))
-  const inviteable = friends.filter((f) => !memberIds.includes(f.uid))
-  const pendingSet = new Set(pendingInviteeIds)
-  const canManage = canManageCircle(circle, selfUid)
-
-  const memberRows = memberIds.map((uid) => {
-    const role = circleRole(circle, uid)
-    const name =
-      uid === selfUid
-        ? 'You'
-        : profileByUid.get(uid)?.displayName || friendByUid.get(uid)?.displayName || 'Member'
-    return { uid, role, name }
-  })
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Manage circle</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={(e) => void onSave(e)} className="space-y-4">
-          {canManage ? (
-            <>
-              <Input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Name" />
-              <Button type="submit" variant="secondary" className="w-full">
-                Save name
-              </Button>
-            </>
-          ) : null}
-
-          <div>
-            <p className="mb-2 text-sm font-medium">In this circle</p>
-            <ul className="max-h-48 space-y-2 overflow-y-auto">
-              {memberRows.map((row) => (
-                <li
-                  key={row.uid}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-secondary/50 px-3 py-2"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{row.name}</p>
-                    <p className="text-xs text-muted-foreground">{roleLabel(row.role)}</p>
-                  </div>
-                  {canManage && row.uid !== circle.ownerId && row.uid !== selfUid ? (
-                    <div className="flex flex-wrap gap-1">
-                      {moderatorIds.has(row.uid) ? (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => onSetModerator(row.uid, false)}
-                        >
-                          Demote
-                        </Button>
-                      ) : (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => onSetModerator(row.uid, true)}
-                        >
-                          Make mod
-                        </Button>
-                      )}
-                      <Button type="button" size="sm" variant="ghost" onClick={() => onRemove(row.uid)}>
-                        Remove
-                      </Button>
-                    </div>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {canManage ? (
-            <div>
-              <p className="mb-2 text-sm font-medium">Invite a friend</p>
-              {inviteable.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  {friends.length === 0 ? (
-                    <>
-                      No friends yet.{' '}
-                      <Link to="/friends" className="text-primary underline">
-                        Add friends
-                      </Link>
-                    </>
-                  ) : (
-                    'Everyone you know is already in this circle.'
-                  )}
-                </p>
-              ) : (
-                <ul className="max-h-48 space-y-2 overflow-y-auto">
-                  {inviteable.map((f) => {
-                    const pending = pendingSet.has(f.uid)
-                    return (
-                      <li
-                        key={f.uid}
-                        className="flex items-center justify-between gap-2 rounded-xl bg-secondary/50 px-3 py-2"
-                      >
-                        <span className="text-sm font-medium">{f.displayName}</span>
-                        {pending ? (
-                          <span className="text-xs text-muted-foreground">Pending</span>
-                        ) : (
-                          <Button
-                            type="button"
-                            size="sm"
-                            disabled={inviteBusy === f.uid}
-                            onClick={() => onInvite(f.uid)}
-                          >
-                            {inviteBusy === f.uid ? 'Sending…' : 'Invite'}
-                          </Button>
-                        )}
-                      </li>
-                    )
-                  })}
-                </ul>
-              )}
-              <p className="mt-2 text-xs text-muted-foreground">
-                They’ll get a notification and can accept in Friends. Moderators can rename, invite,
-                and manage members — only the owner can delete the circle.
-              </p>
-            </div>
-          ) : null}
-        </form>
-      </DialogContent>
-    </Dialog>
   )
 }

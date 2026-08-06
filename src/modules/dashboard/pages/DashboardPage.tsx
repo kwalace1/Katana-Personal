@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from 'react'
+import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -50,6 +50,8 @@ import {
   toggleSection,
 } from '@/modules/dashboard/today-layout'
 import { toast } from 'sonner'
+import { listFriendships } from '@/lib/social/friends'
+import { listMyCircles } from '@/lib/social/circles'
 import type { Task } from '@/modules/tasks/types'
 import type { CalendarEvent } from '@/modules/calendar/types'
 import type { Habit } from '@/modules/habits/types'
@@ -109,9 +111,71 @@ export default function DashboardPage() {
   const [weekCardVisible, setWeekCardVisible] = useState(() => shouldOfferWeekReview())
   const [spentBriefing, setSpentBriefing] = useState<Record<string, true>>({})
   const [editingLayout, setEditingLayout] = useState(false)
+  const [togetherCue, setTogetherCue] = useState<{ label: string; to: string } | null>(null)
   const prefs = profile?.preferences
 
+  function cheerTogether() {
+    if (!cloudEnabled || !cloudUser) return
+    toast.message('Streak logged', {
+      description: 'Cheer it on in Circles',
+      action: {
+        label: 'Circles',
+        onClick: () => {
+          window.location.href = '/circles'
+        },
+      },
+    })
+  }
+
   const draft = useMemo(() => parseCapture(capture), [capture])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      if (!cloudEnabled || !cloudUser) {
+        setTogetherCue(null)
+        return
+      }
+      try {
+        const friendships = await listFriendships(cloudUser.uid)
+        const pending = friendships.filter(
+          (f) => f.status === 'pending' && f.requestedBy !== cloudUser.uid,
+        )
+        if (pending.length > 0) {
+          if (!cancelled)
+            setTogetherCue({
+              label:
+                pending.length === 1
+                  ? 'Friend request waiting'
+                  : `${pending.length} friend requests`,
+              to: '/friends',
+            })
+          return
+        }
+        const circles = await listMyCircles(cloudUser.uid)
+        const live = circles.find((c) => {
+          const ch = c.challenge
+          if (!ch) return false
+          const now = Date.now()
+          return new Date(ch.startsAt).getTime() <= now && new Date(ch.endsAt).getTime() >= now
+        })
+        if (live?.challenge) {
+          if (!cancelled)
+            setTogetherCue({
+              label: `Challenge: ${live.challenge.title}`,
+              to: `/circles?id=${live.id}`,
+            })
+          return
+        }
+        if (!cancelled) setTogetherCue(null)
+      } catch {
+        if (!cancelled) setTogetherCue(null)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [cloudEnabled, cloudUser?.uid, tick])
 
   const data = useMemo(() => {
     void tick
@@ -474,6 +538,7 @@ export default function DashboardPage() {
                   onClick={() => {
                     habitsApi.toggleToday(userId, data.next!.item.id)
                     toast.success('Checked in')
+                    cheerTogether()
                     refresh()
                   }}
                 >
@@ -545,6 +610,7 @@ export default function DashboardPage() {
                       variant="ghost"
                       onClick={() => {
                         habitsApi.toggleToday(userId, habit.id)
+                        cheerTogether()
                         refresh()
                       }}
                     >
@@ -582,8 +648,13 @@ export default function DashboardPage() {
         <p className="max-w-3xl text-sm leading-relaxed text-foreground/90 sm:text-[0.95rem]">
           {data.briefing}
         </p>
-        {data.briefingActions.length > 0 ? (
+        {data.briefingActions.length > 0 || togetherCue ? (
           <div className="mt-4 flex flex-wrap gap-2">
+            {togetherCue ? (
+              <Button asChild size="sm" variant="default" className="h-8 rounded-full text-xs">
+                <Link to={togetherCue.to}>{togetherCue.label}</Link>
+              </Button>
+            ) : null}
             {data.briefingActions.map((action) => {
               const used = Boolean(spentBriefing[action.id])
               return (
@@ -602,6 +673,9 @@ export default function DashboardPage() {
                     const result = runAskAction(userId, action)
                     if (result) {
                       toast.success(result)
+                      if (action.kind === 'toggle_habit' || action.kind === 'log_water') {
+                        cheerTogether()
+                      }
                       setSpentBriefing((s) => ({ ...s, [action.id]: true }))
                       refresh()
                     }
@@ -646,6 +720,7 @@ export default function DashboardPage() {
                     variant="secondary"
                     onClick={() => {
                       habitsApi.toggleToday(userId, h.id)
+                      cheerTogether()
                       refresh()
                     }}
                   >
@@ -667,33 +742,32 @@ export default function DashboardPage() {
         </motion.section>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="mt-8 grid gap-3 lg:grid-cols-2">
         {isSectionVisible(prefs, 'coming_up') && (
-        <section className="kp-surface p-5 sm:p-6">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="flex items-center gap-2 text-[0.95rem] font-semibold tracking-tight">
-              <CalendarDays className="h-4 w-4 text-primary" />
+        <section className="px-1 py-2 sm:px-0">
+          <div className="mb-2 flex items-baseline justify-between gap-2">
+            <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
               Coming up
             </h2>
-            <Link to="/calendar" className="text-xs font-medium text-muted-foreground hover:text-foreground">
+            <Link to="/calendar" className="text-xs font-medium text-primary hover:underline">
               Calendar
             </Link>
           </div>
           {data.events.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nothing on the calendar yet.</p>
+            <p className="text-sm text-muted-foreground">Calendar is clear.</p>
           ) : (
-            <ul className="space-y-2">
+            <ul className="space-y-1.5">
               {data.events.slice(0, 4).map((event) => (
                 <li key={event.id}>
                   <Link
                     to={`/calendar?date=${event.starts_at.slice(0, 10)}&id=${event.id}`}
-                    className="block rounded-2xl bg-secondary/55 px-3.5 py-3 transition hover:bg-secondary/80"
+                    className="flex items-baseline justify-between gap-3 rounded-xl py-1.5 text-sm transition hover:text-primary"
                   >
-                    <p className="text-sm font-medium">{event.title}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
+                    <span className="min-w-0 truncate font-medium">{event.title}</span>
+                    <span className="shrink-0 text-xs text-muted-foreground">
                       {formatShortDate(event.starts_at)}
-                      {!event.all_day ? ` · ${formatTime(event.starts_at)}` : ' · All day'}
-                    </p>
+                      {!event.all_day ? ` · ${formatTime(event.starts_at)}` : ''}
+                    </span>
                   </Link>
                 </li>
               ))}
@@ -703,32 +777,31 @@ export default function DashboardPage() {
         )}
 
         {isSectionVisible(prefs, 'goals') && (
-        <section className="kp-surface p-5 sm:p-6">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="flex items-center gap-2 text-[0.95rem] font-semibold tracking-tight">
-              <Target className="h-4 w-4 text-primary" />
+        <section className="px-1 py-2 sm:px-0">
+          <div className="mb-2 flex items-baseline justify-between gap-2">
+            <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
               Goals
             </h2>
-            <Link to="/goals" className="text-xs font-medium text-muted-foreground hover:text-foreground">
+            <Link to="/goals" className="text-xs font-medium text-primary hover:underline">
               View
             </Link>
           </div>
           {data.goals.length === 0 ? (
             <p className="text-sm text-muted-foreground">Set a direction when you’re ready.</p>
           ) : (
-            <ul className="space-y-4">
+            <ul className="space-y-3">
               {data.goals.slice(0, 3).map((goal) => {
                 const pct = Math.min(100, Math.round((goal.progress / Math.max(goal.target, 1)) * 100))
                 return (
                   <li key={goal.id}>
                     <Link to={`/goals?id=${goal.id}`} className="block hover:opacity-90">
-                      <div className="mb-1.5 flex justify-between text-sm">
+                      <div className="mb-1 flex justify-between text-sm">
                         <span className="font-medium">{goal.title}</span>
                         <span className="text-muted-foreground">{pct}%</span>
                       </div>
-                      <div className="h-1.5 overflow-hidden rounded-full bg-secondary">
+                      <div className="h-1 overflow-hidden rounded-full bg-secondary">
                         <div
-                          className={cn('h-full rounded-full bg-primary transition-all')}
+                          className="h-full rounded-full bg-primary transition-all"
                           style={{ width: `${pct}%` }}
                         />
                       </div>
@@ -741,35 +814,27 @@ export default function DashboardPage() {
         </section>
         )}
 
-        {isSectionVisible(prefs, 'recent_notes') && (
-        <section className="kp-surface p-5 sm:p-6 lg:col-span-2">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="flex items-center gap-2 text-[0.95rem] font-semibold tracking-tight">
-              <NotebookPen className="h-4 w-4 text-primary" />
+        {isSectionVisible(prefs, 'recent_notes') && data.notes.length > 0 && (
+        <section className="px-1 py-2 sm:px-0 lg:col-span-2">
+          <div className="mb-2 flex items-baseline justify-between gap-2">
+            <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
               Recent notes
             </h2>
-            <Link to="/notes" className="text-xs font-medium text-muted-foreground hover:text-foreground">
-              Open notes
+            <Link to="/notes" className="text-xs font-medium text-primary hover:underline">
+              Notes
             </Link>
           </div>
-          {data.notes.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Capture a thought when it shows up.</p>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {data.notes.map((note) => (
-                <Link
-                  key={note.id}
-                  to={`/notes?id=${note.id}`}
-                  className="rounded-2xl border border-border/40 bg-secondary/40 p-4 transition hover:border-primary/25 hover:bg-secondary/70"
-                >
-                  <p className="truncate text-sm font-medium">{note.title}</p>
-                  <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
-                    {note.body || 'Empty note'}
-                  </p>
-                </Link>
-              ))}
-            </div>
-          )}
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
+            {data.notes.slice(0, 4).map((note) => (
+              <Link
+                key={note.id}
+                to={`/notes?id=${note.id}`}
+                className="max-w-[14rem] truncate text-sm font-medium hover:text-primary hover:underline"
+              >
+                {note.title}
+              </Link>
+            ))}
+          </div>
         </section>
         )}
       </div>

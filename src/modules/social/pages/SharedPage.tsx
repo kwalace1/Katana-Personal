@@ -66,20 +66,20 @@ export default function SharedPage() {
 
   return (
     <motion.div {...pageEnterSubtle} className="kp-page">
-      <PageHeader title="Shared" description="Tasks and plans with friends and circles." eyebrow="Together" />
+      <PageHeader title="Shared" description="Plans inbox — copy into your tasks. Circle Schedule shows on Calendar." eyebrow="Together" />
       {items.length === 0 ? (
         <>
           <TogetherSetup highlight="shared" className="mb-4" />
           <EmptyState
             title="Nothing shared yet"
-            description="Open a task, tap Share, pick a circle or friend — it lands here."
+            description="Shared is your plans inbox — share a task with a friend or circle, then copy it into your own list. For things that show on Calendar, use Circle Schedule."
             action={
               <div className="flex flex-wrap justify-center gap-2">
                 <Button asChild>
                   <Link to="/tasks">Open Tasks → pick one → Share</Link>
                 </Button>
                 <Button asChild variant="outline">
-                  <Link to="/circles">Open Circles</Link>
+                  <Link to="/circles">Circle Schedule</Link>
                 </Button>
                 <Button asChild variant="outline">
                   <Link to="/friends">Find friends</Link>

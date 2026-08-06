@@ -17,7 +17,7 @@ import {
   type User,
 } from 'firebase/auth'
 import { doc, setDoc } from 'firebase/firestore'
-import { enableWebPush, firebaseConfigured, getDb, getFirebaseAuth } from '@/lib/firebase'
+import { enableWebPush, firebaseConfigured, appleAuthEnabled, getDb, getFirebaseAuth } from '@/lib/firebase'
 import {
   ensureCloudProfile,
   getCloudProfile,
@@ -31,6 +31,8 @@ import { useAuth } from '@/contexts/AuthContext'
 
 interface CloudAuthContextType {
   cloudEnabled: boolean
+  /** Soft launch: Apple only when VITE_FIREBASE_APPLE_AUTH=true */
+  appleSignInAvailable: boolean
   cloudUser: User | null
   cloudProfile: CloudProfile | null
   cloudLoading: boolean
@@ -244,6 +246,7 @@ export function CloudAuthProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo(
     () => ({
       cloudEnabled: firebaseConfigured,
+      appleSignInAvailable: appleAuthEnabled,
       cloudUser,
       cloudProfile,
       cloudLoading,

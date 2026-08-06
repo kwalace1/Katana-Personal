@@ -1,3 +1,5 @@
+> **Archived business SaaS docs** — this file does **not** describe Katana Personal. For the current product see [../README.md](../README.md), [SOFT_LAUNCH_CHECKLIST.md](./SOFT_LAUNCH_CHECKLIST.md), and [PERSONAL_NEXT_PLAN.md](./PERSONAL_NEXT_PLAN.md).
+
 # Investor Demo Roadmap — Full System for 1 Company by March 15
 
 **Goal:** A fully working business ops platform (Hub + all modules) that works end-to-end for **at least one company**, demo-ready for investors by **March 15**.

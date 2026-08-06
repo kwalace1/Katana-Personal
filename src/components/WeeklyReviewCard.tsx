@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { CalendarRange, ArrowRight, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { springSoft } from '@/lib/motion-ui'
-import { weekLabel, markWeekReviewed } from '@/lib/week-review'
+import { markWeekReviewed } from '@/lib/week-review'
 import type { LifeSnapshot } from '@/modules/assistant/engine'
 
 export function WeeklyReviewCard({
@@ -13,7 +13,7 @@ export function WeeklyReviewCard({
   snap: LifeSnapshot
   onDone?: () => void
 }) {
-  const openHabitsLeft = snap.habitsDue.length - snap.habitsDoneIds.length
+  const w = snap.week
 
   function finish() {
     markWeekReviewed()
@@ -36,29 +36,40 @@ export function WeeklyReviewCard({
       <h2 className="relative font-display text-xl tracking-tight sm:text-2xl">
         Look back, then look ahead
       </h2>
-      <p className="relative mt-1 text-sm text-muted-foreground">{weekLabel()}</p>
+      <p className="relative mt-1 text-sm text-muted-foreground">{w.label}</p>
 
       <ul className="relative mt-4 space-y-2 text-sm">
         <li className="rounded-2xl bg-secondary/55 px-3.5 py-2.5">
-          <span className="font-medium">{snap.openTasks.length}</span>
-          <span className="text-muted-foreground"> open task{snap.openTasks.length === 1 ? '' : 's'}</span>
-          {snap.priorityTasks[0] ? (
-            <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-              Next: {snap.priorityTasks[0].title}
+          <span className="font-medium">{w.tasksCompleted}</span>
+          <span className="text-muted-foreground">
+            {' '}
+            task{w.tasksCompleted === 1 ? '' : 's'} finished this week
+          </span>
+          {w.openTasks > 0 ? (
+            <span className="mt-0.5 block text-xs text-muted-foreground">
+              {w.openTasks} still open
             </span>
           ) : null}
         </li>
         <li className="rounded-2xl bg-secondary/55 px-3.5 py-2.5">
-          <span className="font-medium">{snap.habitsDoneIds.length}</span>
+          <span className="font-medium">{w.habitCheckInDays}</span>
           <span className="text-muted-foreground">
             {' '}
-            of {snap.habitsDue.length} habits done today
-            {openHabitsLeft > 0 ? ` · ${openHabitsLeft} still open` : ''}
+            day{w.habitCheckInDays === 1 ? '' : 's'} with a habit check-in
           </span>
+          {w.journalDays > 0 ? (
+            <span className="mt-0.5 block text-xs text-muted-foreground">
+              Journal on {w.journalDays} day{w.journalDays === 1 ? '' : 's'}
+            </span>
+          ) : null}
         </li>
         <li className="rounded-2xl bg-secondary/55 px-3.5 py-2.5">
-          <span className="font-medium">{snap.recentWorkouts}</span>
-          <span className="text-muted-foreground"> workout{snap.recentWorkouts === 1 ? '' : 's'} this week</span>
+          <span className="font-medium">{w.workouts + w.lifts}</span>
+          <span className="text-muted-foreground">
+            {' '}
+            movement session{(w.workouts + w.lifts) === 1 ? '' : 's'} ({w.workouts} workout
+            {w.workouts === 1 ? '' : 's'}, {w.lifts} lift{w.lifts === 1 ? '' : 's'})
+          </span>
           {snap.behindGoals.length > 0 ? (
             <span className="mt-0.5 block truncate text-xs text-muted-foreground">
               Goals needing love: {snap.behindGoals.map((g) => g.title).join(', ')}
@@ -67,6 +78,11 @@ export function WeeklyReviewCard({
             <span className="mt-0.5 block text-xs text-muted-foreground">Goals look steady.</span>
           ) : null}
         </li>
+        {w.lookAhead ? (
+          <li className="rounded-2xl border border-primary/20 bg-primary/5 px-3.5 py-2.5 text-sm">
+            {w.lookAhead}
+          </li>
+        ) : null}
       </ul>
 
       <div className="relative mt-4 flex flex-wrap gap-2">

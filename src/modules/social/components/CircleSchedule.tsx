@@ -334,8 +334,8 @@ export function CircleSchedule({
       {events.length === 0 ? (
         <EmptyState
           icon={CalendarDays}
-          title="No shared plans yet"
-          description="Add groceries, pickups, or who’s free — everyone in the circle sees it live."
+          title="No schedule items yet"
+          description="Circle Schedule shows on everyone’s Calendar. Shared is a separate plans inbox you copy into your own tasks."
           action={
             <Button onClick={() => openAdd()}>
               <Plus className="mr-1 h-4 w-4" />

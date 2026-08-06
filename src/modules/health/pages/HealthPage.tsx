@@ -310,9 +310,16 @@ export default function HealthPage() {
 
         <TabsContent value="sleep" className="space-y-4">
           <form onSubmit={addSleep} className="kp-surface grid gap-3 p-4 sm:grid-cols-3">
-            <Input type="number" step="0.5" min={0} placeholder="Hours" value={hours} onChange={(e) => setHours(e.target.value)} />
+            <div className="sm:col-span-3">
+              <p className="text-xs text-muted-foreground">Sleep</p>
+              <h3 className="font-display text-xl tracking-tight">Log last night</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Hours and how it felt — same calm log style as water and meals.
+              </p>
+            </div>
+            <Input type="number" step="0.5" min={0} placeholder="Hours" value={hours} onChange={(e) => setHours(e.target.value)} aria-label="Hours slept" />
             <Select value={quality} onValueChange={(v) => setQuality(v as SleepLog['quality'])}>
-              <SelectTrigger>
+              <SelectTrigger aria-label="Sleep quality">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -325,7 +332,10 @@ export default function HealthPage() {
             <Button type="submit">Log sleep</Button>
           </form>
           {sleep.length === 0 ? (
-            <EmptyState title="No sleep logs" description="Note how you rested when you can." />
+            <EmptyState
+              title="No sleep logs yet"
+              description="Log hours and quality above when you wake — it feeds your week review."
+            />
           ) : (
             <ul className="space-y-2">
               {sleep.map((s) => (

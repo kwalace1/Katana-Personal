@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
 import { listFriendships, getCloudProfile } from '@/lib/social/friends'
 import { listMyCircles } from '@/lib/social/circles'
+import { listSharedItems } from '@/lib/social/shared'
 import { loadCirclesBoard } from '@/lib/social/streaks'
 import { springSoft } from '@/lib/motion-ui'
 import { cn } from '@/lib/utils'
@@ -15,8 +16,14 @@ type StripMode =
   | { kind: 'offline' }
   | { kind: 'connect' }
   | { kind: 'pending'; count: number; names: string[] }
-  | { kind: 'board'; circleName: string; rows: { name: string; score: number; you: boolean }[] }
-  | { kind: 'empty' }
+  | {
+      kind: 'board'
+      circleName: string
+      rows: { name: string; score: number; you: boolean }[]
+      challengeTitle?: string
+      sharedIncoming?: number
+    }
+  | { kind: 'empty'; sharedIncoming?: number }
 
 export function TogetherTodayCard() {
   const { cloudEnabled, cloudUser, cloudProfile, syncStreaksToCloud } = useCloudAuth()
@@ -48,7 +55,11 @@ export function TogetherTodayCard() {
           return
         }
 
-        const circles = await listMyCircles(cloudUser.uid)
+        const [circles, shared] = await Promise.all([
+          listMyCircles(cloudUser.uid),
+          listSharedItems(cloudUser.uid).catch(() => []),
+        ])
+        const sharedIncoming = shared.filter((s) => s.ownerId !== cloudUser.uid).length
         const accepted = friendships.filter((f) => f.status === 'accepted')
         if (circles.length > 0 && accepted.length > 0) {
           await syncStreaksToCloud().catch(() => undefined)
@@ -68,11 +79,25 @@ export function TogetherTodayCard() {
             }))
             .sort((a, b) => b.score - a.score)
             .slice(0, 3)
-          if (!cancelled) setMode({ kind: 'board', circleName: circle.name, rows: ranked })
+          const challenge = circle.challenge
+          const challengeLive =
+            challenge &&
+            new Date(challenge.startsAt).getTime() <= Date.now() &&
+            new Date(challenge.endsAt).getTime() >= Date.now()
+              ? challenge.title
+              : undefined
+          if (!cancelled)
+            setMode({
+              kind: 'board',
+              circleName: circle.name,
+              rows: ranked,
+              challengeTitle: challengeLive,
+              sharedIncoming,
+            })
           return
         }
 
-        if (!cancelled) setMode({ kind: 'empty' })
+        if (!cancelled) setMode({ kind: 'empty', sharedIncoming })
       } catch {
         if (!cancelled) setMode({ kind: 'empty' })
       }
@@ -102,10 +127,10 @@ export function TogetherTodayCard() {
         <div>
           <p className="font-display text-xl tracking-tight">Friends & Circles</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Add free Firebase keys to turn on accountability with people you trust.
+            Connect cloud in Settings to invite friends and cheer streaks together.
           </p>
           <Button asChild size="sm" variant="outline" className="mt-3">
-            <Link to="/settings">See setup</Link>
+            <Link to="/settings">Connect cloud</Link>
           </Button>
         </div>
       )}
@@ -147,7 +172,11 @@ export function TogetherTodayCard() {
       {mode.kind === 'board' && (
         <div>
           <p className="font-display text-xl tracking-tight">{mode.circleName}</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">Live streaks with your circle</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {mode.challengeTitle
+              ? `Challenge: ${mode.challengeTitle}`
+              : 'Live streaks with your circle'}
+          </p>
           <ul className="mt-3 space-y-1.5">
             {mode.rows.map((row, i) => (
               <li
@@ -165,12 +194,22 @@ export function TogetherTodayCard() {
               </li>
             ))}
           </ul>
-          <Button asChild size="sm" variant="outline" className="mt-3 gap-1.5">
-            <Link to="/circles">
-              <Trophy className="h-3.5 w-3.5" />
-              Full board
-            </Link>
-          </Button>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button asChild size="sm" variant="outline" className="gap-1.5">
+              <Link to="/circles">
+                <Trophy className="h-3.5 w-3.5" />
+                Full board
+              </Link>
+            </Button>
+            {(mode.sharedIncoming ?? 0) > 0 ? (
+              <Button asChild size="sm" variant="ghost" className="gap-1.5">
+                <Link to="/shared">
+                  <Share2 className="h-3.5 w-3.5" />
+                  {mode.sharedIncoming} shared with you
+                </Link>
+              </Button>
+            ) : null}
+          </div>
         </div>
       )}
 
@@ -178,8 +217,14 @@ export function TogetherTodayCard() {
         <div>
           <p className="font-display text-xl tracking-tight">Accountability starts here</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Friends are people. Shared is plans. Circles are streaks.
+            Friends are people. Shared is plans you copy in. Circles are streaks — Schedule shows on
+            Calendar.
           </p>
+          {(mode.sharedIncoming ?? 0) > 0 ? (
+            <p className="mt-2 text-sm font-medium text-primary">
+              {mode.sharedIncoming} plan{mode.sharedIncoming === 1 ? '' : 's'} waiting in Shared
+            </p>
+          ) : null}
           <div className="mt-4 flex flex-wrap gap-2">
             <Button asChild size="sm" className="gap-1.5">
               <Link to="/friends">
@@ -188,9 +233,9 @@ export function TogetherTodayCard() {
               </Link>
             </Button>
             <Button asChild size="sm" variant="outline" className="gap-1.5">
-              <Link to="/tasks">
+              <Link to="/shared">
                 <Share2 className="h-3.5 w-3.5" />
-                Share a task
+                Shared
               </Link>
             </Button>
             <Button asChild size="sm" variant="outline" className="gap-1.5">

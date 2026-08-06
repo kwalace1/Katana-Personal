@@ -1,3 +1,5 @@
+> **Archived business SaaS docs** — this file does **not** describe Katana Personal. For the current product see [../README.md](../README.md), [SOFT_LAUNCH_CHECKLIST.md](./SOFT_LAUNCH_CHECKLIST.md), and [PERSONAL_NEXT_PLAN.md](./PERSONAL_NEXT_PLAN.md).
+
 # Local dev with a real database
 
 The **Continue without sign-in (dev)** button can use a real Supabase session so HR, projects, inventory, and other modules work (not just the UI shell).

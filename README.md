@@ -25,6 +25,10 @@ See [docs/SOFT_LAUNCH_CHECKLIST.md](./docs/SOFT_LAUNCH_CHECKLIST.md). Product ne
 
 Firebase (optional social): [FIREBASE_SETUP.md](./FIREBASE_SETUP.md) — publish `firestore.rules` when they change.
 
+## Docs note
+
+This repo is **Katana Personal** (local-first life OS). Files like `SYSTEM_OVERVIEW.md` and `docs/ONBOARDING.md` describe an archived business SaaS — do not use them for Personal work. Truth lives in this README + the soft-launch docs above.
+
 ## Keep a copy
 
 Settings → **Save a copy** / **Bring a copy back** so a cleared browser doesn’t lose your space.

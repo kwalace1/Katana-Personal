@@ -50,6 +50,7 @@ export default function SettingsPage() {
   const { user, profile, updateDisplayName, updatePreferences, resetOnboarding } = useAuth()
   const {
     cloudEnabled,
+    appleSignInAvailable,
     cloudUser,
     cloudProfile,
     signUpCloud,
@@ -348,28 +349,32 @@ export default function SettingsPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full"
-              disabled={busy}
-              onClick={async () => {
-                setBusy(true)
-                try {
-                  await signInWithApple()
-                  toast.success('Signed in with Apple')
-                  const back = takeInviteReturn()
-                  if (back) navigate(back)
-                } catch (err) {
-                  toast.error(err instanceof Error ? err.message : 'Apple sign-in failed')
-                } finally {
-                  setBusy(false)
-                }
-              }}
-            >
-              Continue with Apple
-            </Button>
-            <p className="text-center text-xs text-muted-foreground">or use email</p>
+            {appleSignInAvailable ? (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  disabled={busy}
+                  onClick={async () => {
+                    setBusy(true)
+                    try {
+                      await signInWithApple()
+                      toast.success('Signed in with Apple')
+                      const back = takeInviteReturn()
+                      if (back) navigate(back)
+                    } catch (err) {
+                      toast.error(err instanceof Error ? err.message : 'Apple sign-in failed')
+                    } finally {
+                      setBusy(false)
+                    }
+                  }}
+                >
+                  Continue with Apple
+                </Button>
+                <p className="text-center text-xs text-muted-foreground">or use email</p>
+              </>
+            ) : null}
             <form onSubmit={(e) => void onCloudAuth(e)} className="space-y-3">
               <div className="flex gap-2">
                 <Button
@@ -501,7 +506,8 @@ export default function SettingsPage() {
           <div>
             <h2 className="font-semibold">Gentle reminders</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              A soft nudge once a day when something still needs you.
+              Soft nudges for habits and events while Katana is open in this tab — not background push
+              when the app is closed.
             </p>
           </div>
           <Switch checked={gentle} onCheckedChange={(v) => void onToggleReminders(v)} />

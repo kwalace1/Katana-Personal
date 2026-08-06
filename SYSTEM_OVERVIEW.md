@@ -1,3 +1,5 @@
+> **Archived business SaaS docs** — this file does **not** describe Katana Personal. For the current product see [README.md](./README.md), [docs/SOFT_LAUNCH_CHECKLIST.md](./docs/SOFT_LAUNCH_CHECKLIST.md), and [docs/PERSONAL_NEXT_PLAN.md](./docs/PERSONAL_NEXT_PLAN.md).
+
 # Katana – System Overview
 
 Use this doc to get another AI (e.g. ChatGPT) or a new contributor on the same page about how the app works as of now.

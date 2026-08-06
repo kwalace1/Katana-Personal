@@ -21,6 +21,10 @@ export const firebaseConfigured = Boolean(
     config.apiKey.length > 10,
 )
 
+/** Soft launch: Apple button only when explicitly enabled (provider must be set in Firebase). */
+export const appleAuthEnabled =
+  firebaseConfigured && String(import.meta.env.VITE_FIREBASE_APPLE_AUTH || '').toLowerCase() === 'true'
+
 export const fcmVapidKey = (import.meta.env.VITE_FIREBASE_VAPID_KEY as string | undefined) || ''
 
 let app: FirebaseApp | null = null

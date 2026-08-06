@@ -1,3 +1,5 @@
+> **Archived business SaaS docs** — this file does **not** describe Katana Personal. For the current product see [../README.md](../README.md), [SOFT_LAUNCH_CHECKLIST.md](./SOFT_LAUNCH_CHECKLIST.md), and [PERSONAL_NEXT_PLAN.md](./PERSONAL_NEXT_PLAN.md).
+
 # Katana — Team Onboarding Guide
 
 Welcome to Katana. This guide gets a new developer or team member from zero to productive.
