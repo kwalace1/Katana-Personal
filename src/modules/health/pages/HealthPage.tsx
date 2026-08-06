@@ -19,6 +19,7 @@ import { healthApi, WATER_GOAL_GLASSES } from '../api'
 import { CardioPanel } from '../components/CardioPanel'
 import { LiftTrackingPanel } from '../components/LiftTrackingPanel'
 import { NutritionPanel } from '../components/NutritionPanel'
+import { VitaminsPanel } from '../components/VitaminsPanel'
 import type { SleepLog } from '../types'
 import { cn } from '@/lib/utils'
 
@@ -263,6 +264,7 @@ export default function HealthPage() {
           <TabsTrigger value="weight">Weight</TabsTrigger>
           <TabsTrigger value="workouts">Cardio</TabsTrigger>
           <TabsTrigger value="nutrition">Nutrition</TabsTrigger>
+          <TabsTrigger value="vitamins">Vitamins</TabsTrigger>
           <TabsTrigger value="sleep">Sleep</TabsTrigger>
         </TabsList>
 
@@ -300,6 +302,10 @@ export default function HealthPage() {
 
         <TabsContent value="nutrition" className="space-y-4">
           <NutritionPanel userId={userId} logDate={logDate} tick={tick} refresh={refresh} />
+        </TabsContent>
+
+        <TabsContent value="vitamins" className="space-y-4">
+          <VitaminsPanel userId={userId} logDate={logDate} tick={tick} refresh={refresh} />
         </TabsContent>
 
         <TabsContent value="sleep" className="space-y-4">

@@ -2,12 +2,23 @@ import { localDb } from '@/lib/local-db'
 import { createId } from '@/lib/id'
 import { todayKey } from '@/lib/dates'
 import { notifyCheckIn, notifyLocalProgress } from '@/lib/social/streak-sync'
-import type { Workout, WaterLog, NutritionLog, SleepLog, MealCategory } from './types'
+import type {
+  Workout,
+  WaterLog,
+  NutritionLog,
+  SleepLog,
+  MealCategory,
+  SupplementItem,
+  SupplementLog,
+  SupplementChecklistRow,
+} from './types'
 
 const WORKOUTS = 'workouts'
 const WATER = 'water_logs'
 const NUTRITION = 'nutrition_logs'
 const SLEEP = 'sleep_logs'
+const SUPPLEMENT_ITEMS = 'supplement_items'
+const SUPPLEMENT_LOGS = 'supplement_logs'
 
 /** Daily goal used for Circles hydration streaks */
 export const WATER_GOAL_GLASSES = 6
@@ -332,5 +343,119 @@ export const healthApi = {
       cursor.setDate(cursor.getDate() + 1)
     }
     return out
+  },
+
+  listSupplements(userId: string, includeArchived = false): SupplementItem[] {
+    return localDb
+      .list<SupplementItem>(SUPPLEMENT_ITEMS, userId)
+      .filter((item) => includeArchived || !item.archived)
+      .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name))
+  },
+
+  addSupplement(
+    userId: string,
+    input: { name: string; dose_notes?: string },
+  ): SupplementItem | null {
+    const name = input.name.trim()
+    if (!name) return null
+    const existing = healthApi.listSupplements(userId)
+    return localDb.insert(SUPPLEMENT_ITEMS, userId, {
+      id: createId(),
+      user_id: userId,
+      name,
+      dose_notes: (input.dose_notes || '').trim(),
+      sort_order: existing.length,
+      archived: false,
+      created_at: now(),
+    })
+  },
+
+  updateSupplement(
+    userId: string,
+    id: string,
+    patch: Partial<Pick<SupplementItem, 'name' | 'dose_notes' | 'sort_order' | 'archived'>>,
+  ): SupplementItem | null {
+    const next: Partial<SupplementItem> = { ...patch }
+    if (typeof patch.name === 'string') next.name = patch.name.trim()
+    if (typeof patch.dose_notes === 'string') next.dose_notes = patch.dose_notes.trim()
+    return localDb.update<SupplementItem>(SUPPLEMENT_ITEMS, userId, id, next)
+  },
+
+  archiveSupplement(userId: string, id: string): SupplementItem | null {
+    return healthApi.updateSupplement(userId, id, { archived: true })
+  },
+
+  getDayChecklist(userId: string, date = todayKey()): SupplementChecklistRow[] {
+    const items = healthApi.listSupplements(userId)
+    const logs = localDb
+      .list<SupplementLog>(SUPPLEMENT_LOGS, userId)
+      .filter((log) => log.date === date)
+    const byItem = new Map(logs.map((log) => [log.item_id, log]))
+    return items.map((item) => {
+      const log = byItem.get(item.id) ?? null
+      return {
+        item,
+        log,
+        taken: Boolean(log?.taken),
+        doseNotes: (log?.dose_notes || item.dose_notes || '').trim(),
+      }
+    })
+  },
+
+  toggleTaken(
+    userId: string,
+    itemId: string,
+    date = todayKey(),
+    taken?: boolean,
+  ): SupplementLog {
+    const logs = localDb.list<SupplementLog>(SUPPLEMENT_LOGS, userId)
+    const existing = logs.find((log) => log.item_id === itemId && log.date === date)
+    const item = healthApi.listSupplements(userId, true).find((s) => s.id === itemId)
+    const nextTaken = taken ?? !(existing?.taken ?? false)
+    if (existing) {
+      return (
+        localDb.update<SupplementLog>(SUPPLEMENT_LOGS, userId, existing.id, {
+          taken: nextTaken,
+          updated_at: now(),
+        }) || existing
+      )
+    }
+    return localDb.insert(SUPPLEMENT_LOGS, userId, {
+      id: createId(),
+      user_id: userId,
+      item_id: itemId,
+      date,
+      taken: nextTaken,
+      dose_notes: item?.dose_notes || '',
+      updated_at: now(),
+    })
+  },
+
+  setDayDoseNotes(
+    userId: string,
+    itemId: string,
+    date: string,
+    doseNotes: string,
+  ): SupplementLog {
+    const logs = localDb.list<SupplementLog>(SUPPLEMENT_LOGS, userId)
+    const existing = logs.find((log) => log.item_id === itemId && log.date === date)
+    const notes = doseNotes.trim()
+    if (existing) {
+      return (
+        localDb.update<SupplementLog>(SUPPLEMENT_LOGS, userId, existing.id, {
+          dose_notes: notes,
+          updated_at: now(),
+        }) || existing
+      )
+    }
+    return localDb.insert(SUPPLEMENT_LOGS, userId, {
+      id: createId(),
+      user_id: userId,
+      item_id: itemId,
+      date,
+      taken: false,
+      dose_notes: notes,
+      updated_at: now(),
+    })
   },
 }

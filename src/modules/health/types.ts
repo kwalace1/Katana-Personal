@@ -141,3 +141,32 @@ export interface LiftWorkoutDraftExercise {
   name: string
   sets: { weight: number; reps: number }[]
 }
+
+/** Reusable vitamins / supplements catalog */
+export interface SupplementItem {
+  id: string
+  user_id: string
+  name: string
+  dose_notes: string
+  sort_order: number
+  archived: boolean
+  created_at: string
+}
+
+/** Daily taken check — one row per item + date */
+export interface SupplementLog {
+  id: string
+  user_id: string
+  item_id: string
+  date: string
+  taken: boolean
+  dose_notes: string
+  updated_at: string
+}
+
+export type SupplementChecklistRow = {
+  item: SupplementItem
+  log: SupplementLog | null
+  taken: boolean
+  doseNotes: string
+}

@@ -20,6 +20,8 @@ export const WORKSPACE_COLLECTIONS = [
   'water_logs',
   'nutrition_logs',
   'sleep_logs',
+  'supplement_items',
+  'supplement_logs',
   'lift_exercises',
   'lift_sessions',
   'lift_sets',
