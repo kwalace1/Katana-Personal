@@ -42,6 +42,8 @@ export interface LifeSnapshot {
 export interface AskReply {
   text: string
   actions: AskAction[]
+  /** When true, Ask UI should try Gemini for a richer open-ended reply. */
+  useLlm?: boolean
 }
 
 export function buildSnapshot(userId: string, displayName = 'there'): LifeSnapshot {
@@ -977,7 +979,7 @@ export function answerQuestionWithActions(
     if (intent.test(q)) return intent.answer(snap, q)
   }
 
-  return answerDefault(snap)
+  return { ...answerDefault(snap), useLlm: true }
 }
 
 export function runAskAction(userId: string, action: AskAction): string {

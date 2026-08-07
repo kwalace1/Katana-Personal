@@ -81,6 +81,12 @@ describe('Ask engine (no LLM)', () => {
     const reply = answerQuestionWithActions(USER, 'asdfgh random nonsense', 'Alex')
     expect(reply.text.toLowerCase()).not.toMatch(/didn.t catch/)
     expect(reply.text.length).toBeGreaterThan(20)
+    expect(reply.useLlm).toBe(true)
+  })
+
+  it('marks known intents as rules-only', () => {
+    const reply = answerQuestionWithActions(USER, 'What should I work on today?', 'Alex')
+    expect(reply.useLlm).toBeFalsy()
   })
 
   it('builds a snapshot with week stats', () => {

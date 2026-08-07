@@ -27,7 +27,7 @@ Use this before putting the app in front of 10–20 real busy people.
 
 ## Honest limits (do not promise)
 
-- No paid LLM yet — Ask is a day guide with actions (close day, park tasks, week review, create, Together routes)
+- Ask uses rules for actions; optional Gemini Flash via OpenRouter when `OPENROUTER_API_KEY` is set (see `.env.example`)
 - No App Store build yet — Web/PWA only
 - No FCM background push on Spark — in-app + open-tab reminders
 - No collaborative editing — Shared is plans/accountability, not multiplayer docs

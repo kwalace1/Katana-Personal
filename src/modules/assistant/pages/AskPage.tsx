@@ -8,7 +8,14 @@ import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/contexts/AuthContext'
 import { pageEnterSubtle } from '@/lib/motion-ui'
 import { cn } from '@/lib/utils'
-import { answerQuestionWithActions, runAskAction, suggestedAsksForHour } from '../engine'
+import {
+  answerQuestionWithActions,
+  buildSnapshot,
+  runAskAction,
+  suggestedAsksForHour,
+  type AskReply,
+} from '../engine'
+import { resolveWithLlm } from '../llm'
 import { askApi, type AskAction, type AskMessage } from '../ask-api'
 import { createId } from '@/lib/id'
 import { toast } from 'sonner'
@@ -24,6 +31,7 @@ export default function AskPage() {
   const refresh = () => setTick((n) => n + 1)
   const [draft, setDraft] = useState('')
   const [spent, setSpent] = useState<Record<string, true>>({})
+  const [pending, setPending] = useState(false)
   const seededQ = useRef(false)
 
   const messages = useMemo(() => {
@@ -43,30 +51,43 @@ export default function AskPage() {
     const q = searchParams.get('q')?.trim()
     if (!q || seededQ.current) return
     seededQ.current = true
-    askApi.append(userId, { role: 'you', text: q })
-    const reply = answerQuestionWithActions(userId, q, name)
-    askApi.append(userId, { role: 'katana', text: reply.text, actions: reply.actions })
+    void ask(q)
     setSearchParams({}, { replace: true })
-    refresh()
   }, [searchParams, setSearchParams, userId, name])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages.length])
+  }, [messages.length, pending])
 
-  function ask(text: string) {
+  async function finalizeReply(question: string, reply: AskReply) {
+    if (reply.useLlm) {
+      setPending(true)
+      try {
+        const snap = buildSnapshot(userId, name)
+        const resolved = await resolveWithLlm(question, snap, reply)
+        askApi.append(userId, { role: 'katana', text: resolved.text, actions: resolved.actions })
+      } finally {
+        setPending(false)
+      }
+    } else {
+      askApi.append(userId, { role: 'katana', text: reply.text, actions: reply.actions })
+    }
+    refresh()
+  }
+
+  async function ask(text: string) {
     const trimmed = text.trim()
-    if (!trimmed) return
+    if (!trimmed || pending) return
     askApi.append(userId, { role: 'you', text: trimmed })
-    const reply = answerQuestionWithActions(userId, trimmed, name)
-    askApi.append(userId, { role: 'katana', text: reply.text, actions: reply.actions })
     setDraft('')
     refresh()
+    const reply = answerQuestionWithActions(userId, trimmed, name)
+    await finalizeReply(trimmed, reply)
   }
 
   function onSubmit(e: FormEvent) {
     e.preventDefault()
-    ask(draft)
+    void ask(draft)
   }
 
   function onAction(action: AskAction, message: AskMessage) {
@@ -120,13 +141,14 @@ export default function AskPage() {
       <PageHeader
         eyebrow="Day guide"
         title="Ask"
-        description="Knows what’s on your plate — and can take action. No cloud AI."
+        description="Rules for actions; Gemini Flash via OpenRouter for open-ended questions when configured."
         actions={
           messages.length > 1 ? (
             <Button
               variant="ghost"
               size="sm"
               className="gap-1.5"
+              disabled={pending}
               onClick={() => {
                 askApi.clear(userId)
                 setSpent({})
@@ -146,7 +168,14 @@ export default function AskPage() {
       <div className="mb-5 flex flex-wrap gap-2">
         {messages.filter((m) => m.role === 'you').length === 0
           ? suggestedAsksForHour().map((prompt) => (
-              <Button key={prompt} type="button" size="sm" variant="outline" onClick={() => ask(prompt)}>
+              <Button
+                key={prompt}
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={pending}
+                onClick={() => void ask(prompt)}
+              >
                 {prompt}
               </Button>
             ))
@@ -181,8 +210,8 @@ export default function AskPage() {
                         type="button"
                         size="sm"
                         variant="secondary"
-                        disabled={used}
-                        className="h-8 rounded-full text-xs"
+                        disabled={used || pending}
+                        className="min-h-11 rounded-full px-4 text-xs"
                         onClick={() => onAction(action, m)}
                       >
                         {used ? 'Done' : action.label}
@@ -194,6 +223,13 @@ export default function AskPage() {
             </div>
           </div>
         ))}
+        {pending ? (
+          <div className="flex justify-start">
+            <div className="rounded-[1.25rem] rounded-bl-md bg-secondary/70 px-4 py-3 text-sm text-muted-foreground">
+              Thinking…
+            </div>
+          </div>
+        ) : null}
         <div ref={bottomRef} />
       </div>
 
@@ -204,14 +240,21 @@ export default function AskPage() {
           placeholder="Ask about your day, or “add gym tomorrow”…"
           className="min-h-[52px] flex-1 resize-none"
           rows={2}
+          disabled={pending}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault()
-              ask(draft)
+              void ask(draft)
             }
           }}
         />
-        <Button type="submit" size="icon" className="h-[52px] w-[52px] shrink-0" aria-label="Send">
+        <Button
+          type="submit"
+          size="icon"
+          className="h-[52px] w-[52px] shrink-0"
+          aria-label="Send"
+          disabled={pending || !draft.trim()}
+        >
           <Send className="h-4 w-4" />
         </Button>
       </form>
