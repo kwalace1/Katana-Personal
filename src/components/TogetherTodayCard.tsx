@@ -123,12 +123,16 @@ export function TogetherTodayCard() {
           Open
         </Link>
       </div>
+      <p className="mb-3 text-xs text-muted-foreground">
+        Optional accountability — not your whole life in the cloud.
+      </p>
 
       {mode.kind === 'offline' && (
         <div>
           <p className="font-display text-xl tracking-tight">Friends & Circles</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Connect cloud in Settings to invite friends and cheer streaks together.
+            Connect once to invite people you trust and cheer day signals together — only what you
+            choose to share.
           </p>
           <Button asChild size="sm" variant="outline" className="mt-3">
             <Link to="/settings">Connect cloud</Link>
@@ -140,7 +144,8 @@ export function TogetherTodayCard() {
         <div>
           <p className="font-display text-xl tracking-tight">Invite someone you trust</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Connect once — share plans, cheer streaks, stay accountable.
+            Accountability without dumping your private day in the cloud — share plans and cheer
+            streaks when you want.
           </p>
           <Button asChild size="sm" className="mt-3 gap-1.5">
             <Link to="/settings">

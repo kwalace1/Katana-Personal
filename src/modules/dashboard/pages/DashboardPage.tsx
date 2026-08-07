@@ -123,8 +123,8 @@ export default function DashboardPage() {
 
   function cheerTogether() {
     if (!cloudEnabled || !cloudUser) return
-    toast.message('Streak logged', {
-      description: 'Cheer it on in Circles',
+    toast.message('Logged for your day', {
+      description: 'Optional: cheer it in Circles with friends',
       action: {
         label: 'Circles',
         onClick: () => {
@@ -289,8 +289,8 @@ export default function DashboardPage() {
         title={`${greeting}, ${profile?.display_name || 'there'}`}
         description={
           cloudUser
-            ? 'One next step. Only what you choose to share.'
-            : 'One next step — private on this device.'
+            ? 'Today → Ask → optional Together. One next step; only what you choose to share.'
+            : 'Today → Ask → optional Together. One next step — private on this device.'
         }
         actions={
           onboardingDone ? (
@@ -453,6 +453,9 @@ export default function DashboardPage() {
       >
         <div className="pointer-events-none absolute -right-10 -top-12 h-48 w-48 rounded-full bg-primary/15 blur-3xl" />
         <p className="kp-section-label relative">Do this next</p>
+        <p className="relative mt-1 text-xs text-muted-foreground">
+          Your one commitment for now — everything else can wait.
+        </p>
         {data.next ? (
           <div className="relative mt-3 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div className="min-w-0">
@@ -531,7 +534,7 @@ export default function DashboardPage() {
           <div className="relative mt-3">
             <h2 className="font-display text-2xl tracking-tight sm:text-3xl">Nothing urgent</h2>
             <p className="mt-1.5 text-sm text-muted-foreground">
-              Protect the calm — or capture what’s next.
+              That’s the point of Today — protect the calm, or capture what’s next.
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
               <Button
@@ -580,7 +583,7 @@ export default function DashboardPage() {
           >
             <span className="text-sm font-semibold tracking-tight">Also today</span>
             <span className="flex items-center gap-2 text-xs text-muted-foreground">
-              {data.alsoTasks.length + data.openHabits.length} items
+              {data.alsoTasks.length + data.openHabits.length} more · not the hero
               {alsoOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </span>
           </button>
@@ -654,6 +657,9 @@ export default function DashboardPage() {
             Ask more
           </Link>
         </div>
+        <p className="mb-2 text-xs text-muted-foreground">
+          From Ask — a guide that knows your plate and can draft actions.
+        </p>
         <p className="max-w-3xl text-sm leading-relaxed text-foreground/90 sm:text-[0.95rem]">
           {data.briefing}
         </p>
@@ -713,11 +719,10 @@ export default function DashboardPage() {
           </div>
           <p className="relative font-display text-xl tracking-tight sm:text-2xl">Close the day in a minute</p>
           <p className="relative mt-1 text-sm text-muted-foreground">
-            Park unfinished work for tomorrow
+            The ritual that makes Today different — park unfinished work, note one line, rest.
             {data.openHabits.length > 0
               ? ` · ${data.openHabits.length} habit${data.openHabits.length === 1 ? '' : 's'} still open`
               : ''}
-            .
           </p>
           {data.openHabits.length > 0 && (
             <ul className="relative mt-3 space-y-1.5">

@@ -141,7 +141,7 @@ export default function AskPage() {
       <PageHeader
         eyebrow="Day guide"
         title="Ask"
-        description="Briefs your day, points you, and can draft small actions — tap to confirm."
+        description="Day guide that knows your plate — and can draft small actions you confirm."
         actions={
           messages.length > 1 ? (
             <Button

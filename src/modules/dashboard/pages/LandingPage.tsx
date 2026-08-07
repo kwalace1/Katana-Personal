@@ -29,17 +29,17 @@ const STORY = [
   {
     icon: CalendarCheck,
     title: 'Today',
-    body: 'One next step. Capture what matters. Close the day when you’re done.',
+    body: 'Decide one next step. Capture what matters. Close the day — that’s the loop.',
   },
   {
     icon: Sparkles,
     title: 'Ask',
-    body: 'A quiet day guide that already knows your plate — and can take action. No account required.',
+    body: 'A day guide that already knows your plate — and can draft small actions for you.',
   },
   {
     icon: Users,
     title: 'Together',
-    body: 'Optional friends, shared plans, and Circles. Private life stays yours.',
+    body: 'Optional accountability with friends and Circles. Private life stays on this device.',
   },
 ] as const
 
@@ -234,12 +234,12 @@ export default function LandingPage() {
         <motion.div {...pageEnterSubtle} className="flex flex-1 flex-col py-6 sm:py-10">
           {/* Hero — brand first */}
           <div className={cn('flex flex-col', standalone ? 'justify-center flex-1' : 'min-h-0 sm:min-h-[58vh] justify-center py-4')}>
-            <p className="kp-section-label">Personal OS</p>
+            <p className="kp-section-label">Calm daily OS</p>
             <h1 className="font-display mt-3 text-5xl tracking-tight sm:text-6xl">Katana</h1>
             <p className="mt-4 max-w-md text-base leading-relaxed text-muted-foreground sm:text-lg">
               {standalone
-                ? 'Open your space on this phone — or sign in to sync with your computer.'
-                : 'Your life, organized in one calm place — private on this device.'}
+                ? 'Your day loop on this phone — Today, Ask, optional Together.'
+                : 'One next step today. Ask that can act. Together only if you want it — private on this device.'}
             </p>
 
             {!standalone ? (
@@ -262,7 +262,7 @@ export default function LandingPage() {
 
             {!standalone ? (
               <p className="mt-4 text-xs text-muted-foreground">
-                Stays on this device. Add Cloud later for Friends, Circles, and sync.
+                Not another list app — a daily OS. Stays on this device; add Cloud later for Friends & Circles.
               </p>
             ) : null}
           </div>
@@ -276,7 +276,7 @@ export default function LandingPage() {
               viewport={{ once: true, margin: '-40px' }}
               className="mb-12 mt-4 space-y-4 border-t border-border/40 pt-10"
             >
-              <p className="kp-section-label">How it feels</p>
+              <p className="kp-section-label">The loop</p>
               {STORY.map((item) => {
                 const Icon = item.icon
                 return (

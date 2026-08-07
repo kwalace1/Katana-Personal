@@ -45,7 +45,7 @@ describe('Ask engine (no LLM)', () => {
 
   it('answers what can you do including Together', () => {
     const reply = answerQuestionWithActions(USER, 'What can you do?', 'Alex')
-    expect(reply.text.toLowerCase()).toMatch(/task|brief|action|friend|circle/)
+    expect(reply.text.toLowerCase()).toMatch(/day guide|daily os|task|action/)
     expect(reply.text.toLowerCase()).not.toMatch(/no cloud ai/)
     expect(reply.actions.some((a) => a.route === '/friends' || a.route === '/dashboard' || a.route?.includes('/ask'))).toBe(
       true,

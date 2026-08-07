@@ -99,11 +99,11 @@ export function FirstRitual({
             Welcome{profile?.display_name ? `, ${profile.display_name}` : ''}
           </h2>
           <p className="mt-2 max-w-md text-sm text-muted-foreground sm:text-base">
-            One next step. Capture what matters. Close the day when you’re done — private on this
-            device.
+            Busy days need a loop — not another endless list. One next step, Ask when you need a
+            guide, Together only if you want it. Private on this device.
           </p>
           <Button className="mt-6 min-h-12 gap-2" size="lg" onClick={() => go('capture')}>
-            Start with Today
+            Start the day loop
             <ArrowRight className="h-4 w-4" />
           </Button>
         </div>
@@ -113,7 +113,7 @@ export function FirstRitual({
         <div className="relative">
           <h2 className="font-display text-2xl tracking-tight sm:text-3xl">Capture something</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Type naturally — we’ll turn it into a task or event.
+            Get it out of your head — we’ll turn it into a task or event on Today.
           </p>
           <form onSubmit={onCapture} className="mt-5 space-y-3">
             <Input
@@ -149,6 +149,7 @@ export function FirstRitual({
       {step === 'next' && (
         <div className="relative">
           <p className="kp-section-label">Do this next</p>
+          <p className="mt-1 text-xs text-muted-foreground">Your one commitment — not the whole list.</p>
           {nextItem ? (
             <>
               <h2 className="mt-2 font-display text-2xl tracking-tight sm:text-3xl">
@@ -212,14 +213,15 @@ export function FirstRitual({
 
       {step === 'invite' && (
         <div className="relative">
-          <h2 className="font-display text-2xl tracking-tight sm:text-3xl">Invite someone?</h2>
+          <h2 className="font-display text-2xl tracking-tight sm:text-3xl">That’s the loop</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Optional — friends and Circles are opt-in. Private life stays on this device.
+            Today → Ask when you need a guide → Together only if you want accountability. Optional
+            next: invite someone you trust. Private life stays here.
           </p>
           <div className="mt-5 flex flex-wrap gap-2">
             <InviteFriendButton size="lg" />
             <Button variant="ghost" className="min-h-12" onClick={finish}>
-              Skip for now
+              Enter Today
             </Button>
           </div>
         </div>

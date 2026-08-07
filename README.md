@@ -1,14 +1,16 @@
 # Katana Personal
 
-Your life, organized in one calm place — private on this device.
+**Calm daily OS:** one next step today, Ask that can act, Together only if you want it — private on this device.
 
-## What’s inside
+Not another list app. Not a water tracker. See [docs/POSITIONING.md](./docs/POSITIONING.md).
 
-**Today** · **Ask** · Tasks · Calendar · Notes · Goals · Habits · Journal · Health · Documents · Friends · Shared · Circles · Settings
+## The loop
 
-- **Today** — one next action, smart capture, evening close, weekly review
-- **Ask** — a quiet day guide that can take action (no account, no API key, no LLM)
-- **Together** (optional cloud) — friends, shared plans, Circles leaderboards & 7-day challenges
+- **Today** — one next step, capture, evening close, weekly review  
+- **Ask** — day guide that knows your plate and can draft actions  
+- **Together** (optional) — friends, shared plans, Circles; only what you choose to share  
+
+Plan / Life (tasks, habits, health, notes…) are depth when you need them — not the home story.
 
 ## Run it
 
@@ -21,13 +23,13 @@ Open http://localhost:3001 — on a phone, Add to Home Screen for an app-like fe
 
 ## Soft launch
 
-See [docs/SOFT_LAUNCH_CHECKLIST.md](./docs/SOFT_LAUNCH_CHECKLIST.md). Product next steps: [docs/PERSONAL_NEXT_PLAN.md](./docs/PERSONAL_NEXT_PLAN.md). Demo data: Settings → Load demo day.
+See [docs/SOFT_LAUNCH_CHECKLIST.md](./docs/SOFT_LAUNCH_CHECKLIST.md). Ask + Gemini via OpenRouter: [docs/GEMINI_ASK.md](./docs/GEMINI_ASK.md). Demo data: Settings → Load demo day.
 
 Firebase (optional social): [FIREBASE_SETUP.md](./FIREBASE_SETUP.md) — publish `firestore.rules` when they change.
 
 ## Docs note
 
-This repo is **Katana Personal** (local-first life OS). Files like `SYSTEM_OVERVIEW.md` and `docs/ONBOARDING.md` describe an archived business SaaS — do not use them for Personal work. Truth lives in this README + the soft-launch docs above.
+This repo is **Katana Personal** (local-first life OS). Files like `SYSTEM_OVERVIEW.md` and `docs/ONBOARDING.md` describe an archived business SaaS — do not use them for Personal work.
 
 ## Keep a copy
 

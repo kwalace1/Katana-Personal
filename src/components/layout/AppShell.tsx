@@ -167,15 +167,22 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
         </button>
         {moreOpen ? (
           <div className="mt-1 space-y-1 border-l border-border/50 pl-1">
+            <p className="px-3 pb-1 pt-2 text-[0.65rem] leading-snug text-muted-foreground">
+              Depth when you need it — Today stays the home of the day loop.
+            </p>
             <NavGroup label="Plan" items={PLAN} onNavigate={closeNav} />
             <NavGroup label="Life" items={LIFE} onNavigate={closeNav} />
             <NavGroup label="Together" items={moreSocial} onNavigate={closeNav} />
           </div>
         ) : !onboardingDone ? (
           <p className="px-3 pb-1 text-[0.7rem] text-muted-foreground">
-            Tasks, habits, and more after your first minute
+            Plan & Life open after your first minute — the loop comes first
           </p>
-        ) : null}
+        ) : (
+          <p className="px-3 pb-1 text-[0.65rem] text-muted-foreground">
+            Tasks, habits, health — depth, not the home
+          </p>
+        )}
       </div>
       <div className="mt-2">
         <NavLink

@@ -574,9 +574,9 @@ function answerAboutMe(snap: LifeSnapshot): AskReply {
 function answerCapabilities(_snap: LifeSnapshot): AskReply {
   return {
     text: keepShort([
-      'I brief your day, focus you, and can take small actions — add a task or event, check a habit, log water, park work, or close the evening.',
-      'Say what you need, like “add Call Mom Friday 3pm,” and I’ll draft it for you to confirm.',
-      'I can also point you to Friends, Shared, or Circles.',
+      'I’m your day guide inside Katana — a calm daily OS, not another list app.',
+      'I brief the day, focus you, and draft small actions — add a task or event, check a habit, log water, park work, or close the evening.',
+      'Say what you need, like “add Call Mom Friday 3pm,” and tap to confirm. Together is optional.',
     ]),
     actions: [
       { id: createId(), label: 'What should I work on?', kind: 'open_route', route: '/ask?q=What%20should%20I%20work%20on%20today' },
