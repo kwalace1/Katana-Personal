@@ -574,14 +574,14 @@ function answerAboutMe(snap: LifeSnapshot): AskReply {
 function answerCapabilities(_snap: LifeSnapshot): AskReply {
   return {
     text: keepShort([
-      'I’m your local day guide — no cloud AI.',
-      'I can brief the day, focus you, close the evening, and open Friends or Circles.',
-      'Try “what should I work on” or “invite a friend.”',
+      'I brief your day, focus you, and can take small actions — add a task or event, check a habit, log water, park work, or close the evening.',
+      'Say what you need, like “add Call Mom Friday 3pm,” and I’ll draft it for you to confirm.',
+      'I can also point you to Friends, Shared, or Circles.',
     ]),
     actions: [
+      { id: createId(), label: 'What should I work on?', kind: 'open_route', route: '/ask?q=What%20should%20I%20work%20on%20today' },
       { id: createId(), label: 'Open Today', kind: 'open_route', route: '/dashboard' },
       { id: createId(), label: 'Invite a friend', kind: 'open_route', route: '/friends' },
-      { id: createId(), label: 'Open Circles', kind: 'open_route', route: '/circles' },
     ],
   }
 }
@@ -1086,14 +1086,62 @@ export function suggestedAsksForHour(hour = new Date().getHours()): string[] {
 function tryParseCreate(question: string): AskReply | null {
   const q = question.trim()
   const lower = q.toLowerCase()
-  const addMatch = lower.match(/^(?:add|remind me to|create|schedule)\s+(.+)$/i)
-  if (!addMatch) return null
 
-  const raw = addMatch[1]
+  // Intent without a title yet — teach the actionable phrase
+  if (
+    /^(?:i want to |i'?d like to |can you |could you |please )?(?:create|make|add|new)\s+(?:a\s+)?(?:new\s+)?(?:task|reminder|todo)s?\s*[?.!]*$/i.test(
+      lower,
+    ) ||
+    /^(?:create|make|add)\s+(?:a\s+)?(?:new\s+)?(?:task|reminder|todo)\s*[?.!]*$/i.test(lower)
+  ) {
+    return {
+      text: keepShort([
+        'Sure — tell me what it is.',
+        'Try “add Call Mom Friday 3pm” or “create buy groceries tomorrow.” I’ll draft it and you tap to confirm.',
+      ]),
+      actions: [
+        {
+          id: createId(),
+          label: 'Try “add Call Mom Friday 3pm”',
+          kind: 'open_route',
+          route: '/ask?q=add%20Call%20Mom%20Friday%203pm',
+        },
+        { id: createId(), label: 'Open Tasks', kind: 'open_route', route: '/tasks' },
+      ],
+    }
+  }
+
+  const addMatch = lower.match(
+    /^(?:i want to |i'?d like to |can you |could you |please )?(?:add|remind me to|create|schedule|make|new task:?)\s+(?:a\s+)?(?:new\s+)?(?:task|reminder|todo|event)?\s*(?:for|to|called|titled|:)?\s*(.+)$/i,
+  )
+  if (!addMatch?.[1]) {
+    const simple = lower.match(/^(?:add|remind me to|create|schedule|make)\s+(.+)$/i)
+    if (!simple?.[1]) return null
+    return parseCreatePayload(q, simple[1], lower)
+  }
+
+  let raw = addMatch[1].trim()
+  // Drop leftover "a task" / "task:" prefixes if the regex left them
+  raw = raw.replace(/^(?:a\s+)?(?:new\s+)?(?:task|reminder|todo|event)\s*(?:for|to|called|titled|:)?\s*/i, '').trim()
+  if (!raw || /^(?:a\s+)?(?:task|reminder|todo|event)s?$/i.test(raw)) {
+    return {
+      text: keepShort([
+        'What should I call it?',
+        'Say “add [title]” — optional day/time like Friday 3pm.',
+      ]),
+      actions: [{ id: createId(), label: 'Open Tasks', kind: 'open_route', route: '/tasks' }],
+    }
+  }
+
+  return parseCreatePayload(q, raw, lower)
+}
+
+function parseCreatePayload(original: string, raw: string, lower: string): AskReply | null {
   const isEvent =
     lower.startsWith('schedule') ||
     lower.includes(' meeting') ||
     lower.includes(' appointment') ||
+    lower.includes(' event') ||
     raw.startsWith('@')
   const parsed = parseCapture(isEvent ? `@ ${raw.replace(/^@\s*/, '')}` : raw)
   if (!parsed) return null
@@ -1115,7 +1163,7 @@ function tryParseCreate(question: string): AskReply | null {
   }
 
   return {
-    text: `I can add “${parsed.title}”${parsed.dueAt ? ` (${parsed.summary})` : ''}. Tap to confirm.`,
+    text: `I can add “${parsed.title}”${parsed.dueAt ? ` · ${parsed.summary.replace(/^Task · [^·]+ · /, '')}` : ''}. Tap to confirm.`,
     actions: [
       {
         id: createId(),

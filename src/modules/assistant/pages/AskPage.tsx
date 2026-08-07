@@ -141,7 +141,7 @@ export default function AskPage() {
       <PageHeader
         eyebrow="Day guide"
         title="Ask"
-        description="Rules for actions; Gemini Flash via OpenRouter for open-ended questions when configured."
+        description="Briefs your day, points you, and can draft small actions — tap to confirm."
         actions={
           messages.length > 1 ? (
             <Button

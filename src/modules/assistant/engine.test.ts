@@ -45,8 +45,24 @@ describe('Ask engine (no LLM)', () => {
 
   it('answers what can you do including Together', () => {
     const reply = answerQuestionWithActions(USER, 'What can you do?', 'Alex')
-    expect(reply.text.toLowerCase()).toMatch(/day guide|brief|habit|health|together|friend/)
-    expect(reply.actions.some((a) => a.route === '/friends' || a.route === '/circles')).toBe(true)
+    expect(reply.text.toLowerCase()).toMatch(/task|brief|action|friend|circle/)
+    expect(reply.text.toLowerCase()).not.toMatch(/no cloud ai/)
+    expect(reply.actions.some((a) => a.route === '/friends' || a.route === '/dashboard' || a.route?.includes('/ask'))).toBe(
+      true,
+    )
+  })
+
+  it('teaches create-a-task when no title is given', () => {
+    const reply = answerQuestionWithActions(USER, 'I want to create a task', 'Alex')
+    expect(reply.useLlm).toBeFalsy()
+    expect(reply.text.toLowerCase()).toMatch(/add |tell me|confirm/)
+    expect(reply.actions.length).toBeGreaterThan(0)
+  })
+
+  it('drafts a create chip for natural create phrasing', () => {
+    const reply = answerQuestionWithActions(USER, 'Can you create a task to buy milk tomorrow', 'Alex')
+    expect(reply.actions.some((a) => a.kind === 'create_task')).toBe(true)
+    expect(reply.text.toLowerCase()).toMatch(/buy milk|tap to confirm/)
   })
 
   it('answers hi with a greeting', () => {
