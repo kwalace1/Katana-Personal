@@ -3,6 +3,7 @@ import { ChevronDown, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { QuantityInput, QUANTITY } from '@/components/ui/quantity-input'
 import { EmptyState } from '@/components/ui/empty-state'
 import { todayKey } from '@/lib/dates'
 import { liftApi } from '../../lift-api'
@@ -159,22 +160,18 @@ export function LiftLogPanel({ userId, logDate, tick, refresh }: Props) {
               <div className="space-y-2">
                 {ex.sets.map((set, setIndex) => (
                   <div key={set.key} className="grid grid-cols-[1fr_1fr_auto] items-center gap-2">
-                    <Input
-                      type="number"
-                      min={0}
-                      step={0.5}
-                      placeholder="Weight (lb)"
+                    <QuantityInput
+                      {...QUANTITY.liftWeightLb}
+                      placeholder="lb"
                       value={set.weight}
-                      onChange={(e) => updateSet(ex.key, set.key, { weight: e.target.value })}
+                      onChange={(weight) => updateSet(ex.key, set.key, { weight })}
                       aria-label={`Exercise ${exIndex + 1} set ${setIndex + 1} weight`}
                     />
-                    <Input
-                      type="number"
-                      min={0}
-                      step={1}
+                    <QuantityInput
+                      {...QUANTITY.reps}
                       placeholder="Reps"
                       value={set.reps}
-                      onChange={(e) => updateSet(ex.key, set.key, { reps: e.target.value })}
+                      onChange={(reps) => updateSet(ex.key, set.key, { reps })}
                       aria-label={`Exercise ${exIndex + 1} set ${setIndex + 1} reps`}
                     />
                     <Button

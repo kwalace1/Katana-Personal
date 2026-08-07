@@ -3,6 +3,7 @@ import { Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { QuantityInput, QUANTITY } from '@/components/ui/quantity-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { EmptyState } from '@/components/ui/empty-state'
 import { todayKey } from '@/lib/dates'
@@ -124,13 +125,11 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-            <Input
-              type="number"
-              min={1}
-              step={0.1}
+            <QuantityInput
+              {...QUANTITY.bodyWeightLb}
               placeholder="187.2"
               value={weight}
-              onChange={(e) => setWeight(e.target.value)}
+              onChange={setWeight}
             />
           </div>
           <Button type="submit">Save weight</Button>
@@ -152,13 +151,12 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
             </SelectContent>
           </Select>
           <div className="grid gap-3 sm:grid-cols-2">
-            <Input
-              type="number"
-              min={1}
-              step={0.1}
+            <QuantityInput
+              {...QUANTITY.bodyWeightLb}
+              label="Target weight"
               placeholder="Target lb"
               value={targetWeight}
-              onChange={(e) => setTargetWeight(e.target.value)}
+              onChange={setTargetWeight}
             />
             <Input type="date" value={targetDate || ''} onChange={(e) => setTargetDate(e.target.value)} />
           </div>
