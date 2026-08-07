@@ -50,34 +50,55 @@ class ErrorBoundary extends React.Component<
   }
 }
 
+const APP_BUILD = '2026-08-07-cloud2'
+
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    void navigator.serviceWorker
-      .register('/sw.js')
-      .then((reg) => {
-        // Pick up new deploys without waiting for a long idle period
-        void reg.update()
-        setInterval(() => void reg.update(), 60_000)
-        reg.addEventListener('updatefound', () => {
-          const worker = reg.installing
-          if (!worker) return
-          worker.addEventListener('statechange', () => {
-            if (worker.state === 'installed' && navigator.serviceWorker.controller) {
-              worker.postMessage('SKIP_WAITING')
-            }
+    void (async () => {
+      try {
+        const prev = localStorage.getItem('katana-sw-build')
+        if (prev !== APP_BUILD) {
+          const regs = await navigator.serviceWorker.getRegistrations()
+          await Promise.all(regs.map((r) => r.unregister()))
+          if ('caches' in window) {
+            const keys = await caches.keys()
+            await Promise.all(keys.map((k) => caches.delete(k)))
+          }
+          localStorage.setItem('katana-sw-build', APP_BUILD)
+          // Hard reload once so the home-screen app drops the old shell
+          window.location.reload()
+          return
+        }
+      } catch {
+        // ignore
+      }
+
+      void navigator.serviceWorker
+        .register(`/sw.js?v=${APP_BUILD}`)
+        .then((reg) => {
+          void reg.update()
+          setInterval(() => void reg.update(), 60_000)
+          reg.addEventListener('updatefound', () => {
+            const worker = reg.installing
+            if (!worker) return
+            worker.addEventListener('statechange', () => {
+              if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+                worker.postMessage('SKIP_WAITING')
+              }
+            })
           })
         })
-      })
-      .catch(() => {
-        // Offline shell is optional in local development
-      })
+        .catch(() => {
+          // Offline shell is optional in local development
+        })
 
-    let refreshing = false
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (refreshing) return
-      refreshing = true
-      window.location.reload()
-    })
+      let refreshing = false
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (refreshing) return
+        refreshing = true
+        window.location.reload()
+      })
+    })()
   })
 }
 

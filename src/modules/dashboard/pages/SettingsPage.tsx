@@ -406,9 +406,10 @@ export default function SettingsPage() {
                 </Button>
               </div>
               <Input
+                name="email"
                 type="text"
                 inputMode="email"
-                autoComplete="username"
+                autoComplete="email"
                 autoCapitalize="none"
                 autoCorrect="off"
                 spellCheck={false}
@@ -417,6 +418,7 @@ export default function SettingsPage() {
                 onChange={(e) => setEmail(e.target.value)}
               />
               <Input
+                name="password"
                 type="password"
                 autoComplete={cloudMode === 'signup' ? 'new-password' : 'current-password'}
                 placeholder="Password (6+ characters)"
@@ -426,6 +428,7 @@ export default function SettingsPage() {
               <Button type="submit" disabled={busy} className="w-full">
                 {busy ? 'Working…' : cloudMode === 'signup' ? 'Create free account' : 'Sign in'}
               </Button>
+              <p className="text-center text-[10px] text-muted-foreground/70">Cloud build 2026-08-07-cloud2</p>
             </form>
           </div>
         )}
