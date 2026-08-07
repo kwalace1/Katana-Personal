@@ -36,6 +36,7 @@ vercel.env
 scripts/migrate-firebase-to-supabase/.env
 scripts/migrate-firebase-to-supabase/service-account.json
 scripts/migrate-firebase-to-supabase/node_modules/
+scripts/migrate-firebase-to-supabase/firebase-users.json
 
 # Vercel
 .vercel

@@ -1,31 +1,46 @@
 # Firebase → Supabase data migration
 
-One-shot import of Auth users, Firestore collections, and Storage objects.
+One-shot import of Auth users, Firestore collections, Storage objects, and **password hashes** (same logins).
 
 ## Before you run
 
-1. Create a Supabase project and run [`supabase/migrations/20260328000000_init_social.sql`](../../supabase/migrations/20260328000000_init_social.sql) in the SQL editor.
-2. Download a Firebase **service account** JSON (Project settings → Service accounts).
-3. Copy env:
+1. Create a Supabase project and run the SQL migrations in `supabase/migrations/`.
+2. Download a Firebase **service account** JSON.
+3. Copy env and fill values:
 
 ```bash
 cp .env.example .env
 ```
 
-4. Freeze Firebase writes (ask users to stay signed out of cloud briefly).
+4. From Firebase Console → Authentication → Users → ⋮ → **Password hash parameters**, set:
+   - `FIREBASE_HASH_SIGNER_KEY`
+   - `FIREBASE_HASH_SALT_SEPARATOR`
+   - `FIREBASE_HASH_ROUNDS`
+   - `FIREBASE_HASH_MEM_COST`
+5. Freeze Firebase writes briefly.
 
 ## Run
 
 ```bash
 npm install
-DRY_RUN=1 node migrate.mjs   # inspect mapping
-node migrate.mjs             # write to Supabase
+
+# 1) Export Firebase users (includes passwordHash + salt)
+GOOGLE_APPLICATION_CREDENTIALS=./service-account.json \
+  npx firebase-tools auth:export ./firebase-users.json \
+  --project YOUR_FIREBASE_PROJECT_ID --format=json
+
+# 2) Migrate Auth + Firestore (+ Storage)
+DRY_RUN=1 node migrate.mjs
+node migrate.mjs
+
+# 3) Attach Firebase password hashes to Supabase users
+node import-firebase-passwords.mjs
 ```
 
 ## UID mapping
 
-Firebase Auth UIDs are not UUIDs. Each Firebase UID becomes a **deterministic UUID v5**. All friendship / viewer / member arrays are rewritten with the same map. Re-running the script is idempotent for the same inputs.
+Firebase Auth UIDs are not UUIDs. Each Firebase UID becomes a **deterministic UUID v5**. Social graph FKs are rewritten with the same map.
 
 ## Passwords
 
-Email/password hashes are **not** copied by this script. After cutover, migrated users should use **Forgot password** (or you can separately import Firebase password hashes via Supabase’s Firebase Auth migration tooling). Apple users need the Apple provider enabled on Supabase.
+After `import-firebase-passwords.mjs`, users sign in with their **original Firebase email + password**. Apple-only accounts have no password hash and need Apple provider on Supabase.

@@ -193,13 +193,22 @@ export default function SettingsPage() {
 
   async function onCloudAuth(e: FormEvent) {
     e.preventDefault()
+    const emailTrim = email.trim().toLowerCase()
+    if (!emailTrim || !password) {
+      toast.error('Enter email and password')
+      return
+    }
+    if (!emailTrim.includes('@') || !emailTrim.includes('.')) {
+      toast.error('Use your full email, like you@gmail.com')
+      return
+    }
     setBusy(true)
     try {
       if (cloudMode === 'signup') {
-        await signUpCloud(email, password, name || profile?.display_name || 'Friend')
+        await signUpCloud(emailTrim, password, name || profile?.display_name || 'Friend')
         toast.success('Cloud account created')
       } else {
-        await signInCloud(email, password)
+        await signInCloud(emailTrim, password)
         toast.success('Signed in')
       }
       setPassword('')
@@ -377,7 +386,7 @@ export default function SettingsPage() {
                 <p className="text-center text-xs text-muted-foreground">or use email</p>
               </>
             ) : null}
-            <form onSubmit={(e) => void onCloudAuth(e)} className="space-y-3">
+            <form noValidate onSubmit={(e) => void onCloudAuth(e)} className="space-y-3">
               <div className="flex gap-2">
                 <Button
                   type="button"
@@ -397,19 +406,22 @@ export default function SettingsPage() {
                 </Button>
               </div>
               <Input
-                type="email"
+                type="text"
+                inputMode="email"
+                autoComplete="username"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 placeholder="Email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                required
               />
               <Input
                 type="password"
+                autoComplete={cloudMode === 'signup' ? 'new-password' : 'current-password'}
                 placeholder="Password (6+ characters)"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
               />
               <Button type="submit" disabled={busy} className="w-full">
                 {busy ? 'Working…' : cloudMode === 'signup' ? 'Create free account' : 'Sign in'}

@@ -116,8 +116,13 @@ export default function LandingPage() {
       toast.error('Cloud isn’t configured on this build')
       return
     }
-    if (!email.trim() || !password) {
+    const emailTrim = email.trim().toLowerCase()
+    if (!emailTrim || !password) {
       toast.error('Enter email and password')
+      return
+    }
+    if (!emailTrim.includes('@') || !emailTrim.includes('.')) {
+      toast.error('Use your full email, like you@gmail.com')
       return
     }
     setBusy(true)
@@ -130,11 +135,11 @@ export default function LandingPage() {
           return
         }
         await startWorkspace(display)
-        await signUpCloud(email, password, display)
+        await signUpCloud(emailTrim, password, display)
         toast.success('Account created — you’re in')
       } else {
         await startWorkspace(name.trim() || 'You')
-        await signInCloud(email, password)
+        await signInCloud(emailTrim, password)
         toast.success('Signed in')
       }
       goAfterEntrance()
@@ -348,7 +353,11 @@ export default function LandingPage() {
                 </p>
               </form>
             ) : (
-              <form onSubmit={(e) => void onCloudSubmit(e)} className="mt-6 space-y-4">
+              <form
+                noValidate
+                onSubmit={(e) => void onCloudSubmit(e)}
+                className="mt-6 space-y-4"
+              >
                 {mode === 'signup' ? (
                   <div className="space-y-2">
                     <Label htmlFor="cloud-name">Name</Label>
@@ -358,6 +367,8 @@ export default function LandingPage() {
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       className="h-12 rounded-xl"
+                      autoCapitalize="words"
+                      autoCorrect="off"
                     />
                   </div>
                 ) : null}
@@ -365,8 +376,12 @@ export default function LandingPage() {
                   <Label htmlFor="email">Email</Label>
                   <Input
                     id="email"
-                    type="email"
-                    autoComplete="email"
+                    type="text"
+                    inputMode="email"
+                    autoComplete="username"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                     placeholder="you@email.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
