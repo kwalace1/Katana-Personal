@@ -18,7 +18,7 @@ Soft-launch direction: deepen the calm daily OS and Together accountability, mak
 2. Honest weekly review aggregates + Today secondary sections de-dashboarded
 3. Thin-module polish (Nutrition/Sleep/Notes/Documents + reminder honesty)
 4. Circles extract (Manage / Challenge / board UI) + Together QA path
-5. Trust strip — gate Apple behind `VITE_FIREBASE_APPLE_AUTH`, Ask tests, green build
+5. Trust strip — gate Apple behind `VITE_SUPABASE_APPLE_AUTH`, Ask tests, green build
 6. Soft-launch checklist on phone + two cloud accounts
 
 ## Honest limits (unchanged)
@@ -27,4 +27,4 @@ Soft-launch direction: deepen the calm daily OS and Together accountability, mak
 - Shared = plans/accountability, not multiplayer docs
 - Web/PWA only for now
 - Reminders while Katana is open — not background push
-- Apple Sign In optional (off unless `VITE_FIREBASE_APPLE_AUTH=true`)
+- Apple Sign In optional (off unless `VITE_SUPABASE_APPLE_AUTH=true`)

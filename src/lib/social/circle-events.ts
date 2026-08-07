@@ -1,43 +1,57 @@
-import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  getDocs,
-  onSnapshot,
-  query,
-  updateDoc,
-  where,
-  type Unsubscribe,
-} from 'firebase/firestore'
-import { getDb } from '@/lib/firebase'
+import { getSupabase } from '@/lib/supabase'
+import { createId } from '@/lib/id'
 import { circleCategoryColor } from '@/modules/calendar/categories'
 import type { CircleEvent } from './types'
+import type { Unsubscribe } from './friends'
 
-const COL = 'circleEvents'
+type EventRow = {
+  id: string
+  circle_id: string
+  title: string
+  notes: string
+  starts_at: string
+  ends_at: string
+  all_day: boolean
+  category: string
+  color: string
+  created_by: string
+  assignee_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+function mapEvent(row: EventRow): CircleEvent {
+  return {
+    id: row.id,
+    circleId: row.circle_id,
+    title: row.title,
+    notes: row.notes || '',
+    startsAt: row.starts_at,
+    endsAt: row.ends_at,
+    allDay: Boolean(row.all_day),
+    category: row.category,
+    color: row.color,
+    createdBy: row.created_by,
+    assigneeId: row.assignee_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
 
 export async function listCircleEvents(circleId: string): Promise<CircleEvent[]> {
-  const q = query(collection(getDb(), COL), where('circleId', '==', circleId))
-  const snap = await getDocs(q)
-  return snap.docs
-    .map((d) => ({ id: d.id, ...(d.data() as Omit<CircleEvent, 'id'>) }))
+  const { data, error } = await getSupabase()
+    .from('circle_events')
+    .select('*')
+    .eq('circle_id', circleId)
+  if (error) throw error
+  return (data || [])
+    .map((d) => mapEvent(d as EventRow))
     .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
 }
 
-/** Events across multiple circles (for Plan calendar overlay). */
 export async function listCircleEventsForCircles(circleIds: string[]): Promise<CircleEvent[]> {
   if (circleIds.length === 0) return []
-  const chunks: string[][] = []
-  for (let i = 0; i < circleIds.length; i += 10) {
-    chunks.push(circleIds.slice(i, i + 10))
-  }
-  const results = await Promise.all(
-    chunks.map(async (ids) => {
-      // Firestore 'in' limit is 10; query per circle is safer under membership rules
-      const perCircle = await Promise.all(ids.map((id) => listCircleEvents(id)))
-      return perCircle.flat()
-    }),
-  )
+  const results = await Promise.all(circleIds.map((id) => listCircleEvents(id)))
   return results.flat().sort((a, b) => a.startsAt.localeCompare(b.startsAt))
 }
 
@@ -46,17 +60,32 @@ export function subscribeCircleEvents(
   onChange: (events: CircleEvent[]) => void,
   onError?: (err: Error) => void,
 ): Unsubscribe {
-  const q = query(collection(getDb(), COL), where('circleId', '==', circleId))
-  return onSnapshot(
-    q,
-    (snap) => {
-      const events = snap.docs
-        .map((d) => ({ id: d.id, ...(d.data() as Omit<CircleEvent, 'id'>) }))
-        .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
-      onChange(events)
-    },
-    (err) => onError?.(err),
-  )
+  const supabase = getSupabase()
+  let cancelled = false
+
+  const refresh = () => {
+    void listCircleEvents(circleId)
+      .then((events) => {
+        if (!cancelled) onChange(events)
+      })
+      .catch((err) => onError?.(err instanceof Error ? err : new Error(String(err))))
+  }
+
+  refresh()
+
+  const channel = supabase
+    .channel(`circle_events:${circleId}`)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'circle_events', filter: `circle_id=eq.${circleId}` },
+      refresh,
+    )
+    .subscribe()
+
+  return () => {
+    cancelled = true
+    void supabase.removeChannel(channel)
+  }
 }
 
 export async function createCircleEvent(input: {
@@ -73,23 +102,25 @@ export async function createCircleEvent(input: {
 }): Promise<CircleEvent> {
   const now = new Date().toISOString()
   const category = input.category || 'errand'
-  const payload: Omit<CircleEvent, 'id'> = {
-    circleId: input.circleId,
+  const id = createId()
+  const row = {
+    id,
+    circle_id: input.circleId,
     title: input.title.trim() || 'Untitled',
     notes: input.notes || '',
-    startsAt: input.startsAt,
-    endsAt: input.endsAt,
-    allDay: Boolean(input.allDay),
+    starts_at: input.startsAt,
+    ends_at: input.endsAt,
+    all_day: Boolean(input.allDay),
     category,
-    // Circles use the shared standard palette only
     color: circleCategoryColor(category),
-    createdBy: input.createdBy,
-    assigneeId: input.assigneeId ?? null,
-    createdAt: now,
-    updatedAt: now,
+    created_by: input.createdBy,
+    assignee_id: input.assigneeId ?? null,
+    created_at: now,
+    updated_at: now,
   }
-  const ref = await addDoc(collection(getDb(), COL), payload)
-  return { id: ref.id, ...payload }
+  const { data, error } = await getSupabase().from('circle_events').insert(row).select('*').single()
+  if (error) throw error
+  return mapEvent(data as EventRow)
 }
 
 export async function updateCircleEvent(
@@ -108,16 +139,23 @@ export async function updateCircleEvent(
     >
   >,
 ): Promise<void> {
-  const next = { ...patch }
-  if (patch.category) {
-    next.color = circleCategoryColor(patch.category)
+  const row: Record<string, unknown> = { updated_at: new Date().toISOString() }
+  if (patch.title != null) row.title = patch.title
+  if (patch.notes != null) row.notes = patch.notes
+  if (patch.startsAt != null) row.starts_at = patch.startsAt
+  if (patch.endsAt != null) row.ends_at = patch.endsAt
+  if (patch.allDay != null) row.all_day = patch.allDay
+  if (patch.category != null) {
+    row.category = patch.category
+    row.color = circleCategoryColor(patch.category)
   }
-  await updateDoc(doc(getDb(), COL, id), {
-    ...next,
-    updatedAt: new Date().toISOString(),
-  })
+  if (patch.color != null && patch.category == null) row.color = patch.color
+  if (patch.assigneeId !== undefined) row.assignee_id = patch.assigneeId
+  const { error } = await getSupabase().from('circle_events').update(row).eq('id', id)
+  if (error) throw error
 }
 
 export async function deleteCircleEvent(id: string): Promise<void> {
-  await deleteDoc(doc(getDb(), COL, id))
+  const { error } = await getSupabase().from('circle_events').delete().eq('id', id)
+  if (error) throw error
 }

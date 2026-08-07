@@ -8,7 +8,7 @@
 
 1. **Today** — decide the one next step, capture what matters, close the day  
 2. **Ask** — a day guide that already knows your plate and can draft small actions  
-3. **Together** — optional friends, shared plans, Circles — only what you choose to share  
+3. **Together** — optional friends, shared plans, Circles, and Feed — only what you choose to share  
 
 Plan / Life modules (tasks, habits, health, notes…) are **depth when you need them**, not the home story.
 

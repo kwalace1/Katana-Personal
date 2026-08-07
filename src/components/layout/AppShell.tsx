@@ -14,6 +14,7 @@ import {
   Sparkles,
   Search,
   Plus,
+  Newspaper,
   Users,
   Trophy,
   Share2,
@@ -40,6 +41,10 @@ export const PRIMARY = [
   { to: '/ask', label: 'Ask', icon: Sparkles },
 ] as const
 
+export const TOGETHER_PRIMARY = [
+  { to: '/feed', label: 'Feed', icon: Newspaper },
+] as const
+
 export const PLAN = [
   { to: '/tasks', label: 'Tasks', icon: CheckSquare },
   { to: '/calendar', label: 'Calendar', icon: CalendarDays },
@@ -55,6 +60,7 @@ export const LIFE = [
 ] as const
 
 export const SOCIAL = [
+  { to: '/feed', label: 'Feed', icon: Newspaper },
   { to: '/friends', label: 'Friends', icon: Users },
   { to: '/shared', label: 'Shared', icon: Share2 },
   { to: '/circles', label: 'Circles', icon: Trophy },
@@ -149,11 +155,12 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
     icon: Users,
   }
 
-  const moreSocial = SOCIAL.filter((item) => item.to !== '/friends')
+  const moreSocial = SOCIAL.filter((item) => item.to !== '/friends' && item.to !== '/feed')
 
   const nav = (
     <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-2.5 py-2" aria-label="Main">
       <NavGroup items={PRIMARY} onNavigate={closeNav} />
+      <NavGroup items={TOGETHER_PRIMARY} onNavigate={closeNav} />
       <NavGroup items={[friendsItem]} onNavigate={closeNav} />
       <div className="pt-2">
         <button

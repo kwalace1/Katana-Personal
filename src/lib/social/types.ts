@@ -25,6 +25,8 @@ export interface SharePrefs {
   notes: boolean
   files: boolean
   activityFeed: boolean
+  /** Allow attaching goals / habits / workouts as Feed cards */
+  feedCards: boolean
 }
 
 export const DEFAULT_SHARE_PREFS: SharePrefs = {
@@ -39,6 +41,7 @@ export const DEFAULT_SHARE_PREFS: SharePrefs = {
   notes: false,
   files: false,
   activityFeed: false,
+  feedCards: false,
 }
 
 export interface Friendship {

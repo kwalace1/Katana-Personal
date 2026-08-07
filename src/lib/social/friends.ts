@@ -1,17 +1,4 @@
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  onSnapshot,
-  query,
-  setDoc,
-  updateDoc,
-  where,
-  deleteDoc,
-  type Unsubscribe,
-} from 'firebase/firestore'
-import { getDb } from '@/lib/firebase'
+import { getSupabase } from '@/lib/supabase'
 import {
   DEFAULT_SHARE_PREFS,
   type CloudProfile,
@@ -20,12 +7,64 @@ import {
 } from './types'
 import { createNotification } from './notifications'
 
+export type Unsubscribe = () => void
+
 function codeFromUid(uid: string) {
   return uid.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6).toUpperCase().padEnd(6, 'X')
 }
 
 function pairId(a: string, b: string) {
   return [a, b].sort().join('_')
+}
+
+function blockId(blocker: string, blocked: string) {
+  return `${blocker}_${blocked}`
+}
+
+type ProfileRow = {
+  uid: string
+  email: string
+  display_name: string
+  friend_code: string
+  photo_url?: string | null
+  share_prefs?: SharePrefs | null
+  created_at: string
+  updated_at: string
+}
+
+function mapProfile(row: ProfileRow): CloudProfile {
+  return {
+    uid: row.uid,
+    email: row.email || '',
+    displayName: row.display_name || 'Friend',
+    friendCode: row.friend_code,
+    photoURL: row.photo_url ?? null,
+    sharePrefs: { ...DEFAULT_SHARE_PREFS, ...(row.share_prefs || {}) },
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+type FriendshipRow = {
+  id: string
+  a: string
+  b: string
+  status: Friendship['status']
+  requested_by: string
+  created_at: string
+  updated_at: string
+}
+
+function mapFriendship(row: FriendshipRow): Friendship {
+  return {
+    id: row.id,
+    a: row.a,
+    b: row.b,
+    status: row.status,
+    requestedBy: row.requested_by,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
 }
 
 /** Public Add-me invite URL for a friend code. */
@@ -46,15 +85,10 @@ export async function shareAddMeLink(friendCode: string): Promise<'shared' | 'co
       return 'shared'
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') throw err
-      // fall through to clipboard
     }
   }
   await navigator.clipboard.writeText(url)
   return 'copied'
-}
-
-function blockId(blocker: string, blocked: string) {
-  return `${blocker}_${blocked}`
 }
 
 export async function ensureCloudProfile(input: {
@@ -62,44 +96,45 @@ export async function ensureCloudProfile(input: {
   email: string
   displayName: string
 }): Promise<CloudProfile> {
-  const db = getDb()
-  const ref = doc(db, 'profiles', input.uid)
-  const existing = await getDoc(ref)
+  const supabase = getSupabase()
+  const { data: existing, error: getErr } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('uid', input.uid)
+    .maybeSingle()
+  if (getErr) throw getErr
+  if (existing) return mapProfile(existing as ProfileRow)
+
   const now = new Date().toISOString()
-  if (existing.exists()) {
-    const data = existing.data() as CloudProfile
-    return {
-      ...data,
-      sharePrefs: { ...DEFAULT_SHARE_PREFS, ...(data.sharePrefs || {}) },
-    }
-  }
   const friendCode = codeFromUid(input.uid)
-  const profile: CloudProfile = {
+  const row = {
     uid: input.uid,
     email: input.email,
-    displayName: input.displayName.trim() || 'Friend',
-    friendCode,
-    sharePrefs: { ...DEFAULT_SHARE_PREFS },
-    createdAt: now,
-    updatedAt: now,
+    display_name: input.displayName.trim() || 'Friend',
+    friend_code: friendCode,
+    share_prefs: { ...DEFAULT_SHARE_PREFS },
+    created_at: now,
+    updated_at: now,
   }
-  await setDoc(ref, profile)
-  await setDoc(doc(db, 'friendCodes', friendCode), { uid: input.uid, code: friendCode })
-  return profile
+  const { data, error } = await supabase.from('profiles').insert(row).select('*').single()
+  if (error) throw error
+  await supabase.from('friend_codes').upsert({ code: friendCode, uid: input.uid })
+  return mapProfile(data as ProfileRow)
 }
 
 export async function getCloudProfile(uid: string): Promise<CloudProfile | null> {
-  const snap = await getDoc(doc(getDb(), 'profiles', uid))
-  if (!snap.exists()) return null
-  const data = snap.data() as CloudProfile
-  return { ...data, sharePrefs: { ...DEFAULT_SHARE_PREFS, ...(data.sharePrefs || {}) } }
+  const { data, error } = await getSupabase().from('profiles').select('*').eq('uid', uid).maybeSingle()
+  if (error) throw error
+  if (!data) return null
+  return mapProfile(data as ProfileRow)
 }
 
-/** Batch-fetch profiles by uid (e.g. circle members who may not be friends yet). */
 export async function getCloudProfiles(uids: string[]): Promise<CloudProfile[]> {
   const unique = Array.from(new Set(uids.filter(Boolean)))
-  const profiles = await Promise.all(unique.map((id) => getCloudProfile(id)))
-  return profiles.filter(Boolean) as CloudProfile[]
+  if (unique.length === 0) return []
+  const { data, error } = await getSupabase().from('profiles').select('*').in('uid', unique)
+  if (error) throw error
+  return (data || []).map((row) => mapProfile(row as ProfileRow))
 }
 
 export type FriendshipRelation = 'self' | 'friends' | 'pending_out' | 'pending_in' | 'none'
@@ -121,45 +156,51 @@ export async function updateCloudProfile(
   uid: string,
   patch: Partial<Pick<CloudProfile, 'displayName' | 'sharePrefs'>>,
 ): Promise<void> {
-  await updateDoc(doc(getDb(), 'profiles', uid), {
-    ...patch,
-    updatedAt: new Date().toISOString(),
-  })
+  const row: Record<string, unknown> = { updated_at: new Date().toISOString() }
+  if (patch.displayName != null) row.display_name = patch.displayName
+  if (patch.sharePrefs != null) row.share_prefs = patch.sharePrefs
+  const { error } = await getSupabase().from('profiles').update(row).eq('uid', uid)
+  if (error) throw error
 }
 
 export async function findUidByFriendCode(code: string): Promise<string | null> {
   const normalized = code.trim().toUpperCase()
   if (!normalized) return null
-  const snap = await getDoc(doc(getDb(), 'friendCodes', normalized))
-  if (!snap.exists()) return null
-  return (snap.data() as { uid: string }).uid
+  const { data, error } = await getSupabase()
+    .from('friend_codes')
+    .select('uid')
+    .eq('code', normalized)
+    .maybeSingle()
+  if (error) throw error
+  return data?.uid ?? null
 }
 
 export async function isBlockedEither(a: string, b: string): Promise<boolean> {
-  const [x, y] = await Promise.all([
-    getDoc(doc(getDb(), 'blocks', blockId(a, b))),
-    getDoc(doc(getDb(), 'blocks', blockId(b, a))),
-  ])
-  return x.exists() || y.exists()
+  const supabase = getSupabase()
+  const ids = [blockId(a, b), blockId(b, a)]
+  const { data, error } = await supabase.from('blocks').select('id').in('id', ids)
+  if (error) throw error
+  return (data || []).length > 0
 }
 
 export async function blockUser(blocker: string, blocked: string): Promise<void> {
   if (blocker === blocked) throw new Error('That’s you.')
-  await setDoc(doc(getDb(), 'blocks', blockId(blocker, blocked)), {
+  const supabase = getSupabase()
+  const { error } = await supabase.from('blocks').upsert({
+    id: blockId(blocker, blocked),
     blocker,
     blocked,
-    createdAt: new Date().toISOString(),
+    created_at: new Date().toISOString(),
   })
+  if (error) throw error
   const friendshipId = pairId(blocker, blocked)
-  const ref = doc(getDb(), 'friendships', friendshipId)
-  const existing = await getDoc(ref)
-  if (existing.exists()) await deleteDoc(ref)
+  await supabase.from('friendships').delete().eq('id', friendshipId)
 }
 
 export async function listBlockedIds(blocker: string): Promise<string[]> {
-  const q = query(collection(getDb(), 'blocks'), where('blocker', '==', blocker))
-  const snap = await getDocs(q)
-  return snap.docs.map((d) => (d.data() as { blocked: string }).blocked)
+  const { data, error } = await getSupabase().from('blocks').select('blocked').eq('blocker', blocker)
+  if (error) throw error
+  return (data || []).map((d) => d.blocked as string)
 }
 
 export async function requestFriend(fromUid: string, toUid: string): Promise<Friendship> {
@@ -168,24 +209,26 @@ export async function requestFriend(fromUid: string, toUid: string): Promise<Fri
     throw new Error('You can’t connect with that person.')
   }
   const id = pairId(fromUid, toUid)
-  const ref = doc(getDb(), 'friendships', id)
-  const existing = await getDoc(ref)
+  const supabase = getSupabase()
+  const { data: existing } = await supabase.from('friendships').select('*').eq('id', id).maybeSingle()
   const now = new Date().toISOString()
-  if (existing.exists()) {
-    const data = existing.data() as Friendship
+  if (existing) {
+    const data = mapFriendship(existing as FriendshipRow)
     if (data.status === 'accepted') throw new Error('You’re already friends.')
     if (data.status === 'pending') throw new Error('Friend request already pending.')
   }
-  const friendship: Friendship = {
+  const sorted = [fromUid, toUid].sort()
+  const row = {
     id,
-    a: [fromUid, toUid].sort()[0],
-    b: [fromUid, toUid].sort()[1],
-    status: 'pending',
-    requestedBy: fromUid,
-    createdAt: now,
-    updatedAt: now,
+    a: sorted[0],
+    b: sorted[1],
+    status: 'pending' as const,
+    requested_by: fromUid,
+    created_at: now,
+    updated_at: now,
   }
-  await setDoc(ref, friendship)
+  const { data, error } = await supabase.from('friendships').upsert(row).select('*').single()
+  if (error) throw error
   const from = await getCloudProfile(fromUid)
   await createNotification({
     uid: toUid,
@@ -195,17 +238,22 @@ export async function requestFriend(fromUid: string, toUid: string): Promise<Fri
     href: '/friends#invites',
     meta: { fromUid },
   })
-  return friendship
+  return mapFriendship(data as FriendshipRow)
 }
 
 export async function acceptFriend(uid: string, friendshipId: string): Promise<void> {
-  const ref = doc(getDb(), 'friendships', friendshipId)
-  const snap = await getDoc(ref)
-  if (!snap.exists()) throw new Error('Request not found.')
-  const data = snap.data() as Friendship
+  const supabase = getSupabase()
+  const { data: snap, error } = await supabase.from('friendships').select('*').eq('id', friendshipId).maybeSingle()
+  if (error) throw error
+  if (!snap) throw new Error('Request not found.')
+  const data = mapFriendship(snap as FriendshipRow)
   if (data.a !== uid && data.b !== uid) throw new Error('Not your request.')
   if (data.requestedBy === uid) throw new Error('Waiting on them to accept.')
-  await updateDoc(ref, { status: 'accepted', updatedAt: new Date().toISOString() })
+  const { error: updErr } = await supabase
+    .from('friendships')
+    .update({ status: 'accepted', updated_at: new Date().toISOString() })
+    .eq('id', friendshipId)
+  if (updErr) throw updErr
   const accepter = await getCloudProfile(uid)
   await createNotification({
     uid: data.requestedBy,
@@ -217,71 +265,71 @@ export async function acceptFriend(uid: string, friendshipId: string): Promise<v
 }
 
 export async function removeFriendship(uid: string, friendshipId: string): Promise<void> {
-  const ref = doc(getDb(), 'friendships', friendshipId)
-  const snap = await getDoc(ref)
-  if (!snap.exists()) return
-  const data = snap.data() as Friendship
+  const supabase = getSupabase()
+  const { data: snap } = await supabase.from('friendships').select('*').eq('id', friendshipId).maybeSingle()
+  if (!snap) return
+  const data = mapFriendship(snap as FriendshipRow)
   if (data.a !== uid && data.b !== uid) throw new Error('Not your friendship.')
-  await deleteDoc(ref)
+  const { error } = await supabase.from('friendships').delete().eq('id', friendshipId)
+  if (error) throw error
 }
 
 export async function listFriendships(uid: string): Promise<Friendship[]> {
-  const db = getDb()
+  const supabase = getSupabase()
   const [q1, q2] = await Promise.all([
-    getDocs(query(collection(db, 'friendships'), where('a', '==', uid))),
-    getDocs(query(collection(db, 'friendships'), where('b', '==', uid))),
+    supabase.from('friendships').select('*').eq('a', uid),
+    supabase.from('friendships').select('*').eq('b', uid),
   ])
+  if (q1.error) throw q1.error
+  if (q2.error) throw q2.error
   const map = new Map<string, Friendship>()
-  for (const s of [...q1.docs, ...q2.docs]) {
-    map.set(s.id, s.data() as Friendship)
+  for (const row of [...(q1.data || []), ...(q2.data || [])]) {
+    const f = mapFriendship(row as FriendshipRow)
+    map.set(f.id, f)
   }
   return [...map.values()].sort((x, y) => y.updatedAt.localeCompare(x.updatedAt))
 }
 
-/** Live friendship list — dual listeners (a == uid | b == uid). */
+async function fetchFriendshipsMerged(uid: string): Promise<Friendship[]> {
+  return listFriendships(uid)
+}
+
+/** Live friendship list — Realtime + initial fetch. */
 export function subscribeFriendships(
   uid: string,
   onChange: (items: Friendship[]) => void,
   onError?: (err: Error) => void,
 ): Unsubscribe {
-  const db = getDb()
-  const mapA = new Map<string, Friendship>()
-  const mapB = new Map<string, Friendship>()
-  let aReady = false
-  let bReady = false
+  const supabase = getSupabase()
+  let cancelled = false
 
-  function mergeEmit() {
-    if (!aReady || !bReady) return
-    const merged = new Map<string, Friendship>()
-    for (const [id, f] of mapA) merged.set(id, f)
-    for (const [id, f] of mapB) merged.set(id, f)
-    onChange([...merged.values()].sort((x, y) => y.updatedAt.localeCompare(x.updatedAt)))
+  const refresh = () => {
+    void fetchFriendshipsMerged(uid)
+      .then((items) => {
+        if (!cancelled) onChange(items)
+      })
+      .catch((err) => onError?.(err instanceof Error ? err : new Error(String(err))))
   }
 
-  const unsubA = onSnapshot(
-    query(collection(db, 'friendships'), where('a', '==', uid)),
-    (snap) => {
-      mapA.clear()
-      for (const d of snap.docs) mapA.set(d.id, d.data() as Friendship)
-      aReady = true
-      mergeEmit()
-    },
-    (err) => onError?.(err),
-  )
-  const unsubB = onSnapshot(
-    query(collection(db, 'friendships'), where('b', '==', uid)),
-    (snap) => {
-      mapB.clear()
-      for (const d of snap.docs) mapB.set(d.id, d.data() as Friendship)
-      bReady = true
-      mergeEmit()
-    },
-    (err) => onError?.(err),
-  )
+  refresh()
+
+  const channel = supabase
+    .channel(`friendships:${uid}`)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'friendships', filter: `a=eq.${uid}` },
+      refresh,
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'friendships', filter: `b=eq.${uid}` },
+      refresh,
+    )
+    .subscribe()
 
   return () => {
-    unsubA()
-    unsubB()
+    cancelled = true
+    void supabase.removeChannel(channel)
   }
 }
 
@@ -292,8 +340,7 @@ export async function listFriendProfiles(uid: string): Promise<CloudProfile[]> {
   const ids = accepted
     .map((f) => (f.a === uid ? f.b : f.a))
     .filter((id) => !blocked.has(id))
-  const profiles = await Promise.all(ids.map((id) => getCloudProfile(id)))
-  return profiles.filter(Boolean) as CloudProfile[]
+  return getCloudProfiles(ids)
 }
 
 export type { SharePrefs }

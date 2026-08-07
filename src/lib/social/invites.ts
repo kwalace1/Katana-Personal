@@ -1,22 +1,10 @@
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  onSnapshot,
-  query,
-  setDoc,
-  updateDoc,
-  where,
-  arrayUnion,
-  type Unsubscribe,
-} from 'firebase/firestore'
-import { getDb } from '@/lib/firebase'
+import { getSupabase } from '@/lib/supabase'
 import { createId } from '@/lib/id'
 import { createNotification } from './notifications'
 import { getCloudProfile } from './friends'
-import { canManageCircle, joinCircleMember, normalizeCircle } from './circles'
+import { canManageCircle, getCircle, joinCircleMember } from './circles'
 import type { CircleGroup } from './types'
+import type { Unsubscribe } from './friends'
 
 export type CircleInviteStatus = 'pending' | 'accepted' | 'declined' | 'link'
 
@@ -28,10 +16,37 @@ export interface CircleInvite {
   createdAt: string
   expiresAt: string
   usedBy: string[]
-  /** When set, this is a direct invite to a friend (accept in Friends). */
   inviteeUid?: string | null
   status?: CircleInviteStatus
   respondedAt?: string | null
+}
+
+type InviteRow = {
+  token: string
+  circle_id: string
+  circle_name: string
+  created_by: string
+  created_at: string
+  expires_at: string
+  used_by: string[]
+  invitee_uid?: string | null
+  status?: CircleInviteStatus | null
+  responded_at?: string | null
+}
+
+function mapInvite(row: InviteRow): CircleInvite {
+  return {
+    token: row.token,
+    circleId: row.circle_id,
+    circleName: row.circle_name,
+    createdBy: row.created_by,
+    createdAt: row.created_at,
+    expiresAt: row.expires_at,
+    usedBy: row.used_by || [],
+    inviteeUid: row.invitee_uid ?? null,
+    status: row.status ?? undefined,
+    respondedAt: row.responded_at ?? null,
+  }
 }
 
 function inviteUrl(token: string) {
@@ -39,7 +54,6 @@ function inviteUrl(token: string) {
   return `${origin}/invite/circle/${token}`
 }
 
-/** Shareable link invite (anyone with the link). */
 export async function createCircleInvite(input: {
   circle: CircleGroup
   createdBy: string
@@ -52,18 +66,20 @@ export async function createCircleInvite(input: {
   const now = new Date()
   const expires = new Date(now)
   expires.setDate(expires.getDate() + (input.daysValid ?? 14))
-  const invite: CircleInvite = {
+  const row = {
     token,
-    circleId: input.circle.id,
-    circleName: input.circle.name,
-    createdBy: input.createdBy,
-    createdAt: now.toISOString(),
-    expiresAt: expires.toISOString(),
-    usedBy: [],
-    inviteeUid: null,
-    status: 'link',
+    circle_id: input.circle.id,
+    circle_name: input.circle.name,
+    created_by: input.createdBy,
+    created_at: now.toISOString(),
+    expires_at: expires.toISOString(),
+    used_by: [] as string[],
+    invitee_uid: null as string | null,
+    status: 'link' as const,
   }
-  await setDoc(doc(getDb(), 'circleInvites', token), invite)
+  const { data, error } = await getSupabase().from('circle_invites').insert(row).select('*').single()
+  if (error) throw error
+  const invite = mapInvite(data as InviteRow)
   return { invite, url: inviteUrl(token) }
 }
 
@@ -71,7 +87,6 @@ function directInviteId(circleId: string, inviteeUid: string) {
   return `direct_${circleId}_${inviteeUid}`
 }
 
-/** Invite an existing friend — they accept from Friends / notifications. */
 export async function inviteFriendToCircle(input: {
   circle: CircleGroup
   createdBy: string
@@ -88,12 +103,11 @@ export async function inviteFriendToCircle(input: {
     throw new Error('You can’t invite yourself.')
   }
 
-  // Deterministic id + getDoc — no list query (list rules/indexes were blocking send).
   const token = directInviteId(input.circle.id, input.inviteeUid)
-  const ref = doc(getDb(), 'circleInvites', token)
-  const existingSnap = await getDoc(ref)
-  if (existingSnap.exists()) {
-    const existing = existingSnap.data() as CircleInvite
+  const supabase = getSupabase()
+  const { data: existingSnap } = await supabase.from('circle_invites').select('*').eq('token', token).maybeSingle()
+  if (existingSnap) {
+    const existing = mapInvite(existingSnap as InviteRow)
     if (existing.status === 'pending') {
       throw new Error('Invite already sent — waiting for them to accept.')
     }
@@ -102,19 +116,20 @@ export async function inviteFriendToCircle(input: {
   const now = new Date()
   const expires = new Date(now)
   expires.setDate(expires.getDate() + (input.daysValid ?? 14))
-  const invite: CircleInvite = {
+  const row = {
     token,
-    circleId: input.circle.id,
-    circleName: input.circle.name,
-    createdBy: input.createdBy,
-    createdAt: now.toISOString(),
-    expiresAt: expires.toISOString(),
-    usedBy: [],
-    inviteeUid: input.inviteeUid,
-    status: 'pending',
-    respondedAt: null,
+    circle_id: input.circle.id,
+    circle_name: input.circle.name,
+    created_by: input.createdBy,
+    created_at: now.toISOString(),
+    expires_at: expires.toISOString(),
+    used_by: [] as string[],
+    invitee_uid: input.inviteeUid,
+    status: 'pending' as const,
+    responded_at: null as string | null,
   }
-  await setDoc(ref, invite)
+  const { data, error } = await supabase.from('circle_invites').upsert(row).select('*').single()
+  if (error) throw error
 
   try {
     const inviter = await getCloudProfile(input.createdBy)
@@ -130,26 +145,26 @@ export async function inviteFriendToCircle(input: {
     // Invite is saved even if the bell ping fails
   }
 
-  return invite
+  return mapInvite(data as InviteRow)
 }
 
 export async function getCircleInvite(token: string): Promise<CircleInvite | null> {
-  const snap = await getDoc(doc(getDb(), 'circleInvites', token))
-  if (!snap.exists()) return null
-  return snap.data() as CircleInvite
+  const { data, error } = await getSupabase().from('circle_invites').select('*').eq('token', token).maybeSingle()
+  if (error) throw error
+  if (!data) return null
+  return mapInvite(data as InviteRow)
 }
 
-/** Pending invites addressed to me (Friends inbox). */
 export async function listMyPendingCircleInvites(uid: string): Promise<CircleInvite[]> {
-  const q = query(
-    collection(getDb(), 'circleInvites'),
-    where('inviteeUid', '==', uid),
-    where('status', '==', 'pending'),
-  )
-  const snap = await getDocs(q)
+  const { data, error } = await getSupabase()
+    .from('circle_invites')
+    .select('*')
+    .eq('invitee_uid', uid)
+    .eq('status', 'pending')
+  if (error) throw error
   const now = Date.now()
-  return snap.docs
-    .map((d) => d.data() as CircleInvite)
+  return (data || [])
+    .map((d) => mapInvite(d as InviteRow))
     .filter((inv) => new Date(inv.expiresAt).getTime() >= now)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
 }
@@ -159,39 +174,46 @@ export function subscribeMyPendingCircleInvites(
   onChange: (items: CircleInvite[]) => void,
   onError?: (err: Error) => void,
 ): Unsubscribe {
-  const q = query(
-    collection(getDb(), 'circleInvites'),
-    where('inviteeUid', '==', uid),
-    where('status', '==', 'pending'),
-  )
-  return onSnapshot(
-    q,
-    (snap) => {
-      const now = Date.now()
-      onChange(
-        snap.docs
-          .map((d) => d.data() as CircleInvite)
-          .filter((inv) => new Date(inv.expiresAt).getTime() >= now)
-          .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-      )
-    },
-    (err) => onError?.(err),
-  )
+  const supabase = getSupabase()
+  let cancelled = false
+
+  const refresh = () => {
+    void listMyPendingCircleInvites(uid)
+      .then((items) => {
+        if (!cancelled) onChange(items)
+      })
+      .catch((err) => onError?.(err instanceof Error ? err : new Error(String(err))))
+  }
+
+  refresh()
+
+  const channel = supabase
+    .channel(`circle_invites:${uid}`)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'circle_invites', filter: `invitee_uid=eq.${uid}` },
+      refresh,
+    )
+    .subscribe()
+
+  return () => {
+    cancelled = true
+    void supabase.removeChannel(channel)
+  }
 }
 
-/** Pending invites I sent for a circle (to show “Pending” on Manage). */
 export async function listOutgoingPendingForCircle(
   circleId: string,
   createdBy: string,
 ): Promise<CircleInvite[]> {
-  const q = query(
-    collection(getDb(), 'circleInvites'),
-    where('createdBy', '==', createdBy),
-    where('circleId', '==', circleId),
-    where('status', '==', 'pending'),
-  )
-  const snap = await getDocs(q)
-  return snap.docs.map((d) => d.data() as CircleInvite)
+  const { data, error } = await getSupabase()
+    .from('circle_invites')
+    .select('*')
+    .eq('created_by', createdBy)
+    .eq('circle_id', circleId)
+    .eq('status', 'pending')
+  if (error) throw error
+  return (data || []).map((d) => mapInvite(d as InviteRow))
 }
 
 async function joinFromInvite(invite: CircleInvite, uid: string): Promise<CircleGroup> {
@@ -201,18 +223,22 @@ async function joinFromInvite(invite: CircleInvite, uid: string): Promise<Circle
   if (invite.status === 'declined') {
     throw new Error('That invite was declined.')
   }
-  const circleSnap = await getDoc(doc(getDb(), 'circles', invite.circleId))
-  if (!circleSnap.exists()) throw new Error('That circle no longer exists.')
-  const circle = normalizeCircle({ id: circleSnap.id, ...(circleSnap.data() as Omit<CircleGroup, 'id'>) })
+  const circle = await getCircle(invite.circleId)
+  if (!circle) throw new Error('That circle no longer exists.')
   if (circle.memberIds.includes(uid)) {
     return circle
   }
   const joined = await joinCircleMember(circle, uid)
-  await updateDoc(doc(getDb(), 'circleInvites', invite.token), {
-    usedBy: arrayUnion(uid),
-    status: 'accepted',
-    respondedAt: new Date().toISOString(),
-  })
+  const usedBy = [...new Set([...(invite.usedBy || []), uid])]
+  const { error } = await getSupabase()
+    .from('circle_invites')
+    .update({
+      used_by: usedBy,
+      status: 'accepted',
+      responded_at: new Date().toISOString(),
+    })
+    .eq('token', invite.token)
+  if (error) throw error
   const joiner = await getCloudProfile(uid)
   await createNotification({
     uid: invite.createdBy,
@@ -239,8 +265,12 @@ export async function declineCircleInvite(token: string, uid: string): Promise<v
   if (!invite) throw new Error('That invite isn’t valid.')
   if (invite.inviteeUid !== uid) throw new Error('This invite was sent to someone else.')
   if (invite.status !== 'pending') return
-  await updateDoc(doc(getDb(), 'circleInvites', token), {
-    status: 'declined',
-    respondedAt: new Date().toISOString(),
-  })
+  const { error } = await getSupabase()
+    .from('circle_invites')
+    .update({
+      status: 'declined',
+      responded_at: new Date().toISOString(),
+    })
+    .eq('token', token)
+  if (error) throw error
 }

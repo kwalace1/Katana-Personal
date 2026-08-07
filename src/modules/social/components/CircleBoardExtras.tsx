@@ -16,6 +16,7 @@ import {
   subscribeCirclePosts,
   type CirclePost,
 } from '@/lib/social/circle-posts'
+import { createTogetherPost } from '@/lib/social/feed'
 import type { CloudProfile, SharePrefs, StreakSnapshot } from '@/lib/social/types'
 import { relativeWhen } from './relative-when'
 import { cn } from '@/lib/utils'
@@ -143,11 +144,23 @@ export function CircleBoardExtras({
     if (!draft.trim() || posting) return
     setPosting(true)
     try {
-      await createCirclePost({
-        circleId,
+      const message = draft.trim()
+      // Dual-write: circle timeline + Together Feed (circle audience)
+      await createTogetherPost({
         authorId: selfUid,
-        message: draft,
+        text: message,
+        audience: 'circle',
+        circleId,
       })
+      try {
+        await createCirclePost({
+          circleId,
+          authorId: selfUid,
+          message,
+        })
+      } catch {
+        // Feed post succeeded; legacy circlePosts optional during migration
+      }
       setDraft('')
       toast.success('Posted to the circle')
     } catch (err) {
@@ -287,10 +300,18 @@ export function CircleBoardExtras({
       ) : null}
 
       <section>
-        <p className="kp-section-label mb-3 flex items-center gap-1.5">
-          <MessageSquare className="h-3.5 w-3.5" />
-          Circle chat
-        </p>
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <p className="kp-section-label flex items-center gap-1.5">
+            <MessageSquare className="h-3.5 w-3.5" />
+            Circle chat
+          </p>
+          <Link
+            to={`/feed?circle=${encodeURIComponent(circleId)}`}
+            className="text-xs font-medium text-primary hover:underline"
+          >
+            Open Feed
+          </Link>
+        </div>
         <form onSubmit={(e) => void onPost(e)} className="mb-4 flex gap-2">
           <Input
             placeholder="Say something to the crew…"
@@ -302,6 +323,9 @@ export function CircleBoardExtras({
             <Send className="h-4 w-4" />
           </Button>
         </form>
+        <p className="mb-4 text-xs text-muted-foreground">
+          Posts also appear on Together Feed (circles first). Photos & videos: use Feed.
+        </p>
       </section>
 
       <section>

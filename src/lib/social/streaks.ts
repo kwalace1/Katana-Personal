@@ -1,5 +1,4 @@
-import { doc, getDoc, setDoc } from 'firebase/firestore'
-import { getDb } from '@/lib/firebase'
+import { getSupabase } from '@/lib/supabase'
 import { habitsApi } from '@/modules/habits/api'
 import { healthApi } from '@/modules/health/api'
 import { liftApi } from '@/modules/health/lift-api'
@@ -56,7 +55,46 @@ function emptyStreakNumbers(): Pick<
   }
 }
 
-/** Compute local streaks for the signed-in person's local workspace. */
+type StreakRow = {
+  uid: string
+  display_name: string
+  updated_at: string
+  water_streak: number
+  sleep_streak: number
+  nutrition_streak: number
+  workout_streak: number
+  lift_streak: number
+  habit_streak_best: number
+  water_glasses_today: number
+  sleep_hours_last: number
+  habits_done_today: number
+  habits_due_today: number
+  calories_today: number
+  workout_minutes_today: number
+  visible?: Partial<SharePrefs> | null
+}
+
+function mapStreak(row: StreakRow): StreakSnapshot {
+  return {
+    uid: row.uid,
+    displayName: row.display_name,
+    updatedAt: row.updated_at,
+    waterStreak: row.water_streak ?? 0,
+    sleepStreak: row.sleep_streak ?? 0,
+    nutritionStreak: row.nutrition_streak ?? 0,
+    workoutStreak: row.workout_streak ?? 0,
+    liftStreak: row.lift_streak ?? 0,
+    habitStreakBest: row.habit_streak_best ?? 0,
+    waterGlassesToday: row.water_glasses_today ?? 0,
+    sleepHoursLast: Number(row.sleep_hours_last ?? 0),
+    habitsDoneToday: row.habits_done_today ?? 0,
+    habitsDueToday: row.habits_due_today ?? 0,
+    caloriesToday: row.calories_today ?? 0,
+    workoutMinutesToday: row.workout_minutes_today ?? 0,
+    visible: row.visible || {},
+  }
+}
+
 export function computeLocalStreaks(
   localUserId: string,
 ): Omit<StreakSnapshot, 'uid' | 'displayName' | 'visible' | 'updatedAt'> {
@@ -69,7 +107,6 @@ export function computeLocalStreaks(
   const nutritionStreak = consecutiveDays((date) =>
     healthApi.listNutrition(localUserId).some((n) => n.date === date),
   )
-  // Move board = cardio / general workouts only (lift-linked rows counted under Lift)
   const workoutStreak = consecutiveDays((date) =>
     healthApi.listWorkouts(localUserId).some((w) => w.date === date && !w.lift_session_id),
   )
@@ -129,7 +166,6 @@ export async function publishStreaks(input: {
       habits: input.sharePrefs.habits,
     },
   }
-  // Only write numbers friends are allowed to see (others zeroed for privacy)
   const publicSnap: StreakSnapshot = {
     ...snapshot,
     waterStreak: input.sharePrefs.healthWater ? snapshot.waterStreak : 0,
@@ -145,7 +181,26 @@ export async function publishStreaks(input: {
     caloriesToday: input.sharePrefs.healthNutrition ? snapshot.caloriesToday : 0,
     workoutMinutesToday: input.sharePrefs.healthWorkouts ? snapshot.workoutMinutesToday : 0,
   }
-  await setDoc(doc(getDb(), 'streaks', input.cloudUid), publicSnap)
+  const row = {
+    uid: publicSnap.uid,
+    display_name: publicSnap.displayName,
+    updated_at: publicSnap.updatedAt,
+    water_streak: publicSnap.waterStreak,
+    sleep_streak: publicSnap.sleepStreak,
+    nutrition_streak: publicSnap.nutritionStreak,
+    workout_streak: publicSnap.workoutStreak,
+    lift_streak: publicSnap.liftStreak,
+    habit_streak_best: publicSnap.habitStreakBest,
+    water_glasses_today: publicSnap.waterGlassesToday,
+    sleep_hours_last: publicSnap.sleepHoursLast,
+    habits_done_today: publicSnap.habitsDoneToday,
+    habits_due_today: publicSnap.habitsDueToday,
+    calories_today: publicSnap.caloriesToday,
+    workout_minutes_today: publicSnap.workoutMinutesToday,
+    visible: publicSnap.visible,
+  }
+  const { error } = await getSupabase().from('streaks').upsert(row)
+  if (error) throw error
   return publicSnap
 }
 
@@ -162,8 +217,8 @@ export async function loadCirclesBoard(
   const snaps = await Promise.all(
     ids.map(async (uid) => {
       try {
-        const docSnap = await getDoc(doc(getDb(), 'streaks', uid))
-        if (!docSnap.exists()) {
+        const { data } = await getSupabase().from('streaks').select('*').eq('uid', uid).maybeSingle()
+        if (!data) {
           const profile = await getCloudProfile(uid)
           if (!profile) return null
           return {
@@ -174,15 +229,9 @@ export async function loadCirclesBoard(
             visible: profile.sharePrefs,
           } satisfies StreakSnapshot
         }
-        const data = docSnap.data() as StreakSnapshot
         return {
           ...emptyStreakNumbers(),
-          ...data,
-          liftStreak: data.liftStreak ?? 0,
-          habitsDoneToday: data.habitsDoneToday ?? 0,
-          habitsDueToday: data.habitsDueToday ?? 0,
-          caloriesToday: data.caloriesToday ?? 0,
-          workoutMinutesToday: data.workoutMinutesToday ?? 0,
+          ...mapStreak(data as StreakRow),
         }
       } catch {
         return null
@@ -211,11 +260,11 @@ export type ActivityFeedItem = {
 
 type ActivityEvent = { id: string; message: string; at: string }
 
-/** Soft activity ping friends can see if activityFeed is on. Keeps a short history per person. */
 export async function publishActivity(cloudUid: string, message: string): Promise<void> {
-  const ref = doc(getDb(), 'activity', cloudUid)
-  const existing = await getDoc(ref)
-  const prev = (existing.exists() ? (existing.data().events as ActivityEvent[] | undefined) : undefined) || []
+  const supabase = getSupabase()
+  const { data: existing } = await supabase.from('activity').select('*').eq('uid', cloudUid).maybeSingle()
+  const prev =
+    (existing?.events as ActivityEvent[] | undefined) || []
   const at = new Date().toISOString()
   const nextEvent: ActivityEvent = {
     id: `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
@@ -223,35 +272,25 @@ export async function publishActivity(cloudUid: string, message: string): Promis
     at,
   }
   const events = [...prev, nextEvent].slice(-40)
-  await setDoc(
-    ref,
-    {
-      uid: cloudUid,
-      message,
-      updatedAt: at,
-      events,
-    },
-    { merge: true },
-  )
+  const { error } = await supabase.from('activity').upsert({
+    uid: cloudUid,
+    message,
+    updated_at: at,
+    events,
+  })
+  if (error) throw error
 }
 
 export async function listFriendActivity(friendUids: string[]): Promise<ActivityFeedItem[]> {
   if (friendUids.length === 0) return []
-  // Use per-doc gets — collection queries fail under friend-scoped rules
-  // (rules check path id via isFriendOf; a where('uid' in …) query can’t prove that).
   const snaps = await Promise.all(
     friendUids.slice(0, 20).map(async (uid) => {
       try {
-        const snap = await getDoc(doc(getDb(), 'activity', uid))
-        if (!snap.exists()) return [] as ActivityFeedItem[]
-        const data = snap.data() as {
-          uid: string
-          message: string
-          updatedAt: string
-          events?: ActivityEvent[]
-        }
-        if (data.events && data.events.length > 0) {
-          return data.events.map((e) => ({
+        const { data } = await getSupabase().from('activity').select('*').eq('uid', uid).maybeSingle()
+        if (!data) return [] as ActivityFeedItem[]
+        const events = (data.events as ActivityEvent[] | undefined) || []
+        if (events.length > 0) {
+          return events.map((e) => ({
             id: e.id,
             uid,
             message: e.message,
@@ -263,8 +302,8 @@ export async function listFriendActivity(friendUids: string[]): Promise<Activity
             {
               id: `${uid}-latest`,
               uid,
-              message: data.message,
-              updatedAt: data.updatedAt,
+              message: data.message as string,
+              updatedAt: data.updated_at as string,
             },
           ]
         }

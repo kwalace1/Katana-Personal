@@ -10,5 +10,5 @@ pages/     # route screens
 
 - Modules do not import each other’s pages/components; cross-reads go through `api.ts`.
 - Persistence is local-first via `@/lib/local-db`.
-- Optional social layer uses Firebase (Auth + Firestore) — see `FIREBASE_SETUP.md`.
+- Optional social layer uses Supabase (Auth + Postgres + Storage) — see `SUPABASE_SETUP.md`.
 - Workspace backup covers all collections listed in `WORKSPACE_COLLECTIONS`.

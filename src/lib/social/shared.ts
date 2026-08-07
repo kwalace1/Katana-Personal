@@ -1,17 +1,34 @@
-import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  getDocs,
-  query,
-  updateDoc,
-  where,
-} from 'firebase/firestore'
-import { getDb } from '@/lib/firebase'
+import { getSupabase } from '@/lib/supabase'
+import { createId } from '@/lib/id'
 import { createNotification } from './notifications'
 import { getCloudProfile } from './friends'
 import type { SharedItem, SharedKind } from './types'
+
+type SharedRow = {
+  id: string
+  kind: SharedKind
+  title: string
+  body?: string | null
+  data?: Record<string, unknown> | null
+  owner_id: string
+  member_ids: string[]
+  created_at: string
+  updated_at: string
+}
+
+function mapShared(row: SharedRow): SharedItem {
+  return {
+    id: row.id,
+    kind: row.kind,
+    title: row.title,
+    body: row.body || '',
+    data: row.data || {},
+    ownerId: row.owner_id,
+    memberIds: row.member_ids || [],
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
 
 export async function createSharedItem(input: {
   kind: SharedKind
@@ -23,38 +40,45 @@ export async function createSharedItem(input: {
 }): Promise<SharedItem> {
   const now = new Date().toISOString()
   const members = Array.from(new Set([input.ownerId, ...input.memberIds]))
-  const payload: Omit<SharedItem, 'id'> = {
+  const id = createId()
+  const row = {
+    id,
     kind: input.kind,
     title: input.title.trim(),
     body: input.body || '',
     data: input.data || {},
-    ownerId: input.ownerId,
-    memberIds: members,
-    createdAt: now,
-    updatedAt: now,
+    owner_id: input.ownerId,
+    member_ids: members,
+    created_at: now,
+    updated_at: now,
   }
-  const ref = await addDoc(collection(getDb(), 'sharedItems'), payload)
+  const { data, error } = await getSupabase().from('shared_items').insert(row).select('*').single()
+  if (error) throw error
+  const item = mapShared(data as SharedRow)
   const owner = await getCloudProfile(input.ownerId)
-  const recipients = members.filter((id) => id !== input.ownerId)
+  const recipients = members.filter((uid) => uid !== input.ownerId)
   await Promise.all(
     recipients.map((uid) =>
       createNotification({
         uid,
         kind: 'shared_item',
         title: 'Something new was shared',
-        body: `${owner?.displayName || 'A friend'} shared “${payload.title}” with you.`,
+        body: `${owner?.displayName || 'A friend'} shared “${item.title}” with you.`,
         href: '/shared',
-        meta: { kind: input.kind, itemId: ref.id },
+        meta: { kind: input.kind, itemId: item.id },
       }),
     ),
   )
-  return { id: ref.id, ...payload }
+  return item
 }
 
 export async function listSharedItems(uid: string, kind?: SharedKind): Promise<SharedItem[]> {
-  const q = query(collection(getDb(), 'sharedItems'), where('memberIds', 'array-contains', uid))
-  const snap = await getDocs(q)
-  let items = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<SharedItem, 'id'>) }))
+  const { data, error } = await getSupabase()
+    .from('shared_items')
+    .select('*')
+    .contains('member_ids', [uid])
+  if (error) throw error
+  let items = (data || []).map((d) => mapShared(d as SharedRow))
   if (kind) items = items.filter((i) => i.kind === kind)
   return items.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
 }
@@ -63,17 +87,20 @@ export async function updateSharedItem(
   id: string,
   patch: Partial<Pick<SharedItem, 'title' | 'body' | 'data' | 'memberIds'>>,
 ): Promise<void> {
-  await updateDoc(doc(getDb(), 'sharedItems', id), {
-    ...patch,
-    updatedAt: new Date().toISOString(),
-  })
+  const row: Record<string, unknown> = { updated_at: new Date().toISOString() }
+  if (patch.title != null) row.title = patch.title
+  if (patch.body != null) row.body = patch.body
+  if (patch.data != null) row.data = patch.data
+  if (patch.memberIds != null) row.member_ids = patch.memberIds
+  const { error } = await getSupabase().from('shared_items').update(row).eq('id', id)
+  if (error) throw error
 }
 
 export async function removeSharedItem(id: string): Promise<void> {
-  await deleteDoc(doc(getDb(), 'sharedItems', id))
+  const { error } = await getSupabase().from('shared_items').delete().eq('id', id)
+  if (error) throw error
 }
 
-/** Leave a shared item (or delete if you’re the last member / owner cleanup). */
 export async function leaveSharedItem(uid: string, item: SharedItem): Promise<void> {
   if (item.ownerId === uid) {
     await removeSharedItem(item.id)
@@ -106,4 +133,3 @@ export function sharedItemHref(item: SharedItem): string | null {
   if (item.kind === 'journal') return '/journal'
   return null
 }
-

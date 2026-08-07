@@ -1,15 +1,11 @@
-import { doc, getDoc, writeBatch } from 'firebase/firestore'
-import { getDb } from '@/lib/firebase'
+import { getSupabase } from '@/lib/supabase'
 import { WORKSPACE_COLLECTIONS, localDb } from '@/lib/local-db'
 
 const LAST_SYNC_KEY = 'katana-personal:workspace-last-sync'
 const MERGE_DONE_KEY = 'katana-personal:workspace-merge-done'
-/** Generous for mobile networks; work itself should finish in a few seconds via batching. */
 const SYNC_TIMEOUT_MS = 90_000
-/** Soft cap per collection payload (~700KB) to avoid Firestore 1MB hard fail. */
 const MAX_COLLECTION_BYTES = 700_000
 
-/** Skip bulky / non-essential collections from cloud sync for reliability on Spark. */
 const SYNC_COLLECTIONS = WORKSPACE_COLLECTIONS.filter(
   (c) => c !== 'documents' && c !== 'ask_messages',
 )
@@ -71,15 +67,7 @@ export function markWorkspaceMergeDone(cloudUid: string) {
   localStorage.setItem(`${MERGE_DONE_KEY}:${cloudUid}`, '1')
 }
 
-function collectionRef(cloudUid: string, collection: string) {
-  return doc(getDb(), 'workspaces', cloudUid, 'collections', collection)
-}
-
-function metaRef(cloudUid: string) {
-  return doc(getDb(), 'workspaces', cloudUid, 'meta', 'info')
-}
-
-/** Firestore rejects undefined; strip recursively. */
+/** Strip undefined so JSON/Postgres jsonb stays clean. */
 export function sanitizeForFirestore<T>(value: T): T {
   if (value === undefined) return null as T
   if (value === null || typeof value !== 'object') return value
@@ -102,7 +90,6 @@ function approxBytes(value: unknown): number {
   }
 }
 
-/** Drop oldest rows until under size budget (keeps sync moving on large notes/journals). */
 function fitItems(items: unknown[]): unknown[] {
   const clean = sanitizeForFirestore(items) as unknown[]
   if (approxBytes(clean) <= MAX_COLLECTION_BYTES) return clean
@@ -116,19 +103,19 @@ function fitItems(items: unknown[]): unknown[] {
   return kept
 }
 
-function friendlyFirestoreError(err: unknown): string {
+function friendlyCloudError(err: unknown): string {
   const msg = err instanceof Error ? err.message : String(err)
   const code =
     err && typeof err === 'object' && 'code' in err
       ? String((err as { code: unknown }).code)
       : ''
-  if (code.includes('permission-denied') || /permission|insufficient/i.test(msg)) {
-    return 'Cloud blocked the write. Publish firestore.rules in Firebase Console (workspaces + circle rules), then try again.'
+  if (code.includes('42501') || /permission|rls|policy|insufficient/i.test(msg)) {
+    return 'Cloud blocked the write. Apply supabase/migrations SQL (RLS) in the Supabase SQL editor, then try again.'
   }
-  if (code.includes('unavailable') || /network|offline/i.test(msg)) {
+  if (/network|offline|fetch/i.test(msg)) {
     return 'Network issue — check connection and try again.'
   }
-  if (/exceeds|too large|1,?048,?576|invalid-argument/i.test(msg)) {
+  if (/exceeds|too large|payload/i.test(msg)) {
     return 'Some data is too large to sync in one piece. Try Sync again, or use Save a copy.'
   }
   if (/timed out|timeout/i.test(msg)) {
@@ -188,19 +175,22 @@ function mergeItems(local: unknown[], remote: unknown[]): unknown[] {
 }
 
 async function fetchAllRemote(cloudUid: string): Promise<Map<string, unknown[]>> {
-  const entries = await Promise.all(
-    SYNC_COLLECTIONS.map(async (collection) => {
-      try {
-        const snap = await getDoc(collectionRef(cloudUid, collection))
-        if (!snap.exists()) return [collection, [] as unknown[]] as const
-        const data = snap.data() as CollectionDoc
-        return [collection, Array.isArray(data.items) ? data.items : []] as const
-      } catch {
-        return [collection, [] as unknown[]] as const
-      }
-    }),
-  )
-  return new Map(entries)
+  const supabase = getSupabase()
+  const { data, error } = await supabase
+    .from('workspace_collections')
+    .select('collection, items')
+    .eq('user_id', cloudUid)
+  if (error) throw error
+  const map = new Map<string, unknown[]>()
+  for (const collection of SYNC_COLLECTIONS) {
+    map.set(collection, [])
+  }
+  for (const row of data || []) {
+    const collection = row.collection as string
+    const items = Array.isArray(row.items) ? (row.items as unknown[]) : []
+    map.set(collection, items)
+  }
+  return map
 }
 
 async function commitWorkspace(
@@ -209,42 +199,50 @@ async function commitWorkspace(
   byCollection: Map<string, unknown[]>,
 ): Promise<{ now: string; count: number }> {
   const now = new Date().toISOString()
-  const db = getDb()
-  const batch = writeBatch(db)
+  const supabase = getSupabase()
   let count = 0
-  for (const collection of SYNC_COLLECTIONS) {
+  const rows = SYNC_COLLECTIONS.map((collection) => {
     const items = fitItems(byCollection.get(collection) || [])
     count += items.length
-    batch.set(collectionRef(cloudUid, collection), {
+    return {
+      user_id: cloudUid,
+      collection,
       items,
-      updatedAt: now,
-    } satisfies CollectionDoc)
-  }
-  batch.set(metaRef(cloudUid), {
-    updatedAt: now,
-    hasData: count > 0,
-    localUserId,
+      updated_at: now,
+    }
   })
-  await batch.commit()
+  const { error } = await supabase.from('workspace_collections').upsert(rows)
+  if (error) throw error
+  const { error: metaErr } = await supabase.from('workspace_meta').upsert({
+    user_id: cloudUid,
+    updated_at: now,
+    has_data: count > 0,
+    local_user_id: localUserId,
+  })
+  if (metaErr) throw metaErr
   return { now, count }
 }
 
 export async function cloudWorkspaceHasData(cloudUid: string): Promise<boolean> {
   try {
-    const snap = await getDoc(metaRef(cloudUid))
-    if (snap.exists()) {
-      const data = snap.data() as { hasData?: boolean; updatedAt?: string }
-      if (data.hasData) return true
-    }
-    const tasks = await getDoc(collectionRef(cloudUid, 'tasks'))
-    if (tasks.exists()) {
-      const items = (tasks.data() as CollectionDoc).items
-      return Array.isArray(items) && items.length > 0
-    }
+    const supabase = getSupabase()
+    const { data: meta } = await supabase
+      .from('workspace_meta')
+      .select('has_data')
+      .eq('user_id', cloudUid)
+      .maybeSingle()
+    if (meta?.has_data) return true
+    const { data: tasks } = await supabase
+      .from('workspace_collections')
+      .select('items')
+      .eq('user_id', cloudUid)
+      .eq('collection', 'tasks')
+      .maybeSingle()
+    const items = tasks?.items
+    return Array.isArray(items) && items.length > 0
   } catch {
     return false
   }
-  return false
 }
 
 export function localWorkspaceHasData(localUserId: string): boolean {
@@ -260,7 +258,7 @@ async function runLocked(fn: () => Promise<void>): Promise<void> {
   try {
     await withTimeout(fn(), 'Workspace sync')
   } catch (err) {
-    const message = friendlyFirestoreError(err)
+    const message = friendlyCloudError(err)
     setStatus({ busy: false, error: message })
     throw new Error(message)
   } finally {
@@ -274,7 +272,6 @@ function finishOk(cloudUid: string, now: string) {
   setStatus({ busy: false, lastSyncedAt: now, error: null })
 }
 
-/** Upload this device’s workspace to cloud (overwrites cloud collections). */
 export async function pushWorkspaceToCloud(input?: SyncContext): Promise<void> {
   const c = input || ctx
   if (!c) throw new Error('Not signed into Cloud yet.')
@@ -288,7 +285,6 @@ export async function pushWorkspaceToCloud(input?: SyncContext): Promise<void> {
   })
 }
 
-/** Download cloud workspace onto this device (replaces local collections). */
 export async function pullWorkspaceFromCloud(input?: SyncContext): Promise<void> {
   const c = input || ctx
   if (!c) throw new Error('Not signed into Cloud yet.')
@@ -303,7 +299,6 @@ export async function pullWorkspaceFromCloud(input?: SyncContext): Promise<void>
   })
 }
 
-/** Merge local + cloud per item (LWW by updated_at), write result both ways. */
 export async function mergeWorkspaceBothWays(input?: SyncContext): Promise<void> {
   const c = input || ctx
   if (!c) throw new Error('Not signed into Cloud yet.')
@@ -322,7 +317,6 @@ export async function mergeWorkspaceBothWays(input?: SyncContext): Promise<void>
   })
 }
 
-/** Debounced push after local edits (once merge choice is done). */
 export function notifyWorkspaceDirty() {
   if (!ctx || suppressDirty) return
   if (needsWorkspaceMergeChoice(ctx.cloudUid)) return
@@ -334,10 +328,12 @@ export function notifyWorkspaceDirty() {
   }, 2500)
 }
 
-/** On app focus / login — pull+merge if already linked. */
 export async function syncWorkspaceNow(input?: SyncContext): Promise<void> {
   const c = input || ctx
   if (!c) return
   if (needsWorkspaceMergeChoice(c.cloudUid)) return
   await mergeWorkspaceBothWays(c)
 }
+
+// Keep type export for any leftover imports
+export type { CollectionDoc }

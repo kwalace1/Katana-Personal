@@ -1,18 +1,6 @@
-import {
-  addDoc,
-  collection,
-  doc,
-  getDocs,
-  limit,
-  onSnapshot,
-  orderBy,
-  query,
-  updateDoc,
-  where,
-  writeBatch,
-  type Unsubscribe,
-} from 'firebase/firestore'
-import { getDb } from '@/lib/firebase'
+import { getSupabase } from '@/lib/supabase'
+import { createId } from '@/lib/id'
+import type { Unsubscribe } from './friends'
 
 export type NotificationKind =
   | 'friend_request'
@@ -34,6 +22,32 @@ export interface AppNotification {
   meta?: Record<string, string>
 }
 
+type NotifRow = {
+  id: string
+  uid: string
+  kind: NotificationKind
+  title: string
+  body: string
+  href?: string | null
+  read: boolean
+  created_at: string
+  meta?: Record<string, string> | null
+}
+
+function mapNotif(row: NotifRow): AppNotification {
+  return {
+    id: row.id,
+    uid: row.uid,
+    kind: row.kind,
+    title: row.title,
+    body: row.body,
+    href: row.href || undefined,
+    read: row.read,
+    createdAt: row.created_at,
+    meta: row.meta || undefined,
+  }
+}
+
 export async function createNotification(input: {
   uid: string
   kind: NotificationKind
@@ -43,67 +57,78 @@ export async function createNotification(input: {
   meta?: Record<string, string>
 }): Promise<void> {
   const now = new Date().toISOString()
-  await addDoc(collection(getDb(), 'notifications'), {
+  const { error } = await getSupabase().from('notifications').insert({
+    id: createId(),
     uid: input.uid,
     kind: input.kind,
     title: input.title,
     body: input.body,
     href: input.href || '',
     read: false,
-    createdAt: now,
+    created_at: now,
     meta: input.meta || {},
   })
+  if (error) throw error
 }
 
 export async function listNotifications(uid: string, max = 40): Promise<AppNotification[]> {
-  const q = query(
-    collection(getDb(), 'notifications'),
-    where('uid', '==', uid),
-    orderBy('createdAt', 'desc'),
-    limit(max),
-  )
-  const snap = await getDocs(q)
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<AppNotification, 'id'>) }))
+  const { data, error } = await getSupabase()
+    .from('notifications')
+    .select('*')
+    .eq('uid', uid)
+    .order('created_at', { ascending: false })
+    .limit(max)
+  if (error) throw error
+  return (data || []).map((d) => mapNotif(d as NotifRow))
 }
 
-/** Live updates without Cloud Functions / polling. */
 export function subscribeNotifications(
   uid: string,
   onChange: (items: AppNotification[]) => void,
   max = 40,
 ): Unsubscribe {
-  const q = query(
-    collection(getDb(), 'notifications'),
-    where('uid', '==', uid),
-    orderBy('createdAt', 'desc'),
-    limit(max),
-  )
-  return onSnapshot(
-    q,
-    (snap) => {
-      onChange(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<AppNotification, 'id'>) })))
-    },
-    () => {
-      // index may still be building — fall back silently
-    },
-  )
+  const supabase = getSupabase()
+  let cancelled = false
+
+  const refresh = () => {
+    void listNotifications(uid, max)
+      .then((items) => {
+        if (!cancelled) onChange(items)
+      })
+      .catch(() => {
+        // index / RLS may still be settling
+      })
+  }
+
+  refresh()
+
+  const channel = supabase
+    .channel(`notifications:${uid}`)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'notifications', filter: `uid=eq.${uid}` },
+      refresh,
+    )
+    .subscribe()
+
+  return () => {
+    cancelled = true
+    void supabase.removeChannel(channel)
+  }
 }
 
 export async function markNotificationRead(id: string): Promise<void> {
-  await updateDoc(doc(getDb(), 'notifications', id), { read: true })
+  const { error } = await getSupabase().from('notifications').update({ read: true }).eq('id', id)
+  if (error) throw error
 }
 
 export async function markAllNotificationsRead(uid: string): Promise<void> {
-  const q = query(
-    collection(getDb(), 'notifications'),
-    where('uid', '==', uid),
-    where('read', '==', false),
-  )
-  const snap = await getDocs(q)
-  if (snap.empty) return
-  const batch = writeBatch(getDb())
-  snap.docs.forEach((d) => batch.update(d.ref, { read: true }))
-  await batch.commit()
+  const { error } = await getSupabase()
+    .from('notifications')
+    .update({ read: true })
+    .eq('uid', uid)
+    .eq('read', false)
+  if (error) throw error
 }
 
 export function unreadCount(items: AppNotification[]) {

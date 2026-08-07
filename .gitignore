@@ -32,6 +32,11 @@ yarn-error.log*
 .env
 vercel.env
 
+# Firebase→Supabase migration secrets
+scripts/migrate-firebase-to-supabase/.env
+scripts/migrate-firebase-to-supabase/service-account.json
+scripts/migrate-firebase-to-supabase/node_modules/
+
 # Vercel
 .vercel
 

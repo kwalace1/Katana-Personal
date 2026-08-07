@@ -8,7 +8,7 @@ Not another list app. Not a water tracker. See [docs/POSITIONING.md](./docs/POSI
 
 - **Today** — one next step, capture, evening close, weekly review  
 - **Ask** — day guide that knows your plate and can draft actions  
-- **Together** (optional) — friends, shared plans, Circles; only what you choose to share  
+- **Together** (optional) — Feed, friends, shared plans, Circles; only what you choose to share  
 
 Plan / Life (tasks, habits, health, notes…) are depth when you need them — not the home story.
 
@@ -25,7 +25,7 @@ Open http://localhost:3001 — on a phone, Add to Home Screen for an app-like fe
 
 See [docs/SOFT_LAUNCH_CHECKLIST.md](./docs/SOFT_LAUNCH_CHECKLIST.md). Ask + Gemini via OpenRouter: [docs/GEMINI_ASK.md](./docs/GEMINI_ASK.md). Demo data: Settings → Load demo day.
 
-Firebase (optional social): [FIREBASE_SETUP.md](./FIREBASE_SETUP.md) — publish `firestore.rules` when they change.
+Supabase (optional social): [SUPABASE_SETUP.md](./SUPABASE_SETUP.md) — run the SQL migration, then set `VITE_SUPABASE_*` env vars.
 
 ## Docs note
 

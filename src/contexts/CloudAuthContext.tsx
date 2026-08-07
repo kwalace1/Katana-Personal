@@ -7,17 +7,12 @@ import React, {
   useState,
 } from 'react'
 import {
-  createUserWithEmailAndPassword,
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  signOut as firebaseSignOut,
-  updateProfile,
-  OAuthProvider,
-  signInWithPopup,
-  type User,
-} from 'firebase/auth'
-import { doc, setDoc } from 'firebase/firestore'
-import { enableWebPush, firebaseConfigured, appleAuthEnabled, getDb, getFirebaseAuth } from '@/lib/firebase'
+  appleAuthEnabled,
+  getSupabase,
+  supabaseConfigured,
+  toCloudUser,
+  type CloudUser,
+} from '@/lib/supabase'
 import {
   ensureCloudProfile,
   getCloudProfile,
@@ -32,9 +27,9 @@ import { toast } from 'sonner'
 
 interface CloudAuthContextType {
   cloudEnabled: boolean
-  /** Soft launch: Apple only when VITE_FIREBASE_APPLE_AUTH=true */
+  /** Soft launch: Apple only when VITE_SUPABASE_APPLE_AUTH=true */
   appleSignInAvailable: boolean
-  cloudUser: User | null
+  cloudUser: CloudUser | null
   cloudProfile: CloudProfile | null
   cloudLoading: boolean
   signUpCloud: (email: string, password: string, displayName: string) => Promise<void>
@@ -50,13 +45,59 @@ interface CloudAuthContextType {
 
 const CloudAuthContext = createContext<CloudAuthContextType | undefined>(undefined)
 
+async function loadOrCreateProfile(
+  cloudUser: CloudUser,
+  localName: string | undefined,
+  updateDisplayName: (name: string) => void,
+): Promise<CloudProfile> {
+  const email = cloudUser.email || ''
+  const seedName = pickBestDisplayName({
+    authName: cloudUser.displayName,
+    localName,
+    email,
+    fallback: 'Friend',
+  })
+  let profile = await ensureCloudProfile({
+    uid: cloudUser.uid,
+    email,
+    displayName: seedName,
+  })
+
+  const cloudUpgrade = upgradePlaceholderName(
+    profile.displayName,
+    pickBestDisplayName({ authName: cloudUser.displayName, localName, email }),
+    email,
+  )
+  if (cloudUpgrade) {
+    await updateCloudProfile(cloudUser.uid, { displayName: cloudUpgrade })
+    profile = { ...profile, displayName: cloudUpgrade }
+  }
+
+  if (
+    profile.displayName &&
+    cloudUser.displayName !== profile.displayName &&
+    (isPlaceholderDisplayName(cloudUser.displayName, email) || !cloudUser.displayName)
+  ) {
+    await getSupabase().auth.updateUser({
+      data: { display_name: profile.displayName },
+    })
+  }
+
+  const localUpgrade = upgradePlaceholderName(localName, profile.displayName, email)
+  if (localUpgrade) {
+    updateDisplayName(localUpgrade)
+  }
+
+  return profile
+}
+
 export function CloudAuthProvider({ children }: { children: React.ReactNode }) {
   const { user: localUser, profile: localProfile, updateDisplayName } = useAuth()
-  const [cloudUser, setCloudUser] = useState<User | null>(null)
+  const [cloudUser, setCloudUser] = useState<CloudUser | null>(null)
   const [cloudProfile, setCloudProfile] = useState<CloudProfile | null>(null)
-  const [cloudLoading, setCloudLoading] = useState(firebaseConfigured)
+  const [cloudLoading, setCloudLoading] = useState(supabaseConfigured)
   const localNameRef = React.useRef(localProfile?.display_name)
-  const prevCloudUserRef = React.useRef<User | null | undefined>(undefined)
+  const prevCloudUserRef = React.useRef<CloudUser | null | undefined>(undefined)
   localNameRef.current = localProfile?.display_name
 
   useEffect(() => {
@@ -74,117 +115,101 @@ export function CloudAuthProvider({ children }: { children: React.ReactNode }) {
   }, [cloudUser, cloudLoading])
 
   useEffect(() => {
-    if (!firebaseConfigured) {
+    if (!supabaseConfigured) {
       setCloudLoading(false)
       return
     }
-    const auth = getFirebaseAuth()
-    const unsub = onAuthStateChanged(auth, async (u) => {
-      setCloudUser(u)
-      if (!u) {
+    const supabase = getSupabase()
+
+    void supabase.auth.getSession().then(async ({ data }) => {
+      const session = data.session
+      if (!session?.user) {
+        setCloudUser(null)
         setCloudProfile(null)
         setCloudLoading(false)
         return
       }
+      const cu = toCloudUser(session.user)
+      setCloudUser(cu)
       try {
-        const email = u.email || ''
-        const localName = localNameRef.current
-        const seedName = pickBestDisplayName({
-          authName: u.displayName,
-          localName,
-          email,
-          fallback: 'Friend',
-        })
-        let profile = await ensureCloudProfile({
-          uid: u.uid,
-          email,
-          displayName: seedName,
-        })
-
-        // Only upgrade placeholder cloud names (e.g. email local-part) to a real name
-        const cloudUpgrade = upgradePlaceholderName(
-          profile.displayName,
-          pickBestDisplayName({ authName: u.displayName, localName, email }),
-          email,
-        )
-        if (cloudUpgrade) {
-          await updateCloudProfile(u.uid, { displayName: cloudUpgrade })
-          profile = { ...profile, displayName: cloudUpgrade }
-        }
-
-        if (
-          profile.displayName &&
-          u.displayName !== profile.displayName &&
-          (isPlaceholderDisplayName(u.displayName, email) || !u.displayName)
-        ) {
-          await updateProfile(u, { displayName: profile.displayName })
-        }
-
+        const profile = await loadOrCreateProfile(cu, localNameRef.current, updateDisplayName)
         setCloudProfile(profile)
-
-        const localUpgrade = upgradePlaceholderName(localName, profile.displayName, email)
-        if (localUpgrade) {
-          updateDisplayName(localUpgrade)
-        }
       } catch (err) {
         console.warn('Cloud profile error', err)
       } finally {
         setCloudLoading(false)
       }
     })
-    return () => unsub()
+
+    const { data: sub } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'INITIAL_SESSION') return
+      if (!session?.user) {
+        setCloudUser(null)
+        setCloudProfile(null)
+        setCloudLoading(false)
+        return
+      }
+      const cu = toCloudUser(session.user)
+      setCloudUser(cu)
+      try {
+        const profile = await loadOrCreateProfile(cu, localNameRef.current, updateDisplayName)
+        setCloudProfile(profile)
+      } catch (err) {
+        console.warn('Cloud profile error', err)
+      } finally {
+        setCloudLoading(false)
+      }
+    })
+
+    return () => {
+      sub.subscription.unsubscribe()
+    }
   }, [updateDisplayName])
 
   const signUpCloud = useCallback(async (email: string, password: string, displayName: string) => {
-    const auth = getFirebaseAuth()
-    const cred = await createUserWithEmailAndPassword(auth, email.trim(), password)
-    await updateProfile(cred.user, { displayName: displayName.trim() || 'Friend' })
-    const profile = await ensureCloudProfile({
-      uid: cred.user.uid,
+    const supabase = getSupabase()
+    const name = displayName.trim() || 'Friend'
+    const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
-      displayName: displayName.trim() || 'Friend',
+      password,
+      options: { data: { display_name: name } },
     })
+    if (error) throw error
+    if (!data.user) throw new Error('Sign-up failed.')
+    const cu = toCloudUser({ ...data.user, user_metadata: { display_name: name } })
+    const profile = await ensureCloudProfile({
+      uid: cu.uid,
+      email: email.trim(),
+      displayName: name,
+    })
+    setCloudUser(cu)
     setCloudProfile(profile)
     updateDisplayName(profile.displayName)
   }, [updateDisplayName])
 
   const signInCloud = useCallback(async (email: string, password: string) => {
-    await signInWithEmailAndPassword(getFirebaseAuth(), email.trim(), password)
+    const { error } = await getSupabase().auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    })
+    if (error) throw error
   }, [])
 
   const signInWithApple = useCallback(async () => {
-    const auth = getFirebaseAuth()
-    const provider = new OAuthProvider('apple.com')
-    provider.addScope('email')
-    provider.addScope('name')
-    const cred = await signInWithPopup(auth, provider)
-    const email = cred.user.email || ''
-    const name = pickBestDisplayName({
-      authName: cred.user.displayName,
-      localName: localProfile?.display_name,
-      email,
-      fallback: 'Friend',
+    const { error } = await getSupabase().auth.signInWithOAuth({
+      provider: 'apple',
+      options: {
+        redirectTo: typeof window !== 'undefined' ? window.location.origin : undefined,
+      },
     })
-    if (cred.user.displayName !== name) {
-      await updateProfile(cred.user, { displayName: name })
-    }
-    let profile = await ensureCloudProfile({
-      uid: cred.user.uid,
-      email,
-      displayName: name,
-    })
-    if (profile.displayName !== name && !isPlaceholderDisplayName(name, email)) {
-      await updateCloudProfile(cred.user.uid, { displayName: name })
-      profile = { ...profile, displayName: name }
-    }
-    setCloudProfile(profile)
-    updateDisplayName(profile.displayName)
-  }, [localProfile?.display_name, updateDisplayName])
+    if (error) throw error
+  }, [])
 
   const signOutCloud = useCallback(async () => {
-    if (!firebaseConfigured) return
-    await firebaseSignOut(getFirebaseAuth())
+    if (!supabaseConfigured) return
+    await getSupabase().auth.signOut()
     setCloudProfile(null)
+    setCloudUser(null)
   }, [])
 
   const refreshCloudProfile = useCallback(async () => {
@@ -198,8 +223,9 @@ export function CloudAuthProvider({ children }: { children: React.ReactNode }) {
       const next = raw.trim() || 'Friend'
       updateDisplayName(next)
       if (!cloudUser) return
-      await updateProfile(cloudUser, { displayName: next })
+      await getSupabase().auth.updateUser({ data: { display_name: next } })
       await updateCloudProfile(cloudUser.uid, { displayName: next })
+      setCloudUser((u) => (u ? { ...u, displayName: next } : u))
       setCloudProfile((p) => (p ? { ...p, displayName: next } : p))
     },
     [cloudUser, updateDisplayName],
@@ -244,24 +270,26 @@ export function CloudAuthProvider({ children }: { children: React.ReactNode }) {
 
   const enablePushNotifications = useCallback(async () => {
     if (!cloudUser) throw new Error('Sign in to the cloud first.')
-    const token = await enableWebPush()
-    if (!token) return false
-    await setDoc(
-      doc(getDb(), 'pushTokens', cloudUser.uid),
-      {
-        uid: cloudUser.uid,
-        token,
-        updatedAt: new Date().toISOString(),
-        platform: 'web',
-      },
-      { merge: true },
-    )
+    if (typeof Notification === 'undefined') {
+      throw new Error('This browser doesn’t support notifications.')
+    }
+    const permission = await Notification.requestPermission()
+    if (permission !== 'granted') return false
+    // Token delivery deferred — store a placeholder so Settings can confirm opt-in.
+    const token = `web-opt-in:${cloudUser.uid}:${Date.now()}`
+    const { error } = await getSupabase().from('push_tokens').upsert({
+      uid: cloudUser.uid,
+      token,
+      platform: 'web',
+      updated_at: new Date().toISOString(),
+    })
+    if (error) throw error
     return true
   }, [cloudUser])
 
   const value = useMemo(
     () => ({
-      cloudEnabled: firebaseConfigured,
+      cloudEnabled: supabaseConfigured,
       appleSignInAvailable: appleAuthEnabled,
       cloudUser,
       cloudProfile,

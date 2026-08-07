@@ -6,8 +6,8 @@ Use this before putting the app in front of 10–20 real busy people.
 
 - [x] `npm run build` succeeds *(verified 2026-08-06)*
 - [x] `npm run test:run` Ask engine + week stats *(verified 2026-08-06)*
-- [ ] Firebase rules published from `firestore.rules`
-- [ ] Deploy web app (e.g. Vercel) with Firebase env vars
+- [ ] Supabase SQL migration applied (see `SUPABASE_SETUP.md`)
+- [ ] Deploy web app (e.g. Vercel) with `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY`
 - [ ] Test on a real phone: Add to Home Screen (PWA)
 - [x] Landing → Open local space → Today loads *(browser smoke 2026-08-06)*
 - [ ] Settings → Load demo day → Today shows “Do this next”
@@ -28,10 +28,11 @@ Use this before putting the app in front of 10–20 real busy people.
 ## Honest limits (do not promise)
 
 - Ask uses rules for actions; optional Gemini Flash via OpenRouter when `OPENROUTER_API_KEY` is set (see `.env.example`)
+- Together Feed (text / photo / video / cards) needs Supabase schema + Storage — see [TOGETHER_FEED.md](./TOGETHER_FEED.md)
 - No App Store build yet — Web/PWA only
-- No FCM background push on Spark — in-app + open-tab reminders
+- Push delivery not wired yet — in-app + open-tab reminders
 - No collaborative editing — Shared is plans/accountability, not multiplayer docs
-- Apple Sign In hidden unless `VITE_FIREBASE_APPLE_AUTH=true`
+- Apple Sign In hidden unless `VITE_SUPABASE_APPLE_AUTH=true`
 
 ## Recently shipped (soft-launch build)
 

@@ -35,6 +35,7 @@ import { broadcastLocalRefresh } from '@/hooks/useLocalRefresh'
 
 const SHARE_TOGGLES: { key: keyof SharePrefs; label: string; hint: string }[] = [
   { key: 'activityFeed', label: 'Activity pings', hint: 'Check-ins & shares show on Circles timelines' },
+  { key: 'feedCards', label: 'Feed cards', hint: 'Attach goals, habits, or workouts when you post to Feed' },
   { key: 'healthWater', label: 'Hydration streaks', hint: 'Glasses & water streaks on Circles' },
   { key: 'healthSleep', label: 'Sleep streaks', hint: 'Sleep days on Circles' },
   { key: 'healthNutrition', label: 'Nutrition streaks', hint: 'Logged meals streak' },
@@ -277,8 +278,8 @@ export default function SettingsPage() {
         </div>
         {!cloudEnabled ? (
           <p className="rounded-2xl bg-secondary/60 px-4 py-3 text-sm text-muted-foreground">
-            Add Firebase keys to <code className="text-xs">.env</code> — see{' '}
-            <code className="text-xs">FIREBASE_SETUP.md</code> (≈3 minutes, free).
+            Add Supabase keys to <code className="text-xs">.env</code> — see{' '}
+            <code className="text-xs">SUPABASE_SETUP.md</code> (≈3 minutes).
           </p>
         ) : cloudUser && cloudProfile ? (
           <div className="space-y-3">
