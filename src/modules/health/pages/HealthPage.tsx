@@ -15,7 +15,13 @@ import { pageEnterSubtle } from '@/lib/motion-ui'
 import { useLocalRefresh } from '@/hooks/useLocalRefresh'
 import { todayKey } from '@/lib/dates'
 import { burstConfetti } from '@/lib/celebrate'
-import { buildHydrationShareCard, offerShareWin } from '@/lib/social/share-win'
+import { computeLocalStreaks } from '@/lib/social/streaks'
+import {
+  buildHealthStreakShareCard,
+  buildHydrationShareCard,
+  isStreakMilestone,
+  offerShareWin,
+} from '@/lib/social/share-win'
 import { healthApi, WATER_GOAL_GLASSES } from '../api'
 import { CardioPanel } from '../components/CardioPanel'
 import { LiftTrackingPanel } from '../components/LiftTrackingPanel'
@@ -67,9 +73,20 @@ export default function HealthPage() {
         description: 'Cheers — streak locked in for Circles.',
         duration: 2800,
       })
-      offerShareWin(buildHydrationShareCard(water.glasses))
+      const { waterStreak } = computeLocalStreaks(userId)
+      if (isStreakMilestone(waterStreak)) {
+        offerShareWin(
+          buildHealthStreakShareCard({
+            kind: 'water',
+            streak: waterStreak,
+            detail: `${water.glasses} glasses today`,
+          }),
+        )
+      } else {
+        offerShareWin(buildHydrationShareCard(water.glasses))
+      }
     }
-  }, [water.glasses, logDate])
+  }, [water.glasses, logDate, userId])
 
   const waterStatusCopy = (() => {
     if (waterGoalMet) return 'Cheers! You’re hydrated — Circles streak is locked for today.'
@@ -98,11 +115,25 @@ export default function HealthPage() {
 
   function addSleep(e: FormEvent) {
     e.preventDefault()
+    const hrs = Number(hours) || 0
     healthApi.addSleep(userId, {
-      hours: Number(hours) || 0,
+      hours: hrs,
       quality,
       date: logDate,
     })
+    if (hrs >= 7) {
+      const { sleepStreak } = computeLocalStreaks(userId)
+      if (isStreakMilestone(sleepStreak)) {
+        burstConfetti()
+        offerShareWin(
+          buildHealthStreakShareCard({
+            kind: 'sleep',
+            streak: sleepStreak,
+            detail: `${hrs}h · ${quality}`,
+          }),
+        )
+      }
+    }
     refresh()
   }
 

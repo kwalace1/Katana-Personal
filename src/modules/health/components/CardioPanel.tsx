@@ -6,6 +6,15 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { EmptyState } from '@/components/ui/empty-state'
 import { todayKey } from '@/lib/dates'
+import { burstConfetti } from '@/lib/celebrate'
+import { computeLocalStreaks } from '@/lib/social/streaks'
+import {
+  buildCardioShareCard,
+  buildHealthStreakShareCard,
+  isCardioPersonalBest,
+  isStreakMilestone,
+  offerShareWin,
+} from '@/lib/social/share-win'
 import { formatCardioDuration, healthApi } from '../api'
 import { formatLiftDate } from './lift/LiftLineChart'
 
@@ -52,6 +61,29 @@ export function CardioPanel({ userId, logDate, tick, refresh }: Props) {
       return
     }
     toast.success('Cardio activity saved')
+    burstConfetti()
+    const minutes = Number(row.duration_minutes) || 0
+    const priorSameDay = entries.filter((e) => e.date === date && e.id !== row.id).length
+    const { workoutStreak } = computeLocalStreaks(userId)
+    const personalBest = isCardioPersonalBest(userId, activity.trim(), minutes, row.id)
+    if (priorSameDay === 0 && isStreakMilestone(workoutStreak)) {
+      offerShareWin(
+        buildHealthStreakShareCard({
+          kind: 'cardio',
+          streak: workoutStreak,
+          detail: activity.trim(),
+        }),
+      )
+    } else if (personalBest || minutes >= 60) {
+      offerShareWin(
+        buildCardioShareCard({
+          activity: activity.trim(),
+          minutes,
+          dateLabel: formatLiftDate(date),
+          personalBest,
+        }),
+      )
+    }
     setActivity('')
     setHours('')
     setMinutes('')

@@ -368,6 +368,35 @@ export const liftApi = {
     return points.sort((a, b) => a.date.localeCompare(b.date) || a.session_id.localeCompare(b.session_id))
   },
 
+  /** Top-weight PRs in a session vs prior history (first-ever lift is not a PR). */
+  findTopWeightPrsForSession(
+    userId: string,
+    sessionId: string,
+  ): { exerciseName: string; weight: number; reps: number; previousBest: number }[] {
+    const groups = liftApi.sessionExerciseGroups(userId, sessionId)
+    const out: { exerciseName: string; weight: number; reps: number; previousBest: number }[] = []
+    for (const group of groups) {
+      const points = liftApi.getExerciseProgress(userId, group.name, 'topWeight')
+      const prior = points.filter((p) => p.session_id !== sessionId)
+      if (prior.length === 0) continue
+      const previousBest = Math.max(...prior.map((p) => p.value))
+      let bestSet = group.sets[0]
+      for (const s of group.sets) {
+        if (!bestSet || s.weight > bestSet.weight || (s.weight === bestSet.weight && s.reps > bestSet.reps)) {
+          bestSet = s
+        }
+      }
+      if (!bestSet || bestSet.weight <= previousBest) continue
+      out.push({
+        exerciseName: group.name,
+        weight: bestSet.weight,
+        reps: bestSet.reps,
+        previousBest,
+      })
+    }
+    return out.sort((a, b) => b.weight - a.weight || b.reps - a.reps)
+  },
+
   listSplits(userId: string): TrainingSplit[] {
     return localDb
       .list<TrainingSplit>(SPLITS, userId)

@@ -7,6 +7,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { EmptyState } from '@/components/ui/empty-state'
 import { todayKey } from '@/lib/dates'
+import { computeLocalStreaks } from '@/lib/social/streaks'
+import { buildHealthStreakShareCard, isStreakMilestone, offerShareWin } from '@/lib/social/share-win'
 import {
   formatMacros,
   formatMealCategory,
@@ -58,6 +60,7 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
       toast.error('Add a meal name')
       return
     }
+    const wasFirstMealOfDay = !meals.some((m) => m.date === date)
     healthApi.addNutrition(userId, {
       meal,
       category,
@@ -70,6 +73,17 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
       notes,
     })
     toast.success('Meal saved')
+    if (wasFirstMealOfDay) {
+      const { nutritionStreak } = computeLocalStreaks(userId)
+      if (isStreakMilestone(nutritionStreak)) {
+        offerShareWin(
+          buildHealthStreakShareCard({
+            kind: 'nutrition',
+            streak: nutritionStreak,
+          }),
+        )
+      }
+    }
     setMeal('')
     setCalories('')
     setProtein('')

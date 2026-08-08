@@ -5,6 +5,12 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { EmptyState } from '@/components/ui/empty-state'
+import {
+  buildHealthStreakShareCard,
+  isStreakMilestone,
+  offerShareWin,
+  recordSupplementFullStackDay,
+} from '@/lib/social/share-win'
 import { healthApi } from '../api'
 
 type Props = {
@@ -70,7 +76,24 @@ export function VitaminsPanel({ userId, logDate, tick, refresh }: Props) {
                   className="mt-0.5"
                   checked={row.taken}
                   onCheckedChange={(v) => {
-                    healthApi.toggleTaken(userId, row.item.id, logDate, Boolean(v))
+                    const taken = Boolean(v)
+                    healthApi.toggleTaken(userId, row.item.id, logDate, taken)
+                    if (taken && checklist.length >= 2) {
+                      const allDone = checklist.every((r) =>
+                        r.item.id === row.item.id ? true : r.taken,
+                      )
+                      if (allDone) {
+                        const streak = recordSupplementFullStackDay(userId, logDate)
+                        if (isStreakMilestone(streak)) {
+                          offerShareWin(
+                            buildHealthStreakShareCard({
+                              kind: 'supplements',
+                              streak,
+                            }),
+                          )
+                        }
+                      }
+                    }
                     refresh()
                   }}
                   id={`supp-${row.item.id}`}

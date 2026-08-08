@@ -7,6 +7,13 @@ import { QuantityInput, QUANTITY } from '@/components/ui/quantity-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { EmptyState } from '@/components/ui/empty-state'
 import { todayKey } from '@/lib/dates'
+import { burstConfetti } from '@/lib/celebrate'
+import {
+  buildWeightProgressShareCard,
+  offerShareWin,
+  resetWeightProgressMilestones,
+  takeWeightProgressMilestone,
+} from '@/lib/social/share-win'
 import { liftApi } from '../../lift-api'
 import type { WeightGoalMode } from '../../types'
 import { formatLiftDate, LiftLineChart } from './LiftLineChart'
@@ -52,6 +59,22 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
     }
     liftApi.logBodyWeight(userId, { weight: w, date })
     toast.success('Weight saved')
+    const nextProgress = liftApi.weightGoalProgress(userId)
+    const active = liftApi.getActiveWeightGoal(userId)
+    if (active && nextProgress.goal != null && nextProgress.current != null) {
+      const band = takeWeightProgressMilestone(userId, nextProgress.percent)
+      if (band != null) {
+        burstConfetti()
+        offerShareWin(
+          buildWeightProgressShareCard({
+            mode: active.mode,
+            current: nextProgress.current,
+            target: nextProgress.goal,
+            percent: nextProgress.percent,
+          }),
+        )
+      }
+    }
     setWeight('')
     refresh()
   }
@@ -71,6 +94,7 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
       start_date: first?.date || todayKey(),
       target_date: targetDate || null,
     })
+    resetWeightProgressMilestones(userId)
     toast.success('Goal saved')
     refresh()
   }
