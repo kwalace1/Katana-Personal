@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Camera, Loader2, Search, Trash2, X } from 'lucide-react'
+import { Camera, ImagePlus, Loader2, Search, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -7,7 +7,9 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { EmptyState } from '@/components/ui/empty-state'
 import { BarcodeScannerDialog } from '@/components/BarcodeScannerDialog'
+import { MealPhotoEstimateDialog } from '@/components/MealPhotoEstimateDialog'
 import { todayKey } from '@/lib/dates'
+import type { MealEstimate } from '@/lib/food/meal-estimate'
 import {
   foodSourceLabel,
   lookupFoodBarcode,
@@ -69,7 +71,9 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
   const [selectedFood, setSelectedFood] = useState<FoodHit | null>(null)
   const [grams, setGrams] = useState('100')
   const [scannerOpen, setScannerOpen] = useState(false)
+  const [photoOpen, setPhotoOpen] = useState(false)
   const [lookupBusy, setLookupBusy] = useState(false)
+  const [photoNote, setPhotoNote] = useState<string | null>(null)
   const searchSeq = useRef(0)
 
   useEffect(() => {
@@ -108,14 +112,14 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
   function applyFood(hit: FoodHit, nextGrams: number) {
     const macros = macrosForGrams(hit, nextGrams)
     setSelectedFood(hit)
-    const isUsda = hit.source === 'usda' || hit.code.startsWith('usda:')
-    setMeal(isUsda || !hit.brand ? hit.name : `${hit.name} (${hit.brand})`)
+    setMeal(hit.brand && !(hit.source === 'usda' || hit.code.startsWith('usda:')) ? `${hit.name} (${hit.brand})` : hit.name)
     setCalories(String(macros.calories))
     setProtein(String(macros.protein))
     setCarbs(String(macros.carbs))
     setFat(String(macros.fat))
     setFoodQuery('')
     setHits([])
+    setPhotoNote(null)
   }
 
   function onPickFood(hit: FoodHit) {
@@ -145,6 +149,7 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
         setFat(String(macros.fat))
         setFoodQuery('')
         setHits([])
+        setPhotoNote(null)
         toast.success(`Found ${hit.name}`)
       })
       .catch(() => toast.error('Barcode lookup failed'))
@@ -166,6 +171,31 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
   function clearFood() {
     setSelectedFood(null)
     setGrams('100')
+    setPhotoNote(null)
+  }
+
+  function applyMealEstimate(estimate: MealEstimate) {
+    setSelectedFood(null)
+    setHits([])
+    setMeal(estimate.name)
+    setCalories(String(estimate.calories))
+    setProtein(String(estimate.protein))
+    setCarbs(String(estimate.carbs))
+    setFat(String(estimate.fat))
+    if (estimate.estimatedGrams && estimate.estimatedGrams > 0) {
+      setGrams(String(estimate.estimatedGrams))
+    } else {
+      setGrams('100')
+    }
+    const bits = [
+      'AI photo estimate',
+      estimate.confidence ? `confidence ${estimate.confidence}` : null,
+      estimate.note || null,
+    ].filter(Boolean)
+    setPhotoNote(bits.join(' · '))
+    if (estimate.note) {
+      setNotes((prev) => (prev.trim() ? prev : estimate.note || ''))
+    }
   }
 
   function save(e: FormEvent) {
@@ -179,7 +209,7 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
       ? `${foodSourceLabel(selectedFood)} · ${selectedFood.code}${
           selectedFood.servingSizeLabel ? ` · serving ${selectedFood.servingSizeLabel}` : ''
         }`
-      : ''
+      : photoNote || ''
     healthApi.addNutrition(userId, {
       meal,
       category,
@@ -221,7 +251,7 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
           <p className="text-xs text-muted-foreground">Nutrition</p>
           <h3 className="font-display text-xl tracking-tight">Log a meal</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Search everyday foods (USDA) or packaged products — or scan a barcode.
+            Search foods, scan a barcode, or snap a meal for an AI estimate.
           </p>
         </div>
 
@@ -262,9 +292,21 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
               size="icon"
               className="h-10 w-10 shrink-0"
               aria-label="Scan barcode"
+              title="Scan barcode"
               onClick={() => setScannerOpen(true)}
             >
               <Camera className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-10 w-10 shrink-0"
+              aria-label="Estimate meal from photo"
+              title="Estimate meal from photo"
+              onClick={() => setPhotoOpen(true)}
+            >
+              <ImagePlus className="h-4 w-4" />
             </Button>
           </div>
 
@@ -338,6 +380,23 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
                 </Button>
               </div>
             </div>
+          ) : photoNote ? (
+            <div className="flex items-start gap-2 rounded-2xl border border-primary/20 bg-primary/[0.05] px-3 py-2.5">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium">Photo estimate applied</p>
+                <p className="text-xs text-muted-foreground">{photoNote}</p>
+              </div>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="h-9 w-9 shrink-0"
+                onClick={() => setPhotoNote(null)}
+                aria-label="Dismiss estimate note"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
           ) : null}
 
           <p className="text-[0.7rem] text-muted-foreground">
@@ -350,7 +409,7 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
             >
               USDA FoodData Central
             </a>
-            ; packaged products from{' '}
+            ; packaged from{' '}
             <a
               href="https://world.openfoodfacts.org"
               target="_blank"
@@ -358,8 +417,8 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
               className="underline underline-offset-2 hover:text-foreground"
             >
               Open Food Facts
-            </a>{' '}
-            (ODbL).
+            </a>
+            ; meal photos estimated with AI.
           </p>
         </div>
 
@@ -367,6 +426,11 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
           open={scannerOpen}
           onOpenChange={setScannerOpen}
           onScan={onBarcodeScanned}
+        />
+        <MealPhotoEstimateDialog
+          open={photoOpen}
+          onOpenChange={setPhotoOpen}
+          onEstimate={applyMealEstimate}
         />
 
         <div className="grid gap-3 sm:grid-cols-2 *:min-w-0">

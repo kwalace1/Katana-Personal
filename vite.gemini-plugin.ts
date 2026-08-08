@@ -1,16 +1,22 @@
 import type { Plugin } from 'vite'
 import { loadEnv } from 'vite'
 import { handleAskLlmRequest } from './api/ask-llm-core'
+import { handleFoodEstimateRequest } from './api/food-estimate-core'
 
-/** Local `/api/ask-llm` during `vite` / `vitest` so Gemini works without `vercel dev`. */
+/** Local `/api/ask-llm` + `/api/food-estimate` during `vite` without `vercel dev`. */
 export function geminiAskDevPlugin(): Plugin {
   return {
     name: 'katana-gemini-ask-dev',
     configureServer(server) {
       const env = loadEnv(server.config.mode, server.config.root, '')
+      const openRouterEnv = {
+        apiKey: env.OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY,
+        model: env.OPENROUTER_MODEL || process.env.OPENROUTER_MODEL || env.GEMINI_MODEL,
+      }
+
       server.middlewares.use(async (req, res, next) => {
         const url = req.url?.split('?')[0]
-        if (url !== '/api/ask-llm') {
+        if (url !== '/api/ask-llm' && url !== '/api/food-estimate') {
           next()
           return
         }
@@ -27,16 +33,16 @@ export function geminiAskDevPlugin(): Plugin {
             else if (Array.isArray(value)) headers.set(key, value.join(','))
           }
 
-          const request = new Request('http://localhost/api/ask-llm', {
+          const request = new Request(`http://localhost${req.url || url}`, {
             method: req.method || 'POST',
             headers,
             body: req.method === 'GET' || req.method === 'HEAD' ? undefined : body,
           })
 
-          const response = await handleAskLlmRequest(request, {
-            apiKey: env.OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY,
-            model: env.OPENROUTER_MODEL || process.env.OPENROUTER_MODEL || env.GEMINI_MODEL,
-          })
+          const response =
+            url === '/api/food-estimate'
+              ? await handleFoodEstimateRequest(request, openRouterEnv)
+              : await handleAskLlmRequest(request, openRouterEnv)
 
           res.statusCode = response.status
           response.headers.forEach((value, key) => {
@@ -49,7 +55,7 @@ export function geminiAskDevPlugin(): Plugin {
           res.setHeader('Content-Type', 'application/json')
           res.end(
             JSON.stringify({
-              error: err instanceof Error ? err.message : 'Ask LLM middleware failed',
+              error: err instanceof Error ? err.message : 'OpenRouter middleware failed',
             }),
           )
         }
