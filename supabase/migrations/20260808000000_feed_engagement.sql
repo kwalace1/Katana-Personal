@@ -77,6 +77,13 @@ create policy together_post_comments_delete on public.together_post_comments
   for delete to authenticated
   using (author_id = public.uid_text());
 
+-- Tables created after the original grants migration need explicit privileges
+grant usage on schema public to anon, authenticated, service_role;
+grant all on table public.together_post_likes to anon, authenticated, service_role;
+grant all on table public.together_post_comments to anon, authenticated, service_role;
+grant execute on function public.can_view_together_post(text) to anon, authenticated, service_role;
+grant execute on function public.uid_text() to anon, authenticated, service_role;
+
 do $$
 begin
   alter publication supabase_realtime add table public.together_post_likes;

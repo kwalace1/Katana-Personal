@@ -42,8 +42,17 @@ const emptyEngagement = (): PostEngagement => ({
 })
 
 function isMissingRelation(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message : String(err)
+  const msg = err instanceof Error ? err.message : String((err as { message?: string })?.message || err)
   return /relation .* does not exist|Could not find the table|schema cache/i.test(msg)
+}
+
+function asError(err: unknown): Error {
+  if (err instanceof Error) return err
+  const msg =
+    typeof err === 'object' && err && 'message' in err
+      ? String((err as { message: unknown }).message)
+      : String(err)
+  return new Error(msg || 'Request failed')
 }
 
 export async function loadEngagementForPosts(
@@ -61,8 +70,8 @@ export async function loadEngagementForPosts(
         supabase.from('together_post_likes').select('post_id, user_id').in('post_id', postIds),
         supabase.from('together_post_comments').select('post_id').in('post_id', postIds),
       ])
-    if (likeErr) throw likeErr
-    if (commentErr) throw commentErr
+    if (likeErr) throw asError(likeErr)
+    if (commentErr) throw asError(commentErr)
 
     for (const row of likes || []) {
       const e = out[row.post_id] || emptyEngagement()
@@ -76,7 +85,7 @@ export async function loadEngagementForPosts(
       out[row.post_id] = e
     }
   } catch (err) {
-    if (!isMissingRelation(err)) throw err
+    if (!isMissingRelation(err) && !/permission denied/i.test(asError(err).message)) throw asError(err)
   }
 
   // Reposts are posts authored by me with repost.postId matching
@@ -86,7 +95,7 @@ export async function loadEngagementForPosts(
       .select('repost')
       .eq('author_id', userId)
       .not('repost', 'is', null)
-    if (error) throw error
+    if (error) throw asError(error)
     for (const row of myReposts || []) {
       const snap = row.repost as RepostSnapshot | null
       if (snap?.postId && out[snap.postId]) out[snap.postId].repostedByMe = true
@@ -106,14 +115,14 @@ export async function togglePostLike(postId: string, userId: string, currentlyLi
       .delete()
       .eq('post_id', postId)
       .eq('user_id', userId)
-    if (error) throw error
+    if (error) throw asError(error)
     return false
   }
   const { error } = await supabase.from('together_post_likes').insert({
     post_id: postId,
     user_id: userId,
   })
-  if (error) throw error
+  if (error) throw asError(error)
   return true
 }
 
@@ -123,7 +132,7 @@ export async function listPostComments(postId: string): Promise<FeedComment[]> {
     .select('id, post_id, author_id, text, created_at')
     .eq('post_id', postId)
     .order('created_at', { ascending: true })
-  if (error) throw error
+  if (error) throw asError(error)
   return (data || []).map((r) => ({
     id: r.id,
     postId: r.post_id,
@@ -150,7 +159,7 @@ export async function addPostComment(input: {
     text,
     created_at: createdAt,
   })
-  if (error) throw error
+  if (error) throw asError(error)
   return {
     id,
     postId: input.postId,
@@ -162,7 +171,7 @@ export async function addPostComment(input: {
 
 export async function deletePostComment(commentId: string): Promise<void> {
   const { error } = await getSupabase().from('together_post_comments').delete().eq('id', commentId)
-  if (error) throw error
+  if (error) throw asError(error)
 }
 
 export async function createRepost(input: {
