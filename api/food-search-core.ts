@@ -3,7 +3,8 @@
  * and service workers never touch cross-origin OFF requests.
  */
 
-const OFF_SEARCH = 'https://world.openfoodfacts.org/api/v2/search'
+// Text search: cgi endpoint actually applies search_terms (api/v2/search ignores them).
+const OFF_SEARCH = 'https://world.openfoodfacts.org/cgi/search.pl'
 const OFF_PRODUCT = 'https://world.openfoodfacts.org/api/v2/product'
 
 const OFF_UA = 'KatanaPersonal - Web - Version 1.0 - https://katana-personal.vercel.app'
@@ -77,6 +78,9 @@ export async function handleFoodSearchRequest(req: Request): Promise<Response> {
 
     const params = new URLSearchParams({
       search_terms: q,
+      search_simple: '1',
+      action: 'process',
+      json: '1',
       page_size: String(pageSize),
       fields: PRODUCT_FIELDS,
     })
