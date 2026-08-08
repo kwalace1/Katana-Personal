@@ -1,7 +1,5 @@
 /**
- * Open Food Facts client for Katana Nutrition.
- * Calls same-origin /api/food-search (proxies OFF) so Safari/PWA blockers don't kill the request.
- * Food data is ODbL — credit the source. @see https://world.openfoodfacts.org
+ * Food search client — same-origin /api/food-search (USDA + Open Food Facts).
  */
 
 export type FoodHit = {
@@ -9,6 +7,7 @@ export type FoodHit = {
   name: string
   brand?: string
   imageUrl?: string
+  source?: 'usda' | 'off'
   /** Nutrition per 100g */
   per100g: {
     calories: number
@@ -21,81 +20,28 @@ export type FoodHit = {
   servingGrams?: number
 }
 
-type OffNutriments = Record<string, number | string | undefined>
-
-type OffProduct = {
-  code?: string
-  product_name?: string
-  product_name_en?: string
-  brands?: string
-  image_front_small_url?: string
-  image_small_url?: string
-  serving_size?: string
-  serving_quantity?: number | string
-  nutriments?: OffNutriments
-}
-
-function num(n: unknown): number {
-  const v = typeof n === 'number' ? n : Number(n)
-  return Number.isFinite(v) ? v : 0
-}
-
-function round1(n: number) {
-  return Math.round(n * 10) / 10
-}
-
-function mapProduct(p: OffProduct, fallbackCode?: string): FoodHit | null {
-  const name = (p.product_name || p.product_name_en || '').trim()
-  if (!name) return null
-  const n = p.nutriments || {}
-  const calories = num(n['energy-kcal_100g'] ?? n.energy_kcal_100g ?? n['energy-kcal'])
-  const protein = num(n.proteins_100g ?? n.proteins)
-  const carbs = num(n.carbohydrates_100g ?? n.carbohydrates)
-  const fat = num(n.fat_100g ?? n.fat)
-  // Skip empty shells with no nutrition
-  if (calories <= 0 && protein <= 0 && carbs <= 0 && fat <= 0) return null
-
-  const servingGrams = num(p.serving_quantity) || undefined
-  return {
-    code: String(p.code || fallbackCode || ''),
-    name,
-    brand: p.brands?.split(',')[0]?.trim() || undefined,
-    imageUrl: p.image_front_small_url || p.image_small_url,
-    per100g: {
-      calories: Math.round(calories),
-      protein: round1(protein),
-      carbs: round1(carbs),
-      fat: round1(fat),
-    },
-    servingSizeLabel: p.serving_size || undefined,
-    servingGrams: servingGrams && servingGrams > 0 ? servingGrams : undefined,
-  }
-}
-
 /** Scale per-100g macros to a gram amount. */
 export function macrosForGrams(hit: FoodHit, grams: number) {
   const g = Math.max(0, grams)
   const f = g / 100
   return {
     calories: Math.round(hit.per100g.calories * f),
-    protein: round1(hit.per100g.protein * f),
-    carbs: round1(hit.per100g.carbs * f),
-    fat: round1(hit.per100g.fat * f),
+    protein: Math.round(hit.per100g.protein * f * 10) / 10,
+    carbs: Math.round(hit.per100g.carbs * f * 10) / 10,
+    fat: Math.round(hit.per100g.fat * f * 10) / 10,
   }
 }
 
 async function foodApi(params: URLSearchParams): Promise<Response> {
-  // Same-origin only — never hit world.openfoodfacts.org from the browser.
   return fetch(`/api/food-search?${params}`)
 }
 
-export async function searchOpenFoodFacts(query: string, pageSize = 12): Promise<FoodHit[]> {
+export async function searchFoods(query: string, pageSize = 12): Promise<FoodHit[]> {
   const q = query.trim()
   if (q.length < 2) return []
 
-  // Digits-only → treat as barcode
   if (/^\d{8,14}$/.test(q)) {
-    const one = await lookupOpenFoodFactsBarcode(q)
+    const one = await lookupFoodBarcode(q)
     return one ? [one] : []
   }
 
@@ -106,23 +52,26 @@ export async function searchOpenFoodFacts(query: string, pageSize = 12): Promise
     }),
   )
   if (!res.ok) throw new Error('Food search failed — try again')
-  const json = (await res.json()) as { products?: OffProduct[]; error?: string }
-  if (json.error && !json.products) throw new Error(json.error)
-  const hits: FoodHit[] = []
-  for (const p of json.products || []) {
-    const mapped = mapProduct(p)
-    if (mapped) hits.push(mapped)
-  }
-  return hits
+  const json = (await res.json()) as { foods?: FoodHit[]; error?: string }
+  return json.foods || []
 }
 
-export async function lookupOpenFoodFactsBarcode(barcode: string): Promise<FoodHit | null> {
+/** @deprecated use searchFoods */
+export const searchOpenFoodFacts = searchFoods
+
+export async function lookupFoodBarcode(barcode: string): Promise<FoodHit | null> {
   const code = barcode.trim()
   if (!/^\d{8,14}$/.test(code)) return null
   const res = await foodApi(new URLSearchParams({ barcode: code }))
   if (!res.ok) throw new Error('Barcode lookup failed')
-  const json = (await res.json()) as { status?: number; product?: OffProduct; error?: string }
-  if (json.error) throw new Error(json.error)
-  if (json.status !== 1 || !json.product) return null
-  return mapProduct(json.product, code)
+  const json = (await res.json()) as { foods?: FoodHit[]; error?: string }
+  return json.foods?.[0] || null
+}
+
+/** @deprecated use lookupFoodBarcode */
+export const lookupOpenFoodFactsBarcode = lookupFoodBarcode
+
+export function foodSourceLabel(hit: FoodHit): string {
+  if (hit.source === 'usda' || hit.code.startsWith('usda:')) return 'USDA'
+  return 'Open Food Facts'
 }

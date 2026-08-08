@@ -1,15 +1,18 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
-import { Loader2, Search, Trash2, X } from 'lucide-react'
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Camera, Loader2, Search, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { EmptyState } from '@/components/ui/empty-state'
+import { BarcodeScannerDialog } from '@/components/BarcodeScannerDialog'
 import { todayKey } from '@/lib/dates'
 import {
+  foodSourceLabel,
+  lookupFoodBarcode,
   macrosForGrams,
-  searchOpenFoodFacts,
+  searchFoods,
   type FoodHit,
 } from '@/lib/food/open-food-facts'
 import { computeLocalStreaks } from '@/lib/social/streaks'
@@ -65,6 +68,8 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
   const [hits, setHits] = useState<FoodHit[]>([])
   const [selectedFood, setSelectedFood] = useState<FoodHit | null>(null)
   const [grams, setGrams] = useState('100')
+  const [scannerOpen, setScannerOpen] = useState(false)
+  const [lookupBusy, setLookupBusy] = useState(false)
   const searchSeq = useRef(0)
 
   useEffect(() => {
@@ -77,7 +82,7 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
     const seq = ++searchSeq.current
     setSearching(true)
     const t = window.setTimeout(() => {
-      void searchOpenFoodFacts(q)
+      void searchFoods(q)
         .then((results) => {
           if (seq !== searchSeq.current) return
           setHits(results)
@@ -103,7 +108,8 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
   function applyFood(hit: FoodHit, nextGrams: number) {
     const macros = macrosForGrams(hit, nextGrams)
     setSelectedFood(hit)
-    setMeal(hit.brand ? `${hit.name} (${hit.brand})` : hit.name)
+    const isUsda = hit.source === 'usda' || hit.code.startsWith('usda:')
+    setMeal(isUsda || !hit.brand ? hit.name : `${hit.name} (${hit.brand})`)
     setCalories(String(macros.calories))
     setProtein(String(macros.protein))
     setCarbs(String(macros.carbs))
@@ -117,6 +123,33 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
     setGrams(String(Math.round(g)))
     applyFood(hit, g)
   }
+
+  const onBarcodeScanned = useCallback((code: string) => {
+    setLookupBusy(true)
+    void lookupFoodBarcode(code)
+      .then((hit) => {
+        if (!hit) {
+          toast.error('No product found for that barcode')
+          setFoodQuery(code)
+          return
+        }
+        const g = hit.servingGrams && hit.servingGrams > 0 ? hit.servingGrams : 100
+        setGrams(String(Math.round(g)))
+        const macros = macrosForGrams(hit, g)
+        setSelectedFood(hit)
+        const isUsda = hit.source === 'usda' || hit.code.startsWith('usda:')
+        setMeal(isUsda || !hit.brand ? hit.name : `${hit.name} (${hit.brand})`)
+        setCalories(String(macros.calories))
+        setProtein(String(macros.protein))
+        setCarbs(String(macros.carbs))
+        setFat(String(macros.fat))
+        setFoodQuery('')
+        setHits([])
+        toast.success(`Found ${hit.name}`)
+      })
+      .catch(() => toast.error('Barcode lookup failed'))
+      .finally(() => setLookupBusy(false))
+  }, [])
 
   function onGramsChange(value: string) {
     setGrams(value)
@@ -142,10 +175,11 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
       return
     }
     const wasFirstMealOfDay = !meals.some((m) => m.date === date)
-    const sourceNote =
-      selectedFood?.code
-        ? `Open Food Facts · ${selectedFood.code}${selectedFood.servingSizeLabel ? ` · serving ${selectedFood.servingSizeLabel}` : ''}`
-        : ''
+    const sourceNote = selectedFood?.code
+      ? `${foodSourceLabel(selectedFood)} · ${selectedFood.code}${
+          selectedFood.servingSizeLabel ? ` · serving ${selectedFood.servingSizeLabel}` : ''
+        }`
+      : ''
     healthApi.addNutrition(userId, {
       meal,
       category,
@@ -187,7 +221,7 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
           <p className="text-xs text-muted-foreground">Nutrition</p>
           <h3 className="font-display text-xl tracking-tight">Log a meal</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Search a food or barcode to fill macros — or type them yourself.
+            Search everyday foods (USDA) or packaged products — or scan a barcode.
           </p>
         </div>
 
@@ -195,31 +229,43 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
           <label className="text-xs font-medium text-muted-foreground" htmlFor="food-search">
             Find food
           </label>
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              id="food-search"
-              value={foodQuery}
-              onChange={(e) => setFoodQuery(e.target.value)}
-              placeholder="Search “oats”, “chicken”, or paste a barcode…"
-              className="pl-9 pr-9"
-              autoComplete="off"
-            />
-            {searching ? (
-              <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
-            ) : foodQuery ? (
-              <button
-                type="button"
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground hover:bg-secondary"
-                aria-label="Clear search"
-                onClick={() => {
-                  setFoodQuery('')
-                  setHits([])
-                }}
-              >
-                <X className="h-4 w-4" />
-              </button>
-            ) : null}
+          <div className="flex gap-2">
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                id="food-search"
+                value={foodQuery}
+                onChange={(e) => setFoodQuery(e.target.value)}
+                placeholder="Chicken breast, ground beef, oats…"
+                className="pl-9 pr-9"
+                autoComplete="off"
+              />
+              {searching || lookupBusy ? (
+                <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+              ) : foodQuery ? (
+                <button
+                  type="button"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground hover:bg-secondary"
+                  aria-label="Clear search"
+                  onClick={() => {
+                    setFoodQuery('')
+                    setHits([])
+                  }}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              ) : null}
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-10 w-10 shrink-0"
+              aria-label="Scan barcode"
+              onClick={() => setScannerOpen(true)}
+            >
+              <Camera className="h-4 w-4" />
+            </Button>
           </div>
 
           {hits.length > 0 ? (
@@ -238,15 +284,16 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
                         className="h-10 w-10 shrink-0 rounded-lg object-cover bg-secondary"
                       />
                     ) : (
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-secondary text-xs text-muted-foreground">
-                        Food
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-secondary text-[0.65rem] font-medium text-muted-foreground">
+                        {foodSourceLabel(hit) === 'USDA' ? 'USDA' : 'OFF'}
                       </span>
                     )}
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium">{hit.name}</span>
                       <span className="block truncate text-xs text-muted-foreground">
-                        {hit.brand ? `${hit.brand} · ` : ''}
-                        {hit.per100g.calories} kcal / 100g
+                        {foodSourceLabel(hit)}
+                        {hit.brand && foodSourceLabel(hit) !== 'USDA' ? ` · ${hit.brand}` : ''}
+                        {` · ${hit.per100g.calories} kcal / 100g`}
                       </span>
                     </span>
                   </button>
@@ -260,7 +307,7 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{selectedFood.name}</p>
                 <p className="text-xs text-muted-foreground">
-                  {selectedFood.per100g.calories} kcal / 100g
+                  {foodSourceLabel(selectedFood)} · {selectedFood.per100g.calories} kcal / 100g
                   {selectedFood.servingSizeLabel ? ` · serving ${selectedFood.servingSizeLabel}` : ''}
                 </p>
               </div>
@@ -294,7 +341,16 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
           ) : null}
 
           <p className="text-[0.7rem] text-muted-foreground">
-            Food data from{' '}
+            Generic foods from{' '}
+            <a
+              href="https://fdc.nal.usda.gov"
+              target="_blank"
+              rel="noreferrer"
+              className="underline underline-offset-2 hover:text-foreground"
+            >
+              USDA FoodData Central
+            </a>
+            ; packaged products from{' '}
             <a
               href="https://world.openfoodfacts.org"
               target="_blank"
@@ -306,6 +362,12 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
             (ODbL).
           </p>
         </div>
+
+        <BarcodeScannerDialog
+          open={scannerOpen}
+          onOpenChange={setScannerOpen}
+          onScan={onBarcodeScanned}
+        />
 
         <div className="grid gap-3 sm:grid-cols-2 *:min-w-0">
           <Input
