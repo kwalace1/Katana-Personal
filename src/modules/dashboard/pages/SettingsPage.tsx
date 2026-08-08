@@ -36,7 +36,7 @@ import { broadcastLocalRefresh } from '@/hooks/useLocalRefresh'
 
 const SHARE_TOGGLES: { key: keyof SharePrefs; label: string; hint: string }[] = [
   { key: 'activityFeed', label: 'Activity pings', hint: 'Check-ins & shares show on Circles timelines' },
-  { key: 'feedCards', label: 'Feed cards', hint: 'Attach goals, habits, or workouts when you post to Feed' },
+  { key: 'feedCards', label: 'Feed cards', hint: 'Share win cards to Feed after lifts, streaks, and goals — and attach them when you post' },
   { key: 'healthWater', label: 'Hydration streaks', hint: 'Glasses & water streaks on Circles' },
   { key: 'healthSleep', label: 'Sleep streaks', hint: 'Sleep days on Circles' },
   { key: 'healthNutrition', label: 'Nutrition streaks', hint: 'Logged meals streak' },

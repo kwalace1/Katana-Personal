@@ -34,6 +34,7 @@ import { NotificationBell, useNotificationToasts } from '@/components/Notificati
 import { BackupNudge } from '@/components/BackupNudge'
 import { PwaInstallNudge } from '@/components/PwaInstallNudge'
 import { WorkspaceSyncHost } from '@/components/WorkspaceSyncHost'
+import { ShareWinHost } from '@/components/ShareWinHost'
 import { SocialInboxProvider, useSharedSocialInbox } from '@/contexts/SocialInboxContext'
 
 export const PRIMARY = [
@@ -298,6 +299,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
           <BackupNudge />
           <PwaInstallNudge />
           <WorkspaceSyncHost />
+          <ShareWinHost />
         </main>
       </div>
 

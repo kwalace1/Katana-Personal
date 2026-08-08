@@ -27,6 +27,8 @@ export interface FeedCard {
   title: string
   subtitle?: string
   stats?: string
+  /** Short celebratory label shown on the card (e.g. “Goal crushed”). */
+  badge?: string
 }
 
 export interface TogetherPost {

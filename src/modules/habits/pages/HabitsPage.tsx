@@ -14,6 +14,7 @@ import { useLocalRefresh } from '@/hooks/useLocalRefresh'
 import { cn } from '@/lib/utils'
 import { habitsApi } from '../api'
 import { ShareWithFriendsButton } from '@/components/ShareWithFriendsButton'
+import { buildHabitStreakShareCard, isStreakMilestone, offerShareWin } from '@/lib/social/share-win'
 import {
   WEEKDAY_OPTIONS,
   formatHabitSchedule,
@@ -255,7 +256,17 @@ export default function HabitsPage() {
                       doneLabel="Done"
                       celebrateMessage="Checked in"
                       onToggle={() => {
+                        const wasDone = habitsApi.isDoneToday(userId, habit.id)
                         habitsApi.toggleToday(userId, habit.id)
+                        const nowDone = habitsApi.isDoneToday(userId, habit.id)
+                        if (!wasDone && nowDone) {
+                          const nextStreak = habitsApi.streak(userId, habit.id)
+                          if (isStreakMilestone(nextStreak)) {
+                            offerShareWin(
+                              buildHabitStreakShareCard({ title: habit.title, streak: nextStreak }),
+                            )
+                          }
+                        }
                         refresh()
                       }}
                     />

@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input'
 import { QuantityInput, QUANTITY } from '@/components/ui/quantity-input'
 import { EmptyState } from '@/components/ui/empty-state'
 import { todayKey } from '@/lib/dates'
+import { burstConfetti } from '@/lib/celebrate'
+import { buildLiftShareCard, offerShareWin } from '@/lib/social/share-win'
 import { liftApi } from '../../lift-api'
 import { formatLiftDate } from './LiftLineChart'
 import { cn } from '@/lib/utils'
@@ -93,6 +95,17 @@ export function LiftLogPanel({ userId, logDate, tick, refresh }: Props) {
       return
     }
     toast.success('Workout saved')
+    burstConfetti()
+    const setCount = exercises.reduce((n, ex) => n + ex.sets.filter((s) => Number(s.reps) > 0).length, 0)
+    const exerciseCount = exercises.filter((ex) => ex.sets.some((s) => Number(s.reps) > 0)).length
+    offerShareWin(
+      buildLiftShareCard({
+        title,
+        dateLabel: formatLiftDate(date),
+        setCount,
+        exerciseCount,
+      }),
+    )
     setName('')
     setExercises([emptyExercise(names[0] || 'Bench Press')])
     refresh()

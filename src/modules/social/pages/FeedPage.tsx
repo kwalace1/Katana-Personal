@@ -2,8 +2,6 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  Dumbbell,
-  Flame,
   ImagePlus,
   Loader2,
   MoreHorizontal,
@@ -17,6 +15,7 @@ import {
   X,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { FeedCardView } from '@/components/FeedCardView'
 import { TogetherSetup } from '@/components/TogetherSetup'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -84,25 +83,6 @@ function Avatar({ name, size = 'md' }: { name: string; size?: 'sm' | 'md' | 'lg'
       )}
     >
       {initials}
-    </div>
-  )
-}
-
-function FeedCardView({ card }: { card: FeedCard }) {
-  const Icon = card.kind === 'goal' ? Target : card.kind === 'habit' ? Flame : Dumbbell
-  return (
-    <div className="mx-4 mt-3 flex gap-3 rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/[0.07] to-transparent px-3.5 py-3.5 sm:mx-5">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary/12 text-primary">
-        <Icon className="h-4 w-4" />
-      </span>
-      <div className="min-w-0">
-        <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-primary/80">
-          {card.kind}
-        </p>
-        <p className="font-display text-lg leading-snug tracking-tight">{card.title}</p>
-        {card.subtitle ? <p className="text-sm text-muted-foreground">{card.subtitle}</p> : null}
-        {card.stats ? <p className="mt-0.5 text-xs text-muted-foreground">{card.stats}</p> : null}
-      </div>
     </div>
   )
 }
@@ -371,14 +351,16 @@ export default function FeedPage() {
     const goals = goalsApi.active(localUserId, 8).map((g) => ({
       card: {
         kind: 'goal' as const,
+        badge: 'Goal',
         title: g.title,
         subtitle: g.target ? `${g.progress}/${g.target}` : undefined,
-        stats: 'Goal from Katana',
+        stats: 'In progress on Katana',
       },
     }))
     const habits = habitsApi.list(localUserId).slice(0, 8).map((h) => ({
       card: {
         kind: 'habit' as const,
+        badge: 'Habit',
         title: h.title,
         subtitle: habitsApi.isDoneToday(localUserId, h.id) ? 'Checked in today' : 'In progress',
         stats: `${habitsApi.streak(localUserId, h.id)} day streak`,
@@ -387,9 +369,10 @@ export default function FeedPage() {
     const lifts = liftApi.listSessions(localUserId).slice(0, 5).map((s) => ({
       card: {
         kind: 'workout' as const,
+        badge: 'Lift',
         title: s.title || 'Lift session',
         subtitle: formatShortDate(s.date),
-        stats: 'Lift from Health',
+        stats: 'Logged in Health',
       },
     }))
     const workouts = healthApi
@@ -399,9 +382,10 @@ export default function FeedPage() {
       .map((w) => ({
         card: {
           kind: 'workout' as const,
+          badge: 'Cardio',
           title: w.activity || 'Workout',
           subtitle: formatShortDate(w.date),
-          stats: w.duration_minutes ? `${w.duration_minutes} min` : 'Workout from Health',
+          stats: w.duration_minutes ? `${w.duration_minutes} min` : 'Logged in Health',
         },
       }))
     return [...goals, ...habits, ...lifts, ...workouts]
@@ -749,13 +733,13 @@ export default function FeedPage() {
               ) : null}
 
               {card ? (
-                <div className="relative -mx-1">
-                  <FeedCardView card={card} />
+                <div className="relative">
+                  <FeedCardView card={card} className="mx-0 mt-0" />
                   <Button
                     type="button"
                     size="icon"
                     variant="ghost"
-                    className="absolute right-2 top-2 h-8 w-8"
+                    className="absolute right-2 top-2 h-8 w-8 bg-black/20 text-white hover:bg-black/35 hover:text-white"
                     onClick={() => setCard(null)}
                     aria-label="Remove card"
                   >

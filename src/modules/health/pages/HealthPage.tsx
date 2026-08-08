@@ -15,6 +15,7 @@ import { pageEnterSubtle } from '@/lib/motion-ui'
 import { useLocalRefresh } from '@/hooks/useLocalRefresh'
 import { todayKey } from '@/lib/dates'
 import { burstConfetti } from '@/lib/celebrate'
+import { buildHydrationShareCard, offerShareWin } from '@/lib/social/share-win'
 import { healthApi, WATER_GOAL_GLASSES } from '../api'
 import { CardioPanel } from '../components/CardioPanel'
 import { LiftTrackingPanel } from '../components/LiftTrackingPanel'
@@ -66,6 +67,7 @@ export default function HealthPage() {
         description: 'Cheers — streak locked in for Circles.',
         duration: 2800,
       })
+      offerShareWin(buildHydrationShareCard(water.glasses))
     }
   }, [water.glasses, logDate])
 
