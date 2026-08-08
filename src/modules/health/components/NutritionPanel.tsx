@@ -82,7 +82,7 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
 
   return (
     <div className="space-y-4">
-      <form onSubmit={save} className="kp-surface space-y-4 p-4">
+      <form onSubmit={save} className="kp-surface min-w-0 space-y-4 overflow-hidden p-4">
         <div>
           <p className="text-xs text-muted-foreground">Nutrition</p>
           <h3 className="font-display text-xl tracking-tight">Log a meal</h3>
@@ -90,7 +90,7 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
             Name it, optional macros — saves to today so Circles nutrition streaks can count.
           </p>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-2 *:min-w-0">
           <Input
             placeholder="Chicken bowl, shake, oats…"
             value={meal}
@@ -98,7 +98,7 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
             aria-label="Meal"
           />
           <Select value={category} onValueChange={(v) => setCategory(v as MealCategory)}>
-            <SelectTrigger aria-label="Category">
+            <SelectTrigger aria-label="Category" className="min-w-0">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -114,7 +114,7 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
         </div>
         <div>
           <p className="mb-2 text-xs font-medium text-muted-foreground">Calories & macros</p>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2 *:min-w-0">
             <Input
               type="number"
               min={0}

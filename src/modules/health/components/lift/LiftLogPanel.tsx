@@ -115,12 +115,12 @@ export function LiftLogPanel({ userId, logDate, tick, refresh }: Props) {
         </div>
       ) : null}
 
-      <form onSubmit={saveWorkout} className="kp-surface space-y-4 p-4">
+      <form onSubmit={saveWorkout} className="kp-surface min-w-0 space-y-4 overflow-hidden p-4">
         <div>
           <p className="text-xs text-muted-foreground">Log workout</p>
           <h3 className="font-display text-xl tracking-tight">New session</h3>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-2 *:min-w-0">
           <Input
             placeholder="Workout name"
             value={name}

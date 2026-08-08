@@ -117,14 +117,14 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
         ) : null}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <form onSubmit={saveWeight} className="kp-surface space-y-3 p-4">
+      <div className="grid min-w-0 gap-4 lg:grid-cols-2">
+        <form onSubmit={saveWeight} className="kp-surface min-w-0 space-y-3 overflow-hidden p-4">
           <div>
             <p className="text-xs text-muted-foreground">Check-in</p>
             <h3 className="font-display text-lg tracking-tight">Log weight</h3>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          <div className="grid gap-3 sm:grid-cols-2 *:min-w-0">
+            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} aria-label="Date" />
             <QuantityInput
               {...QUANTITY.bodyWeightLb}
               placeholder="187.2"
@@ -135,13 +135,13 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
           <Button type="submit">Save weight</Button>
         </form>
 
-        <form onSubmit={saveGoal} className="kp-surface space-y-3 p-4">
+        <form onSubmit={saveGoal} className="kp-surface min-w-0 space-y-3 overflow-hidden p-4">
           <div>
             <p className="text-xs text-muted-foreground">Goal</p>
             <h3 className="font-display text-lg tracking-tight">Bulk, cut, or maintain</h3>
           </div>
           <Select value={mode} onValueChange={(v) => setMode(v as WeightGoalMode)}>
-            <SelectTrigger>
+            <SelectTrigger className="min-w-0">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -150,7 +150,7 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
               <SelectItem value="maintain">Maintain</SelectItem>
             </SelectContent>
           </Select>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2 *:min-w-0">
             <QuantityInput
               {...QUANTITY.bodyWeightLb}
               label="Target weight"
@@ -158,7 +158,12 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
               value={targetWeight}
               onChange={setTargetWeight}
             />
-            <Input type="date" value={targetDate || ''} onChange={(e) => setTargetDate(e.target.value)} />
+            <Input
+              type="date"
+              value={targetDate || ''}
+              onChange={(e) => setTargetDate(e.target.value)}
+              aria-label="Target date"
+            />
           </div>
           <Button type="submit">Save goal</Button>
         </form>

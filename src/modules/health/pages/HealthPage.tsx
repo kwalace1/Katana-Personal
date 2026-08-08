@@ -108,8 +108,14 @@ export default function HealthPage() {
     <motion.div {...pageEnterSubtle} className="kp-page">
       <PageHeader title="Health and Fitness" description="Lift, move, fuel, and rest." eyebrow="Life" />
 
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <Input type="date" value={logDate} onChange={(e) => setLogDate(e.target.value)} className="w-auto" />
+      <div className="mb-4 flex min-w-0 flex-wrap items-center gap-2">
+        <Input
+          type="date"
+          value={logDate}
+          onChange={(e) => setLogDate(e.target.value)}
+          className="max-w-full min-w-0 sm:w-auto"
+          aria-label="Log date"
+        />
         <Button size="sm" variant={range === 7 ? 'default' : 'outline'} className="rounded-full" onClick={() => setRange(7)}>
           7 days
         </Button>

@@ -62,12 +62,12 @@ export function CardioPanel({ userId, logDate, tick, refresh }: Props) {
 
   return (
     <div className="space-y-4">
-      <form onSubmit={save} className="kp-surface space-y-4 p-4">
+      <form onSubmit={save} className="kp-surface min-w-0 space-y-4 overflow-hidden p-4">
         <div>
           <p className="text-xs text-muted-foreground">Cardio</p>
           <h3 className="font-display text-xl tracking-tight">Log activity</h3>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-2 *:min-w-0">
           <Input
             placeholder="Run, bike, row, walk…"
             value={activity}
@@ -78,7 +78,7 @@ export function CardioPanel({ userId, logDate, tick, refresh }: Props) {
         </div>
         <div>
           <p className="mb-2 text-xs font-medium text-muted-foreground">Duration</p>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-3 *:min-w-0">
             <Input
               type="number"
               min={0}
