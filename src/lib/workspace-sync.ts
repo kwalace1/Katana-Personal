@@ -151,7 +151,36 @@ function rowStamp(row: unknown): string {
   return ''
 }
 
-function mergeItems(local: unknown[], remote: unknown[]): unknown[] {
+type DeletionRow = {
+  id: string
+  collection: string
+  item_id: string
+  deleted_at: string
+}
+
+function isDeletionRow(row: unknown): row is DeletionRow {
+  return Boolean(
+    row &&
+      typeof row === 'object' &&
+      typeof (row as DeletionRow).id === 'string' &&
+      typeof (row as DeletionRow).collection === 'string' &&
+      typeof (row as DeletionRow).item_id === 'string',
+  )
+}
+
+function mergeDeletions(local: unknown[], remote: unknown[]): DeletionRow[] {
+  const byId = new Map<string, DeletionRow>()
+  for (const row of [...remote, ...local]) {
+    if (!isDeletionRow(row)) continue
+    const existing = byId.get(row.id)
+    if (!existing || (row.deleted_at || '') >= (existing.deleted_at || '')) {
+      byId.set(row.id, row)
+    }
+  }
+  return [...byId.values()]
+}
+
+function mergeItems(local: unknown[], remote: unknown[], deletedItemIds: Set<string>): unknown[] {
   const byId = new Map<string, unknown>()
   for (const row of remote) {
     if (row && typeof row === 'object' && 'id' in row && typeof (row as { id: unknown }).id === 'string') {
@@ -171,7 +200,33 @@ function mergeItems(local: unknown[], remote: unknown[]): unknown[] {
     const remoteT = rowStamp(existing)
     if (!remoteT || localT >= remoteT) byId.set(id, row)
   }
-  return [...byId.values()]
+  if (deletedItemIds.size === 0) return [...byId.values()]
+  return [...byId.values()].filter((row) => {
+    if (!row || typeof row !== 'object' || !('id' in row)) return true
+    const id = (row as { id: unknown }).id
+    return typeof id !== 'string' || !deletedItemIds.has(id)
+  })
+}
+
+/** One water log per date — keep the highest glass count, then newest stamp. */
+function dedupeWaterByDate(items: unknown[]): unknown[] {
+  const byDate = new Map<string, unknown>()
+  for (const row of items) {
+    if (!row || typeof row !== 'object') continue
+    const r = row as { id?: unknown; date?: unknown; glasses?: unknown }
+    if (typeof r.date !== 'string') continue
+    const existing = byDate.get(r.date)
+    if (!existing) {
+      byDate.set(r.date, row)
+      continue
+    }
+    const eg = Number((existing as { glasses?: unknown }).glasses) || 0
+    const ng = Number(r.glasses) || 0
+    if (ng > eg || (ng === eg && rowStamp(row) >= rowStamp(existing))) {
+      byDate.set(r.date, row)
+    }
+  }
+  return [...byDate.values()]
 }
 
 async function fetchAllRemote(cloudUid: string): Promise<Map<string, unknown[]>> {
@@ -317,9 +372,30 @@ export async function mergeWorkspaceBothWays(input?: SyncContext): Promise<void>
   await runLocked(async () => {
     const remote = await fetchAllRemote(c.cloudUid)
     const mergedMap = new Map<string, unknown[]>()
+
+    const mergedDeletions = mergeDeletions(
+      localDb.list('deletions', c.localUserId),
+      remote.get('deletions') || [],
+    )
+    const deletedByCollection = new Map<string, Set<string>>()
+    for (const row of mergedDeletions) {
+      let set = deletedByCollection.get(row.collection)
+      if (!set) {
+        set = new Set()
+        deletedByCollection.set(row.collection, set)
+      }
+      set.add(row.item_id)
+    }
+    mergedMap.set('deletions', mergedDeletions)
+    localDb.replaceAll('deletions', c.localUserId, mergedDeletions)
+
     for (const collection of SYNC_COLLECTIONS) {
+      if (collection === 'deletions') continue
       const local = localDb.list(collection, c.localUserId)
-      const merged = mergeItems(local, remote.get(collection) || [])
+      let merged = mergeItems(local, remote.get(collection) || [], deletedByCollection.get(collection) || new Set())
+      if (collection === 'water_logs') {
+        merged = dedupeWaterByDate(merged)
+      }
       mergedMap.set(collection, merged)
       localDb.replaceAll(collection, c.localUserId, merged)
     }
@@ -335,9 +411,13 @@ export function notifyWorkspaceDirty() {
   if (pushTimer) clearTimeout(pushTimer)
   // Merge on dirty so a sparse/empty device cannot wipe richer cloud data.
   pushTimer = setTimeout(() => {
-    void mergeWorkspaceBothWays().catch(() => {
-      // optional while offline
-    })
+    void mergeWorkspaceBothWays()
+      .then(() => {
+        void import('@/hooks/useLocalRefresh').then((m) => m.broadcastLocalRefresh())
+      })
+      .catch(() => {
+        // optional while offline
+      })
   }, 2500)
 }
 

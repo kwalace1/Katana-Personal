@@ -20,6 +20,8 @@ export const WORKSPACE_COLLECTIONS = [
   'water_logs',
   'nutrition_logs',
   'sleep_logs',
+  /** Soft-delete markers so cloud merge cannot resurrect removed rows. */
+  'deletions',
   'supplement_items',
   'supplement_logs',
   'lift_exercises',
@@ -203,6 +205,29 @@ export async function ensureUserLoaded(userId: string): Promise<void> {
   }
 }
 
+export type DeletionTombstone = {
+  id: string
+  collection: string
+  item_id: string
+  deleted_at: string
+}
+
+function deletionKey(collection: string, itemId: string) {
+  return `${collection}:${itemId}`
+}
+
+function recordDeletion(collection: string, userId: string, itemId: string) {
+  const rows = ensureLoaded('deletions', userId) as DeletionTombstone[]
+  const id = deletionKey(collection, itemId)
+  const deleted_at = new Date().toISOString()
+  const index = rows.findIndex((row) => row.id === id)
+  const next: DeletionTombstone = { id, collection, item_id: itemId, deleted_at }
+  if (index >= 0) rows[index] = next
+  else rows.push(next)
+  memory.set(cacheKey('deletions', userId), rows)
+  dirty.add(cacheKey('deletions', userId))
+}
+
 export const localDb = {
   list<T>(collection: string, userId: string): T[] {
     return [...(ensureLoaded(collection, userId) as T[])]
@@ -249,6 +274,9 @@ export const localDb = {
     if (next.length === rows.length) return false
     memory.set(cacheKey(collection, userId), next)
     dirty.add(cacheKey(collection, userId))
+    if (collection !== 'deletions') {
+      recordDeletion(collection, userId, id)
+    }
     scheduleFlush()
     return true
   },

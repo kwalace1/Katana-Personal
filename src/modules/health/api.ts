@@ -34,6 +34,55 @@ function now() {
   return new Date().toISOString()
 }
 
+function pickBestWaterRows(rows: WaterLog[]): WaterLog | null {
+  if (rows.length === 0) return null
+  return rows.reduce((best, row) => {
+    if (row.glasses > best.glasses) return row
+    if (row.glasses === best.glasses && (row.updated_at || '') > (best.updated_at || '')) return row
+    return best
+  })
+}
+
+function pickBestWaterForDate(userId: string, date: string): WaterLog | null {
+  return pickBestWaterRows(localDb.list<WaterLog>(WATER, userId).filter((w) => w.date === date))
+}
+
+/** Collapse duplicate same-date water rows in storage (legacy insert-on-read + sync). */
+function dedupeWaterLogs(rows: WaterLog[]): WaterLog[] {
+  const byDate = new Map<string, WaterLog>()
+  for (const row of rows) {
+    const existing = byDate.get(row.date)
+    if (!existing) {
+      byDate.set(row.date, row)
+      continue
+    }
+    if (
+      row.glasses > existing.glasses ||
+      (row.glasses === existing.glasses && (row.updated_at || '') > (existing.updated_at || ''))
+    ) {
+      byDate.set(row.date, row)
+    }
+  }
+  return [...byDate.values()]
+}
+
+function cleanupWaterDuplicates(userId: string) {
+  const groups = new Map<string, WaterLog[]>()
+  for (const row of localDb.list<WaterLog>(WATER, userId)) {
+    const list = groups.get(row.date) || []
+    list.push(row)
+    groups.set(row.date, list)
+  }
+  for (const group of groups.values()) {
+    if (group.length < 2) continue
+    const best = pickBestWaterRows(group)
+    if (!best) continue
+    for (const row of group) {
+      if (row.id !== best.id) localDb.remove(WATER, userId, row.id)
+    }
+  }
+}
+
 export function durationTotalMinutes(input: {
   hours?: number
   minutes?: number
@@ -175,25 +224,41 @@ export const healthApi = {
   },
 
   getWater(userId: string, date = todayKey()): WaterLog {
-    const existing = localDb.list<WaterLog>(WATER, userId).find((w) => w.date === date)
-    if (existing) return existing
-    return localDb.insert(WATER, userId, {
-      id: createId(),
+    const best = pickBestWaterForDate(userId, date)
+    if (best) return best
+    // Virtual row — never insert empty logs on read (that polluted charts + sync).
+    return {
+      id: '',
       user_id: userId,
       date,
       glasses: 0,
-      updated_at: now(),
-    })
+      updated_at: '',
+    }
   },
 
   setWater(userId: string, glasses: number, date = todayKey()): WaterLog {
-    const current = healthApi.getWater(userId, date)
     const next = Math.max(0, glasses)
-    const updated =
-      localDb.update<WaterLog>(WATER, userId, current.id, {
+    const rows = localDb.list<WaterLog>(WATER, userId).filter((w) => w.date === date)
+    const best = pickBestWaterRows(rows)
+    let updated: WaterLog
+    if (!best) {
+      updated = localDb.insert(WATER, userId, {
+        id: createId(),
+        user_id: userId,
+        date,
         glasses: next,
         updated_at: now(),
-      }) || current
+      })
+    } else {
+      updated =
+        localDb.update<WaterLog>(WATER, userId, best.id, {
+          glasses: next,
+          updated_at: now(),
+        }) || { ...best, glasses: next, updated_at: now() }
+      for (const row of rows) {
+        if (row.id !== best.id) localDb.remove(WATER, userId, row.id)
+      }
+    }
     if (date === todayKey()) {
       notifyCheckIn(
         next === 0
@@ -302,11 +367,18 @@ export const healthApi = {
   },
 
   listWater(userId: string): WaterLog[] {
-    return localDb.list<WaterLog>(WATER, userId).sort((a, b) => a.date.localeCompare(b.date))
+    return dedupeWaterLogs(localDb.list<WaterLog>(WATER, userId)).sort((a, b) =>
+      a.date.localeCompare(b.date),
+    )
   },
 
   waterSeries(userId: string, days = 7): { date: string; glasses: number }[] {
-    const map = new Map(healthApi.listWater(userId).map((w) => [w.date, w.glasses]))
+    cleanupWaterDuplicates(userId)
+    const map = new Map<string, number>()
+    for (const w of healthApi.listWater(userId)) {
+      const prev = map.get(w.date)
+      if (prev == null || w.glasses > prev) map.set(w.date, w.glasses)
+    }
     const out: { date: string; glasses: number }[] = []
     let cursor = new Date()
     cursor.setDate(cursor.getDate() - (days - 1))
