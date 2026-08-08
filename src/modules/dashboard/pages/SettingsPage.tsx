@@ -244,10 +244,10 @@ export default function SettingsPage() {
         <div>
           <h2 className="font-semibold">Appearance</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Pick an accent color for buttons and highlights. Light and dark mode stay the same.
+            Pick any accent from the full color wheel. Light and dark mode stay the same.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-6">
+        <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
           <HueWheel
             hue={accentHue}
             onChange={(h) => {
@@ -256,7 +256,7 @@ export default function SettingsPage() {
             }}
             onCommit={(h) => persistAccentHue(h)}
           />
-          <div className="space-y-3">
+          <div className="space-y-3 sm:pt-2">
             <div className="flex items-center gap-3">
               <span
                 className="h-10 w-10 rounded-full border border-border/50 shadow-sm"
@@ -265,7 +265,7 @@ export default function SettingsPage() {
               />
               <div>
                 <p className="text-sm font-medium">Accent</p>
-                <p className="text-xs text-muted-foreground">{accentHue}°</p>
+                <p className="text-xs text-muted-foreground">{accentHue}° · full spectrum</p>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">

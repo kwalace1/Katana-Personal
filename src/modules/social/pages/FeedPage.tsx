@@ -29,8 +29,10 @@ import { useCloudAuth } from '@/contexts/CloudAuthContext'
 import { pageEnterSubtle, springSnappy, staggerContainer } from '@/lib/motion-ui'
 import { listMyCircles } from '@/lib/social/circles'
 import {
+  assertFeedMedia,
   createTogetherPost,
   FEED_TEXT_MAX,
+  FEED_VIDEO_MAX_SECONDS,
   loadOlderTogetherPosts,
   resolveAuthorNames,
   resolveAuthorPhotos,
@@ -282,8 +284,20 @@ export default function FeedPage() {
 
   function addFiles(list: FileList | null) {
     if (!list?.length) return
-    const next = [...files, ...Array.from(list)].slice(0, 4)
-    setFiles(next)
+    const incoming = Array.from(list)
+    void (async () => {
+      const accepted: File[] = []
+      for (const file of incoming) {
+        try {
+          await assertFeedMedia(file)
+          accepted.push(file)
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : 'Couldn’t use that file')
+        }
+      }
+      if (accepted.length === 0) return
+      setFiles((prev) => [...prev, ...accepted].slice(0, 4))
+    })()
   }
 
   async function onSubmit(e: FormEvent) {
@@ -531,7 +545,7 @@ export default function FeedPage() {
             <ComposeTypeButton
               icon={Video}
               title="Video"
-              description="Short clips for friends or a Circle"
+              description={`Clips up to ${FEED_VIDEO_MAX_SECONDS} seconds`}
               onClick={() => openCompose('video')}
             />
             <ComposeTypeButton
@@ -608,7 +622,9 @@ export default function FeedPage() {
                   />
                   {composeKind === 'photo' || composeKind === 'video' ? (
                     <p className="text-xs text-muted-foreground">
-                      Add a caption if you want — media alone is fine too.
+                      {composeKind === 'video'
+                        ? `Optional caption · max ${FEED_VIDEO_MAX_SECONDS} seconds`
+                        : 'Add a caption if you want — media alone is fine too.'}
                     </p>
                   ) : null}
                 </div>

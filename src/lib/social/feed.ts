@@ -5,7 +5,10 @@ import { listFriendProfiles, getCloudProfile, getCloudProfiles, resolveProfilePh
 
 export const FEED_TEXT_MAX = 500
 export const FEED_IMAGE_MAX_BYTES = 5 * 1024 * 1024
-export const FEED_VIDEO_MAX_BYTES = 25 * 1024 * 1024
+/** Keep clips short so free-tier storage lasts longer. */
+export const FEED_VIDEO_MAX_SECONDS = 20
+export const FEED_VIDEO_MAX_MS = FEED_VIDEO_MAX_SECONDS * 1000
+export const FEED_VIDEO_MAX_BYTES = 12 * 1024 * 1024
 export const CIRCLE_BOOST_MS = 12 * 60 * 60 * 1000
 
 export type FeedAudience = 'friends' | 'circle'
@@ -96,9 +99,59 @@ export function validateFeedMedia(file: File): FeedMediaType {
     throw new Error('Photos must be under 5 MB.')
   }
   if (type === 'video' && file.size > FEED_VIDEO_MAX_BYTES) {
-    throw new Error('Videos must be under 25 MB (keep them short).')
+    throw new Error(`Videos must be under ${Math.round(FEED_VIDEO_MAX_BYTES / (1024 * 1024))} MB (max ${FEED_VIDEO_MAX_SECONDS}s).`)
   }
   return type
+}
+
+/** Read video length via metadata (browser only). */
+export function readVideoDurationMs(file: File): Promise<number> {
+  return new Promise((resolve, reject) => {
+    if (typeof document === 'undefined') {
+      reject(new Error('Video length can only be checked in the browser.'))
+      return
+    }
+    const url = URL.createObjectURL(file)
+    const video = document.createElement('video')
+    video.preload = 'metadata'
+    const cleanup = () => {
+      URL.revokeObjectURL(url)
+      video.removeAttribute('src')
+      video.load()
+    }
+    video.onloadedmetadata = () => {
+      const seconds = video.duration
+      cleanup()
+      if (!Number.isFinite(seconds) || seconds <= 0) {
+        reject(new Error('Couldn’t read that video’s length.'))
+        return
+      }
+      resolve(Math.round(seconds * 1000))
+    }
+    video.onerror = () => {
+      cleanup()
+      reject(new Error('Couldn’t read that video.'))
+    }
+    video.src = url
+  })
+}
+
+/** Sync size/type checks, then async duration for videos. */
+export async function assertFeedMedia(file: File): Promise<{
+  type: FeedMediaType
+  durationMs?: number
+}> {
+  const type = validateFeedMedia(file)
+  if (type !== 'video') return { type }
+  const durationMs = await readVideoDurationMs(file)
+  // Small tolerance for encoder rounding
+  if (durationMs > FEED_VIDEO_MAX_MS + 250) {
+    const secs = Math.ceil(durationMs / 1000)
+    throw new Error(
+      `Videos must be ${FEED_VIDEO_MAX_SECONDS} seconds or shorter (yours is ~${secs}s).`,
+    )
+  }
+  return { type, durationMs }
 }
 
 /** Storage object path inside the `together` bucket (no bucket prefix). */
@@ -111,7 +164,7 @@ export async function uploadFeedMedia(input: {
   postId: string
   file: File
 }): Promise<FeedMedia> {
-  const type = validateFeedMedia(input.file)
+  const { type, durationMs } = await assertFeedMedia(input.file)
   const safeName = input.file.name.replace(/[^\w.\-]+/g, '_').slice(0, 80) || `${type}`
   const objectPath = storageObjectPath(input.authorId, input.postId, `${Date.now()}_${safeName}`)
   const supabase = getSupabase()
@@ -129,6 +182,7 @@ export async function uploadFeedMedia(input: {
     path: objectPath,
     contentType: input.file.type,
     url: signed.signedUrl,
+    ...(durationMs != null ? { durationMs } : {}),
   }
 }
 
