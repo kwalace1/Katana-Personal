@@ -117,7 +117,11 @@ export function NotificationBell() {
                     ? '/friends#invites'
                     : n.kind === 'circle_joined'
                       ? '/circles'
-                      : '/friends')
+                      : n.kind === 'post_like' ||
+                          n.kind === 'post_comment' ||
+                          n.kind === 'post_repost'
+                        ? '/feed'
+                        : '/friends')
                 navigate(href)
               }}
             >

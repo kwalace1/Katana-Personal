@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react'
+import { FormEvent, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
@@ -32,6 +32,7 @@ import {
   type FeedComment,
   type PostEngagement,
 } from '@/lib/social/feed-engagement'
+import { notifyPostEngagement } from '@/lib/social/notifications'
 import { deleteTogetherPost, resolveAuthorNames, type RankedPost } from '@/lib/social/feed'
 import { cn } from '@/lib/utils'
 import { FeedAvatar, profilePath, relativeWhen } from './feed-ui'
@@ -121,30 +122,43 @@ export function FeedPostCard({
   const [commentDraft, setCommentDraft] = useState('')
   const [commentsLoading, setCommentsLoading] = useState(false)
   const [commentBusy, setCommentBusy] = useState(false)
+  const onNamesRef = useRef(onNames)
+  onNamesRef.current = onNames
 
   const isMine = post.authorId === selfUid
   const profileTo = profilePath(post.authorId)
 
   useEffect(() => {
     if (!commentsOpen) return
+    let cancelled = false
     setCommentsLoading(true)
+    setComments([])
     void listPostComments(post.id)
       .then(async (list) => {
+        if (cancelled) return
         setComments(list)
-        const extra = await resolveAuthorNames(list.map((c) => c.authorId))
-        onNames(extra)
+        if (list.length > 0) {
+          const extra = await resolveAuthorNames(list.map((c) => c.authorId))
+          if (!cancelled) onNamesRef.current(extra)
+        }
       })
-      .catch((err) =>
+      .catch((err) => {
+        if (cancelled) return
         toast.error(
-          err instanceof Error && /does not exist|schema cache/i.test(err.message)
+          err instanceof Error && /does not exist|schema cache|permission denied/i.test(err.message)
             ? 'Comments need a cloud update — run the latest Supabase migration'
             : err instanceof Error
               ? err.message
               : 'Couldn’t load comments',
-        ),
-      )
-      .finally(() => setCommentsLoading(false))
-  }, [commentsOpen, post.id, onNames])
+        )
+      })
+      .finally(() => {
+        if (!cancelled) setCommentsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [commentsOpen, post.id])
 
   async function onLike() {
     if (liking) return
@@ -163,6 +177,16 @@ export function FeedPostCard({
         likedByMe: liked,
         likeCount: Math.max(0, prev.likeCount + (liked === prev.likedByMe ? 0 : liked ? 1 : -1)),
       })
+      if (liked && !prev.likedByMe) {
+        void notifyPostEngagement({
+          authorId: post.authorId,
+          actorId: selfUid,
+          actorName: selfName,
+          kind: 'post_like',
+          postId: post.id,
+          preview: post.text,
+        })
+      }
     } catch (err) {
       onEngagementChange(prev)
       toast.error(
@@ -183,6 +207,14 @@ export function FeedPostCard({
     try {
       await createRepost({ userId: selfUid, original: post, audience: 'friends' })
       onEngagementChange({ ...engagement, repostedByMe: true })
+      void notifyPostEngagement({
+        authorId: post.authorId,
+        actorId: selfUid,
+        actorName: selfName,
+        kind: 'post_repost',
+        postId: post.id,
+        preview: post.text,
+      })
       toast.success('Reposted to friends')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Couldn’t repost')
@@ -200,7 +232,15 @@ export function FeedPostCard({
       setComments((list) => [...list, c])
       setCommentDraft('')
       onEngagementChange({ ...engagement, commentCount: engagement.commentCount + 1 })
-      onNames({ [selfUid]: selfName })
+      onNamesRef.current({ [selfUid]: selfName })
+      void notifyPostEngagement({
+        authorId: post.authorId,
+        actorId: selfUid,
+        actorName: selfName,
+        kind: 'post_comment',
+        postId: post.id,
+        preview: c.text,
+      })
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Couldn’t comment')
     } finally {

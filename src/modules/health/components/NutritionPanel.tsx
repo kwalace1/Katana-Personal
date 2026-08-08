@@ -1,18 +1,18 @@
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Camera, ImagePlus, Loader2, Search, Trash2, X } from 'lucide-react'
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { ImagePlus, Loader2, ScanText, Search, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { EmptyState } from '@/components/ui/empty-state'
-import { BarcodeScannerDialog } from '@/components/BarcodeScannerDialog'
 import { MealPhotoEstimateDialog } from '@/components/MealPhotoEstimateDialog'
+import { NutritionLabelScanDialog } from '@/components/NutritionLabelScanDialog'
 import { todayKey } from '@/lib/dates'
 import type { MealEstimate } from '@/lib/food/meal-estimate'
+import type { NutritionLabelEstimate } from '@/lib/food/nutrition-label'
 import {
   foodSourceLabel,
-  lookupFoodBarcode,
   macrosForGrams,
   searchFoods,
   type FoodHit,
@@ -72,7 +72,6 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
   const [grams, setGrams] = useState('100')
   const [scannerOpen, setScannerOpen] = useState(false)
   const [photoOpen, setPhotoOpen] = useState(false)
-  const [lookupBusy, setLookupBusy] = useState(false)
   const [photoNote, setPhotoNote] = useState<string | null>(null)
   const searchSeq = useRef(0)
 
@@ -128,33 +127,40 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
     applyFood(hit, g)
   }
 
-  const onBarcodeScanned = useCallback((code: string) => {
-    setLookupBusy(true)
-    void lookupFoodBarcode(code)
-      .then((hit) => {
-        if (!hit) {
-          toast.error('No product found for that barcode')
-          setFoodQuery(code)
-          return
-        }
-        const g = hit.servingGrams && hit.servingGrams > 0 ? hit.servingGrams : 100
-        setGrams(String(Math.round(g)))
-        const macros = macrosForGrams(hit, g)
-        setSelectedFood(hit)
-        const isUsda = hit.source === 'usda' || hit.code.startsWith('usda:')
-        setMeal(isUsda || !hit.brand ? hit.name : `${hit.name} (${hit.brand})`)
-        setCalories(String(macros.calories))
-        setProtein(String(macros.protein))
-        setCarbs(String(macros.carbs))
-        setFat(String(macros.fat))
-        setFoodQuery('')
-        setHits([])
-        setPhotoNote(null)
-        toast.success(`Found ${hit.name}`)
-      })
-      .catch(() => toast.error('Barcode lookup failed'))
-      .finally(() => setLookupBusy(false))
-  }, [])
+  function applyNutritionLabel(label: NutritionLabelEstimate) {
+    const servingG = label.servingGrams && label.servingGrams > 0 ? label.servingGrams : 100
+    // Store as per-100g so the grams control still scales correctly
+    const hit: FoodHit = {
+      code: `label:${Date.now()}`,
+      name: label.name,
+      source: 'off',
+      brand: 'Nutrition Facts',
+      servingSizeLabel: label.servingSizeLabel,
+      servingGrams: servingG,
+      per100g: {
+        calories: Math.round((label.calories * 100) / servingG),
+        protein: Math.round((label.protein * 100) / servingG * 10) / 10,
+        carbs: Math.round((label.carbs * 100) / servingG * 10) / 10,
+        fat: Math.round((label.fat * 100) / servingG * 10) / 10,
+      },
+    }
+    setGrams(String(Math.round(servingG)))
+    setSelectedFood(hit)
+    setMeal(label.name)
+    setCalories(String(label.calories))
+    setProtein(String(label.protein))
+    setCarbs(String(label.carbs))
+    setFat(String(label.fat))
+    setFoodQuery('')
+    setHits([])
+    const bits = [
+      'Nutrition Facts label',
+      label.servingSizeLabel ? `serving ${label.servingSizeLabel}` : null,
+      label.confidence ? `confidence ${label.confidence}` : null,
+      label.note || null,
+    ].filter(Boolean)
+    setPhotoNote(bits.join(' · '))
+  }
 
   function onGramsChange(value: string) {
     setGrams(value)
@@ -251,7 +257,7 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
           <p className="text-xs text-muted-foreground">Nutrition</p>
           <h3 className="font-display text-xl tracking-tight">Log a meal</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Search foods, scan a barcode, or snap a meal for an AI estimate.
+            Search foods, scan a Nutrition Facts label, or snap a meal for an AI estimate.
           </p>
         </div>
 
@@ -270,7 +276,7 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
                 className="pl-9 pr-9"
                 autoComplete="off"
               />
-              {searching || lookupBusy ? (
+              {searching ? (
                 <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
               ) : foodQuery ? (
                 <button
@@ -291,11 +297,11 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
               variant="outline"
               size="icon"
               className="h-10 w-10 shrink-0"
-              aria-label="Scan barcode"
-              title="Scan barcode"
+              aria-label="Scan Nutrition Facts label"
+              title="Scan Nutrition Facts label"
               onClick={() => setScannerOpen(true)}
             >
-              <Camera className="h-4 w-4" />
+              <ScanText className="h-4 w-4" />
             </Button>
             <Button
               type="button"
@@ -422,10 +428,10 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
           </p>
         </div>
 
-        <BarcodeScannerDialog
+        <NutritionLabelScanDialog
           open={scannerOpen}
           onOpenChange={setScannerOpen}
-          onScan={onBarcodeScanned}
+          onRead={applyNutritionLabel}
         />
         <MealPhotoEstimateDialog
           open={photoOpen}

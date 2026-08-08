@@ -72,6 +72,7 @@ export async function lookupFoodBarcode(barcode: string): Promise<FoodHit | null
 export const lookupOpenFoodFactsBarcode = lookupFoodBarcode
 
 export function foodSourceLabel(hit: FoodHit): string {
+  if (hit.code.startsWith('label:')) return 'Nutrition Facts'
   if (hit.source === 'usda' || hit.code.startsWith('usda:')) return 'USDA'
   return 'Open Food Facts'
 }

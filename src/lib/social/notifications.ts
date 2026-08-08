@@ -8,6 +8,9 @@ export type NotificationKind =
   | 'shared_item'
   | 'circle_invite'
   | 'circle_joined'
+  | 'post_like'
+  | 'post_comment'
+  | 'post_repost'
   | 'generic'
 
 export interface AppNotification {
@@ -56,6 +59,7 @@ export async function createNotification(input: {
   href?: string
   meta?: Record<string, string>
 }): Promise<void> {
+  if (!input.uid) return
   const now = new Date().toISOString()
   const { error } = await getSupabase().from('notifications').insert({
     id: createId(),
@@ -69,6 +73,40 @@ export async function createNotification(input: {
     meta: input.meta || {},
   })
   if (error) throw error
+}
+
+/** Notify a post author about engagement (never notifies yourself). */
+export async function notifyPostEngagement(input: {
+  authorId: string
+  actorId: string
+  actorName: string
+  kind: 'post_like' | 'post_comment' | 'post_repost'
+  postId: string
+  preview?: string
+}): Promise<void> {
+  if (!input.authorId || input.authorId === input.actorId) return
+  const name = input.actorName.trim() || 'Someone'
+  const title =
+    input.kind === 'post_like'
+      ? `${name} liked your post`
+      : input.kind === 'post_comment'
+        ? `${name} commented on your post`
+        : `${name} reposted your post`
+  const body =
+    input.preview?.trim() ||
+    (input.kind === 'post_comment' ? 'Open Feed to read it' : 'Open Feed to see it')
+  try {
+    await createNotification({
+      uid: input.authorId,
+      kind: input.kind,
+      title,
+      body: body.slice(0, 180),
+      href: '/feed',
+      meta: { postId: input.postId, actorId: input.actorId },
+    })
+  } catch {
+    // Never block the like/comment/repost on notification failure
+  }
 }
 
 export async function listNotifications(uid: string, max = 40): Promise<AppNotification[]> {
