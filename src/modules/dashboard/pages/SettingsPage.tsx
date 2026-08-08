@@ -627,15 +627,6 @@ export default function SettingsPage() {
         </Button>
       </section>
 
-      <section className="kp-surface mb-4 space-y-3 p-5">
-        <h2 className="font-semibold">Shortcuts</h2>
-        <p className="text-sm text-muted-foreground">
-          Press <kbd className="rounded bg-secondary px-1.5 py-0.5 text-xs">⌘</kbd>
-          <kbd className="rounded bg-secondary px-1.5 py-0.5 text-xs">K</kbd> (or Ctrl+K) to search
-          everything, jump to a page, or create a task, note, or event.
-        </p>
-      </section>
-
       <section className="kp-surface space-y-3 p-5">
         <h2 className="font-semibold">Tips</h2>
         <p className="text-sm text-muted-foreground">Show the little getting-started checklist on Today again.</p>

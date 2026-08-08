@@ -106,7 +106,7 @@ export default function HealthPage() {
 
   return (
     <motion.div {...pageEnterSubtle} className="kp-page">
-      <PageHeader title="Health" description="Lift, move, fuel, and rest." eyebrow="Life" />
+      <PageHeader title="Health and Fitness" description="Lift, move, fuel, and rest." eyebrow="Life" />
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <Input type="date" value={logDate} onChange={(e) => setLogDate(e.target.value)} className="w-auto" />
