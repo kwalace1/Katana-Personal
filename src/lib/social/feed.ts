@@ -31,6 +31,15 @@ export interface FeedCard {
   badge?: string
 }
 
+export interface RepostSnapshot {
+  postId: string
+  authorId: string
+  text: string
+  media: FeedMedia[]
+  card?: FeedCard | null
+  createdAt: string
+}
+
 export interface TogetherPost {
   id: string
   authorId: string
@@ -41,6 +50,8 @@ export interface TogetherPost {
   viewerIds: string[]
   media: FeedMedia[]
   card?: FeedCard | null
+  /** When set, this post is a repost/quote of another post */
+  repost?: RepostSnapshot | null
 }
 
 export type RankedPost = TogetherPost & { score: number }
@@ -55,6 +66,7 @@ type PostRow = {
   viewer_ids: string[]
   media?: FeedMedia[] | null
   card?: FeedCard | null
+  repost?: RepostSnapshot | null
 }
 
 function mapPost(row: PostRow): TogetherPost {
@@ -68,6 +80,7 @@ function mapPost(row: PostRow): TogetherPost {
     viewerIds: row.viewer_ids || [],
     media: row.media || [],
     card: row.card ?? null,
+    repost: row.repost ?? null,
   }
 }
 
@@ -142,11 +155,12 @@ export async function createTogetherPost(input: {
   circleId?: string | null
   files?: File[]
   card?: FeedCard | null
+  repost?: RepostSnapshot | null
 }): Promise<TogetherPost> {
   const text = input.text.trim()
   if (text.length > FEED_TEXT_MAX) throw new Error(`Keep it under ${FEED_TEXT_MAX} characters.`)
   const files = input.files || []
-  if (!text && files.length === 0 && !input.card) {
+  if (!text && files.length === 0 && !input.card && !input.repost) {
     throw new Error('Write something, add media, or attach a card.')
   }
   if (files.length > 4) throw new Error('Up to 4 media files per post.')
@@ -181,6 +195,7 @@ export async function createTogetherPost(input: {
       ...(durationMs != null ? { durationMs } : {}),
     })),
     card: input.card || null,
+    repost: input.repost || null,
   }
 
   const { error } = await getSupabase().from('together_posts').insert(row)
@@ -195,6 +210,7 @@ export async function createTogetherPost(input: {
     viewerIds,
     media: media.map((m) => ({ ...m })),
     card: input.card || null,
+    repost: input.repost || null,
   }
 }
 
@@ -215,25 +231,29 @@ export function rankFeedPosts(posts: TogetherPost[]): RankedPost[] {
 
 async function hydrateMediaUrls(posts: TogetherPost[]): Promise<TogetherPost[]> {
   const supabase = getSupabase()
+  const signOne = async (m: FeedMedia): Promise<FeedMedia> => {
+    if (m.url) return m
+    try {
+      const path = m.path.replace(/^together\//, '')
+      const { data, error } = await supabase.storage
+        .from('together')
+        .createSignedUrl(path, 60 * 60 * 24 * 7)
+      if (error || !data?.signedUrl) return m
+      return { ...m, url: data.signedUrl }
+    } catch {
+      return m
+    }
+  }
+
   return Promise.all(
-    posts.map(async (post) => ({
-      ...post,
-      media: await Promise.all(
-        (post.media || []).map(async (m) => {
-          if (m.url) return m
-          try {
-            const path = m.path.replace(/^together\//, '')
-            const { data, error } = await supabase.storage
-              .from('together')
-              .createSignedUrl(path, 60 * 60 * 24 * 7)
-            if (error || !data?.signedUrl) return m
-            return { ...m, url: data.signedUrl }
-          } catch {
-            return m
-          }
-        }),
-      ),
-    })),
+    posts.map(async (post) => {
+      const media = await Promise.all((post.media || []).map(signOne))
+      let repost = post.repost ?? null
+      if (repost?.media?.length) {
+        repost = { ...repost, media: await Promise.all(repost.media.map(signOne)) }
+      }
+      return { ...post, media, repost }
+    }),
   )
 }
 
@@ -298,6 +318,25 @@ export async function loadOlderTogetherPosts(
   pageSize = 30,
 ): Promise<RankedPost[]> {
   const raw = await queryFeed(viewerUid, pageSize, beforeCreatedAt)
+  const hydrated = await hydrateMediaUrls(raw)
+  return rankFeedPosts(hydrated)
+}
+
+/** Posts by one author that the viewer is allowed to see (own profile or friend timeline). */
+export async function listPostsByAuthor(
+  viewerUid: string,
+  authorId: string,
+  pageSize = 50,
+): Promise<RankedPost[]> {
+  const { data, error } = await getSupabase()
+    .from('together_posts')
+    .select('*')
+    .eq('author_id', authorId)
+    .contains('viewer_ids', [viewerUid])
+    .order('created_at', { ascending: false })
+    .limit(pageSize)
+  if (error) throw error
+  const raw = (data || []).map((d) => mapPost(d as PostRow))
   const hydrated = await hydrateMediaUrls(raw)
   return rankFeedPosts(hydrated)
 }

@@ -17,6 +17,7 @@ import DocumentsPage from '@/modules/documents/pages/DocumentsPage'
 import AskPage from '@/modules/assistant/pages/AskPage'
 import FriendsPage from '@/modules/social/pages/FriendsPage'
 import FeedPage from '@/modules/social/pages/FeedPage'
+import FeedProfilePage from '@/modules/social/pages/FeedProfilePage'
 import CirclesPage from '@/modules/social/pages/CirclesPage'
 import SharedPage from '@/modules/social/pages/SharedPage'
 import FriendInvitePage from '@/modules/social/pages/FriendInvitePage'
@@ -63,6 +64,7 @@ export default function App() {
       <Route path="/ask" element={<Protected><AskPage /></Protected>} />
       <Route path="/friends" element={<Protected><FriendsPage /></Protected>} />
       <Route path="/feed" element={<Protected><FeedPage /></Protected>} />
+      <Route path="/feed/u/:uid" element={<Protected><FeedProfilePage /></Protected>} />
       <Route path="/circles" element={<Protected><CirclesPage /></Protected>} />
       <Route path="/shared" element={<Protected><SharedPage /></Protected>} />
       <Route path="/settings" element={<Protected><SettingsPage /></Protected>} />

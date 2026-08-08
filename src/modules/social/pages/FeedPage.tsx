@@ -1,16 +1,13 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { AnimatePresence, motion } from 'framer-motion'
+import { motion } from 'framer-motion'
 import {
   ImagePlus,
   Loader2,
-  MoreHorizontal,
   Newspaper,
   PenLine,
   Plus,
   Target,
-  Trash2,
-  Users,
   Video,
   X,
 } from 'lucide-react'
@@ -29,11 +26,10 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
-import { pageEnterSubtle, springSnappy, staggerContainer, staggerItem } from '@/lib/motion-ui'
+import { pageEnterSubtle, springSnappy, staggerContainer } from '@/lib/motion-ui'
 import { listMyCircles } from '@/lib/social/circles'
 import {
   createTogetherPost,
-  deleteTogetherPost,
   FEED_TEXT_MAX,
   loadOlderTogetherPosts,
   resolveAuthorNames,
@@ -42,196 +38,21 @@ import {
   type FeedCard,
   type RankedPost,
 } from '@/lib/social/feed'
+import {
+  loadEngagementForPosts,
+  type PostEngagement,
+} from '@/lib/social/feed-engagement'
 import type { CircleGroup } from '@/lib/social/types'
 import { goalsApi } from '@/modules/goals/api'
 import { habitsApi } from '@/modules/habits/api'
 import { liftApi } from '@/modules/health/lift-api'
 import { healthApi } from '@/modules/health/api'
+import { FeedPostCard } from '@/modules/social/components/FeedPostCard'
+import { FeedAvatar, profilePath } from '@/modules/social/components/feed-ui'
 import { cn } from '@/lib/utils'
 import { formatShortDate } from '@/lib/dates'
 
 type ComposeKind = 'photo' | 'video' | 'update' | 'card'
-
-function relativeWhen(iso: string) {
-  const ms = Date.now() - Date.parse(iso)
-  if (!Number.isFinite(ms) || ms < 0) return ''
-  const m = Math.floor(ms / 60000)
-  if (m < 1) return 'just now'
-  if (m < 60) return `${m}m`
-  const h = Math.floor(m / 60)
-  if (h < 24) return `${h}h`
-  const d = Math.floor(h / 24)
-  if (d < 7) return `${d}d`
-  return formatShortDate(iso)
-}
-
-function Avatar({ name, size = 'md' }: { name: string; size?: 'sm' | 'md' | 'lg' }) {
-  const parts = name.trim().split(/\s+/).filter(Boolean)
-  const initials =
-    parts.length === 0
-      ? '?'
-      : parts.length === 1
-        ? parts[0]!.slice(0, 2).toUpperCase()
-        : `${parts[0]![0] ?? ''}${parts[1]![0] ?? ''}`.toUpperCase()
-  return (
-    <div
-      className={cn(
-        'flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary/90 to-[hsl(200_40%_32%)] font-semibold text-primary-foreground shadow-[inset_0_0_0_2px_hsl(var(--background))]',
-        size === 'sm' && 'h-8 w-8 text-[0.65rem]',
-        size === 'md' && 'h-10 w-10 text-[0.7rem]',
-        size === 'lg' && 'h-12 w-12 text-sm',
-      )}
-    >
-      {initials}
-    </div>
-  )
-}
-
-function PostCard({
-  post,
-  authorName,
-  selfUid,
-  circleName,
-  onDeleted,
-}: {
-  post: RankedPost
-  authorName: string
-  selfUid: string
-  circleName?: string
-  onDeleted: () => void
-}) {
-  const [busy, setBusy] = useState(false)
-  const [menuOpen, setMenuOpen] = useState(false)
-  const hasMedia = Boolean(post.media?.length)
-
-  return (
-    <motion.article variants={staggerItem} className="border-b border-border/50 bg-card/40">
-      <header className="flex items-center gap-3 px-4 py-3 sm:px-5">
-        <Avatar name={authorName} />
-        <div className="min-w-0 flex-1">
-          <p className="truncate font-semibold tracking-tight">{authorName}</p>
-          <p className="text-xs text-muted-foreground">
-            {relativeWhen(post.createdAt)}
-            {post.audience === 'circle' ? (
-              <>
-                <span className="mx-1.5 text-border">·</span>
-                <span className="inline-flex items-center gap-1">
-                  <Users className="h-3 w-3" />
-                  {circleName || 'Circle'}
-                </span>
-              </>
-            ) : (
-              <>
-                <span className="mx-1.5 text-border">·</span>
-                Friends
-              </>
-            )}
-          </p>
-        </div>
-        {post.authorId === selfUid ? (
-          <div className="relative">
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              className="h-9 w-9 text-muted-foreground"
-              aria-label="Post options"
-              onClick={() => setMenuOpen((v) => !v)}
-            >
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-            <AnimatePresence>
-              {menuOpen ? (
-                <motion.div
-                  initial={{ opacity: 0, y: 4, scale: 0.96 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 4, scale: 0.96 }}
-                  transition={springSnappy}
-                  className="absolute right-0 top-10 z-10 min-w-[8.5rem] overflow-hidden rounded-xl border border-border/60 bg-card py-1 shadow-lg"
-                >
-                  <button
-                    type="button"
-                    disabled={busy}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-destructive hover:bg-secondary/80"
-                    onClick={() => {
-                      setBusy(true)
-                      void deleteTogetherPost(post.id)
-                        .then(() => {
-                          toast.message('Post removed')
-                          onDeleted()
-                        })
-                        .catch((err) =>
-                          toast.error(err instanceof Error ? err.message : 'Couldn’t delete'),
-                        )
-                        .finally(() => {
-                          setBusy(false)
-                          setMenuOpen(false)
-                        })
-                    }}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Delete
-                  </button>
-                </motion.div>
-              ) : null}
-            </AnimatePresence>
-          </div>
-        ) : null}
-      </header>
-
-      {hasMedia ? (
-        <div
-          className={cn(
-            'grid gap-px bg-border/40',
-            post.media!.length === 1 ? 'grid-cols-1' : 'grid-cols-2',
-          )}
-        >
-          {post.media!.map((m) =>
-            m.type === 'video' ? (
-              <video
-                key={m.path}
-                src={m.url}
-                controls
-                playsInline
-                className={cn(
-                  'w-full bg-black object-contain',
-                  post.media!.length === 1 ? 'max-h-[min(72vh,36rem)] aspect-square' : 'aspect-square object-cover',
-                )}
-              />
-            ) : (
-              <img
-                key={m.path}
-                src={m.url}
-                alt=""
-                className={cn(
-                  'w-full bg-secondary object-cover',
-                  post.media!.length === 1 ? 'max-h-[min(72vh,36rem)] aspect-square' : 'aspect-square',
-                )}
-              />
-            ),
-          )}
-        </div>
-      ) : null}
-
-      {post.card ? <FeedCardView card={post.card} /> : null}
-
-      {post.text ? (
-        <div className="px-4 py-3 sm:px-5">
-          <p className="whitespace-pre-wrap text-[0.95rem] leading-relaxed">
-            <span className="mr-1.5 font-semibold tracking-tight">{authorName}</span>
-            {post.text}
-          </p>
-        </div>
-      ) : !hasMedia && !post.card ? (
-        <div className="px-4 pb-4 sm:px-5">
-          <p className="text-sm text-muted-foreground">Empty post</p>
-        </div>
-      ) : (
-        <div className="h-3" />
-      )}
-    </motion.article>
-  )
-}
 
 function ComposeTypeButton({
   icon: Icon,
@@ -269,6 +90,7 @@ export default function FeedPage() {
 
   const [posts, setPosts] = useState<RankedPost[]>([])
   const [names, setNames] = useState<Record<string, string>>({})
+  const [engagement, setEngagement] = useState<Record<string, PostEngagement>>({})
   const [circles, setCircles] = useState<CircleGroup[]>([])
   const [loading, setLoading] = useState(true)
   const [posting, setPosting] = useState(false)
@@ -317,7 +139,15 @@ export default function FeedPage() {
       (next) => {
         setPosts(next)
         setLoading(false)
-        void resolveAuthorNames(next.map((p) => p.authorId)).then(setNames)
+        const authorIds = next.flatMap((p) => [
+          p.authorId,
+          ...(p.repost ? [p.repost.authorId] : []),
+        ])
+        void resolveAuthorNames(authorIds).then(setNames)
+        void loadEngagementForPosts(
+          next.map((p) => p.id),
+          cloudUser.uid,
+        ).then(setEngagement)
       },
       (err) => {
         toast.error(err.message || 'Feed failed to load')
@@ -464,9 +294,13 @@ export default function FeedPage() {
         for (const p of older) map.set(p.id, p)
         return [...map.values()].sort((a, b) => b.score - a.score || b.createdAt.localeCompare(a.createdAt))
       })
-      void resolveAuthorNames(older.map((p) => p.authorId)).then((extra) =>
-        setNames((n) => ({ ...n, ...extra })),
-      )
+      void resolveAuthorNames(
+        older.flatMap((p) => [p.authorId, ...(p.repost ? [p.repost.authorId] : [])]),
+      ).then((extra) => setNames((n) => ({ ...n, ...extra })))
+      void loadEngagementForPosts(
+        older.map((p) => p.id),
+        cloudUser.uid,
+      ).then((extra) => setEngagement((e) => ({ ...e, ...extra })))
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Couldn’t load more')
     } finally {
@@ -510,20 +344,20 @@ export default function FeedPage() {
     <motion.div {...pageEnterSubtle} className="relative mx-auto w-full max-w-xl overflow-x-hidden pb-28">
       <FeedHero />
 
-      {/* Story-style composer strip */}
-      <div className="mb-1 flex items-center gap-3 border-b border-border/50 px-4 py-3 sm:px-5">
-        <Avatar name={selfName} size="lg" />
+      {/* Composer — avatar opens your profile */}
+      <div className="flex items-center gap-3 border-b border-border/50 px-4 py-3 sm:px-5">
+        <FeedAvatar name={selfName} size="lg" to={profilePath(cloudUser.uid)} />
         <button
           type="button"
           onClick={() => setPickerOpen(true)}
-          className="flex min-h-11 flex-1 items-center rounded-full border border-border/60 bg-secondary/50 px-4 text-left text-sm text-muted-foreground transition hover:border-primary/25 hover:bg-secondary"
+          className="flex min-h-11 flex-1 items-center rounded-full border border-border/60 bg-secondary/40 px-4 text-left text-sm text-muted-foreground transition hover:border-primary/25 hover:bg-secondary"
         >
-          Share something with friends…
+          What’s happening?
         </button>
         <Button
           type="button"
           size="icon"
-          className="h-11 w-11 shrink-0 rounded-full shadow-md shadow-primary/20"
+          className="h-10 w-10 shrink-0 rounded-full"
           aria-label="New post"
           onClick={() => setPickerOpen(true)}
         >
@@ -557,15 +391,29 @@ export default function FeedPage() {
           className="overflow-hidden border-y border-border/40 sm:rounded-none"
         >
           {posts.map((post) => (
-            <PostCard
+            <FeedPostCard
               key={post.id}
               post={post}
               authorName={
                 post.authorId === cloudUser.uid ? selfName : names[post.authorId] || 'Friend'
               }
               selfUid={cloudUser.uid}
+              selfName={selfName}
               circleName={post.circleId ? circleNames[post.circleId] : undefined}
+              engagement={
+                engagement[post.id] || {
+                  likeCount: 0,
+                  commentCount: 0,
+                  likedByMe: false,
+                  repostedByMe: false,
+                }
+              }
+              onEngagementChange={(next) =>
+                setEngagement((e) => ({ ...e, [post.id]: next }))
+              }
               onDeleted={() => setPosts((p) => p.filter((x) => x.id !== post.id))}
+              names={names}
+              onNames={(extra) => setNames((n) => ({ ...n, ...extra }))}
             />
           ))}
           <div className="flex justify-center bg-card/30 py-5">
@@ -692,7 +540,7 @@ export default function FeedPage() {
           <form onSubmit={(e) => void onSubmit(e)} className="flex min-h-0 flex-1 flex-col">
             <div className="space-y-3 overflow-y-auto px-5 py-4">
               <div className="flex gap-3">
-                <Avatar name={selfName} />
+                <FeedAvatar name={selfName} />
                 <Textarea
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
@@ -874,18 +722,16 @@ export default function FeedPage() {
 
 function FeedHero() {
   return (
-    <header className="relative overflow-hidden px-4 pb-5 pt-6 sm:px-5 sm:pt-8">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_80%_70%_at_20%_0%,hsl(var(--primary)/0.14),transparent_55%),radial-gradient(ellipse_60%_50%_at_100%_20%,hsl(200_40%_70%/0.18),transparent_50%)]"
-      />
-      <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-primary">Together</p>
-      <h1 className="mt-1 font-display text-[2.35rem] leading-[1.05] tracking-tight sm:text-5xl">
-        Feed
-      </h1>
-      <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
-        Moments from friends and Circles — only what people choose to share.
-      </p>
+    <header className="sticky top-0 z-20 border-b border-border/50 bg-background/90 px-4 py-3 backdrop-blur-md sm:px-5">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h1 className="font-display text-xl tracking-tight sm:text-2xl">Feed</h1>
+          <p className="text-xs text-muted-foreground">Friends & Circles · only what people share</p>
+        </div>
+        <Button asChild type="button" size="sm" variant="outline" className="shrink-0">
+          <Link to="/friends">Friends</Link>
+        </Button>
+      </div>
     </header>
   )
 }
