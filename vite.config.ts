@@ -3,9 +3,10 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 import { geminiAskDevPlugin } from './vite.gemini-plugin'
+import { foodSearchDevPlugin } from './vite.food-plugin'
 
 export default defineConfig({
-  plugins: [react(), geminiAskDevPlugin()],
+  plugins: [react(), geminiAskDevPlugin(), foodSearchDevPlugin()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

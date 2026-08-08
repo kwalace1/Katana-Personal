@@ -1,11 +1,9 @@
 /**
  * Open Food Facts client for Katana Nutrition.
- * Uses the public REST API (Apache-friendly for our app code; food data is ODbL — credit the source).
- * @see https://world.openfoodfacts.org
+ * Calls same-origin /api/food-search (proxies OFF) so Safari/PWA blockers don't kill the request.
+ * Food data is ODbL — credit the source. @see https://world.openfoodfacts.org
  */
 
-const OFF_SEARCH = 'https://world.openfoodfacts.org/api/v2/search'
-const OFF_PRODUCT = 'https://world.openfoodfacts.org/api/v2/product'
 export type FoodHit = {
   code: string
   name: string
@@ -86,13 +84,9 @@ export function macrosForGrams(hit: FoodHit, grams: number) {
   }
 }
 
-async function offFetch(url: string): Promise<Response> {
-  // Keep headers CORS-simple. Custom X-* headers trigger a preflight that OFF rejects.
-  return fetch(url, {
-    headers: {
-      Accept: 'application/json',
-    },
-  })
+async function foodApi(params: URLSearchParams): Promise<Response> {
+  // Same-origin only — never hit world.openfoodfacts.org from the browser.
+  return fetch(`/api/food-search?${params}`)
 }
 
 export async function searchOpenFoodFacts(query: string, pageSize = 12): Promise<FoodHit[]> {
@@ -105,16 +99,15 @@ export async function searchOpenFoodFacts(query: string, pageSize = 12): Promise
     return one ? [one] : []
   }
 
-  const params = new URLSearchParams({
-    search_terms: q,
-    page_size: String(pageSize),
-    fields:
-      'code,product_name,product_name_en,brands,image_front_small_url,nutriments,serving_size,serving_quantity',
-  })
-
-  const res = await offFetch(`${OFF_SEARCH}?${params}`)
+  const res = await foodApi(
+    new URLSearchParams({
+      q,
+      page_size: String(pageSize),
+    }),
+  )
   if (!res.ok) throw new Error('Food search failed — try again')
-  const json = (await res.json()) as { products?: OffProduct[] }
+  const json = (await res.json()) as { products?: OffProduct[]; error?: string }
+  if (json.error && !json.products) throw new Error(json.error)
   const hits: FoodHit[] = []
   for (const p of json.products || []) {
     const mapped = mapProduct(p)
@@ -126,11 +119,10 @@ export async function searchOpenFoodFacts(query: string, pageSize = 12): Promise
 export async function lookupOpenFoodFactsBarcode(barcode: string): Promise<FoodHit | null> {
   const code = barcode.trim()
   if (!/^\d{8,14}$/.test(code)) return null
-  const res = await offFetch(
-    `${OFF_PRODUCT}/${encodeURIComponent(code)}.json?fields=code,product_name,product_name_en,brands,image_front_small_url,nutriments,serving_size,serving_quantity`,
-  )
+  const res = await foodApi(new URLSearchParams({ barcode: code }))
   if (!res.ok) throw new Error('Barcode lookup failed')
-  const json = (await res.json()) as { status?: number; product?: OffProduct }
+  const json = (await res.json()) as { status?: number; product?: OffProduct; error?: string }
+  if (json.error) throw new Error(json.error)
   if (json.status !== 1 || !json.product) return null
   return mapProduct(json.product, code)
 }

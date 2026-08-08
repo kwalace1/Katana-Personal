@@ -84,7 +84,13 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
         })
         .catch((err) => {
           if (seq !== searchSeq.current) return
-          toast.error(err instanceof Error ? err.message : 'Search failed')
+          const msg = err instanceof Error ? err.message : 'Search failed'
+          // Safari often reports network/CORS failures as "Load failed"
+          toast.error(
+            /load failed|failed to fetch|networkerror/i.test(msg)
+              ? 'Food search unavailable — check connection and try again'
+              : msg,
+          )
           setHits([])
         })
         .finally(() => {

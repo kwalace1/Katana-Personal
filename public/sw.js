@@ -1,9 +1,10 @@
 /* Katana Personal — offline icons only; never pin HTML so deploys show up */
-const CACHE = 'katana-shell-v7'
+const CACHE = 'katana-shell-v8'
 const SHELL = ['/manifest.webmanifest', '/icons/katana-192.png', '/icons/katana-512.png']
 
 function shouldBypassCache(url) {
   return (
+    url.pathname.startsWith('/api/') ||
     url.pathname.startsWith('/@') ||
     url.pathname.startsWith('/node_modules/') ||
     url.pathname.includes('/.vite/') ||
@@ -39,7 +40,7 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url)
 
-  // Never intercept third-party APIs (Open Food Facts, Supabase, etc.) —
+  // Never intercept third-party APIs (Supabase, etc.) or same-origin /api —
   // a failed cache fallback would return null and break the page fetch.
   if (url.origin !== self.location.origin) return
 
