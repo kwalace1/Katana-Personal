@@ -84,7 +84,7 @@ export default function LandingPage() {
     navigate(takeInviteReturn() || '/dashboard')
   }
 
-  if (!loading && user) {
+  if (!loading && user && !busy) {
     const back = peekInviteReturn()
     return <Navigate to={back || '/dashboard'} replace />
   }
@@ -134,12 +134,12 @@ export default function LandingPage() {
           setBusy(false)
           return
         }
-        await startWorkspace(display)
         await signUpCloud(emailTrim, password, display)
+        await startWorkspace(display)
         toast.success('Account created — you’re in')
       } else {
-        await startWorkspace(name.trim() || 'You')
         await signInCloud(emailTrim, password)
+        await startWorkspace(name.trim() || 'You')
         toast.success('Signed in')
       }
       goAfterEntrance()
