@@ -14,6 +14,10 @@
  *
  * Hash format (GoTrue):
  *   $fbscrypt$v=1,n=<mem_cost>,r=<rounds>,p=1,ss=<salt_sep>,sk=<signer_key>$<salt>$<hash>
+ *
+ * Important: Admin updateUserById ignores password_hash. GoTrue only accepts
+ * password_hash on createUser, so we delete + recreate with the same user id
+ * (app tables use text uids, not FK to auth.users, so social data is kept).
  */
 
 import { readFileSync, existsSync } from 'node:fs'
@@ -82,7 +86,6 @@ async function main() {
     { auth: { autoRefreshToken: false, persistSession: false } },
   )
 
-  // Map email → supabase user id
   const { data: listed, error: listErr } = await supabase.auth.admin.listUsers({
     perPage: 1000,
   })
@@ -125,17 +128,44 @@ async function main() {
       signerKey,
     })
 
-    // Admin API accepts password_hash for pre-hashed passwords (Firebase scrypt).
-    const { error } = await supabase.auth.admin.updateUserById(existing.id, {
-      // @ts-expect-error password_hash is supported by GoTrue admin API
-      password_hash: hash,
-      email_confirm: true,
-    })
+    const meta = existing.user_metadata || {}
+    const appMeta = existing.app_metadata || {}
+    const id = existing.id
 
-    if (error) {
-      console.warn(`  FAIL ${email}:`, error.message)
+    const { error: delErr } = await supabase.auth.admin.deleteUser(id)
+    if (delErr) {
+      console.warn(`  FAIL delete ${email}:`, delErr.message)
       continue
     }
+
+    const { error: createErr } = await supabase.auth.admin.createUser({
+      id,
+      email,
+      email_confirm: true,
+      password_hash: hash,
+      user_metadata: meta,
+      app_metadata: appMeta,
+    })
+
+    if (createErr) {
+      console.warn(`  FAIL recreate ${email}:`, createErr.message)
+      // Best-effort restore so the account is not left deleted.
+      const { error: recoverErr } = await supabase.auth.admin.createUser({
+        id,
+        email,
+        email_confirm: true,
+        password: `RecoverMe-${id.slice(0, 8)}`,
+        user_metadata: meta,
+        app_metadata: appMeta,
+      })
+      if (recoverErr) {
+        console.warn(`  CRITICAL: could not recover ${email}:`, recoverErr.message)
+      } else {
+        console.warn(`  recovered ${email} with temporary password RecoverMe-${id.slice(0, 8)}`)
+      }
+      continue
+    }
+
     console.log(`  ok ${email}`)
     updated += 1
   }

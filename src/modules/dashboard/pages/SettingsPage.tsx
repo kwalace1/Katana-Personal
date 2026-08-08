@@ -28,6 +28,7 @@ import { DEFAULT_SHARE_PREFS, type SharePrefs } from '@/lib/social/types'
 import { getAddMeUrl } from '@/lib/social/friends'
 import {
   mergeWorkspaceBothWays,
+  pullWorkspaceFromCloud,
   subscribeWorkspaceSyncStatus,
   syncWorkspaceNow,
 } from '@/lib/workspace-sync'
@@ -428,7 +429,7 @@ export default function SettingsPage() {
               <Button type="submit" disabled={busy} className="w-full">
                 {busy ? 'Working…' : cloudMode === 'signup' ? 'Create free account' : 'Sign in'}
               </Button>
-              <p className="text-center text-[10px] text-muted-foreground/70">Cloud build 2026-08-07-cloud3</p>
+              <p className="text-center text-[10px] text-muted-foreground/70">Cloud build 2026-08-07-cloud4</p>
             </form>
           </div>
         )}
@@ -483,6 +484,30 @@ export default function SettingsPage() {
               }}
             >
               Merge with cloud
+            </Button>
+            <Button
+              variant="outline"
+              className="min-h-11"
+              disabled={syncBusy}
+              onClick={() => {
+                if (
+                  !window.confirm(
+                    'Replace this device’s personal data with the cloud copy? Local-only changes on this device may be lost.',
+                  )
+                ) {
+                  return
+                }
+                void pullWorkspaceFromCloud()
+                  .then(() => {
+                    broadcastLocalRefresh()
+                    toast.success('Downloaded cloud copy')
+                  })
+                  .catch((err) =>
+                    toast.error(err instanceof Error ? err.message : 'Download failed'),
+                  )
+              }}
+            >
+              Use cloud copy
             </Button>
           </div>
         </section>

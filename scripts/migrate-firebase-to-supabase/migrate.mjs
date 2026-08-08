@@ -464,33 +464,54 @@ async function main() {
   }
 
   // --- workspaces ---
+  // Parent workspace docs are often missing (only subcollections exist), so
+  // discover owners via collectionGroup instead of workspaces.get().
   {
-    const workspaces = await db.collection('workspaces').get()
+    const cg = await db.collectionGroup('collections').select().get()
+    const ownerIds = new Set()
+    for (const d of cg.docs) {
+      const parts = d.ref.path.split('/')
+      if (parts[0] === 'workspaces' && parts[2] === 'collections') {
+        ownerIds.add(parts[1])
+      }
+    }
     const collectionRows = []
     const metaRows = []
-    for (const ws of workspaces.docs) {
-      const userId = mapUid(ws.id, uidMap)
-      const metaSnap = await ws.ref.collection('meta').doc('info').get()
+    for (const fbUid of ownerIds) {
+      const userId = mapUid(fbUid, uidMap)
+      const wsRef = db.collection('workspaces').doc(fbUid)
+      let hasAny = false
+      const cols = await wsRef.collection('collections').get()
+      for (const c of cols.docs) {
+        const data = c.data()
+        const items = data.items || []
+        if (items.length) hasAny = true
+        collectionRows.push({
+          user_id: userId,
+          collection: c.id,
+          items,
+          updated_at: data.updatedAt || new Date().toISOString(),
+        })
+      }
+      const metaSnap = await wsRef.collection('meta').doc('info').get()
       if (metaSnap.exists) {
         const m = metaSnap.data()
         metaRows.push({
           user_id: userId,
           updated_at: m.updatedAt || new Date().toISOString(),
-          has_data: Boolean(m.hasData),
+          has_data: Boolean(m.hasData) || hasAny,
           local_user_id: m.localUserId || null,
         })
-      }
-      const cols = await ws.ref.collection('collections').get()
-      for (const c of cols.docs) {
-        const data = c.data()
-        collectionRows.push({
+      } else {
+        metaRows.push({
           user_id: userId,
-          collection: c.id,
-          items: data.items || [],
-          updated_at: data.updatedAt || new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          has_data: hasAny,
+          local_user_id: null,
         })
       }
     }
+    console.log(`workspace owners: ${ownerIds.size}`)
     console.log(`workspace_collections: ${collectionRows.length}`)
     await upsert('workspace_collections', collectionRows)
     console.log(`workspace_meta: ${metaRows.length}`)

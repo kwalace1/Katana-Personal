@@ -232,14 +232,12 @@ export async function cloudWorkspaceHasData(cloudUid: string): Promise<boolean> 
       .eq('user_id', cloudUid)
       .maybeSingle()
     if (meta?.has_data) return true
-    const { data: tasks } = await supabase
+    // Don't rely on tasks alone — many users only have health/habit data.
+    const { data: rows } = await supabase
       .from('workspace_collections')
       .select('items')
       .eq('user_id', cloudUid)
-      .eq('collection', 'tasks')
-      .maybeSingle()
-    const items = tasks?.items
-    return Array.isArray(items) && items.length > 0
+    return (rows || []).some((row) => Array.isArray(row.items) && row.items.length > 0)
   } catch {
     return false
   }
@@ -276,9 +274,23 @@ export async function pushWorkspaceToCloud(input?: SyncContext): Promise<void> {
   const c = input || ctx
   if (!c) throw new Error('Not signed into Cloud yet.')
   await runLocked(async () => {
+    // Never blind-upload an empty device over a non-empty cloud workspace.
+    let localCount = 0
     const map = new Map<string, unknown[]>()
     for (const collection of SYNC_COLLECTIONS) {
-      map.set(collection, localDb.list(collection, c.localUserId))
+      const items = localDb.list(collection, c.localUserId)
+      localCount += items.length
+      map.set(collection, items)
+    }
+    if (localCount === 0) {
+      const remote = await fetchAllRemote(c.cloudUid)
+      let remoteCount = 0
+      for (const items of remote.values()) remoteCount += items.length
+      if (remoteCount > 0) {
+        throw new Error(
+          'This device has no personal data, but the cloud does. Use “Sync now” or “Use cloud copy” instead of uploading.',
+        )
+      }
     }
     const { now } = await commitWorkspace(c.cloudUid, c.localUserId, map)
     finishOk(c.cloudUid, now)
@@ -321,8 +333,9 @@ export function notifyWorkspaceDirty() {
   if (!ctx || suppressDirty) return
   if (needsWorkspaceMergeChoice(ctx.cloudUid)) return
   if (pushTimer) clearTimeout(pushTimer)
+  // Merge on dirty so a sparse/empty device cannot wipe richer cloud data.
   pushTimer = setTimeout(() => {
-    void pushWorkspaceToCloud().catch(() => {
+    void mergeWorkspaceBothWays().catch(() => {
       // optional while offline
     })
   }, 2500)
