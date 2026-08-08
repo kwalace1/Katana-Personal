@@ -134,7 +134,7 @@ export function CircleManageDialog({
                   {friends.length === 0 ? (
                     <>
                       No friends yet.{' '}
-                      <Link to="/friends" className="text-primary underline">
+                      <Link to="/social?tab=friends" className="text-primary underline">
                         Add friends
                       </Link>
                     </>

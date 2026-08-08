@@ -581,7 +581,7 @@ function answerCapabilities(_snap: LifeSnapshot): AskReply {
     actions: [
       { id: createId(), label: 'What should I work on?', kind: 'open_route', route: '/ask?q=What%20should%20I%20work%20on%20today' },
       { id: createId(), label: 'Open Today', kind: 'open_route', route: '/dashboard' },
-      { id: createId(), label: 'Invite a friend', kind: 'open_route', route: '/friends' },
+      { id: createId(), label: 'Invite a friend', kind: 'open_route', route: '/social?tab=friends' },
     ],
   }
 }
@@ -600,7 +600,7 @@ function answerTogether(q: string): AskReply {
         'Connect cloud if needed, then share your Add-me link from Today or Friends.',
       ]),
       actions: [
-        { id: createId(), label: 'Invite a friend', kind: 'open_route', route: '/friends' },
+        { id: createId(), label: 'Invite a friend', kind: 'open_route', route: '/social?tab=friends' },
         { id: createId(), label: 'Open Shared', kind: 'open_route', route: '/shared' },
       ],
     }
@@ -624,7 +624,7 @@ function answerTogether(q: string): AskReply {
     ]),
     actions: [
       { id: createId(), label: 'Open Circles', kind: 'open_route', route: '/circles' },
-      { id: createId(), label: 'Open Friends', kind: 'open_route', route: '/friends' },
+      { id: createId(), label: 'Open Friends', kind: 'open_route', route: '/social?tab=friends' },
     ],
   }
 }

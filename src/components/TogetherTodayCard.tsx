@@ -119,7 +119,7 @@ export function TogetherTodayCard() {
     >
       <div className="mb-3 flex items-center justify-between gap-2">
         <p className="kp-section-label">Together</p>
-        <Link to="/friends" className="text-xs font-medium text-primary hover:underline">
+        <Link to="/social?tab=friends" className="text-xs font-medium text-primary hover:underline">
           Open
         </Link>
       </div>
@@ -168,7 +168,7 @@ export function TogetherTodayCard() {
             </p>
           </div>
           <Button asChild className="gap-1.5">
-            <Link to="/friends">
+            <Link to="/social?tab=friends">
               <UserPlus className="h-4 w-4" />
               Review
             </Link>

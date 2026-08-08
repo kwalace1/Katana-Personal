@@ -82,7 +82,7 @@ export default function SharedPage() {
                   <Link to="/circles">Circle Schedule</Link>
                 </Button>
                 <Button asChild variant="outline">
-                  <Link to="/friends">Find friends</Link>
+                  <Link to="/social?tab=friends">Find friends</Link>
                 </Button>
               </div>
             }

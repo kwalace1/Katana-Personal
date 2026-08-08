@@ -51,7 +51,7 @@ export default function FriendInvitePage() {
     try {
       await requestFriend(cloudUser.uid, targetUid)
       toast.success('Friend request sent')
-      navigate('/friends')
+      navigate('/social?tab=friends')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Couldn’t send request')
     } finally {
@@ -108,7 +108,7 @@ export default function FriendInvitePage() {
           <p className="mt-3 text-sm text-muted-foreground">Loading invite…</p>
         )}
         <p className="mt-6 text-center text-xs text-muted-foreground">
-          <Link to="/friends" className="underline-offset-4 hover:underline">
+          <Link to="/social?tab=friends" className="underline-offset-4 hover:underline">
             Back to Friends
           </Link>
         </p>

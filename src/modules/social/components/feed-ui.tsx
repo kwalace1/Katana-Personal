@@ -17,11 +17,13 @@ export function relativeWhen(iso: string) {
 
 export function FeedAvatar({
   name,
+  photoURL,
   size = 'md',
   to,
   className,
 }: {
   name: string
+  photoURL?: string | null
   size?: 'sm' | 'md' | 'lg'
   to?: string
   className?: string
@@ -34,13 +36,25 @@ export function FeedAvatar({
         ? parts[0]!.slice(0, 2).toUpperCase()
         : `${parts[0]![0] ?? ''}${parts[1]![0] ?? ''}`.toUpperCase()
 
-  const node = (
+  const sizeCls =
+    size === 'sm' ? 'h-8 w-8 text-[0.65rem]' : size === 'lg' ? 'h-12 w-12 text-sm' : 'h-10 w-10 text-[0.7rem]'
+
+  const node = photoURL ? (
+    <img
+      src={photoURL}
+      alt=""
+      className={cn(
+        'shrink-0 rounded-full object-cover bg-secondary',
+        sizeCls,
+        to && 'transition hover:opacity-90',
+        className,
+      )}
+    />
+  ) : (
     <div
       className={cn(
         'flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary/90 to-[hsl(200_40%_32%)] font-semibold text-primary-foreground',
-        size === 'sm' && 'h-8 w-8 text-[0.65rem]',
-        size === 'md' && 'h-10 w-10 text-[0.7rem]',
-        size === 'lg' && 'h-12 w-12 text-sm',
+        sizeCls,
         to && 'transition hover:opacity-90',
         className,
       )}
@@ -58,5 +72,5 @@ export function FeedAvatar({
 }
 
 export function profilePath(uid: string) {
-  return `/feed/u/${encodeURIComponent(uid)}`
+  return `/social/u/${encodeURIComponent(uid)}`
 }

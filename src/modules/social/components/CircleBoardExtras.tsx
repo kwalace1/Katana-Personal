@@ -306,10 +306,10 @@ export function CircleBoardExtras({
             Circle chat
           </p>
           <Link
-            to={`/feed?circle=${encodeURIComponent(circleId)}`}
+            to={`/social?circle=${encodeURIComponent(circleId)}`}
             className="text-xs font-medium text-primary hover:underline"
           >
-            Open Feed
+            Open Social
           </Link>
         </div>
         <form onSubmit={(e) => void onPost(e)} className="mb-4 flex gap-2">

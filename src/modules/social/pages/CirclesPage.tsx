@@ -1050,7 +1050,7 @@ export default function CirclesPage() {
               <div className="flex flex-wrap justify-center gap-2">
                 <Button onClick={() => setCreateOpen(true)}>Create a circle</Button>
                 <Button asChild variant="outline">
-                  <Link to="/friends">Add friends first</Link>
+                  <Link to="/social?tab=friends">Add friends first</Link>
                 </Button>
               </div>
             }

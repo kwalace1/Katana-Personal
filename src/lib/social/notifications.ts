@@ -94,14 +94,14 @@ export async function notifyPostEngagement(input: {
         : `${name} reposted your post`
   const body =
     input.preview?.trim() ||
-    (input.kind === 'post_comment' ? 'Open Feed to read it' : 'Open Feed to see it')
+    (input.kind === 'post_comment' ? 'Open Social to read it' : 'Open Social to see it')
   try {
     await createNotification({
       uid: input.authorId,
       kind: input.kind,
       title,
       body: body.slice(0, 180),
-      href: '/feed',
+      href: '/social',
       meta: { postId: input.postId, actorId: input.actorId },
     })
   } catch {

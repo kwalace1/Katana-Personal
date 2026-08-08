@@ -89,7 +89,7 @@ export function ShareAudiencePicker({
     return (
       <p className="text-sm text-muted-foreground">
         Add friends or invite people to a circle to share while creating.{' '}
-        <Link to="/friends" className="text-primary underline">
+        <Link to="/social?tab=friends" className="text-primary underline">
           Friends
         </Link>
         {' · '}

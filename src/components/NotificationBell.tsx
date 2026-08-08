@@ -114,14 +114,14 @@ export function NotificationBell() {
                 const href =
                   n.href ||
                   (n.kind === 'circle_invite' || n.kind === 'friend_request'
-                    ? '/friends#invites'
+                    ? '/social?tab=friends#invites'
                     : n.kind === 'circle_joined'
                       ? '/circles'
                       : n.kind === 'post_like' ||
                           n.kind === 'post_comment' ||
                           n.kind === 'post_repost'
-                        ? '/feed'
-                        : '/friends')
+                        ? '/social'
+                        : '/social?tab=friends')
                 navigate(href)
               }}
             >

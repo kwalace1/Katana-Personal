@@ -1,7 +1,7 @@
 import { getSupabase } from '@/lib/supabase'
 import { createId } from '@/lib/id'
 import { listMyCircles } from '@/lib/social/circles'
-import { listFriendProfiles, getCloudProfile, type Unsubscribe } from '@/lib/social/friends'
+import { listFriendProfiles, getCloudProfile, getCloudProfiles, resolveProfilePhotoUrl, type Unsubscribe } from '@/lib/social/friends'
 
 export const FEED_TEXT_MAX = 500
 export const FEED_IMAGE_MAX_BYTES = 5 * 1024 * 1024
@@ -339,6 +339,20 @@ export async function listPostsByAuthor(
   const raw = (data || []).map((d) => mapPost(d as PostRow))
   const hydrated = await hydrateMediaUrls(raw)
   return rankFeedPosts(hydrated)
+}
+
+export async function resolveAuthorPhotos(
+  authorIds: string[],
+): Promise<Record<string, string | null>> {
+  const unique = [...new Set(authorIds.filter(Boolean))]
+  const out: Record<string, string | null> = {}
+  const profiles = await getCloudProfiles(unique)
+  await Promise.all(
+    profiles.map(async (p) => {
+      out[p.uid] = await resolveProfilePhotoUrl(p.photoURL)
+    }),
+  )
+  return out
 }
 
 export async function resolveAuthorNames(

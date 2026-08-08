@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useParams } from 'react-router-dom'
 import { AuthGuard } from '@/components/AuthGuard'
 import { AppShell } from '@/components/layout/AppShell'
 import { useAuth } from '@/contexts/AuthContext'
@@ -43,6 +43,11 @@ function RootRedirect() {
   return <Navigate to={user ? '/dashboard' : '/'} replace />
 }
 
+function FeedProfileRedirect() {
+  const { uid } = useParams()
+  return <Navigate to={`/social/u/${uid ?? ''}`} replace />
+}
+
 export default function App() {
   return (
     <Routes>
@@ -62,9 +67,11 @@ export default function App() {
       <Route path="/health" element={<Protected><HealthPage /></Protected>} />
       <Route path="/documents" element={<Protected><DocumentsPage /></Protected>} />
       <Route path="/ask" element={<Protected><AskPage /></Protected>} />
+      <Route path="/social" element={<Protected><FeedPage /></Protected>} />
+      <Route path="/social/u/:uid" element={<Protected><FeedProfilePage /></Protected>} />
       <Route path="/friends" element={<Protected><FriendsPage /></Protected>} />
-      <Route path="/feed" element={<Protected><FeedPage /></Protected>} />
-      <Route path="/feed/u/:uid" element={<Protected><FeedProfilePage /></Protected>} />
+      <Route path="/feed" element={<Navigate to="/social" replace />} />
+      <Route path="/feed/u/:uid" element={<FeedProfileRedirect />} />
       <Route path="/circles" element={<Protected><CirclesPage /></Protected>} />
       <Route path="/shared" element={<Protected><SharedPage /></Protected>} />
       <Route path="/settings" element={<Protected><SettingsPage /></Protected>} />

@@ -8,7 +8,7 @@ const STEPS = [
     n: 1,
     title: 'Friends',
     body: 'People you trust — invite with a link or code.',
-    to: '/friends',
+    to: '/social?tab=friends',
     icon: Users,
   },
   {

@@ -124,7 +124,7 @@ export default function AskPage() {
           id: createId(),
           label: 'Invite a friend',
           kind: 'open_route',
-          route: '/friends',
+          route: '/social?tab=friends',
         })
       }
       askApi.append(userId, {

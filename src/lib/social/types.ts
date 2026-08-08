@@ -6,6 +6,8 @@ export interface CloudProfile {
   email: string
   friendCode: string
   photoURL?: string | null
+  /** Short public bio on Social profile */
+  bio?: string | null
   /** Opt-in categories friends can see on Circles / activity */
   sharePrefs: SharePrefs
   createdAt: string

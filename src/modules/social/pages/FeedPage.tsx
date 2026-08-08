@@ -33,6 +33,7 @@ import {
   FEED_TEXT_MAX,
   loadOlderTogetherPosts,
   resolveAuthorNames,
+  resolveAuthorPhotos,
   subscribeTogetherFeed,
   type FeedAudience,
   type FeedCard,
@@ -42,13 +43,16 @@ import {
   loadEngagementForPosts,
   type PostEngagement,
 } from '@/lib/social/feed-engagement'
+import { resolveProfilePhotoUrl } from '@/lib/social/friends'
 import type { CircleGroup } from '@/lib/social/types'
 import { goalsApi } from '@/modules/goals/api'
 import { habitsApi } from '@/modules/habits/api'
 import { liftApi } from '@/modules/health/lift-api'
 import { healthApi } from '@/modules/health/api'
 import { FeedPostCard } from '@/modules/social/components/FeedPostCard'
+import { FriendsPanel } from '@/modules/social/components/FriendsPanel'
 import { FeedAvatar, profilePath } from '@/modules/social/components/feed-ui'
+import { useSharedSocialInbox } from '@/contexts/SocialInboxContext'
 import { cn } from '@/lib/utils'
 import { formatShortDate } from '@/lib/dates'
 
@@ -85,11 +89,15 @@ function ComposeTypeButton({
 export default function FeedPage() {
   const { user } = useAuth()
   const { cloudEnabled, cloudUser, cloudProfile } = useCloudAuth()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const { pendingCount } = useSharedSocialInbox()
   const localUserId = user!.id
+  const tab = searchParams.get('tab') === 'friends' ? 'friends' : 'feed'
 
   const [posts, setPosts] = useState<RankedPost[]>([])
   const [names, setNames] = useState<Record<string, string>>({})
+  const [photos, setPhotos] = useState<Record<string, string | null>>({})
+  const [selfPhoto, setSelfPhoto] = useState<string | null>(null)
   const [engagement, setEngagement] = useState<Record<string, PostEngagement>>({})
   const [circles, setCircles] = useState<CircleGroup[]>([])
   const [loading, setLoading] = useState(true)
@@ -120,6 +128,27 @@ export default function FeedPage() {
   }, [circles])
 
   useEffect(() => {
+    if (!cloudProfile?.photoURL) {
+      setSelfPhoto(null)
+      return
+    }
+    let cancelled = false
+    void resolveProfilePhotoUrl(cloudProfile.photoURL).then((url) => {
+      if (!cancelled) setSelfPhoto(url)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [cloudProfile?.photoURL])
+
+  function setTab(next: 'feed' | 'friends') {
+    const params = new URLSearchParams(searchParams)
+    if (next === 'friends') params.set('tab', 'friends')
+    else params.delete('tab')
+    setSearchParams(params, { replace: true })
+  }
+
+  useEffect(() => {
     const pre = searchParams.get('circle')
     if (pre) {
       setAudience('circle')
@@ -144,6 +173,7 @@ export default function FeedPage() {
           ...(p.repost ? [p.repost.authorId] : []),
         ])
         void resolveAuthorNames(authorIds).then(setNames)
+        void resolveAuthorPhotos(authorIds).then(setPhotos)
         void loadEngagementForPosts(
           next.map((p) => p.id),
           cloudUser.uid,
@@ -297,6 +327,9 @@ export default function FeedPage() {
       void resolveAuthorNames(
         older.flatMap((p) => [p.authorId, ...(p.repost ? [p.repost.authorId] : [])]),
       ).then((extra) => setNames((n) => ({ ...n, ...extra })))
+      void resolveAuthorPhotos(
+        older.flatMap((p) => [p.authorId, ...(p.repost ? [p.repost.authorId] : [])]),
+      ).then((extra) => setPhotos((n) => ({ ...n, ...extra })))
       void loadEngagementForPosts(
         older.map((p) => p.id),
         cloudUser.uid,
@@ -311,7 +344,7 @@ export default function FeedPage() {
   if (!cloudEnabled) {
     return (
       <motion.div {...pageEnterSubtle} className="kp-page mx-auto max-w-xl px-0 sm:px-6">
-        <FeedHero />
+        <SocialHero tab={tab} onTabChange={setTab} pendingFriends={0} />
         <div className="px-4 sm:px-0">
           <TogetherSetup />
         </div>
@@ -322,10 +355,10 @@ export default function FeedPage() {
   if (!cloudUser) {
     return (
       <motion.div {...pageEnterSubtle} className="kp-page mx-auto max-w-xl px-0 sm:px-6">
-        <FeedHero />
+        <SocialHero tab={tab} onTabChange={setTab} pendingFriends={0} />
         <div className="px-4 sm:px-0">
           <EmptyState
-            title="Connect to open Feed"
+            title="Connect to open Social"
             description="Friends and Circles stay opt-in. Private life stays on this device."
             action={
               <Button asChild>
@@ -342,11 +375,15 @@ export default function FeedPage() {
 
   return (
     <motion.div {...pageEnterSubtle} className="relative mx-auto w-full max-w-xl overflow-x-hidden pb-28">
-      <FeedHero />
+      <SocialHero tab={tab} onTabChange={setTab} pendingFriends={pendingCount} />
 
+      {tab === 'friends' ? (
+        <FriendsPanel embedded />
+      ) : (
+        <>
       {/* Composer — avatar opens your profile */}
       <div className="flex items-center gap-3 border-b border-border/50 px-4 py-3 sm:px-5">
-        <FeedAvatar name={selfName} size="lg" to={profilePath(cloudUser.uid)} />
+        <FeedAvatar name={selfName} photoURL={selfPhoto} size="lg" to={profilePath(cloudUser.uid)} />
         <button
           type="button"
           onClick={() => setPickerOpen(true)}
@@ -374,12 +411,17 @@ export default function FeedPage() {
           <EmptyState
             icon={Newspaper}
             title="Your feed is waiting"
-            description="Post a photo, a quick update, or a win from Goals & Habits. Circles show up first — private life stays on this device."
+            description="Share a photo with a caption, a quick update, or a win — then invite friends so you can support each other."
             action={
-              <Button className="gap-1.5" onClick={() => setPickerOpen(true)}>
-                <Plus className="h-4 w-4" />
-                Create your first post
-              </Button>
+              <div className="flex flex-wrap justify-center gap-2">
+                <Button className="gap-1.5" onClick={() => setPickerOpen(true)}>
+                  <Plus className="h-4 w-4" />
+                  Create your first post
+                </Button>
+                <Button variant="outline" onClick={() => setTab('friends')}>
+                  Add friends
+                </Button>
+              </div>
             }
           />
         </div>
@@ -397,6 +439,9 @@ export default function FeedPage() {
               authorName={
                 post.authorId === cloudUser.uid ? selfName : names[post.authorId] || 'Friend'
               }
+              authorPhotoURL={
+                post.authorId === cloudUser.uid ? selfPhoto : photos[post.authorId]
+              }
               selfUid={cloudUser.uid}
               selfName={selfName}
               circleName={post.circleId ? circleNames[post.circleId] : undefined}
@@ -413,6 +458,7 @@ export default function FeedPage() {
               }
               onDeleted={() => setPosts((p) => p.filter((x) => x.id !== post.id))}
               names={names}
+              photos={photos}
               onNames={(extra) => setNames((n) => ({ ...n, ...extra }))}
             />
           ))}
@@ -423,8 +469,11 @@ export default function FeedPage() {
           </div>
         </motion.div>
       )}
+        </>
+      )}
 
-      {/* Floating create button */}
+      {tab === 'feed' ? (
+      <>
       <motion.button
         type="button"
         aria-label="New post"
@@ -540,22 +589,29 @@ export default function FeedPage() {
           <form onSubmit={(e) => void onSubmit(e)} className="flex min-h-0 flex-1 flex-col">
             <div className="space-y-3 overflow-y-auto px-5 py-4">
               <div className="flex gap-3">
-                <FeedAvatar name={selfName} />
-                <Textarea
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  placeholder={
-                    composeKind === 'card'
-                      ? 'Add a caption for your win…'
-                      : composeKind === 'photo' || composeKind === 'video'
-                        ? 'Write a caption…'
-                        : 'What’s going on?'
-                  }
-                  maxLength={FEED_TEXT_MAX}
-                  rows={4}
-                  autoFocus
-                  className="min-h-[100px] flex-1 resize-none border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
-                />
+                <FeedAvatar name={selfName} photoURL={selfPhoto} />
+                <div className="min-w-0 flex-1 space-y-1">
+                  <Textarea
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    placeholder={
+                      composeKind === 'card'
+                        ? 'Add a caption for your win…'
+                        : composeKind === 'photo' || composeKind === 'video'
+                          ? 'Write a caption (optional)…'
+                          : 'What’s going on?'
+                    }
+                    maxLength={FEED_TEXT_MAX}
+                    rows={4}
+                    autoFocus
+                    className="min-h-[100px] w-full resize-none border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
+                  />
+                  {composeKind === 'photo' || composeKind === 'video' ? (
+                    <p className="text-xs text-muted-foreground">
+                      Add a caption if you want — media alone is fine too.
+                    </p>
+                  ) : null}
+                </div>
               </div>
 
               {previews.length > 0 ? (
@@ -716,21 +772,54 @@ export default function FeedPage() {
           </form>
         </SheetContent>
       </Sheet>
+      </>
+      ) : null}
     </motion.div>
   )
 }
 
-function FeedHero() {
+function SocialHero({
+  tab,
+  onTabChange,
+  pendingFriends,
+}: {
+  tab: 'feed' | 'friends'
+  onTabChange: (tab: 'feed' | 'friends') => void
+  pendingFriends: number
+}) {
   return (
-    <header className="sticky top-0 z-20 border-b border-border/50 bg-background/90 px-4 py-3 backdrop-blur-md sm:px-5">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="font-display text-xl tracking-tight sm:text-2xl">Feed</h1>
-          <p className="text-xs text-muted-foreground">Friends & Circles · only what people share</p>
-        </div>
-        <Button asChild type="button" size="sm" variant="outline" className="shrink-0">
-          <Link to="/friends">Friends</Link>
-        </Button>
+    <header className="sticky top-0 z-20 border-b border-border/50 bg-background/90 backdrop-blur-md">
+      <div className="px-4 pt-3 sm:px-5">
+        <h1 className="font-display text-xl tracking-tight sm:text-2xl">Social</h1>
+        <p className="text-xs text-muted-foreground">
+          Grow together — share progress, support friends, stay accountable.
+        </p>
+      </div>
+      <div className="mt-3 flex px-2 sm:px-3">
+        <button
+          type="button"
+          onClick={() => onTabChange('feed')}
+          className={cn(
+            'flex-1 border-b-2 px-3 py-2.5 text-sm font-semibold transition',
+            tab === 'feed'
+              ? 'border-primary text-foreground'
+              : 'border-transparent text-muted-foreground hover:text-foreground',
+          )}
+        >
+          Feed
+        </button>
+        <button
+          type="button"
+          onClick={() => onTabChange('friends')}
+          className={cn(
+            'flex-1 border-b-2 px-3 py-2.5 text-sm font-semibold transition',
+            tab === 'friends'
+              ? 'border-primary text-foreground'
+              : 'border-transparent text-muted-foreground hover:text-foreground',
+          )}
+        >
+          Friends{pendingFriends > 0 ? ` (${pendingFriends})` : ''}
+        </button>
       </div>
     </header>
   )

@@ -138,7 +138,7 @@ export async function inviteFriendToCircle(input: {
       kind: 'circle_invite',
       title: 'Circle invite',
       body: `${inviter?.displayName || 'A friend'} invited you to “${input.circle.name}”.`,
-      href: '/friends#invites',
+      href: '/social?tab=friends#invites',
       meta: { circleId: input.circle.id, token },
     })
   } catch {

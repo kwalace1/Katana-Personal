@@ -155,7 +155,7 @@ export default function DashboardPage() {
                 pending.length === 1
                   ? 'Friend request waiting'
                   : `${pending.length} friend requests`,
-              to: '/friends',
+              to: '/social?tab=friends',
             })
           return
         }

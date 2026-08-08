@@ -316,7 +316,7 @@ export default function SettingsPage() {
                   Copy add-me link
                 </Button>
                 <Button asChild size="sm" variant="outline">
-                  <a href="/friends">Open Friends</a>
+                  <a href="/social?tab=friends">Open Friends</a>
                 </Button>
               </div>
             </div>

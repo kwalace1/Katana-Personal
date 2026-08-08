@@ -47,7 +47,7 @@ describe('Ask engine (no LLM)', () => {
     const reply = answerQuestionWithActions(USER, 'What can you do?', 'Alex')
     expect(reply.text.toLowerCase()).toMatch(/day guide|daily os|task|action/)
     expect(reply.text.toLowerCase()).not.toMatch(/no cloud ai/)
-    expect(reply.actions.some((a) => a.route === '/friends' || a.route === '/dashboard' || a.route?.includes('/ask'))).toBe(
+    expect(reply.actions.some((a) => a.route === '/social?tab=friends' || a.route === '/dashboard' || a.route?.includes('/ask'))).toBe(
       true,
     )
   })
@@ -79,7 +79,7 @@ describe('Ask engine (no LLM)', () => {
 
   it('routes invite a friend to Together', () => {
     const reply = answerQuestionWithActions(USER, 'Invite a friend', 'Alex')
-    expect(reply.actions.some((a) => a.route === '/friends')).toBe(true)
+    expect(reply.actions.some((a) => a.route === '/social?tab=friends')).toBe(true)
     expect(reply.text.toLowerCase()).toMatch(/friend|invite|together/)
   })
 

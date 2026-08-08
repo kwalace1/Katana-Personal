@@ -27,6 +27,7 @@ type ProfileRow = {
   display_name: string
   friend_code: string
   photo_url?: string | null
+  bio?: string | null
   share_prefs?: SharePrefs | null
   created_at: string
   updated_at: string
@@ -39,6 +40,7 @@ function mapProfile(row: ProfileRow): CloudProfile {
     displayName: row.display_name || 'Friend',
     friendCode: row.friend_code,
     photoURL: row.photo_url ?? null,
+    bio: row.bio ?? null,
     sharePrefs: { ...DEFAULT_SHARE_PREFS, ...(row.share_prefs || {}) },
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -154,13 +156,41 @@ export function friendshipRelation(
 
 export async function updateCloudProfile(
   uid: string,
-  patch: Partial<Pick<CloudProfile, 'displayName' | 'sharePrefs'>>,
+  patch: Partial<Pick<CloudProfile, 'displayName' | 'sharePrefs' | 'photoURL' | 'bio'>>,
 ): Promise<void> {
   const row: Record<string, unknown> = { updated_at: new Date().toISOString() }
   if (patch.displayName != null) row.display_name = patch.displayName
   if (patch.sharePrefs != null) row.share_prefs = patch.sharePrefs
+  if (patch.photoURL !== undefined) row.photo_url = patch.photoURL
+  if (patch.bio !== undefined) row.bio = patch.bio
   const { error } = await getSupabase().from('profiles').update(row).eq('uid', uid)
   if (error) throw error
+}
+
+/** Upload a square-ish avatar into the together bucket; stores the object path on the profile. */
+export async function uploadProfilePhoto(uid: string, file: File): Promise<string> {
+  if (!file.type.startsWith('image/')) throw new Error('Choose a photo')
+  if (file.size > 5 * 1024 * 1024) throw new Error('Photos must be under 5 MB')
+  const ext = file.type.includes('png') ? 'png' : file.type.includes('webp') ? 'webp' : 'jpg'
+  const objectPath = `${uid}/profile/avatar.${ext}`
+  const supabase = getSupabase()
+  const { error: upErr } = await supabase.storage.from('together').upload(objectPath, file, {
+    contentType: file.type,
+    upsert: true,
+  })
+  if (upErr) throw upErr
+  await updateCloudProfile(uid, { photoURL: objectPath })
+  return objectPath
+}
+
+/** Resolve a stored photo path (or absolute URL) to a displayable URL. */
+export async function resolveProfilePhotoUrl(photo: string | null | undefined): Promise<string | null> {
+  if (!photo) return null
+  if (/^https?:\/\//i.test(photo)) return photo
+  const path = photo.replace(/^together\//, '')
+  const { data, error } = await getSupabase().storage.from('together').createSignedUrl(path, 60 * 60 * 24 * 7)
+  if (error || !data?.signedUrl) return null
+  return data.signedUrl
 }
 
 export async function findUidByFriendCode(code: string): Promise<string | null> {
@@ -235,7 +265,7 @@ export async function requestFriend(fromUid: string, toUid: string): Promise<Fri
     kind: 'friend_request',
     title: 'Friend request',
     body: `${from?.displayName || 'Someone'} sent you a friend request.`,
-    href: '/friends#invites',
+    href: '/social?tab=friends#invites',
     meta: { fromUid },
   })
   return mapFriendship(data as FriendshipRow)
@@ -260,7 +290,7 @@ export async function acceptFriend(uid: string, friendshipId: string): Promise<v
     kind: 'friend_accepted',
     title: 'Friend request accepted',
     body: `${accepter?.displayName || 'Someone'} accepted your request.`,
-    href: '/friends',
+    href: '/social?tab=friends',
   })
 }
 

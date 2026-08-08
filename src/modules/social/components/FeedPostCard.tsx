@@ -40,6 +40,7 @@ import { FeedAvatar, profilePath, relativeWhen } from './feed-ui'
 type Props = {
   post: RankedPost
   authorName: string
+  authorPhotoURL?: string | null
   selfUid: string
   selfName: string
   circleName?: string
@@ -47,6 +48,7 @@ type Props = {
   onEngagementChange: (next: PostEngagement) => void
   onDeleted: () => void
   names: Record<string, string>
+  photos?: Record<string, string | null>
   onNames: (extra: Record<string, string>) => void
 }
 
@@ -104,6 +106,7 @@ function MediaBlock({
 export function FeedPostCard({
   post,
   authorName,
+  authorPhotoURL,
   selfUid,
   selfName,
   circleName,
@@ -111,6 +114,7 @@ export function FeedPostCard({
   onEngagementChange,
   onDeleted,
   names,
+  photos,
   onNames,
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -267,7 +271,7 @@ export function FeedPostCard({
       ) : null}
 
       <div className="flex gap-3">
-        <FeedAvatar name={authorName} to={profileTo} />
+        <FeedAvatar name={authorName} photoURL={authorPhotoURL} to={profileTo} />
         <div className="min-w-0 flex-1">
           <div className="flex items-start gap-2">
             <div className="min-w-0 flex-1">
@@ -345,7 +349,16 @@ export function FeedPostCard({
           {post.repost ? (
             <div className="mt-2 rounded-2xl border border-border/60 bg-card/60 p-3">
               <div className="flex items-center gap-2">
-                <FeedAvatar name={originalAuthorName || 'Friend'} size="sm" to={profilePath(post.repost.authorId)} />
+                <FeedAvatar
+                  name={originalAuthorName || 'Friend'}
+                  photoURL={
+                    post.repost.authorId === selfUid
+                      ? authorPhotoURL
+                      : photos?.[post.repost.authorId]
+                  }
+                  size="sm"
+                  to={profilePath(post.repost.authorId)}
+                />
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold">{originalAuthorName}</p>
                   <p className="text-xs text-muted-foreground">{relativeWhen(post.repost.createdAt)}</p>
@@ -429,7 +442,12 @@ export function FeedPostCard({
                 const name = c.authorId === selfUid ? selfName : names[c.authorId] || 'Friend'
                 return (
                   <div key={c.id} className="flex gap-2.5">
-                    <FeedAvatar name={name} size="sm" to={profilePath(c.authorId)} />
+                    <FeedAvatar
+                      name={name}
+                      photoURL={photos?.[c.authorId]}
+                      size="sm"
+                      to={profilePath(c.authorId)}
+                    />
                     <div className="min-w-0 flex-1 rounded-2xl bg-secondary/50 px-3 py-2">
                       <div className="flex items-baseline justify-between gap-2">
                         <Link to={profilePath(c.authorId)} className="text-sm font-semibold hover:underline">
