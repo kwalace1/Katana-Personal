@@ -313,23 +313,32 @@ export function subscribeFriendships(
 
   refresh()
 
-  const channel = supabase
-    .channel(`friendships:${uid}`)
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'friendships', filter: `a=eq.${uid}` },
-      refresh,
-    )
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'friendships', filter: `b=eq.${uid}` },
-      refresh,
-    )
-    .subscribe()
+  const topic = `friendships:${uid}:${crypto.randomUUID?.() || String(Date.now())}`
+  try {
+    const channel = supabase
+      .channel(topic)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'friendships', filter: `a=eq.${uid}` },
+        refresh,
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'friendships', filter: `b=eq.${uid}` },
+        refresh,
+      )
+      .subscribe()
 
-  return () => {
-    cancelled = true
-    void supabase.removeChannel(channel)
+    return () => {
+      cancelled = true
+      void supabase.removeChannel(channel)
+    }
+  } catch (err) {
+    console.warn('Realtime friendships unavailable; polling only', err)
+    onError?.(err instanceof Error ? err : new Error(String(err)))
+    return () => {
+      cancelled = true
+    }
   }
 }
 

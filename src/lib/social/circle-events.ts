@@ -73,18 +73,27 @@ export function subscribeCircleEvents(
 
   refresh()
 
-  const channel = supabase
-    .channel(`circle_events:${circleId}`)
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'circle_events', filter: `circle_id=eq.${circleId}` },
-      refresh,
-    )
-    .subscribe()
+  const topic = `circle_events:${circleId}:${crypto.randomUUID?.() || String(Date.now())}`
+  try {
+    const channel = supabase
+      .channel(topic)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'circle_events', filter: `circle_id=eq.${circleId}` },
+        refresh,
+      )
+      .subscribe()
 
-  return () => {
-    cancelled = true
-    void supabase.removeChannel(channel)
+    return () => {
+      cancelled = true
+      void supabase.removeChannel(channel)
+    }
+  } catch (err) {
+    console.warn('Realtime circle events unavailable', err)
+    onError?.(err instanceof Error ? err : new Error(String(err)))
+    return () => {
+      cancelled = true
+    }
   }
 }
 

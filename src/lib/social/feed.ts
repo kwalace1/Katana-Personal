@@ -270,14 +270,23 @@ export function subscribeTogetherFeed(
 
   refresh()
 
-  const channel = supabase
-    .channel(`together_feed:${viewerUid}`)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'together_posts' }, refresh)
-    .subscribe()
+  const topic = `together_feed:${viewerUid}:${crypto.randomUUID?.() || String(Date.now())}`
+  try {
+    const channel = supabase
+      .channel(topic)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'together_posts' }, refresh)
+      .subscribe()
 
-  return () => {
-    cancelled = true
-    void supabase.removeChannel(channel)
+    return () => {
+      cancelled = true
+      void supabase.removeChannel(channel)
+    }
+  } catch (err) {
+    console.warn('Realtime feed unavailable', err)
+    onError?.(err instanceof Error ? err : new Error(String(err)))
+    return () => {
+      cancelled = true
+    }
   }
 }
 

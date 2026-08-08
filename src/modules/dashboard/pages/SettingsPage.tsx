@@ -428,7 +428,7 @@ export default function SettingsPage() {
               <Button type="submit" disabled={busy} className="w-full">
                 {busy ? 'Working…' : cloudMode === 'signup' ? 'Create free account' : 'Sign in'}
               </Button>
-              <p className="text-center text-[10px] text-muted-foreground/70">Cloud build 2026-08-07-cloud2</p>
+              <p className="text-center text-[10px] text-muted-foreground/70">Cloud build 2026-08-07-cloud3</p>
             </form>
           </div>
         )}

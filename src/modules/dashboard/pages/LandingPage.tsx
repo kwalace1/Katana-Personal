@@ -412,7 +412,7 @@ export default function LandingPage() {
                     'Sign in & open'
                   )}
                 </Button>
-                <p className="text-center text-[10px] text-muted-foreground/70">Cloud build 2026-08-07-cloud2</p>
+                <p className="text-center text-[10px] text-muted-foreground/70">Cloud build 2026-08-07-cloud3</p>
                 {cloudEnabled && appleSignInAvailable ? (
                   <>
                     <p className="text-center text-xs text-muted-foreground">or</p>

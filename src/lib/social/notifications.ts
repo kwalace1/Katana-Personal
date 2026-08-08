@@ -102,18 +102,28 @@ export function subscribeNotifications(
 
   refresh()
 
-  const channel = supabase
-    .channel(`notifications:${uid}`)
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'notifications', filter: `uid=eq.${uid}` },
-      refresh,
-    )
-    .subscribe()
+  // Unique topic per subscriber — reusing `notifications:${uid}` throws if two
+  // components subscribe (bell + toast) because .on() after subscribe() is forbidden.
+  const topic = `notifications:${uid}:${createId()}`
+  try {
+    const channel = supabase
+      .channel(topic)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'notifications', filter: `uid=eq.${uid}` },
+        refresh,
+      )
+      .subscribe()
 
-  return () => {
-    cancelled = true
-    void supabase.removeChannel(channel)
+    return () => {
+      cancelled = true
+      void supabase.removeChannel(channel)
+    }
+  } catch (err) {
+    console.warn('Realtime notifications unavailable; polling only', err)
+    return () => {
+      cancelled = true
+    }
   }
 }
 

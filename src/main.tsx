@@ -39,9 +39,19 @@ class ErrorBoundary extends React.Component<
     if (this.state.hasError) {
       return (
         <div className="flex min-h-screen items-center justify-center p-6">
-          <div className="kp-surface max-w-md p-6">
+          <div className="kp-surface max-w-md space-y-3 p-6">
             <h1 className="font-display text-2xl">Something went wrong</h1>
             <p className="mt-2 text-sm text-muted-foreground">{this.state.error?.message}</p>
+            <button
+              type="button"
+              className="rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+              onClick={() => {
+                this.setState({ hasError: false, error: null })
+                window.location.assign('/dashboard')
+              }}
+            >
+              Back to Today
+            </button>
           </div>
         </div>
       )
@@ -50,7 +60,7 @@ class ErrorBoundary extends React.Component<
   }
 }
 
-const APP_BUILD = '2026-08-07-cloud2'
+const APP_BUILD = '2026-08-07-cloud3'
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
