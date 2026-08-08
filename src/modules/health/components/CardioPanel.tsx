@@ -62,10 +62,10 @@ export function CardioPanel({ userId, logDate, tick, refresh }: Props) {
     }
     toast.success('Cardio activity saved')
     burstConfetti()
-    const minutes = Number(row.duration_minutes) || 0
+    const durationMinutes = Number(row.duration_minutes) || 0
     const priorSameDay = entries.filter((e) => e.date === date && e.id !== row.id).length
     const { workoutStreak } = computeLocalStreaks(userId)
-    const personalBest = isCardioPersonalBest(userId, activity.trim(), minutes, row.id)
+    const personalBest = isCardioPersonalBest(userId, activity.trim(), durationMinutes, row.id)
     if (priorSameDay === 0 && isStreakMilestone(workoutStreak)) {
       offerShareWin(
         buildHealthStreakShareCard({
@@ -74,11 +74,11 @@ export function CardioPanel({ userId, logDate, tick, refresh }: Props) {
           detail: activity.trim(),
         }),
       )
-    } else if (personalBest || minutes >= 60) {
+    } else if (personalBest || durationMinutes >= 60) {
       offerShareWin(
         buildCardioShareCard({
           activity: activity.trim(),
-          minutes,
+          minutes: durationMinutes,
           dateLabel: formatLiftDate(date),
           personalBest,
         }),
