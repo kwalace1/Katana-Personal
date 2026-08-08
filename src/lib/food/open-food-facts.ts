@@ -6,9 +6,6 @@
 
 const OFF_SEARCH = 'https://world.openfoodfacts.org/api/v2/search'
 const OFF_PRODUCT = 'https://world.openfoodfacts.org/api/v2/product'
-/** Identify the app per Open Food Facts API guidelines (browsers may ignore custom UA). */
-const OFF_USER_AGENT = 'KatanaPersonal/1.0 (https://katana-personal.vercel.app)'
-
 export type FoodHit = {
   code: string
   name: string
@@ -90,11 +87,10 @@ export function macrosForGrams(hit: FoodHit, grams: number) {
 }
 
 async function offFetch(url: string): Promise<Response> {
+  // Keep headers CORS-simple. Custom X-* headers trigger a preflight that OFF rejects.
   return fetch(url, {
     headers: {
       Accept: 'application/json',
-      // Custom header helps identify us when User-Agent cannot be set in browsers
-      'X-App-Name': OFF_USER_AGENT,
     },
   })
 }

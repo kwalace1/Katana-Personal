@@ -60,7 +60,7 @@ class ErrorBoundary extends React.Component<
   }
 }
 
-const APP_BUILD = '2026-08-07-cloud4'
+const APP_BUILD = '2026-08-08-off-sw1'
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {

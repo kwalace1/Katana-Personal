@@ -1,5 +1,5 @@
 /* Katana Personal — offline icons only; never pin HTML so deploys show up */
-const CACHE = 'katana-shell-v6'
+const CACHE = 'katana-shell-v7'
 const SHELL = ['/manifest.webmanifest', '/icons/katana-192.png', '/icons/katana-512.png']
 
 function shouldBypassCache(url) {
@@ -38,7 +38,12 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return
 
   const url = new URL(request.url)
-  if (url.origin === self.location.origin && shouldBypassCache(url)) {
+
+  // Never intercept third-party APIs (Open Food Facts, Supabase, etc.) —
+  // a failed cache fallback would return null and break the page fetch.
+  if (url.origin !== self.location.origin) return
+
+  if (shouldBypassCache(url)) {
     return
   }
 
@@ -48,7 +53,9 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(request)
         .then((res) => res)
-        .catch(() => caches.match('/index.html').then((r) => r || caches.match('/'))),
+        .catch(() =>
+          caches.match('/index.html').then((r) => r || caches.match('/') || Response.error()),
+        ),
     )
     return
   }
@@ -59,7 +66,6 @@ self.addEventListener('fetch', (event) => {
       .then((res) => {
         if (
           res.ok &&
-          url.origin === self.location.origin &&
           !shouldBypassCache(url) &&
           (url.pathname.startsWith('/assets/') || SHELL.includes(url.pathname))
         ) {
@@ -68,7 +74,7 @@ self.addEventListener('fetch', (event) => {
         }
         return res
       })
-      .catch(() => caches.match(request)),
+      .catch(() => caches.match(request).then((r) => r || Response.error())),
   )
 })
 
