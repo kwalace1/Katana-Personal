@@ -134,6 +134,8 @@ export default function CirclesPage() {
   const [busy, setBusy] = useState(false)
   const [newName, setNewName] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
+  const [createInvitees, setCreateInvitees] = useState<string[]>([])
+  const [createBusy, setCreateBusy] = useState(false)
   const [manageOpen, setManageOpen] = useState(false)
   const [editName, setEditName] = useState('')
   const [pendingInvites, setPendingInvites] = useState<{ token: string; inviteeUid: string }[]>([])
@@ -378,21 +380,55 @@ export default function CirclesPage() {
 
   async function onCreate(e: FormEvent) {
     e.preventDefault()
-    if (!cloudUser || !newName.trim()) return
+    if (!cloudUser || !newName.trim() || createBusy) return
+    setCreateBusy(true)
     try {
+      const invitees = [...createInvitees]
       const circle = await createCircle({
         name: newName,
         ownerId: cloudUser.uid,
         memberIds: [],
       })
+      let invited = 0
+      const inviteErrors: string[] = []
+      for (const uid of invitees) {
+        try {
+          await inviteFriendToCircle({
+            circle,
+            createdBy: cloudUser.uid,
+            inviteeUid: uid,
+          })
+          invited += 1
+        } catch (err) {
+          inviteErrors.push(err instanceof Error ? err.message : 'Invite failed')
+        }
+      }
       setNewName('')
+      setCreateInvitees([])
       setCreateOpen(false)
-      toast.success('Circle created — invite friends from Manage')
+      if (invited > 0) {
+        toast.success(
+          `Circle created — ${invited} invite${invited === 1 ? '' : 's'} sent`,
+        )
+      } else {
+        toast.success('Circle created — invite friends anytime from Manage')
+      }
+      if (inviteErrors.length > 0) {
+        toast.error(inviteErrors[0]!)
+      }
       await loadCirclesList()
       enterCircle(circle.id)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Couldn’t create circle')
+    } finally {
+      setCreateBusy(false)
     }
+  }
+
+  function toggleCreateInvitee(uid: string) {
+    setCreateInvitees((prev) =>
+      prev.includes(uid) ? prev.filter((id) => id !== uid) : [...prev, uid],
+    )
   }
 
   async function openManage() {
@@ -1127,8 +1163,17 @@ export default function CirclesPage() {
         </ul>
       )}
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent>
+      <Dialog
+        open={createOpen}
+        onOpenChange={(open) => {
+          setCreateOpen(open)
+          if (!open) {
+            setCreateInvitees([])
+            setNewName('')
+          }
+        }}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-display text-xl">New circle</DialogTitle>
           </DialogHeader>
@@ -1139,13 +1184,75 @@ export default function CirclesPage() {
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
             />
-            <p className="text-xs text-muted-foreground">
-              {friends.length > 0
-                ? `Your ${friends.length} friend${friends.length === 1 ? '' : 's'} will be added automatically — you can edit in Manage.`
-                : 'Add friends first so they can join this circle.'}
-            </p>
-            <Button type="submit" className="w-full" disabled={!newName.trim()}>
-              Create & enter
+
+            {friends.length > 0 ? (
+              <div className="space-y-2">
+                <div>
+                  <p className="text-sm font-medium">Invite friends</p>
+                  <p className="text-xs text-muted-foreground">
+                    Optional — nothing is added until they accept. You start as the only member.
+                  </p>
+                </div>
+                <ul className="max-h-48 space-y-1 overflow-y-auto rounded-xl border border-border/60 p-1.5">
+                  {friends.map((f) => {
+                    const selected = createInvitees.includes(f.uid)
+                    return (
+                      <li key={f.uid}>
+                        <button
+                          type="button"
+                          onClick={() => toggleCreateInvitee(f.uid)}
+                          className={cn(
+                            'flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left text-sm transition',
+                            selected
+                              ? 'bg-primary/10 text-foreground'
+                              : 'hover:bg-secondary/80 text-muted-foreground hover:text-foreground',
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              'flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-[0.65rem]',
+                              selected
+                                ? 'border-primary bg-primary text-primary-foreground'
+                                : 'border-border/70 bg-background',
+                            )}
+                            aria-hidden
+                          >
+                            {selected ? '✓' : ''}
+                          </span>
+                          <span className="min-w-0 flex-1 truncate font-medium">{f.displayName}</span>
+                          {f.friendCode ? (
+                            <span className="shrink-0 font-mono text-[0.65rem] text-muted-foreground">
+                              @{f.friendCode}
+                            </span>
+                          ) : null}
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+                {createInvitees.length > 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    {createInvitees.length} friend{createInvitees.length === 1 ? '' : 's'} will get an
+                    invite
+                  </p>
+                ) : null}
+              </div>
+            ) : (
+              <p className="rounded-xl bg-secondary/50 px-3 py-2.5 text-xs text-muted-foreground">
+                No friends yet — create the circle, then{' '}
+                <Link to="/social?tab=friends" className="font-medium text-primary underline">
+                  add friends
+                </Link>{' '}
+                and invite them from Manage.
+              </p>
+            )}
+
+            <Button type="submit" className="w-full" disabled={!newName.trim() || createBusy}>
+              {createBusy
+                ? 'Creating…'
+                : createInvitees.length > 0
+                  ? `Create & invite ${createInvitees.length}`
+                  : 'Create & enter'}
             </Button>
           </form>
         </DialogContent>
