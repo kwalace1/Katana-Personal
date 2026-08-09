@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from 'react'
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -8,6 +8,14 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { todayKey } from '@/lib/dates'
 import { burstConfetti } from '@/lib/celebrate'
 import { offerBestLiftShare } from '@/lib/social/share-win'
+import {
+  clearLiftDraft,
+  liftDraftHasContent,
+  readLiftDraft,
+  writeLiftDraft,
+  type LiftDraftExercise,
+  type LiftDraftSet,
+} from '../../lift-draft'
 import { liftApi } from '../../lift-api'
 import { formatLiftDate } from './LiftLineChart'
 import { cn } from '@/lib/utils'
@@ -19,13 +27,24 @@ type Props = {
   refresh: () => void
 }
 
-type DraftSet = { key: string; weight: string; reps: string }
-type DraftExercise = { key: string; name: string; sets: DraftSet[] }
+type DraftSet = LiftDraftSet
+type DraftExercise = LiftDraftExercise
 
 let draftKey = 0
 function nextKey(prefix: string) {
   draftKey += 1
   return `${prefix}-${draftKey}`
+}
+
+function bumpKeyCounter(exercises: DraftExercise[]) {
+  for (const ex of exercises) {
+    const em = /-(\d+)$/.exec(ex.key)
+    if (em) draftKey = Math.max(draftKey, Number(em[1]))
+    for (const s of ex.sets) {
+      const sm = /-(\d+)$/.exec(s.key)
+      if (sm) draftKey = Math.max(draftKey, Number(sm[1]))
+    }
+  }
 }
 
 function emptySet(): DraftSet {
@@ -34,6 +53,25 @@ function emptySet(): DraftSet {
 
 function emptyExercise(defaultName = 'Bench Press'): DraftExercise {
   return { key: nextKey('ex'), name: defaultName, sets: [emptySet()] }
+}
+
+function loadInitialDraft(userId: string, logDate: string, defaultExerciseName: string) {
+  const saved = readLiftDraft(userId)
+  if (saved) {
+    bumpKeyCounter(saved.exercises)
+    return {
+      name: saved.name,
+      date: saved.date || logDate || todayKey(),
+      exercises: saved.exercises,
+      restored: true,
+    }
+  }
+  return {
+    name: '',
+    date: logDate || todayKey(),
+    exercises: [emptyExercise(defaultExerciseName)],
+    restored: false,
+  }
 }
 
 export function LiftLogPanel({ userId, logDate, tick, refresh }: Props) {
@@ -52,10 +90,59 @@ export function LiftLogPanel({ userId, logDate, tick, refresh }: Props) {
     return liftApi.plannedDay(userId, logDate)
   }, [userId, logDate, tick])
 
-  const [name, setName] = useState('')
-  const [date, setDate] = useState(logDate || todayKey())
-  const [exercises, setExercises] = useState<DraftExercise[]>([emptyExercise(names[0] || 'Bench Press')])
+  const [boot] = useState(() =>
+    loadInitialDraft(userId, logDate, liftApi.getExerciseNames(userId)[0] || 'Bench Press'),
+  )
+
+  const [name, setName] = useState(boot.name)
+  const [date, setDate] = useState(boot.date)
+  const [exercises, setExercises] = useState<DraftExercise[]>(boot.exercises)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [draftBanner, setDraftBanner] = useState(boot.restored)
+  const skipPersist = useRef(false)
+  const latestRef = useRef({ name, date, exercises })
+  latestRef.current = { name, date, exercises }
+
+  const hasDraft = liftDraftHasContent({ name, exercises })
+
+  // Persist while typing; flush immediately when leaving the app
+  useEffect(() => {
+    if (skipPersist.current) {
+      skipPersist.current = false
+      return
+    }
+    const payload = { name, date, exercises }
+    if (!liftDraftHasContent(payload)) {
+      clearLiftDraft(userId)
+      return
+    }
+    const t = window.setTimeout(() => writeLiftDraft(userId, payload), 200)
+    return () => window.clearTimeout(t)
+  }, [userId, name, date, exercises])
+
+  useEffect(() => {
+    const flush = () => {
+      const payload = latestRef.current
+      if (liftDraftHasContent(payload)) writeLiftDraft(userId, payload)
+    }
+    const onVis = () => {
+      if (document.visibilityState === 'hidden') flush()
+    }
+    window.addEventListener('pagehide', flush)
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      window.removeEventListener('pagehide', flush)
+      document.removeEventListener('visibilitychange', onVis)
+      flush()
+    }
+  }, [userId])
+
+  useEffect(() => {
+    if (!boot.restored) return
+    toast.message('Workout draft restored', {
+      description: 'Your sets were kept while you were away.',
+    })
+  }, [boot.restored])
 
   const listId = `lift-exercise-list-${userId}`
 
@@ -74,6 +161,15 @@ export function LiftLogPanel({ userId, logDate, tick, refresh }: Props) {
             },
       ),
     )
+  }
+
+  function resetForm(clearStorage: boolean) {
+    skipPersist.current = true
+    if (clearStorage) clearLiftDraft(userId)
+    setName('')
+    setDate(logDate || todayKey())
+    setExercises([emptyExercise(names[0] || 'Bench Press')])
+    setDraftBanner(false)
   }
 
   function saveWorkout(e: FormEvent) {
@@ -106,8 +202,7 @@ export function LiftLogPanel({ userId, logDate, tick, refresh }: Props) {
       setCount,
       exerciseCount,
     })
-    setName('')
-    setExercises([emptyExercise(names[0] || 'Bench Press')])
+    resetForm(true)
     refresh()
   }
 
@@ -129,9 +224,30 @@ export function LiftLogPanel({ userId, logDate, tick, refresh }: Props) {
       ) : null}
 
       <form onSubmit={saveWorkout} className="kp-surface min-w-0 space-y-4 overflow-hidden p-4">
-        <div>
-          <p className="text-xs text-muted-foreground">Log workout</p>
-          <h3 className="font-display text-xl tracking-tight">New session</h3>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <p className="text-xs text-muted-foreground">Log workout</p>
+            <h3 className="font-display text-xl tracking-tight">New session</h3>
+            {hasDraft || draftBanner ? (
+              <p className="mt-1 text-xs text-primary">
+                Autosaved on this device — safe if you leave mid-workout.
+              </p>
+            ) : null}
+          </div>
+          {hasDraft ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="text-muted-foreground"
+              onClick={() => {
+                resetForm(true)
+                toast.message('Draft discarded')
+              }}
+            >
+              Discard draft
+            </Button>
+          ) : null}
         </div>
         <div className="grid gap-3 sm:grid-cols-2 *:min-w-0">
           <Input

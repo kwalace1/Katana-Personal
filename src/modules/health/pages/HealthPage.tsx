@@ -319,7 +319,7 @@ export default function HealthPage() {
           />
         </TabsContent>
 
-        <TabsContent value="lift" className="space-y-4">
+        <TabsContent value="lift" className="space-y-4" forceMount>
           <LiftTrackingPanel userId={userId} logDate={logDate} tick={tick} refresh={refresh} panel="lift" />
         </TabsContent>
 
