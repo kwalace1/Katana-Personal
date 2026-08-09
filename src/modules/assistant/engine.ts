@@ -9,6 +9,7 @@ import { notesApi } from '@/modules/notes/api'
 import { parseCapture } from '@/lib/capture'
 import { addDays, format, formatShortDate, formatTime, todayKey } from '@/lib/dates'
 import { createId } from '@/lib/id'
+import { parkDayCloseMoment } from '@/lib/ritual-path'
 import { buildWeekStats, type WeekStats } from '@/lib/week-review'
 import type { Task } from '@/modules/tasks/types'
 import type { CalendarEvent } from '@/modules/calendar/types'
@@ -198,11 +199,11 @@ function briefingActions(snap: LifeSnapshot): AskAction[] {
 }
 
 function answerFocus(snap: LifeSnapshot): AskReply {
+  /** One chip that acts — demo path: Ask → tap → done. */
   if (snap.priorityTasks.length > 0) {
-    const lines = snap.priorityTasks.slice(0, 3).map((t, i) => `${i + 1}. ${t.title}`)
-    const top = snap.priorityTasks[0]
+    const top = snap.priorityTasks[0]!
     return {
-      text: `Here’s what I’d work on today:\n\n${lines.join('\n')}\n\nStart with #1, then reassess.`,
+      text: `Start with “${top.title}.” One next step — then reassess.`,
       actions: [
         {
           id: createId(),
@@ -210,24 +211,47 @@ function answerFocus(snap: LifeSnapshot): AskReply {
           kind: 'complete_task',
           taskId: top.id,
         },
+      ],
+    }
+  }
+  const openHabit = snap.habitsDue.find((h) => !snap.habitsDoneIds.includes(h.id))
+  if (openHabit) {
+    return {
+      text: `No open tasks — check in on “${openHabit.title}.” That’s enough for now.`,
+      actions: [
         {
           id: createId(),
-          label: 'Open tasks',
-          kind: 'open_route',
-          route: `/tasks?id=${top.id}`,
+          label: `Check in “${openHabit.title}”`,
+          kind: 'toggle_habit',
+          habitId: openHabit.id,
         },
       ],
     }
   }
   if (snap.todayEvents.length > 0) {
+    const first = snap.todayEvents[0]!
     return {
-      text: `You don’t have open tasks, but you do have plans today — ${listTitles(snap.todayEvents)}. Protect time around those first.`,
-      actions: [{ id: createId(), label: 'Open calendar', kind: 'open_route', route: '/calendar' }],
+      text: `Plans first — “${first.title}” is on today. Protect time around it.`,
+      actions: [
+        {
+          id: createId(),
+          label: 'Open calendar',
+          kind: 'open_route',
+          route: `/calendar?date=${first.starts_at.slice(0, 10)}&id=${first.id}`,
+        },
+      ],
     }
   }
   return {
-    text: 'Nothing urgent is waiting. That’s rare — use it for rest, or pick one small thing that would make tomorrow easier.',
-    actions: [{ id: createId(), label: 'Add a task', kind: 'open_route', route: '/tasks' }],
+    text: 'Nothing urgent is waiting. That’s rare — rest, or capture one small thing for tomorrow.',
+    actions: [
+      {
+        id: createId(),
+        label: 'Capture something',
+        kind: 'open_route',
+        route: '/dashboard',
+      },
+    ],
   }
 }
 
@@ -1044,14 +1068,25 @@ export function runAskAction(userId: string, action: AskAction): string {
     for (const task of unfinished) {
       tasksApi.updateTask(userId, task.id, { due_at: tomorrow.toISOString() })
     }
-    if (action.body?.trim()) {
+    const note = action.body?.trim()
+    if (note) {
       journalApi.upsert(userId, {
         mood: 'okay',
-        body: action.body.trim(),
+        body: note,
         reflection: 'Evening close',
       })
     }
     localStorage.setItem('katana-personal:day-close', todayKey())
+    const due = habitsApi.dueToday(userId)
+    const habitsDone = due.filter((h) => habitsApi.isDoneToday(userId, h.id)).length
+    parkDayCloseMoment({
+      parked: unfinished.length,
+      habitsDone,
+      habitsDue: due.length,
+      waterGlasses: healthApi.getWater(userId).glasses,
+      noteSnippet: note || undefined,
+      dateLabel: format(new Date(), 'EEEE · MMM d'),
+    })
     return unfinished.length
       ? `Day closed — parked ${unfinished.length} for tomorrow.`
       : 'Day closed. Rest well.'

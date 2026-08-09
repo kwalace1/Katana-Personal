@@ -35,6 +35,9 @@ import { habitsApi } from '@/modules/habits/api'
 import { notesApi } from '@/modules/notes/api'
 import { goalsApi } from '@/modules/goals/api'
 import { journalApi } from '@/modules/journal/api'
+import { healthApi } from '@/modules/health/api'
+import { buildDayCloseShareCard, offerShareWin } from '@/lib/social/share-win'
+import { takeDayCloseMoment, type DayCloseSummary } from '@/lib/ritual-path'
 import {
   buildDailyBriefing,
   buildBriefingActions,
@@ -115,9 +118,9 @@ export default function DashboardPage() {
   const [spentBriefing, setSpentBriefing] = useState<Record<string, true>>({})
   const [editingLayout, setEditingLayout] = useState(false)
   const [togetherCue, setTogetherCue] = useState<{ label: string; to: string } | null>(null)
-  const [closeMoment, setCloseMoment] = useState<{ open: boolean; parked: number }>({
+  const [closeMoment, setCloseMoment] = useState<{ open: boolean; summary: DayCloseSummary | null }>({
     open: false,
-    parked: 0,
+    summary: null,
   })
   const prefs = profile?.preferences
 
@@ -224,7 +227,15 @@ export default function DashboardPage() {
 
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
-  const showEveningClose = hour >= 17 && !dayClosed
+  // Always available once onboarding is done — signature moment can’t wait for 5pm demos.
+  const showEveningClose = onboardingDone && !dayClosed
+
+  useEffect(() => {
+    const parked = takeDayCloseMoment()
+    if (!parked) return
+    setDayClosed(true)
+    setCloseMoment({ open: true, summary: parked })
+  }, [])
 
   function onCapture(e: FormEvent) {
     e.preventDefault()
@@ -263,22 +274,53 @@ export default function DashboardPage() {
       tasksApi.updateTask(userId, task.id, { due_at: tomorrow.toISOString() })
       n += 1
     }
-    if (closeNote.trim()) {
+    const note = closeNote.trim()
+    if (note) {
       journalApi.upsert(userId, {
         mood: 'okay',
-        body: closeNote.trim(),
+        body: note,
         reflection: 'Evening close',
       })
+    }
+    const due = habitsApi.dueToday(userId)
+    const habitsDone = due.filter((h) => habitsApi.isDoneToday(userId, h.id)).length
+    const summary: DayCloseSummary = {
+      parked: n,
+      habitsDone,
+      habitsDue: due.length,
+      waterGlasses: healthApi.getWater(userId).glasses,
+      noteSnippet: note || undefined,
+      dateLabel: format(new Date(), 'EEEE · MMM d'),
     }
     markClosed()
     setDayClosed(true)
     setCloseNote('')
-    setCloseMoment({ open: true, parked: n })
+    setCloseMoment({ open: true, summary })
     refresh()
   }
 
+  function shareDayCard() {
+    const summary = closeMoment.summary
+    setCloseMoment({ open: false, summary: null })
+    if (summary) {
+      offerShareWin(
+        buildDayCloseShareCard({
+          dateLabel: summary.dateLabel,
+          parked: summary.parked,
+          habitsDone: summary.habitsDone,
+          habitsDue: summary.habitsDue,
+          waterGlasses: summary.waterGlasses,
+          noteSnippet: summary.noteSnippet,
+        }),
+        280,
+        { force: true },
+      )
+    }
+    offerPwaNudge()
+  }
+
   function finishCloseMoment() {
-    setCloseMoment({ open: false, parked: 0 })
+    setCloseMoment({ open: false, summary: null })
     offerPwaNudge()
   }
 
@@ -705,7 +747,7 @@ export default function DashboardPage() {
       </section>
       )}
 
-      {isSectionVisible(prefs, 'evening_close') && showEveningClose && (
+      {showEveningClose && (
         <motion.section
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -759,7 +801,16 @@ export default function DashboardPage() {
 
       <DayClosedMoment
         open={closeMoment.open}
-        parkedCount={closeMoment.parked}
+        summary={
+          closeMoment.summary ?? {
+            parked: 0,
+            habitsDone: 0,
+            habitsDue: 0,
+            waterGlasses: 0,
+            dateLabel: format(new Date(), 'EEEE · MMM d'),
+          }
+        }
+        onShare={shareDayCard}
         onDone={finishCloseMoment}
       />
 

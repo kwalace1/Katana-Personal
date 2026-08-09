@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { PlusPaywallSheet, usePlusStatus } from '@/components/PlusPaywall'
 import { useAuth } from '@/contexts/AuthContext'
+import { burstConfetti } from '@/lib/celebrate'
 import { pageEnterSubtle } from '@/lib/motion-ui'
 import { cn } from '@/lib/utils'
 import {
@@ -76,10 +77,10 @@ export default function AskPage() {
       if (!canUseLlmAsk()) {
         askApi.append(userId, {
           role: 'katana',
-          text: `${reply.text}\n\n—\nYou’ve used today’s ${FREE_LLM_ASKS_PER_DAY} free deeper Ask replies. Action chips still work; Plus unlocks unlimited depth.`,
+          text: `${reply.text}\n\n—\nYou’ve used today’s ${FREE_LLM_ASKS_PER_DAY} free deeper Ask replies. Action chips still work; the Accountability pack unlocks unlimited coach depth.`,
           actions: [
             ...reply.actions.slice(0, 3),
-            { id: createId(), label: 'Katana Plus', kind: 'open_route', route: '/settings#plus' },
+            { id: createId(), label: 'Accountability pack', kind: 'open_route', route: '/settings#plus' },
           ],
         })
         setPlusOpen(true)
@@ -144,33 +145,67 @@ export default function AskPage() {
       toast.success(result)
       askApi.consumeAction(userId, message.id, action.id)
       setSpent((s) => ({ ...s, [key]: true }))
-      const hour = new Date().getHours()
-      const followUps: AskAction[] = [
-        {
-          id: createId(),
-          label: 'What’s next?',
-          kind: 'open_route',
-          route: '/ask?q=What%20should%20I%20work%20on%20today',
-        },
-      ]
-      if (hour >= 17) {
-        followUps.push({
-          id: createId(),
-          label: 'Close my day',
-          kind: 'open_route',
-          route: '/ask?q=Close%20my%20day',
-        })
-      } else {
-        followUps.push({
-          id: createId(),
-          label: 'Invite a friend',
-          kind: 'open_route',
-          route: '/social?tab=friends',
-        })
+
+      if (action.kind === 'complete_task' || action.kind === 'toggle_habit') {
+        burstConfetti()
       }
+
+      if (action.kind === 'close_day') {
+        navigate('/dashboard')
+        return
+      }
+
+      const hour = new Date().getHours()
+      const inRitualInvite = (() => {
+        try {
+          return localStorage.getItem('katana-personal:ritual-step') === 'invite'
+        } catch {
+          return false
+        }
+      })()
+
+      const followUps: AskAction[] = inRitualInvite
+        ? [
+            {
+              id: createId(),
+              label: 'Invite a friend',
+              kind: 'open_route',
+              route: '/dashboard',
+            },
+            {
+              id: createId(),
+              label: 'Open Social',
+              kind: 'open_route',
+              route: '/social',
+            },
+          ]
+        : [
+            {
+              id: createId(),
+              label: 'What’s next?',
+              kind: 'open_route',
+              route: '/ask?q=What%20should%20I%20work%20on%20today',
+            },
+            hour >= 17
+              ? {
+                  id: createId(),
+                  label: 'Close my day',
+                  kind: 'open_route',
+                  route: '/ask?q=Close%20my%20day',
+                }
+              : {
+                  id: createId(),
+                  label: 'Invite a friend',
+                  kind: 'open_route',
+                  route: '/social?tab=friends',
+                },
+          ]
+
       askApi.append(userId, {
         role: 'katana',
-        text: `${result} What’s next?`,
+        text: inRitualInvite
+          ? `${result} One more tap — invite someone, or open Social.`
+          : `${result} What’s next?`,
         actions: followUps,
       })
       refresh()
@@ -213,13 +248,13 @@ export default function AskPage() {
             <>
               {' · '}
               <button type="button" className="text-primary underline" onClick={() => setPlusOpen(true)}>
-                Unlock Plus
+                Unlock Accountability pack
               </button>
             </>
           ) : null}
         </p>
       ) : (
-        <p className="mb-3 text-xs text-primary">Katana Plus — unlimited deeper Ask</p>
+        <p className="mb-3 text-xs text-primary">Accountability pack — unlimited deeper Ask</p>
       )}
       {llmHint ? <p className="mb-3 text-xs text-muted-foreground">{llmHint}</p> : null}
       <div className="mb-5 flex flex-wrap gap-2">

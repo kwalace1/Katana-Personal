@@ -78,18 +78,18 @@ export function canUsePlusFeature(feature: PlusFeature): boolean {
 export function plusFeatureBlurb(feature: PlusFeature): { title: string; body: string } {
   if (feature === 'llm') {
     return {
-      title: 'Deeper Ask with Plus',
-      body: `Free includes ${FREE_LLM_ASKS_PER_DAY} open-ended Ask replies per day. Plus unlocks unlimited depth.`,
+      title: 'Accountability pack · deeper Ask',
+      body: `Free keeps action chips forever. Plus unlocks unlimited coach depth after ${FREE_LLM_ASKS_PER_DAY} open-ended replies/day.`,
     }
   }
   if (feature === 'challenge') {
     return {
-      title: 'Circle challenges are Plus',
-      body: 'Start 7-day group challenges with Plus. Boards and invites stay free.',
+      title: 'Accountability pack · challenges',
+      body: 'Circle boards stay free. Plus starts 7-day challenges that keep the group honest.',
     }
   }
   return {
-    title: 'Meal & label AI is Plus',
-    body: 'Photo and Nutrition Facts estimates unlock with Plus. Manual logging stays free.',
+    title: 'Accountability pack · fuel AI',
+    body: 'Manual logging stays free. Plus estimates meals and Nutrition Facts so streaks stay honest.',
   }
 }

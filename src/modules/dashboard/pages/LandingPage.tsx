@@ -98,9 +98,15 @@ export default function LandingPage() {
 
   async function onOpenLocal(e: FormEvent) {
     e.preventDefault()
+    const trimmed = name.trim()
+    if (!trimmed) {
+      toast.message('Add your name to start')
+      nameInputRef.current?.focus()
+      return
+    }
     setBusy(true)
     try {
-      await startWorkspace(name.trim() || 'You')
+      await startWorkspace(trimmed)
       toast.success('Welcome in')
       goAfterEntrance()
     } catch (err) {
@@ -345,7 +351,7 @@ export default function LandingPage() {
                   autoFocus={standalone}
                 />
                 </div>
-                <Button type="submit" className="min-h-12 w-full" size="lg" disabled={busy}>
+                <Button type="submit" className="min-h-12 w-full" size="lg" disabled={busy || !name.trim()}>
                   {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Open Katana'}
                 </Button>
                 <p className="text-center text-xs text-muted-foreground">

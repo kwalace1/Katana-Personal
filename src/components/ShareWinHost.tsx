@@ -215,17 +215,19 @@ export function ShareWinHost() {
                 <Button type="button" variant="outline" className="min-h-11 w-full" onClick={close}>
                   Not now
                 </Button>
-                <button
-                  type="button"
-                  className="w-full py-1 text-center text-xs text-muted-foreground underline-offset-2 hover:underline"
-                  onClick={() => {
-                    setShareWinNever(true)
-                    toast.message('Won’t ask to share wins')
-                    close()
-                  }}
-                >
-                  Don’t ask me to share wins
-                </button>
+                {offer.card.kind !== 'day' ? (
+                  <button
+                    type="button"
+                    className="w-full py-1 text-center text-xs text-muted-foreground underline-offset-2 hover:underline"
+                    onClick={() => {
+                      setShareWinNever(true)
+                      toast.message('Won’t ask to share wins')
+                      close()
+                    }}
+                  >
+                    Don’t ask me to share wins
+                  </button>
+                ) : null}
               </div>
             </form>
           </>

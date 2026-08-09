@@ -148,31 +148,36 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
     navigate('/')
   }
 
-  const socialPrimary = [
-    {
-      to: '/social' as const,
-      label: pendingFriends > 0 ? `Social (${pendingFriends})` : 'Social',
-      icon: Newspaper,
-    },
-  ]
+  const socialPrimary = onboardingDone
+    ? [
+        {
+          to: '/social' as const,
+          label: pendingFriends > 0 ? `Social (${pendingFriends})` : 'Social',
+          icon: Newspaper,
+        },
+      ]
+    : []
 
   const moreSocial = SOCIAL.filter((item) => item.to !== '/social')
+  const primaryItems = onboardingDone ? PRIMARY : PRIMARY.filter((item) => item.to === '/dashboard')
 
   const nav = (
     <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-2.5 py-2" aria-label="Main">
-      <NavGroup items={PRIMARY} onNavigate={closeNav} />
-      <NavGroup items={socialPrimary} onNavigate={closeNav} />
+      <NavGroup items={primaryItems} onNavigate={closeNav} />
+      {socialPrimary.length > 0 ? <NavGroup items={socialPrimary} onNavigate={closeNav} /> : null}
       <div className="pt-2">
-        <button
-          type="button"
-          onClick={toggleMore}
-          className="flex min-h-11 w-full items-center justify-between rounded-xl px-3 py-2 text-[0.925rem] font-medium text-muted-foreground transition hover:bg-secondary/80 hover:text-foreground"
-          aria-expanded={moreOpen}
-        >
-          <span>More</span>
-          <ChevronDown className={cn('h-4 w-4 transition', moreOpen && 'rotate-180')} />
-        </button>
-        {moreOpen ? (
+        {onboardingDone ? (
+          <button
+            type="button"
+            onClick={toggleMore}
+            className="flex min-h-11 w-full items-center justify-between rounded-xl px-3 py-2 text-[0.925rem] font-medium text-muted-foreground transition hover:bg-secondary/80 hover:text-foreground"
+            aria-expanded={moreOpen}
+          >
+            <span>More</span>
+            <ChevronDown className={cn('h-4 w-4 transition', moreOpen && 'rotate-180')} />
+          </button>
+        ) : null}
+        {onboardingDone && moreOpen ? (
           <div className="mt-1 space-y-1 border-l border-border/50 pl-1">
             <p className="px-3 pb-1 pt-2 text-[0.65rem] leading-snug text-muted-foreground">
               Depth when you need it — Today stays the home of the day loop.
@@ -183,7 +188,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
           </div>
         ) : !onboardingDone ? (
           <p className="px-3 pb-1 text-[0.7rem] text-muted-foreground">
-            Plan & Life open after your first minute — the loop comes first
+            Finish your first minute — Ask opens when the loop reaches it
           </p>
         ) : (
           <p className="px-3 pb-1 text-[0.65rem] text-muted-foreground">

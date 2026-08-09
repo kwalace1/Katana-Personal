@@ -295,16 +295,17 @@ export default function SettingsPage() {
 
       <section ref={plusSectionRef} id="plus" className="kp-surface mb-4 scroll-mt-24 space-y-4 p-5">
         <div>
-          <h2 className="font-semibold">Katana Plus</h2>
+          <h2 className="font-semibold">Katana Plus · Accountability pack</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Free is the private day loop. Plus adds deeper Ask, Circle challenges, and meal/label AI.
+            Free is the full private day loop with friends. Plus is the pack that makes accountability
+            feel alive — not a paywall on random AI.
           </p>
         </div>
         {plus ? (
           <div className="rounded-2xl border border-primary/25 bg-primary/[0.06] px-4 py-3">
-            <p className="text-sm font-medium text-primary">Plus is on</p>
+            <p className="text-sm font-medium text-primary">Accountability pack is on</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Unlimited deeper Ask · challenges · nutrition AI. Store billing comes next.
+              Deeper Ask coach · Circle challenges · meal & label AI. Store billing comes next.
             </p>
             <Button
               type="button"
@@ -323,11 +324,11 @@ export default function SettingsPage() {
           <div className="space-y-3">
             <ul className="space-y-1.5 text-sm text-muted-foreground">
               <li>
-                <span className="font-medium text-foreground">Free:</span> Today, Ask actions, Friends,
-                Social, Circles boards
+                <span className="font-medium text-foreground">Free:</span> private day loop, Ask
+                actions, Friends, Social, Circles boards, day / win cards you choose to share
               </li>
               <li>
-                <span className="font-medium text-foreground">Plus:</span> deeper Ask (beyond{' '}
+                <span className="font-medium text-foreground">Plus:</span> deeper Ask coach (beyond{' '}
                 {FREE_LLM_ASKS_PER_DAY}/day), Circle challenges, meal & label AI
               </li>
             </ul>
@@ -341,10 +342,10 @@ export default function SettingsPage() {
               className="w-full sm:w-auto"
               onClick={() => {
                 setPlusUnlocked(true)
-                toast.success('Katana Plus unlocked (demo)')
+                toast.success('Accountability pack unlocked (demo)')
               }}
             >
-              Unlock Plus (demo)
+              Unlock Accountability pack (demo)
             </Button>
             <p className="text-xs text-muted-foreground">
               For Shipaton judges and promo codes until RevenueCat is wired.

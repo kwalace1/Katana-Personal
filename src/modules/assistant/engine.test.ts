@@ -16,8 +16,17 @@ describe('Ask engine (no LLM)', () => {
 
   it('answers focus with empty state', () => {
     const reply = answerQuestionWithActions(USER, 'What should I work on today?', 'Alex')
-    expect(reply.text.toLowerCase()).toMatch(/nothing urgent|rest|small thing/)
-    expect(reply.actions.some((a) => a.kind === 'open_route')).toBe(true)
+    expect(reply.text.toLowerCase()).toMatch(/nothing urgent|rest|small thing|capture/)
+    expect(reply.actions).toHaveLength(1)
+    expect(reply.actions[0]?.kind).toBe('open_route')
+  })
+
+  it('answers focus with one act chip when a priority task exists', () => {
+    tasksApi.createTask(USER, { title: 'Ship the demo', priority: 'high' })
+    const reply = answerQuestionWithActions(USER, 'What should I work on today?', 'Alex')
+    expect(reply.actions).toHaveLength(1)
+    expect(reply.actions[0]?.kind).toBe('complete_task')
+    expect(reply.actions[0]?.label?.toLowerCase()).toMatch(/ship the demo/)
   })
 
   it('parses create task', () => {

@@ -144,6 +144,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const resetOnboarding = useCallback(() => {
     localStorage.removeItem(ONBOARDING_KEY)
+    localStorage.removeItem('katana-personal:ritual-step')
     setOnboardingDone(false)
   }, [])
 

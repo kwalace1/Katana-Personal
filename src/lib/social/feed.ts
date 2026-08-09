@@ -13,7 +13,8 @@ export const CIRCLE_BOOST_MS = 12 * 60 * 60 * 1000
 
 export type FeedAudience = 'friends' | 'circle'
 export type FeedMediaType = 'image' | 'video'
-export type FeedCardKind = 'goal' | 'habit' | 'workout'
+export type FeedCardKind = 'goal' | 'habit' | 'workout' | 'day'
+
 
 export interface FeedMedia {
   type: FeedMediaType
@@ -32,6 +33,8 @@ export interface FeedCard {
   stats?: string
   /** Short celebratory label shown on the card (e.g. “Goal crushed”). */
   badge?: string
+  /** Optional journal line — used on day cards. */
+  quote?: string
 }
 
 export interface RepostSnapshot {

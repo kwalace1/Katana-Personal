@@ -101,15 +101,23 @@ export function resumeParkedShareWin(): ShareWinOffer | null {
 
 /**
  * Offer an optional Feed share after a meaningful win.
- * No-ops if the user chose “Don’t ask”, or another prompt was shown recently.
+ * No-ops if the user chose “Don’t ask”, or another prompt was shown recently
+ * (unless `force` — used for the evening day-card signature moment).
  */
-export function offerShareWin(offer: ShareWinOffer, delayMs = 550) {
-  if (isShareWinNever()) return
-  try {
-    const last = Number(localStorage.getItem(LAST_KEY) || '0')
-    if (Number.isFinite(last) && Date.now() - last < COOLDOWN_MS) return
-  } catch {
-    // ignore
+export function offerShareWin(
+  offer: ShareWinOffer,
+  delayMs = 550,
+  opts?: { force?: boolean },
+) {
+  // Signature day card uses force — never permanently block that clip.
+  if (isShareWinNever() && !opts?.force) return
+  if (!opts?.force) {
+    try {
+      const last = Number(localStorage.getItem(LAST_KEY) || '0')
+      if (Number.isFinite(last) && Date.now() - last < COOLDOWN_MS) return
+    } catch {
+      // ignore
+    }
   }
 
   if (delayTimer) clearTimeout(delayTimer)
@@ -122,6 +130,40 @@ export function offerShareWin(offer: ShareWinOffer, delayMs = 550) {
     }
     emit(offer)
   }, delayMs)
+}
+
+export function buildDayCloseShareCard(input: {
+  dateLabel: string
+  parked: number
+  habitsDone: number
+  habitsDue: number
+  waterGlasses: number
+  noteSnippet?: string
+}): ShareWinOffer {
+  const habitPart =
+    input.habitsDue > 0
+      ? `${input.habitsDone}/${input.habitsDue} habits`
+      : input.habitsDone > 0
+        ? `${input.habitsDone} habit${input.habitsDone === 1 ? '' : 's'}`
+        : null
+  const bits = [
+    habitPart,
+    input.waterGlasses > 0 ? `${input.waterGlasses} glasses` : null,
+    input.parked > 0 ? `${input.parked} parked for tomorrow` : 'Inbox clear',
+  ].filter(Boolean)
+  const note = input.noteSnippet?.trim()
+  return {
+    headline: 'Share your day?',
+    defaultCaption: note ? note.slice(0, 180) : 'Closed the day on Katana.',
+    card: {
+      kind: 'day',
+      badge: 'Day closed',
+      title: input.dateLabel,
+      subtitle: 'One next step. Then rest.',
+      stats: bits.join(' · '),
+      quote: note ? note.slice(0, 140) : undefined,
+    },
+  }
 }
 
 export function buildLiftShareCard(input: {

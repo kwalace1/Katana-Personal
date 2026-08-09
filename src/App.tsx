@@ -1,7 +1,8 @@
-import { Routes, Route, Navigate, useParams } from 'react-router-dom'
+import { Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom'
 import { AuthGuard } from '@/components/AuthGuard'
 import { AppShell } from '@/components/layout/AppShell'
 import { useAuth } from '@/contexts/AuthContext'
+import { ritualAllowsPath } from '@/lib/ritual-path'
 import LandingPage from '@/modules/dashboard/pages/LandingPage'
 import AuthPage from '@/modules/dashboard/pages/AuthPage'
 import DashboardPage from '@/modules/dashboard/pages/DashboardPage'
@@ -23,10 +24,22 @@ import SharedPage from '@/modules/social/pages/SharedPage'
 import FriendInvitePage from '@/modules/social/pages/FriendInvitePage'
 import InviteJoinPage from '@/modules/social/pages/InviteJoinPage'
 
+function RitualLock({ children }: { children: React.ReactNode }) {
+  const { onboardingDone, loading } = useAuth()
+  const location = useLocation()
+  if (loading) return null
+  if (!ritualAllowsPath(location.pathname, onboardingDone)) {
+    return <Navigate to="/dashboard" replace />
+  }
+  return <>{children}</>
+}
+
 function Protected({ children }: { children: React.ReactNode }) {
   return (
     <AuthGuard>
-      <AppShell>{children}</AppShell>
+      <AppShell>
+        <RitualLock>{children}</RitualLock>
+      </AppShell>
     </AuthGuard>
   )
 }
