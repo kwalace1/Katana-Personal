@@ -29,7 +29,6 @@ import { useCloudAuth } from '@/contexts/CloudAuthContext'
 import { pageEnterSubtle, springSnappy, staggerContainer } from '@/lib/motion-ui'
 import { listMyCircles } from '@/lib/social/circles'
 import {
-  assertFeedMedia,
   createTogetherPost,
   FEED_TEXT_MAX,
   FEED_VIDEO_MAX_SECONDS,
@@ -41,6 +40,7 @@ import {
   type FeedCard,
   type RankedPost,
 } from '@/lib/social/feed'
+import { prepareFeedMedia } from '@/lib/social/feed-media-compress'
 import {
   loadEngagementForPosts,
   type PostEngagement,
@@ -287,16 +287,28 @@ export default function FeedPage() {
     const incoming = Array.from(list)
     void (async () => {
       const accepted: File[] = []
-      for (const file of incoming) {
-        try {
-          await assertFeedMedia(file)
-          accepted.push(file)
-        } catch (err) {
-          toast.error(err instanceof Error ? err.message : 'Couldn’t use that file')
+      let compressedAny = false
+      const toastId = toast.loading(
+        incoming.length > 1 ? 'Preparing media…' : 'Preparing media…',
+      )
+      try {
+        for (const file of incoming) {
+          try {
+            const prepared = await prepareFeedMedia(file)
+            accepted.push(prepared.file)
+            if (prepared.compressed) compressedAny = true
+          } catch (err) {
+            toast.error(err instanceof Error ? err.message : 'Couldn’t use that file')
+          }
         }
+      } finally {
+        toast.dismiss(toastId)
       }
       if (accepted.length === 0) return
       setFiles((prev) => [...prev, ...accepted].slice(0, 4))
+      if (compressedAny) {
+        toast.message('Compressed to fit upload limits')
+      }
     })()
   }
 
@@ -539,13 +551,13 @@ export default function FeedPage() {
             <ComposeTypeButton
               icon={ImagePlus}
               title="Photo"
-              description="Share a moment — up to 4 images"
+              description="Any size — we’ll compress if needed"
               onClick={() => openCompose('photo')}
             />
             <ComposeTypeButton
               icon={Video}
               title="Video"
-              description={`Clips up to ${FEED_VIDEO_MAX_SECONDS} seconds`}
+              description={`Up to ${FEED_VIDEO_MAX_SECONDS}s — large files get compressed`}
               onClick={() => openCompose('video')}
             />
             <ComposeTypeButton

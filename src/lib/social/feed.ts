@@ -87,7 +87,7 @@ function mapPost(row: PostRow): TogetherPost {
   }
 }
 
-function mediaTypeFromFile(file: File): FeedMediaType {
+export function mediaTypeFromFile(file: File): FeedMediaType {
   if (file.type.startsWith('video/')) return 'video'
   if (file.type.startsWith('image/')) return 'image'
   throw new Error('Use a photo (jpeg/png/webp) or short video (mp4/webm).')
@@ -164,12 +164,17 @@ export async function uploadFeedMedia(input: {
   postId: string
   file: File
 }): Promise<FeedMedia> {
-  const { type, durationMs } = await assertFeedMedia(input.file)
-  const safeName = input.file.name.replace(/[^\w.\-]+/g, '_').slice(0, 80) || `${type}`
+  // Compress first so large camera rolls still upload under free-tier limits
+  const { prepareFeedMedia } = await import('@/lib/social/feed-media-compress')
+  const prepared = await prepareFeedMedia(input.file)
+  const file = prepared.file
+  const type = prepared.type
+  const durationMs = prepared.durationMs
+  const safeName = file.name.replace(/[^\w.\-]+/g, '_').slice(0, 80) || `${type}`
   const objectPath = storageObjectPath(input.authorId, input.postId, `${Date.now()}_${safeName}`)
   const supabase = getSupabase()
-  const { error } = await supabase.storage.from('together').upload(objectPath, input.file, {
-    contentType: input.file.type,
+  const { error } = await supabase.storage.from('together').upload(objectPath, file, {
+    contentType: file.type,
     upsert: false,
   })
   if (error) throw error
@@ -180,7 +185,7 @@ export async function uploadFeedMedia(input: {
   return {
     type,
     path: objectPath,
-    contentType: input.file.type,
+    contentType: file.type,
     url: signed.signedUrl,
     ...(durationMs != null ? { durationMs } : {}),
   }
