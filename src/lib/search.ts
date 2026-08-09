@@ -25,7 +25,7 @@ const NAV: SearchHit[] = [
   { id: 'nav-goals', kind: 'nav', title: 'Goals', to: '/goals' },
   { id: 'nav-habits', kind: 'nav', title: 'Habits', to: '/habits' },
   { id: 'nav-journal', kind: 'nav', title: 'Journal', to: '/journal' },
-  { id: 'nav-health', kind: 'nav', title: 'Health', to: '/health' },
+  { id: 'nav-health', kind: 'nav', title: 'Health and Wellness', to: '/health' },
   { id: 'nav-notes', kind: 'nav', title: 'Notes', to: '/notes' },
   { id: 'nav-files', kind: 'nav', title: 'Files', to: '/documents' },
   { id: 'nav-social', kind: 'nav', title: 'Social', to: '/social' },

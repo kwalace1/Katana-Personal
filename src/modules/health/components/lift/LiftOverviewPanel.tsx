@@ -81,7 +81,9 @@ export function LiftOverviewPanel({ userId, tick, refresh, onGoLift, onGoSplits 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-muted-foreground">Lift overview — workouts, calendar, and active split.</p>
+        <p className="text-sm text-muted-foreground">
+          Strength snapshot — open Lift to log a session (autosaves if you leave mid-workout).
+        </p>
         <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="outline" onClick={onGoLift}>
             Log lift

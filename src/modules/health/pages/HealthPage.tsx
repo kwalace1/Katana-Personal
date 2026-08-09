@@ -1,6 +1,15 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Minus, Plus, Trash2 } from 'lucide-react'
+import {
+  Dumbbell,
+  Footprints,
+  Minus,
+  Moon,
+  Pill,
+  Plus,
+  Salad,
+  Trash2,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
@@ -30,6 +39,14 @@ import { VitaminsPanel } from '../components/VitaminsPanel'
 import type { SleepLog } from '../types'
 import { cn } from '@/lib/utils'
 
+const QUICK = [
+  { id: 'lift', label: 'Log lift', icon: Dumbbell },
+  { id: 'workouts', label: 'Cardio', icon: Footprints },
+  { id: 'nutrition', label: 'Meal', icon: Salad },
+  { id: 'vitamins', label: 'Vitamins', icon: Pill },
+  { id: 'sleep', label: 'Sleep', icon: Moon },
+] as const
+
 export default function HealthPage() {
   const { user } = useAuth()
   const userId = user!.id
@@ -53,7 +70,6 @@ export default function HealthPage() {
   }, [userId, logDate, tick])
 
   const waterGoalMet = water.glasses >= WATER_GOAL_GLASSES
-  /** 0 → base UI, 1 → full cheers teal (ramps with each glass). */
   const waterProgress = Math.min(1, Math.max(0, water.glasses / WATER_GOAL_GLASSES))
   const waterBoxRef = useRef<HTMLDivElement>(null)
   const prevGlassesRef = useRef(water.glasses)
@@ -140,8 +156,8 @@ export default function HealthPage() {
   return (
     <motion.div {...pageEnterSubtle} className="kp-page">
       <PageHeader
-        title="Health"
-        description="Signals for Today and Circles — water, lifts, fuel, and rest. Not the whole product."
+        title="Health and Wellness"
+        description="Day signals first — dig into strength, fuel, and rest when you need them."
         eyebrow="Life"
       />
 
@@ -153,154 +169,16 @@ export default function HealthPage() {
           className="max-w-full min-w-0 sm:w-auto"
           aria-label="Log date"
         />
-        <Button size="sm" variant={range === 7 ? 'default' : 'outline'} className="rounded-full" onClick={() => setRange(7)}>
-          7 days
-        </Button>
-        <Button size="sm" variant={range === 30 ? 'default' : 'outline'} className="rounded-full" onClick={() => setRange(30)}>
-          30 days
-        </Button>
-      </div>
-
-      <div className="mb-6 grid gap-4 sm:grid-cols-3">
-        <div className="kp-surface p-4">
-          <MiniBars values={waterSeries} label={`Water · ${range}d`} maxHint={8} />
-        </div>
-        <div className="kp-surface p-4">
-          <MiniBars values={sleepSeries} label={`Sleep hrs · ${range}d`} maxHint={10} />
-        </div>
-        <div className="kp-surface p-4">
-          <MiniBars values={workoutSeries} label={`Workout min · ${range}d`} maxHint={60} />
-        </div>
-      </div>
-
-      <div
-        ref={waterBoxRef}
-        className="relative mb-6 overflow-hidden rounded-[1.25rem] border border-border/70 p-5 transition-[border-color,box-shadow] duration-500"
-        style={{
-          borderColor:
-            waterProgress > 0
-              ? `rgb(20 184 166 / ${0.2 + waterProgress * 0.35})`
-              : undefined,
-          boxShadow:
-            waterProgress > 0.2
-              ? `0 8px 28px rgb(14 116 144 / ${waterProgress * 0.1})`
-              : undefined,
-        }}
-      >
-        {/* Base surface — always opaque enough for readable text */}
-        <div className="pointer-events-none absolute inset-0 bg-card" />
-        {/* Soft teal wash — capped so type stays readable */}
-        <div
-          className="pointer-events-none absolute inset-0 bg-gradient-to-br from-teal-300/50 via-sky-300/35 to-cyan-200/30 transition-opacity duration-500"
-          style={{ opacity: waterProgress * 0.55 }}
-          aria-hidden
-        />
-        <div className="relative z-10">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
-            <div className="min-w-0 rounded-xl bg-background/80 px-3 py-2 shadow-sm ring-1 ring-border/40 backdrop-blur-[2px]">
-              <p className="text-sm font-medium text-foreground">
-                Water · {logDate === todayKey() ? 'today' : logDate}
-                {waterGoalMet ? ' · goal hit' : ''}
-              </p>
-              <p className="font-display text-3xl tracking-tight text-foreground">
-                {water.glasses}
-                <span className="ml-1 text-lg font-sans font-medium text-foreground/70">
-                  / {WATER_GOAL_GLASSES} glasses
-                </span>
-              </p>
-              <p
-                className={cn(
-                  'mt-1 min-h-[2.75rem] text-sm leading-snug text-foreground/85',
-                  waterGoalMet && 'font-semibold text-foreground',
-                )}
-              >
-                {waterStatusCopy}
-              </p>
-            </div>
-            <Button
-              size="lg"
-              className={cn(
-                'h-11 w-full shrink-0 gap-2 sm:w-auto sm:justify-self-end',
-                waterGoalMet && 'bg-teal-700 text-white hover:bg-teal-800',
-              )}
-              onClick={() => {
-                healthApi.addGlass(userId, logDate)
-                refresh()
-              }}
-            >
-              <Plus className="h-4 w-4" />
-              Log a glass
-            </Button>
-          </div>
-          <div className="mt-4 flex min-h-10 flex-wrap gap-2">
-            {Array.from({ length: Math.max(WATER_GOAL_GLASSES, water.glasses) }, (_, i) => {
-              const filled = i < water.glasses
-              const fillStrength = filled ? Math.min(1, (i + 1) / WATER_GOAL_GLASSES) : 0
-              return (
-                <button
-                  key={i}
-                  type="button"
-                  title={filled ? 'Filled — click to set count' : 'Empty — log up to here'}
-                  onClick={() => {
-                    healthApi.setWater(userId, i + 1, logDate)
-                    refresh()
-                  }}
-                  className={cn(
-                    'flex h-10 w-8 items-end justify-center rounded-b-md rounded-t-lg border-2 transition-colors duration-500',
-                    !filled && 'border-border/60 bg-secondary/50 hover:border-sky-400/40',
-                  )}
-                  style={
-                    filled
-                      ? {
-                          borderColor: `rgb(13 148 136 / ${0.45 + fillStrength * 0.4})`,
-                          backgroundColor: `rgb(45 212 191 / ${0.3 + fillStrength * 0.35})`,
-                        }
-                      : undefined
-                  }
-                >
-                  <span
-                    className={cn('mb-1 h-5 w-4 rounded-sm transition-colors duration-500', !filled && 'bg-transparent')}
-                    style={
-                      filled
-                        ? { backgroundColor: `rgb(15 118 110 / ${0.55 + fillStrength * 0.4})` }
-                        : undefined
-                    }
-                  />
-                </button>
-              )
-            })}
-          </div>
-          <div className="mt-3 flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              className="shrink-0 bg-background/70"
-              onClick={() => {
-                healthApi.setWater(userId, water.glasses - 1, logDate)
-                refresh()
-              }}
-            >
-              <Minus className="h-4 w-4" />
-            </Button>
-            <span className="text-xs text-foreground/70">Adjust count</span>
-            <Button
-              size="sm"
-              variant="outline"
-              className="shrink-0 bg-background/70"
-              onClick={() => {
-                healthApi.setWater(userId, water.glasses + 1, logDate)
-                refresh()
-              }}
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
+        {logDate !== todayKey() ? (
+          <Button size="sm" variant="ghost" onClick={() => setLogDate(todayKey())}>
+            Jump to today
+          </Button>
+        ) : null}
       </div>
 
       <Tabs value={healthTab} onValueChange={setHealthTab}>
-        <TabsList className="flex h-auto flex-wrap gap-1">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
+        <TabsList fluid className="mb-1 w-full max-w-full">
+          <TabsTrigger value="overview">Today</TabsTrigger>
           <TabsTrigger value="lift">Lift</TabsTrigger>
           <TabsTrigger value="splits">Splits</TabsTrigger>
           <TabsTrigger value="progress">Progress</TabsTrigger>
@@ -311,11 +189,183 @@ export default function HealthPage() {
           <TabsTrigger value="sleep">Sleep</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-4">
-          <p className="rounded-2xl border border-border/50 bg-secondary/30 px-4 py-3 text-sm text-muted-foreground">
-            Health feeds your day loop and optional Circles streaks. Dig into Lift or Nutrition when you
-            need depth — Today stays home.
-          </p>
+        <TabsContent value="overview" className="space-y-5">
+          <div
+            ref={waterBoxRef}
+            className="relative overflow-hidden rounded-[1.25rem] border border-border/70 p-5 transition-[border-color,box-shadow] duration-500"
+            style={{
+              borderColor:
+                waterProgress > 0 ? `rgb(20 184 166 / ${0.2 + waterProgress * 0.35})` : undefined,
+              boxShadow:
+                waterProgress > 0.2 ? `0 8px 28px rgb(14 116 144 / ${waterProgress * 0.1})` : undefined,
+            }}
+          >
+            <div className="pointer-events-none absolute inset-0 bg-card" />
+            <div
+              className="pointer-events-none absolute inset-0 bg-gradient-to-br from-teal-300/50 via-sky-300/35 to-cyan-200/30 transition-opacity duration-500"
+              style={{ opacity: waterProgress * 0.55 }}
+              aria-hidden
+            />
+            <div className="relative z-10">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+                <div className="min-w-0 rounded-xl bg-background/80 px-3 py-2 shadow-sm ring-1 ring-border/40 backdrop-blur-[2px]">
+                  <p className="text-sm font-medium text-foreground">
+                    Water · {logDate === todayKey() ? 'today' : logDate}
+                    {waterGoalMet ? ' · goal hit' : ''}
+                  </p>
+                  <p className="font-display text-3xl tracking-tight text-foreground">
+                    {water.glasses}
+                    <span className="ml-1 text-lg font-sans font-medium text-foreground/70">
+                      / {WATER_GOAL_GLASSES} glasses
+                    </span>
+                  </p>
+                  <p
+                    className={cn(
+                      'mt-1 min-h-[2.75rem] text-sm leading-snug text-foreground/85',
+                      waterGoalMet && 'font-semibold text-foreground',
+                    )}
+                  >
+                    {waterStatusCopy}
+                  </p>
+                </div>
+                <Button
+                  size="lg"
+                  className={cn(
+                    'h-11 w-full shrink-0 gap-2 sm:w-auto sm:justify-self-end',
+                    waterGoalMet && 'bg-teal-700 text-white hover:bg-teal-800',
+                  )}
+                  onClick={() => {
+                    healthApi.addGlass(userId, logDate)
+                    refresh()
+                  }}
+                >
+                  <Plus className="h-4 w-4" />
+                  Log a glass
+                </Button>
+              </div>
+              <div className="mt-4 flex min-h-10 flex-wrap gap-2">
+                {Array.from({ length: Math.max(WATER_GOAL_GLASSES, water.glasses) }, (_, i) => {
+                  const filled = i < water.glasses
+                  const fillStrength = filled ? Math.min(1, (i + 1) / WATER_GOAL_GLASSES) : 0
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      title={filled ? 'Filled — click to set count' : 'Empty — log up to here'}
+                      onClick={() => {
+                        healthApi.setWater(userId, i + 1, logDate)
+                        refresh()
+                      }}
+                      className={cn(
+                        'flex h-10 w-8 items-end justify-center rounded-b-md rounded-t-lg border-2 transition-colors duration-500',
+                        !filled && 'border-border/60 bg-secondary/50 hover:border-sky-400/40',
+                      )}
+                      style={
+                        filled
+                          ? {
+                              borderColor: `rgb(13 148 136 / ${0.45 + fillStrength * 0.4})`,
+                              backgroundColor: `rgb(45 212 191 / ${0.3 + fillStrength * 0.35})`,
+                            }
+                          : undefined
+                      }
+                    >
+                      <span
+                        className={cn(
+                          'mb-1 h-5 w-4 rounded-sm transition-colors duration-500',
+                          !filled && 'bg-transparent',
+                        )}
+                        style={
+                          filled
+                            ? { backgroundColor: `rgb(15 118 110 / ${0.55 + fillStrength * 0.4})` }
+                            : undefined
+                        }
+                      />
+                    </button>
+                  )
+                })}
+              </div>
+              <div className="mt-3 flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="shrink-0 bg-background/70"
+                  onClick={() => {
+                    healthApi.setWater(userId, water.glasses - 1, logDate)
+                    refresh()
+                  }}
+                >
+                  <Minus className="h-4 w-4" />
+                </Button>
+                <span className="text-xs text-foreground/70">Adjust count</span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="shrink-0 bg-background/70"
+                  onClick={() => {
+                    healthApi.setWater(userId, water.glasses + 1, logDate)
+                    refresh()
+                  }}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-medium">This week at a glance</p>
+              <div className="flex gap-1">
+                <Button
+                  size="sm"
+                  variant={range === 7 ? 'default' : 'outline'}
+                  className="h-8 rounded-full"
+                  onClick={() => setRange(7)}
+                >
+                  7d
+                </Button>
+                <Button
+                  size="sm"
+                  variant={range === 30 ? 'default' : 'outline'}
+                  className="h-8 rounded-full"
+                  onClick={() => setRange(30)}
+                >
+                  30d
+                </Button>
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="kp-surface p-4">
+                <MiniBars values={waterSeries} label={`Water · ${range}d`} maxHint={8} />
+              </div>
+              <div className="kp-surface p-4">
+                <MiniBars values={sleepSeries} label={`Sleep hrs · ${range}d`} maxHint={10} />
+              </div>
+              <div className="kp-surface p-4">
+                <MiniBars values={workoutSeries} label={`Move min · ${range}d`} maxHint={60} />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-2 text-sm font-medium">Log something</p>
+            <div className="flex flex-wrap gap-2">
+              {QUICK.map(({ id, label, icon: Icon }) => (
+                <Button
+                  key={id}
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 rounded-full"
+                  onClick={() => setHealthTab(id)}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {label}
+                </Button>
+              ))}
+            </div>
+          </div>
+
           <LiftTrackingPanel
             userId={userId}
             logDate={logDate}
@@ -327,7 +377,8 @@ export default function HealthPage() {
           />
         </TabsContent>
 
-        <TabsContent value="lift" className="space-y-4" forceMount>
+        {/* Lift log only mounts on Lift — draft still autosaves to this device */}
+        <TabsContent value="lift" className="space-y-4">
           <LiftTrackingPanel userId={userId} logDate={logDate} tick={tick} refresh={refresh} panel="lift" />
         </TabsContent>
 
@@ -361,10 +412,18 @@ export default function HealthPage() {
               <p className="text-xs text-muted-foreground">Sleep</p>
               <h3 className="font-display text-xl tracking-tight">Log last night</h3>
               <p className="mt-1 text-sm text-muted-foreground">
-                Hours and how it felt — same calm log style as water and meals.
+                Hours and how it felt — feeds your week review and Circles sleep streak.
               </p>
             </div>
-            <Input type="number" step="0.5" min={0} placeholder="Hours" value={hours} onChange={(e) => setHours(e.target.value)} aria-label="Hours slept" />
+            <Input
+              type="number"
+              step="0.5"
+              min={0}
+              placeholder="Hours"
+              value={hours}
+              onChange={(e) => setHours(e.target.value)}
+              aria-label="Hours slept"
+            />
             <Select value={quality} onValueChange={(v) => setQuality(v as SleepLog['quality'])}>
               <SelectTrigger aria-label="Sleep quality">
                 <SelectValue />

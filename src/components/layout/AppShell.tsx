@@ -54,7 +54,7 @@ export const PLAN = [
 export const LIFE = [
   { to: '/habits', label: 'Habits', icon: Flame },
   { to: '/journal', label: 'Journal', icon: BookOpen },
-  { to: '/health', label: 'Health', icon: HeartPulse },
+  { to: '/health', label: 'Health and Wellness', icon: HeartPulse },
   { to: '/notes', label: 'Notes', icon: NotebookPen },
   { to: '/documents', label: 'Files', icon: FileText },
 ] as const
