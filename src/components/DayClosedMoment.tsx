@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Moon, Share2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -38,7 +39,9 @@ export function DayClosedMoment({
     summary.parked > 0 ? `${summary.parked} parked` : 'Inbox clear',
   ].filter(Boolean)
 
-  return (
+  if (typeof document === 'undefined') return null
+
+  return createPortal(
     <AnimatePresence>
       {open ? (
         <motion.div
@@ -50,7 +53,7 @@ export function DayClosedMoment({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.4 }}
-          className="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-[hsl(225_28%_8%)] px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1.5rem,env(safe-area-inset-top))] text-white"
+          className="fixed inset-0 z-[80] flex flex-col items-center justify-center bg-[hsl(225_28%_8%)] px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1.5rem,env(safe-area-inset-top))] text-white"
         >
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_20%,hsl(200_50%_40%/0.28),transparent_55%)]" />
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_80%_90%,hsl(172_45%_30%/0.2),transparent_45%)]" />
@@ -120,6 +123,7 @@ export function DayClosedMoment({
           </motion.div>
         </motion.div>
       ) : null}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   )
 }

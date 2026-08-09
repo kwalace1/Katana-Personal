@@ -316,7 +316,7 @@ export default function DashboardPage() {
         { force: true },
       )
     }
-    offerPwaNudge()
+    // PWA nudge waits for Good night — don’t steal the share sheet.
   }
 
   function finishCloseMoment() {

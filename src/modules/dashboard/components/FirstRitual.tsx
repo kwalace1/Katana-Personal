@@ -11,7 +11,7 @@ import { burstConfetti } from '@/lib/celebrate'
 import { springSoft } from '@/lib/motion-ui'
 import { tasksApi } from '@/modules/tasks/api'
 import { habitsApi } from '@/modules/habits/api'
-import { formatShortDate } from '@/lib/dates'
+import { formatShortDate, todayKey } from '@/lib/dates'
 import { toast } from 'sonner'
 
 const STEP_KEY = 'katana-personal:ritual-step'
@@ -95,8 +95,17 @@ export function FirstRitual({
     burstConfetti()
     setDidNext(true)
     toast.success('That’s the loop')
+    // Keep Ask’s focus chip alive after we completed the captured item.
+    if (tasksApi.priorityTasks(userId, 1).length === 0) {
+      const due = new Date(`${todayKey()}T17:00:00`)
+      tasksApi.createTask(userId, {
+        title: 'Protect 25 minutes of focus',
+        due_at: due.toISOString(),
+        priority: 'high',
+      })
+    }
     onRefresh()
-    window.setTimeout(() => go('ask'), 450)
+    window.setTimeout(() => go('ask'), 320)
   }
 
   return (
@@ -229,7 +238,7 @@ export function FirstRitual({
                       completeNext()
                     }}
                   >
-                    Mark done
+                    {didNext ? 'Nice' : 'Mark done'}
                     <ArrowRight className="h-4 w-4" />
                   </Button>
                 ) : (
@@ -242,11 +251,16 @@ export function FirstRitual({
                       completeNext()
                     }}
                   >
-                    Check in
+                    {didNext ? 'Nice' : 'Check in'}
                     <ArrowRight className="h-4 w-4" />
                   </Button>
                 )}
               </div>
+            </>
+          ) : didNext ? (
+            <>
+              <h2 className="mt-2 font-display text-2xl tracking-tight">That’s the loop</h2>
+              <p className="mt-1.5 text-sm text-muted-foreground">Next — Ask can act.</p>
             </>
           ) : (
             <>
