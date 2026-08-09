@@ -8,7 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { EmptyState } from '@/components/ui/empty-state'
 import { MealPhotoEstimateDialog } from '@/components/MealPhotoEstimateDialog'
 import { NutritionLabelScanDialog } from '@/components/NutritionLabelScanDialog'
+import { PlusPaywallSheet, usePlusStatus } from '@/components/PlusPaywall'
 import { todayKey } from '@/lib/dates'
+import { canUsePlusFeature } from '@/lib/plus'
 import type { MealEstimate } from '@/lib/food/meal-estimate'
 import type { NutritionLabelEstimate } from '@/lib/food/nutrition-label'
 import {
@@ -72,6 +74,8 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
   const [grams, setGrams] = useState('100')
   const [scannerOpen, setScannerOpen] = useState(false)
   const [photoOpen, setPhotoOpen] = useState(false)
+  const [plusOpen, setPlusOpen] = useState(false)
+  const plus = usePlusStatus()
   const [photoNote, setPhotoNote] = useState<string | null>(null)
   const searchSeq = useRef(0)
 
@@ -298,8 +302,14 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
               size="icon"
               className="h-10 w-10 shrink-0"
               aria-label="Scan Nutrition Facts label"
-              title="Scan Nutrition Facts label"
-              onClick={() => setScannerOpen(true)}
+              title={plus ? 'Scan Nutrition Facts label' : 'Scan label · Plus'}
+              onClick={() => {
+                if (!canUsePlusFeature('nutrition_ai')) {
+                  setPlusOpen(true)
+                  return
+                }
+                setScannerOpen(true)
+              }}
             >
               <ScanText className="h-4 w-4" />
             </Button>
@@ -309,8 +319,14 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
               size="icon"
               className="h-10 w-10 shrink-0"
               aria-label="Estimate meal from photo"
-              title="Estimate meal from photo"
-              onClick={() => setPhotoOpen(true)}
+              title={plus ? 'Estimate meal from photo' : 'Meal photo · Plus'}
+              onClick={() => {
+                if (!canUsePlusFeature('nutrition_ai')) {
+                  setPlusOpen(true)
+                  return
+                }
+                setPhotoOpen(true)
+              }}
             >
               <ImagePlus className="h-4 w-4" />
             </Button>
@@ -438,6 +454,7 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
           onOpenChange={setPhotoOpen}
           onEstimate={applyMealEstimate}
         />
+        <PlusPaywallSheet open={plusOpen} onOpenChange={setPlusOpen} feature="nutrition_ai" />
 
         <div className="grid gap-3 sm:grid-cols-2 *:min-w-0">
           <Input

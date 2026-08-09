@@ -436,20 +436,34 @@ export default function FeedPage() {
         <div className="px-4 py-10 sm:px-5">
           <EmptyState
             icon={Newspaper}
-            title="Your feed is waiting"
-            description="Share a photo with a caption, a quick update, or a win — then invite friends so you can support each other."
+            title="Start the conversation"
+            description="Post an update even if you’re solo — then invite one friend so you can support each other."
             action={
               <div className="flex flex-wrap justify-center gap-2">
                 <Button className="gap-1.5" onClick={() => setPickerOpen(true)}>
                   <Plus className="h-4 w-4" />
-                  Create your first post
+                  Post your first update
                 </Button>
                 <Button variant="outline" onClick={() => setTab('friends')}>
-                  Add friends
+                  Invite a friend
                 </Button>
               </div>
             }
           />
+          <p className="mt-6 text-center text-xs text-muted-foreground">
+            How Together works:{' '}
+            <button type="button" className="text-primary underline" onClick={() => setTab('friends')}>
+              Friends
+            </button>
+            {' · '}
+            <Link to="/shared" className="text-primary underline">
+              Plans
+            </Link>
+            {' · '}
+            <Link to="/circles" className="text-primary underline">
+              Circles
+            </Link>
+          </p>
         </div>
       ) : (
         <motion.div

@@ -8,6 +8,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { HueWheel } from '@/components/HueWheel'
+import { usePlusStatus } from '@/components/PlusPaywall'
+import {
+  FREE_LLM_ASKS_PER_DAY,
+  freeLlmAsksRemaining,
+  setPlusUnlocked,
+} from '@/lib/plus'
 import { SimpleThemeToggle } from '@/components/SimpleThemeToggle'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
@@ -69,6 +75,9 @@ export default function SettingsPage() {
   const [searchParams] = useSearchParams()
   const fileRef = useRef<HTMLInputElement>(null)
   const cloudSectionRef = useRef<HTMLElement>(null)
+  const plusSectionRef = useRef<HTMLElement>(null)
+  const plus = usePlusStatus()
+  const llmLeft = plus ? null : freeLlmAsksRemaining()
   const [name, setName] = useState(profile?.display_name || '')
   const [busy, setBusy] = useState(false)
   const gentle = remindersEnabled(profile?.preferences)
@@ -112,6 +121,12 @@ export default function SettingsPage() {
   useEffect(() => {
     if (searchParams.get('cloud') === '1') {
       setCloudMode('signin')
+      window.setTimeout(() => cloudSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
+    }
+    if (window.location.hash === '#plus') {
+      window.setTimeout(() => plusSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
+    }
+    if (window.location.hash === '#cloud') {
       window.setTimeout(() => cloudSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
     }
   }, [searchParams])
@@ -278,11 +293,71 @@ export default function SettingsPage() {
         </div>
       </section>
 
+      <section ref={plusSectionRef} id="plus" className="kp-surface mb-4 scroll-mt-24 space-y-4 p-5">
+        <div>
+          <h2 className="font-semibold">Katana Plus</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Free is the private day loop. Plus adds deeper Ask, Circle challenges, and meal/label AI.
+          </p>
+        </div>
+        {plus ? (
+          <div className="rounded-2xl border border-primary/25 bg-primary/[0.06] px-4 py-3">
+            <p className="text-sm font-medium text-primary">Plus is on</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Unlimited deeper Ask · challenges · nutrition AI. Store billing comes next.
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="mt-3"
+              onClick={() => {
+                setPlusUnlocked(false)
+                toast.message('Back to Free')
+              }}
+            >
+              Turn off demo Plus
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <ul className="space-y-1.5 text-sm text-muted-foreground">
+              <li>
+                <span className="font-medium text-foreground">Free:</span> Today, Ask actions, Friends,
+                Social, Circles boards
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Plus:</span> deeper Ask (beyond{' '}
+                {FREE_LLM_ASKS_PER_DAY}/day), Circle challenges, meal & label AI
+              </li>
+            </ul>
+            {llmLeft != null ? (
+              <p className="text-xs text-muted-foreground">
+                Deeper Ask left today: {llmLeft}/{FREE_LLM_ASKS_PER_DAY}
+              </p>
+            ) : null}
+            <Button
+              type="button"
+              className="w-full sm:w-auto"
+              onClick={() => {
+                setPlusUnlocked(true)
+                toast.success('Katana Plus unlocked (demo)')
+              }}
+            >
+              Unlock Plus (demo)
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              For Shipaton judges and promo codes until RevenueCat is wired.
+            </p>
+          </div>
+        )}
+      </section>
+
       <section ref={cloudSectionRef} id="cloud" className="kp-surface mb-4 scroll-mt-24 space-y-4 p-5">
         <div>
           <h2 className="font-semibold">Together (optional)</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Friends, shared plans, and Circles — only what you choose to share leaves this device.
+            Friends, Plans, and Circles — only what you choose to share leaves this device.
             Everything else stays private here.
           </p>
         </div>

@@ -7,71 +7,70 @@ const STEPS = [
   {
     n: 1,
     title: 'Friends',
+    key: 'friends' as const,
     body: 'People you trust — invite with a link or code.',
     to: '/social?tab=friends',
     icon: Users,
   },
   {
     n: 2,
-    title: 'Shared',
-    body: 'Plans inbox — copy into your tasks. (Circle Schedule is what shows on Calendar.)',
+    title: 'Plans',
+    key: 'shared' as const,
+    body: 'Inbox of tasks/goals friends send you — copy into your day.',
     to: '/shared',
     icon: Share2,
   },
   {
     n: 3,
     title: 'Circles',
-    body: 'Streak boards and optional 7-day challenges — cheer habits and health together.',
+    key: 'circles' as const,
+    body: 'Group streak boards — not a plans inbox.',
     to: '/circles',
     icon: Trophy,
   },
 ] as const
 
-/** One mental model for Friends / Shared / Circles empty & intro surfaces. */
+/** Compact mental model for Friends / Plans / Circles. */
 export function TogetherSetup({
   highlight,
   className,
   compact,
   cloudConnected = false,
 }: {
-  /** Which chapter this page is — dims the others slightly */
   highlight?: 'friends' | 'shared' | 'circles'
   className?: string
   compact?: boolean
-  /** When true, don’t push “Connect cloud” — they’re already signed in */
   cloudConnected?: boolean
 }) {
   return (
-    <div className={cn('kp-surface p-5 sm:p-6', className)}>
+    <div className={cn('kp-surface p-4 sm:p-5', className)}>
       <p className="kp-section-label">How Together works</p>
-      <p className="mt-2 font-display text-xl tracking-tight">Three clear jobs — no overlap</p>
+      <p className="mt-1 font-display text-lg tracking-tight sm:text-xl">
+        Friends · Plans · Circles
+      </p>
       {!compact ? (
         <p className="mt-1 text-sm text-muted-foreground">
-          Private life stays on your device. Together is opt-in accountability.
+          Private life stays on this device. Together is opt-in.
         </p>
       ) : null}
-      <ol className="mt-5 space-y-2">
+      <ol className={cn('mt-4 space-y-1.5', compact && 'mt-3')}>
         {STEPS.map((step) => {
-          const key = step.title.toLowerCase() as 'friends' | 'shared' | 'circles'
-          const active = !highlight || highlight === key
+          const active = !highlight || highlight === step.key
           const Icon = step.icon
           return (
             <li key={step.n}>
               <Link
                 to={step.to}
                 className={cn(
-                  'flex items-start gap-3 rounded-2xl px-3.5 py-3 transition',
+                  'flex items-start gap-3 rounded-xl px-3 py-2.5 transition',
                   active ? 'bg-primary/10' : 'bg-secondary/40 opacity-70 hover:opacity-100',
                 )}
               >
-                <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-background text-primary">
-                  <Icon className="h-4 w-4" />
+                <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-background text-primary">
+                  <Icon className="h-3.5 w-3.5" />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="flex items-baseline gap-2">
-                    <span className="text-xs font-semibold text-muted-foreground">{step.n}</span>
-                    <span className="text-sm font-semibold">{step.title}</span>
-                  </span>
+                  <span className="text-sm font-semibold">{step.title}</span>
                   <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
                     {step.body}
                   </span>
@@ -81,30 +80,10 @@ export function TogetherSetup({
           )
         })}
       </ol>
-      {highlight === 'shared' ? (
-        <p className="mt-4 text-xs text-muted-foreground">
-          Shared is a plans list you can copy in. For events that appear on Calendar for the group,
-          use Circle Schedule.
-        </p>
-      ) : null}
-      {highlight === 'circles' ? (
-        <p className="mt-4 text-xs text-muted-foreground">
-          Tip: turn on streak sharing in{' '}
-          <Link to="/settings" className="text-primary underline">
-            Settings
-          </Link>{' '}
-          so friends can see your board.
-        </p>
-      ) : null}
       {highlight === 'friends' && !cloudConnected ? (
-        <Button asChild size="sm" className="mt-4 min-h-11">
-          <Link to="/">Sign in to Cloud to invite</Link>
+        <Button asChild size="sm" className="mt-3 min-h-11">
+          <Link to="/settings#cloud">Connect cloud to invite</Link>
         </Button>
-      ) : null}
-      {highlight === 'friends' && cloudConnected ? (
-        <p className="mt-4 text-xs text-muted-foreground">
-          You’re connected — share your code or invite link below to add people.
-        </p>
       ) : null}
     </div>
   )

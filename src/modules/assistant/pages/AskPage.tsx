@@ -5,9 +5,16 @@ import { Send, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { PlusPaywallSheet, usePlusStatus } from '@/components/PlusPaywall'
 import { useAuth } from '@/contexts/AuthContext'
 import { pageEnterSubtle } from '@/lib/motion-ui'
 import { cn } from '@/lib/utils'
+import {
+  canUseLlmAsk,
+  consumeLlmAsk,
+  FREE_LLM_ASKS_PER_DAY,
+  freeLlmAsksRemaining,
+} from '@/lib/plus'
 import {
   answerQuestionWithActions,
   buildSnapshot,
@@ -32,12 +39,17 @@ export default function AskPage() {
   const [draft, setDraft] = useState('')
   const [spent, setSpent] = useState<Record<string, true>>({})
   const [pending, setPending] = useState(false)
+  const [plusOpen, setPlusOpen] = useState(false)
+  const [llmHint, setLlmHint] = useState<string | null>(null)
   const seededQ = useRef(false)
+  const plus = usePlusStatus()
 
   const messages = useMemo(() => {
     void tick
     return askApi.list(userId)
   }, [userId, tick])
+
+  const llmLeft = plus ? null : freeLlmAsksRemaining()
 
   useEffect(() => {
     if (messages.length === 0) {
@@ -61,11 +73,40 @@ export default function AskPage() {
 
   async function finalizeReply(question: string, reply: AskReply) {
     if (reply.useLlm) {
+      if (!canUseLlmAsk()) {
+        askApi.append(userId, {
+          role: 'katana',
+          text: `${reply.text}\n\n—\nYou’ve used today’s ${FREE_LLM_ASKS_PER_DAY} free deeper Ask replies. Action chips still work; Plus unlocks unlimited depth.`,
+          actions: [
+            ...reply.actions.slice(0, 3),
+            { id: createId(), label: 'Katana Plus', kind: 'open_route', route: '/settings#plus' },
+          ],
+        })
+        setPlusOpen(true)
+        refresh()
+        return
+      }
       setPending(true)
+      setLlmHint(null)
       try {
         const snap = buildSnapshot(userId, name)
         const resolved = await resolveWithLlm(question, snap, reply)
-        askApi.append(userId, { role: 'katana', text: resolved.text, actions: resolved.actions })
+        const usedLlm = resolved.text !== reply.text
+        if (usedLlm) {
+          consumeLlmAsk()
+          setLlmHint(null)
+        } else {
+          setLlmHint(
+            'Open-ended depth needs the Ask API key configured — showing a rules briefing instead (still useful).',
+          )
+        }
+        askApi.append(userId, {
+          role: 'katana',
+          text: usedLlm
+            ? resolved.text
+            : `${resolved.text}\n\n—\nDeeper Ask isn’t available right now (no model key). This is a rules briefing — chips still act.`,
+          actions: resolved.actions,
+        })
       } finally {
         setPending(false)
       }
@@ -165,6 +206,22 @@ export default function AskPage() {
         }
       />
 
+      {llmLeft != null ? (
+        <p className="mb-3 text-xs text-muted-foreground">
+          Deeper Ask today: {llmLeft}/{FREE_LLM_ASKS_PER_DAY} free
+          {llmLeft === 0 ? (
+            <>
+              {' · '}
+              <button type="button" className="text-primary underline" onClick={() => setPlusOpen(true)}>
+                Unlock Plus
+              </button>
+            </>
+          ) : null}
+        </p>
+      ) : (
+        <p className="mb-3 text-xs text-primary">Katana Plus — unlimited deeper Ask</p>
+      )}
+      {llmHint ? <p className="mb-3 text-xs text-muted-foreground">{llmHint}</p> : null}
       <div className="mb-5 flex flex-wrap gap-2">
         {messages.filter((m) => m.role === 'you').length === 0
           ? suggestedAsksForHour().map((prompt) => (
@@ -258,6 +315,8 @@ export default function AskPage() {
           <Send className="h-4 w-4" />
         </Button>
       </form>
+
+      <PlusPaywallSheet open={plusOpen} onOpenChange={setPlusOpen} feature="llm" />
     </motion.div>
   )
 }

@@ -54,14 +54,14 @@ export const PLAN = [
 export const LIFE = [
   { to: '/habits', label: 'Habits', icon: Flame },
   { to: '/journal', label: 'Journal', icon: BookOpen },
-  { to: '/health', label: 'Health and Fitness', icon: HeartPulse },
+  { to: '/health', label: 'Health', icon: HeartPulse },
   { to: '/notes', label: 'Notes', icon: NotebookPen },
   { to: '/documents', label: 'Files', icon: FileText },
 ] as const
 
 export const SOCIAL = [
   { to: '/social', label: 'Social', icon: Newspaper },
-  { to: '/shared', label: 'Shared', icon: Share2 },
+  { to: '/shared', label: 'Plans', icon: Share2 },
   { to: '/circles', label: 'Circles', icon: Trophy },
 ] as const
 

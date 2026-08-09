@@ -212,7 +212,7 @@ export function TogetherTodayCard() {
               <Button asChild size="sm" variant="ghost" className="gap-1.5">
                 <Link to="/shared">
                   <Share2 className="h-3.5 w-3.5" />
-                  {mode.sharedIncoming} shared with you
+                  {mode.sharedIncoming} in Plans
                 </Link>
               </Button>
             ) : null}
@@ -224,12 +224,11 @@ export function TogetherTodayCard() {
         <div>
           <p className="font-display text-xl tracking-tight">Accountability starts here</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Friends are people. Shared is plans you copy in. Circles are streaks — Schedule shows on
-            Calendar.
+            Friends are people. Plans is an inbox you copy in. Circles are streak boards.
           </p>
           {(mode.sharedIncoming ?? 0) > 0 ? (
             <p className="mt-2 text-sm font-medium text-primary">
-              {mode.sharedIncoming} plan{mode.sharedIncoming === 1 ? '' : 's'} waiting in Shared
+              {mode.sharedIncoming} plan{mode.sharedIncoming === 1 ? '' : 's'} waiting in Plans
             </p>
           ) : null}
           <div className="mt-4 flex flex-wrap gap-2">
@@ -237,7 +236,7 @@ export function TogetherTodayCard() {
             <Button asChild size="sm" variant="outline" className="gap-1.5">
               <Link to="/shared">
                 <Share2 className="h-3.5 w-3.5" />
-                Shared
+                Plans
               </Link>
             </Button>
             <Button asChild size="sm" variant="outline" className="gap-1.5">

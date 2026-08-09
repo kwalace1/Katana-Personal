@@ -601,18 +601,18 @@ function answerTogether(q: string): AskReply {
       ]),
       actions: [
         { id: createId(), label: 'Invite a friend', kind: 'open_route', route: '/social?tab=friends' },
-        { id: createId(), label: 'Open Shared', kind: 'open_route', route: '/shared' },
+        { id: createId(), label: 'Open Plans', kind: 'open_route', route: '/shared' },
       ],
     }
   }
   if (q.includes('shared') || q.includes('share')) {
     return {
       text: keepShort([
-        'Shared is a plans inbox you copy into your tasks.',
+        'Plans is an inbox you copy into your tasks.',
         'Circle Schedule is what shows on Calendar.',
       ]),
       actions: [
-        { id: createId(), label: 'Open Shared', kind: 'open_route', route: '/shared' },
+        { id: createId(), label: 'Open Plans', kind: 'open_route', route: '/shared' },
         { id: createId(), label: 'Share from Tasks', kind: 'open_route', route: '/tasks' },
       ],
     }

@@ -72,6 +72,33 @@ export function dismissShareWin() {
   emit(null)
 }
 
+const PARK_KEY = 'katana-personal:share-win-parked'
+
+/** Close the sheet but keep the win so Connect → return can resume it. */
+export function parkShareWinForConnect() {
+  if (!pending) return
+  try {
+    sessionStorage.setItem(PARK_KEY, JSON.stringify(pending))
+  } catch {
+    // ignore
+  }
+  dismissShareWin()
+}
+
+export function resumeParkedShareWin(): ShareWinOffer | null {
+  try {
+    const raw = sessionStorage.getItem(PARK_KEY)
+    if (!raw) return null
+    sessionStorage.removeItem(PARK_KEY)
+    const parsed = JSON.parse(raw) as ShareWinOffer
+    if (!parsed?.card || !parsed.headline) return null
+    emit(parsed)
+    return parsed
+  } catch {
+    return null
+  }
+}
+
 /**
  * Offer an optional Feed share after a meaningful win.
  * No-ops if the user chose “Don’t ask”, or another prompt was shown recently.

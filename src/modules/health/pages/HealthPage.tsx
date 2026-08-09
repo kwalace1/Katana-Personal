@@ -139,7 +139,11 @@ export default function HealthPage() {
 
   return (
     <motion.div {...pageEnterSubtle} className="kp-page">
-      <PageHeader title="Health and Fitness" description="Lift, move, fuel, and rest." eyebrow="Life" />
+      <PageHeader
+        title="Health"
+        description="Signals for Today and Circles — water, lifts, fuel, and rest. Not the whole product."
+        eyebrow="Life"
+      />
 
       <div className="mb-4 flex min-w-0 flex-wrap items-center gap-2">
         <Input
@@ -308,6 +312,10 @@ export default function HealthPage() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
+          <p className="rounded-2xl border border-border/50 bg-secondary/30 px-4 py-3 text-sm text-muted-foreground">
+            Health feeds your day loop and optional Circles streaks. Dig into Lift or Nutrition when you
+            need depth — Today stays home.
+          </p>
           <LiftTrackingPanel
             userId={userId}
             logDate={logDate}

@@ -335,7 +335,7 @@ export function CircleSchedule({
         <EmptyState
           icon={CalendarDays}
           title="No schedule items yet"
-          description="Circle Schedule shows on everyone’s Calendar. Shared is a separate plans inbox you copy into your own tasks."
+          description="Circle Schedule shows on everyone’s Calendar. Plans is a separate inbox you copy into your own tasks."
           action={
             <Button onClick={() => openAdd()}>
               <Plus className="mr-1 h-4 w-4" />

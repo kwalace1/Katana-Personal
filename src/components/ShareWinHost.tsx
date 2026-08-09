@@ -1,5 +1,5 @@
-import { FormEvent, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { FormEvent, useEffect, useRef, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { FeedCardView } from '@/components/FeedCardView'
@@ -11,13 +11,15 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
-import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
 import { listMyCircles } from '@/lib/social/circles'
 import { createTogetherPost, FEED_TEXT_MAX, type FeedAudience } from '@/lib/social/feed'
 import {
   dismissShareWin,
+  getPendingShareWin,
+  parkShareWinForConnect,
+  resumeParkedShareWin,
   setShareWinNever,
   subscribeShareWin,
   type ShareWinOffer,
@@ -31,17 +33,26 @@ import type { CircleGroup } from '@/lib/social/types'
  */
 export function ShareWinHost() {
   const { cloudEnabled, cloudUser, cloudProfile, saveSharePrefs } = useCloudAuth()
+  const navigate = useNavigate()
   const [offer, setOffer] = useState<ShareWinOffer | null>(null)
   const [caption, setCaption] = useState('')
   const [audience, setAudience] = useState<FeedAudience>('friends')
   const [circleId, setCircleId] = useState('')
   const [circles, setCircles] = useState<CircleGroup[]>([])
   const [posting, setPosting] = useState(false)
-  const [unlocking, setUnlocking] = useState(false)
+  const resumedRef = useRef(false)
 
   const feedCardsOn = Boolean(cloudProfile?.sharePrefs?.feedCards)
 
   useEffect(() => subscribeShareWin(setOffer), [])
+
+  // After cloud connect, restore a win that was parked for Settings
+  useEffect(() => {
+    if (!cloudUser || resumedRef.current) return
+    if (getPendingShareWin()) return
+    const parked = resumeParkedShareWin()
+    if (parked) resumedRef.current = true
+  }, [cloudUser])
 
   useEffect(() => {
     if (!offer) return
@@ -66,32 +77,29 @@ export function ShareWinHost() {
     dismissShareWin()
   }
 
-  async function enableFeedCards() {
-    if (!cloudProfile) return
-    setUnlocking(true)
+  async function ensureFeedCards(): Promise<boolean> {
+    if (!cloudProfile) return false
+    if (cloudProfile.sharePrefs?.feedCards) return true
     try {
       await saveSharePrefs({
         ...DEFAULT_SHARE_PREFS,
         ...cloudProfile.sharePrefs,
         feedCards: true,
       })
-      toast.success('Feed cards on — wins can go to your Feed')
+      return true
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Couldn’t update settings')
-    } finally {
-      setUnlocking(false)
+      toast.error(err instanceof Error ? err.message : 'Couldn’t enable Feed cards')
+      return false
     }
   }
 
   async function onPost(e: FormEvent) {
     e.preventDefault()
     if (!cloudUser || !offer) return
-    if (!feedCardsOn) {
-      toast.message('Turn on Feed cards below to post this win')
-      return
-    }
     setPosting(true)
     try {
+      const ok = await ensureFeedCards()
+      if (!ok) return
       await createTogetherPost({
         authorId: cloudUser.uid,
         text: caption,
@@ -99,8 +107,9 @@ export function ShareWinHost() {
         circleId: audience === 'circle' ? circleId : null,
         card: offer.card,
       })
-      toast.success('Posted to Feed')
+      toast.success('Posted to Social')
       close()
+      navigate('/social')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Couldn’t post')
     } finally {
@@ -109,6 +118,7 @@ export function ShareWinHost() {
   }
 
   const open = Boolean(offer)
+  const needsCloud = !cloudEnabled || !cloudUser
 
   return (
     <Sheet
@@ -135,37 +145,31 @@ export function ShareWinHost() {
               <div className="space-y-4 overflow-y-auto px-5 py-4">
                 <FeedCardView card={offer.card} variant="hero" />
 
-                {!cloudEnabled || !cloudUser ? (
+                {needsCloud ? (
                   <div className="rounded-2xl border border-border/60 bg-secondary/40 px-4 py-3 text-sm">
-                    <p className="font-medium">Connect cloud to post</p>
+                    <p className="font-medium">Connect to share this win</p>
                     <p className="mt-1 text-muted-foreground">
-                      Wins stay private until you connect and choose to share.
+                      We’ll bring this celebration back after you connect — nothing is lost.
                     </p>
-                    <Button asChild className="mt-3" size="sm">
-                      <Link to="/settings#cloud" onClick={close}>
-                        Open Settings
-                      </Link>
+                    <Button
+                      type="button"
+                      className="mt-3"
+                      size="sm"
+                      onClick={() => {
+                        parkShareWinForConnect()
+                        navigate('/settings#cloud')
+                      }}
+                    >
+                      Connect cloud
                     </Button>
                   </div>
                 ) : (
                   <>
                     {!feedCardsOn ? (
-                      <div className="flex items-center justify-between gap-3 rounded-2xl border border-primary/20 bg-primary/[0.06] px-4 py-3">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium">Allow Feed cards</p>
-                          <p className="text-xs text-muted-foreground">
-                            Needed once so wins can appear on your Feed.
-                          </p>
-                        </div>
-                        <Switch
-                          checked={false}
-                          disabled={unlocking}
-                          onCheckedChange={(on) => {
-                            if (on) void enableFeedCards()
-                          }}
-                          aria-label="Allow Feed cards"
-                        />
-                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        First share turns on Feed cards automatically — you can change that in
+                        Settings anytime.
+                      </p>
                     ) : null}
 
                     <Textarea
@@ -204,12 +208,8 @@ export function ShareWinHost() {
 
               <div className="space-y-2 border-t border-border/40 px-5 py-3">
                 {cloudUser ? (
-                  <Button
-                    type="submit"
-                    className="min-h-11 w-full"
-                    disabled={posting || !feedCardsOn}
-                  >
-                    {posting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Post to Feed'}
+                  <Button type="submit" className="min-h-11 w-full" disabled={posting}>
+                    {posting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Post to Social'}
                   </Button>
                 ) : null}
                 <Button type="button" variant="outline" className="min-h-11 w-full" onClick={close}>

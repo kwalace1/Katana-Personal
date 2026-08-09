@@ -58,21 +58,29 @@ export default function SharedPage() {
   if (!cloudUser) {
     return (
       <motion.div {...pageEnterSubtle} className="kp-page">
-        <PageHeader title="Shared" description="Plans you’ve made together." eyebrow="Together" />
-        <TogetherSetup highlight="shared" />
+        <PageHeader
+          title="Plans"
+          description="Friends send you tasks and goals here — Circles are separate group boards."
+          eyebrow="Together"
+        />
+        <TogetherSetup highlight="shared" compact />
       </motion.div>
     )
   }
 
   return (
     <motion.div {...pageEnterSubtle} className="kp-page">
-      <PageHeader title="Shared" description="Plans inbox — copy into your tasks. Circle Schedule shows on Calendar." eyebrow="Together" />
+      <PageHeader
+        title="Plans"
+        description="Friends send you tasks and goals here — Circles are separate group boards."
+        eyebrow="Together"
+      />
       {items.length === 0 ? (
         <>
-          <TogetherSetup highlight="shared" className="mb-4" />
+          <TogetherSetup highlight="shared" compact cloudConnected className="mb-4" />
           <EmptyState
-            title="Nothing shared yet"
-            description="Shared is your plans inbox — share a task with a friend or circle, then copy it into your own list. For things that show on Calendar, use Circle Schedule."
+            title="Nothing in your plans inbox"
+            description="Share a task with a friend from Tasks — they can copy it here. Circles are for streak boards, not this inbox."
             action={
               <div className="flex flex-wrap justify-center gap-2">
                 <Button asChild>

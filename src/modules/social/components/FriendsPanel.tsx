@@ -161,10 +161,56 @@ export function FriendsPanel({ embedded }: Props) {
 
   return (
     <div className={cn('space-y-5', embedded ? 'px-4 py-4 sm:px-5' : '')}>
-      <p className="text-sm text-muted-foreground">
-        Grow with people on the same path — invite, support, and show up for each other.
-      </p>
+      {accepted.length === 0 && !hasInbox ? (
+        <section className="rounded-2xl border border-primary/25 bg-primary/[0.06] p-4 sm:p-5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-primary">Start with one person</p>
+          <h2 className="mt-1 font-display text-xl tracking-tight">Send this to a friend</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Share your link or QR — when they join, you can cheer each other on in Social.
+          </p>
+          <div className="mt-4 flex flex-wrap items-center gap-4">
+            <img
+              alt="QR code to add you as a friend"
+              className="h-28 w-28 rounded-xl border border-border/50 bg-white p-1"
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(getAddMeUrl(cloudProfile.friendCode))}`}
+            />
+            <div className="min-w-0 flex-1 space-y-2">
+              <p className="font-display text-3xl tracking-widest">{cloudProfile.friendCode}</p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(getAddMeUrl(cloudProfile.friendCode))
+                    toast.success('Add-me link copied — send it to one person')
+                  }}
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  Copy invite link
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5"
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(cloudProfile.friendCode)
+                    toast.success('Code copied')
+                  }}
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  Copy code
+                </Button>
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Grow with people on the same path — invite, support, and show up for each other.
+        </p>
+      )}
 
+      {accepted.length > 0 || hasInbox ? (
       <section className="rounded-2xl border border-border/50 bg-card/50 p-4">
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Your code</p>
         <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -218,6 +264,7 @@ export function FriendsPanel({ embedded }: Props) {
           </div>
         </div>
       </section>
+      ) : null}
 
       <form onSubmit={(e) => void onAdd(e)} className="flex gap-2 rounded-2xl border border-border/50 bg-card/50 p-3">
         <Input
@@ -377,8 +424,8 @@ export function FriendsPanel({ embedded }: Props) {
         </h2>
         {accepted.length === 0 ? (
           <EmptyState
-            title="No friends yet"
-            description="Share your Add-me link or code — once they accept, you can cheer each other on in Social."
+            title="Waiting on your first friend"
+            description="Use the invite link above — or enter their code below once they have one."
           />
         ) : (
           <ul className="space-y-2">

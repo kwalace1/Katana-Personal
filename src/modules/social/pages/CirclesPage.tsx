@@ -29,6 +29,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { EmptyState } from '@/components/ui/empty-state'
 import { TogetherSetup } from '@/components/TogetherSetup'
+import { PlusPaywallSheet, usePlusStatus } from '@/components/PlusPaywall'
 import {
   Dialog,
   DialogContent,
@@ -36,6 +37,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
+import { canUsePlusFeature } from '@/lib/plus'
 import { pageEnterSubtle, springSoft } from '@/lib/motion-ui'
 import { loadCirclesBoard, listFriendActivity, type ActivityFeedItem } from '@/lib/social/streaks'
 import {
@@ -141,6 +143,8 @@ export default function CirclesPage() {
   const [pendingInvites, setPendingInvites] = useState<{ token: string; inviteeUid: string }[]>([])
   const [inviteBusy, setInviteBusy] = useState<string | null>(null)
   const [challengeOpen, setChallengeOpen] = useState(false)
+  const [plusOpen, setPlusOpen] = useState(false)
+  const plus = usePlusStatus()
   const [challengeTitle, setChallengeTitle] = useState('7-day streak')
   const [challengeMetric, setChallengeMetric] = useState<CircleChallengeMetric>('habit')
 
@@ -531,8 +535,12 @@ export default function CirclesPage() {
   if (!cloudEnabled || !cloudUser) {
     return (
       <motion.div {...pageEnterSubtle} className="kp-page">
-        <PageHeader title="Circles" description="Streak boards with people you trust." eyebrow="Together" />
-        <TogetherSetup highlight="circles" />
+        <PageHeader
+          title="Circles"
+          description="Group streak boards — not a plans inbox."
+          eyebrow="Together"
+        />
+        <TogetherSetup highlight="circles" compact />
       </motion.div>
     )
   }
@@ -616,11 +624,17 @@ export default function CirclesPage() {
           <div className="mb-6 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
             <p className="font-medium">Only you are in this circle</p>
             <p className="mt-0.5 text-muted-foreground">
-              Friends won’t see it until you add them in Manage — or share an invite link below.
+              Invite friends from Manage — they join after they accept. Circles are group streak boards,
+              not a plans inbox.
             </p>
-            <Button size="sm" className="mt-2" onClick={openManage}>
-              Add friends
-            </Button>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Button size="sm" onClick={openManage}>
+                Invite friends
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setCreateOpen(true)}>
+                Create another
+              </Button>
+            </div>
           </div>
         ) : null}
 
@@ -740,8 +754,17 @@ export default function CirclesPage() {
                 Pick a metric. Climb together. Ends automatically.
               </p>
             </div>
-            <Button size="sm" onClick={() => setChallengeOpen(true)}>
-              Start
+            <Button
+              size="sm"
+              onClick={() => {
+                if (!canUsePlusFeature('challenge')) {
+                  setPlusOpen(true)
+                  return
+                }
+                setChallengeOpen(true)
+              }}
+            >
+              Start{plus ? '' : ' · Plus'}
             </Button>
           </div>
         )}
@@ -1049,6 +1072,8 @@ export default function CirclesPage() {
             await loadCirclesList()
           }}
         />
+
+        <PlusPaywallSheet open={plusOpen} onOpenChange={setPlusOpen} feature="challenge" />
       </motion.div>
     )
   }
@@ -1058,7 +1083,7 @@ export default function CirclesPage() {
     <motion.div {...pageEnterSubtle} className="kp-page">
       <PageHeader
         title="Circles"
-        description="Pick a crew. Climb the board. Stay accountable together."
+        description="Group streak boards — not a plans inbox. Pick a crew and stay accountable."
         eyebrow="Together"
         actions={
           <Button className="gap-1.5" onClick={() => setCreateOpen(true)}>
@@ -1078,15 +1103,15 @@ export default function CirclesPage() {
 
       {circles.length === 0 ? (
         <>
-          <TogetherSetup highlight="circles" className="mb-4" />
+          <TogetherSetup highlight="circles" compact cloudConnected={Boolean(cloudUser)} className="mb-4" />
           <EmptyState
             title="No circles yet"
-            description="Create one for gym buddies, family, or roommates. Leaderboards and challenges live here; Circle Schedule shows on Calendar. Shared is a separate plans inbox."
+            description="Create a group streak board for gym buddies or roommates — then invite friends (they accept before joining)."
             action={
               <div className="flex flex-wrap justify-center gap-2">
                 <Button onClick={() => setCreateOpen(true)}>Create a circle</Button>
                 <Button asChild variant="outline">
-                  <Link to="/social?tab=friends">Add friends first</Link>
+                  <Link to="/social?tab=friends">Invite a friend first</Link>
                 </Button>
               </div>
             }
