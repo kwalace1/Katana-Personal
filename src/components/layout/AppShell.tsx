@@ -66,10 +66,39 @@ export const SOCIAL = [
   { to: '/circles', label: 'Circles', icon: Trophy },
 ] as const
 
-const MORE_KEY = 'katana-personal:nav-more'
+/** Together section under the top-level Social link (no duplicate Social row). */
+export const TOGETHER_MORE = [
+  { to: '/shared', label: 'Plans', icon: Share2 },
+  { to: '/circles', label: 'Circles', icon: Trophy },
+] as const
+
+const NAV_SECTION_KEYS = {
+  plan: 'katana-personal:nav-plan',
+  life: 'katana-personal:nav-life',
+  together: 'katana-personal:nav-together',
+} as const
 const DRAWER_WIDTH = 280
 const EDGE_OPEN_PX = 28
 const SWIPE_OPEN_PX = 56
+
+function readNavOpen(key: string, fallback = false) {
+  try {
+    const raw = localStorage.getItem(key)
+    if (raw === '1') return true
+    if (raw === '0') return false
+  } catch {
+    // ignore
+  }
+  return fallback
+}
+
+function writeNavOpen(key: string, open: boolean) {
+  try {
+    localStorage.setItem(key, open ? '1' : '0')
+  } catch {
+    // ignore
+  }
+}
 
 function NavGroup({
   label,
@@ -105,6 +134,39 @@ function NavGroup({
   )
 }
 
+function NavExpandable({
+  label,
+  open,
+  onToggle,
+  items,
+  onNavigate,
+}: {
+  label: string
+  open: boolean
+  onToggle: () => void
+  items: readonly { to: string; label: string; icon: React.ComponentType<{ className?: string }> }[]
+  onNavigate?: () => void
+}) {
+  return (
+    <div className="pt-0.5">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex min-h-11 w-full items-center justify-between rounded-xl px-3 py-2 text-[0.925rem] font-medium text-muted-foreground transition hover:bg-secondary/80 hover:text-foreground"
+        aria-expanded={open}
+      >
+        <span>{label}</span>
+        <ChevronDown className={cn('h-4 w-4 shrink-0 transition', open && 'rotate-180')} />
+      </button>
+      {open ? (
+        <div className="mt-0.5 space-y-1 border-l border-border/50 pl-1">
+          <NavGroup items={items} onNavigate={onNavigate} />
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <SocialInboxProvider>
@@ -119,13 +181,9 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate()
   const [navOpen, setNavOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
-  const [moreOpen, setMoreOpen] = useState(() => {
-    try {
-      return localStorage.getItem(MORE_KEY) === '1'
-    } catch {
-      return false
-    }
-  })
+  const [planOpen, setPlanOpen] = useState(() => readNavOpen(NAV_SECTION_KEYS.plan))
+  const [lifeOpen, setLifeOpen] = useState(() => readNavOpen(NAV_SECTION_KEYS.life))
+  const [togetherOpen, setTogetherOpen] = useState(() => readNavOpen(NAV_SECTION_KEYS.together))
   const { pendingCount: pendingFriends } = useSharedSocialInbox()
   useNotificationToasts()
   useKeepInputVisible()
@@ -133,16 +191,10 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   const closeNav = useCallback(() => setNavOpen(false), [])
   const openNav = useCallback(() => setNavOpen(true), [])
 
-  function toggleMore() {
-    setMoreOpen((v) => {
-      const next = !v
-      try {
-        localStorage.setItem(MORE_KEY, next ? '1' : '0')
-      } catch {
-        // ignore
-      }
-      return next
-    })
+  function toggleSection(section: keyof typeof NAV_SECTION_KEYS, open: boolean, setOpen: (v: boolean) => void) {
+    const next = !open
+    writeNavOpen(NAV_SECTION_KEYS[section], next)
+    setOpen(next)
   }
 
   async function handleSignOut() {
@@ -160,44 +212,41 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
       ]
     : []
 
-  const moreSocial = SOCIAL.filter((item) => item.to !== '/social')
   const primaryItems = onboardingDone ? PRIMARY : PRIMARY.filter((item) => item.to === '/dashboard')
 
   const nav = (
     <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-2.5 py-2" aria-label="Main">
       <NavGroup items={primaryItems} onNavigate={closeNav} />
       {socialPrimary.length > 0 ? <NavGroup items={socialPrimary} onNavigate={closeNav} /> : null}
-      <div className="pt-2">
-        {onboardingDone ? (
-          <button
-            type="button"
-            onClick={toggleMore}
-            className="flex min-h-11 w-full items-center justify-between rounded-xl px-3 py-2 text-[0.925rem] font-medium text-muted-foreground transition hover:bg-secondary/80 hover:text-foreground"
-            aria-expanded={moreOpen}
-          >
-            <span>More</span>
-            <ChevronDown className={cn('h-4 w-4 transition', moreOpen && 'rotate-180')} />
-          </button>
-        ) : null}
-        {onboardingDone && moreOpen ? (
-          <div className="mt-1 space-y-1 border-l border-border/50 pl-1">
-            <p className="px-3 pb-1 pt-2 text-[0.65rem] leading-snug text-muted-foreground">
-              Depth when you need it — Today stays the home of the day loop.
-            </p>
-            <NavGroup label="Plan" items={PLAN} onNavigate={closeNav} />
-            <NavGroup label="Life" items={LIFE} onNavigate={closeNav} />
-            <NavGroup label="Together" items={moreSocial} onNavigate={closeNav} />
-          </div>
-        ) : !onboardingDone ? (
-          <p className="px-3 pb-1 text-[0.7rem] text-muted-foreground">
-            Finish your first minute — Ask opens when the loop reaches it
-          </p>
-        ) : (
-          <p className="px-3 pb-1 text-[0.65rem] text-muted-foreground">
-            Tasks, habits, health — depth, not the home
-          </p>
-        )}
-      </div>
+      {onboardingDone ? (
+        <div className="mt-1 space-y-0.5">
+          <NavExpandable
+            label="Plan"
+            open={planOpen}
+            onToggle={() => toggleSection('plan', planOpen, setPlanOpen)}
+            items={PLAN}
+            onNavigate={closeNav}
+          />
+          <NavExpandable
+            label="Life"
+            open={lifeOpen}
+            onToggle={() => toggleSection('life', lifeOpen, setLifeOpen)}
+            items={LIFE}
+            onNavigate={closeNav}
+          />
+          <NavExpandable
+            label="Together"
+            open={togetherOpen}
+            onToggle={() => toggleSection('together', togetherOpen, setTogetherOpen)}
+            items={TOGETHER_MORE}
+            onNavigate={closeNav}
+          />
+        </div>
+      ) : (
+        <p className="px-3 pb-1 text-[0.7rem] text-muted-foreground">
+          Finish your first minute — Ask opens when the loop reaches it
+        </p>
+      )}
       <div className="mt-2">
         <NavLink
           to="/settings"
