@@ -1,4 +1,4 @@
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink, useNavigate, Link } from 'react-router-dom'
 import {
   CalendarDays,
   CheckSquare,
@@ -19,6 +19,7 @@ import {
   Share2,
   Menu,
   ChevronDown,
+  ChevronRight,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -36,6 +37,8 @@ import { WorkspaceSyncHost } from '@/components/WorkspaceSyncHost'
 import { ShareWinHost } from '@/components/ShareWinHost'
 import { SocialInboxProvider, useSharedSocialInbox } from '@/contexts/SocialInboxContext'
 import { useKeepInputVisible } from '@/hooks/useKeepInputVisible'
+import { resolveProfilePhotoUrl } from '@/lib/social/friends'
+import { FeedAvatar, profilePath } from '@/modules/social/components/feed-ui'
 
 export const PRIMARY = [
   { to: '/dashboard', label: 'Today', icon: Sun },
@@ -177,16 +180,34 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
 function AppShellInner({ children }: { children: React.ReactNode }) {
   const { profile, signOut, onboardingDone } = useAuth()
-  const { cloudUser } = useCloudAuth()
+  const { cloudUser, cloudProfile } = useCloudAuth()
   const navigate = useNavigate()
   const [navOpen, setNavOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [planOpen, setPlanOpen] = useState(() => readNavOpen(NAV_SECTION_KEYS.plan))
   const [lifeOpen, setLifeOpen] = useState(() => readNavOpen(NAV_SECTION_KEYS.life))
   const [togetherOpen, setTogetherOpen] = useState(() => readNavOpen(NAV_SECTION_KEYS.together))
+  const [photoURL, setPhotoURL] = useState<string | null>(null)
   const { pendingCount: pendingFriends } = useSharedSocialInbox()
   useNotificationToasts()
   useKeepInputVisible()
+
+  const displayName = cloudProfile?.displayName || profile?.display_name || 'You'
+  const profileTo = cloudUser ? profilePath(cloudUser.uid) : '/settings#cloud'
+
+  useEffect(() => {
+    if (!cloudProfile?.photoURL) {
+      setPhotoURL(null)
+      return
+    }
+    let cancelled = false
+    void resolveProfilePhotoUrl(cloudProfile.photoURL).then((url) => {
+      if (!cancelled) setPhotoURL(url)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [cloudProfile?.photoURL])
 
   const closeNav = useCallback(() => setNavOpen(false), [])
   const openNav = useCallback(() => setNavOpen(true), [])
@@ -269,12 +290,25 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
 
   const sidebarFooter = (
     <div className="mt-auto space-y-3 border-t border-border/40 p-4">
-      <div className="px-1">
-        <p className="truncate text-sm font-semibold tracking-tight">{profile?.display_name || 'You'}</p>
-        <p className="truncate text-xs text-muted-foreground">
-          {cloudUser ? 'Cloud sync on · Save a copy as backup' : 'This device · Save a copy to move'}
-        </p>
-      </div>
+      <Link
+        to={profileTo}
+        onClick={closeNav}
+        className="flex items-center gap-3 rounded-xl px-1 py-1.5 transition hover:bg-secondary/60"
+      >
+        <FeedAvatar name={displayName} photoURL={photoURL} size="md" />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold tracking-tight">{displayName}</p>
+          <p className="truncate text-xs text-muted-foreground">
+            {cloudUser
+              ? 'Your profile · bio & photo'
+              : 'Connect to set up your profile'}
+          </p>
+        </div>
+        <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+      </Link>
+      <p className="px-1 text-[0.7rem] text-muted-foreground">
+        {cloudUser ? 'Cloud sync on · Save a copy as backup' : 'This device · Save a copy to move'}
+      </p>
       <div className="flex items-center gap-1">
         <SimpleThemeToggle />
         <Button

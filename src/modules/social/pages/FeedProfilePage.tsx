@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { TogetherSetup } from '@/components/TogetherSetup'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
+import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import {
   Sheet,
@@ -40,7 +41,7 @@ const BIO_MAX = 160
 export default function FeedProfilePage() {
   const { uid: rawUid } = useParams()
   const uid = rawUid ? decodeURIComponent(rawUid) : ''
-  const { cloudEnabled, cloudUser, cloudProfile, refreshCloudProfile } = useCloudAuth()
+  const { cloudEnabled, cloudUser, cloudProfile, refreshCloudProfile, saveDisplayName } = useCloudAuth()
 
   const [posts, setPosts] = useState<RankedPost[]>([])
   const [names, setNames] = useState<Record<string, string>>({})
@@ -52,6 +53,7 @@ export default function FeedProfilePage() {
   const [photoURL, setPhotoURL] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [editOpen, setEditOpen] = useState(false)
+  const [nameDraft, setNameDraft] = useState('')
   const [bioDraft, setBioDraft] = useState('')
   const [saving, setSaving] = useState(false)
   const photoInputRef = useRef<HTMLInputElement>(null)
@@ -127,19 +129,24 @@ export default function FeedProfilePage() {
     return 'Posts you can both see'
   }, [isSelf])
 
-  async function saveBio(e: FormEvent) {
+  async function saveProfile(e: FormEvent) {
     e.preventDefault()
     if (!cloudUser) return
     setSaving(true)
     try {
-      const next = bioDraft.trim().slice(0, BIO_MAX)
-      await updateCloudProfile(cloudUser.uid, { bio: next || null })
+      const nextName = nameDraft.trim() || 'Friend'
+      const nextBio = bioDraft.trim().slice(0, BIO_MAX)
+      if (nextName !== displayName) {
+        await saveDisplayName(nextName)
+        setDisplayName(nextName)
+      }
+      await updateCloudProfile(cloudUser.uid, { bio: nextBio || null })
       await refreshCloudProfile()
-      setBio(next)
+      setBio(nextBio)
       setEditOpen(false)
       toast.success('Profile updated')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Couldn’t save bio')
+      toast.error(err instanceof Error ? err.message : 'Couldn’t save profile')
     } finally {
       setSaving(false)
     }
@@ -248,6 +255,7 @@ export default function FeedProfilePage() {
                   variant="outline"
                   className="shrink-0"
                   onClick={() => {
+                    setNameDraft(displayName)
                     setBioDraft(bio)
                     setEditOpen(true)
                   }}
@@ -338,9 +346,22 @@ export default function FeedProfilePage() {
         <SheetContent side="bottom" className="mx-auto max-h-[85vh] max-w-xl rounded-t-2xl">
           <SheetHeader>
             <SheetTitle>Edit profile</SheetTitle>
-            <SheetDescription>A short bio helps friends support what you’re building.</SheetDescription>
+            <SheetDescription>Name, bio, and photo — how friends see you on Social.</SheetDescription>
           </SheetHeader>
-          <form onSubmit={(e) => void saveBio(e)} className="space-y-4 px-1 pb-6 pt-2">
+          <form onSubmit={(e) => void saveProfile(e)} className="space-y-4 px-1 pb-6 pt-2">
+            <div>
+              <label htmlFor="display-name" className="text-sm font-medium">
+                Name
+              </label>
+              <Input
+                id="display-name"
+                value={nameDraft}
+                onChange={(e) => setNameDraft(e.target.value.slice(0, 48))}
+                maxLength={48}
+                placeholder="Your name"
+                className="mt-1.5"
+              />
+            </div>
             <div>
               <label htmlFor="bio" className="text-sm font-medium">
                 Bio
@@ -358,6 +379,9 @@ export default function FeedProfilePage() {
                 {bioDraft.length}/{BIO_MAX}
               </p>
             </div>
+            <p className="text-xs text-muted-foreground">
+              Change your photo with the camera button on your avatar.
+            </p>
             <Button type="submit" className="w-full" disabled={saving}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
             </Button>
