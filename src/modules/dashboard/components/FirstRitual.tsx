@@ -140,8 +140,8 @@ export function FirstRitual({
           </h2>
           <p className="mt-2 max-w-md text-sm text-muted-foreground sm:text-base">
             {needsName
-              ? 'First name is enough — then we start the day loop.'
-              : 'One next step. Ask that can act. Friends only if you want them. Private on this device.'}
+              ? 'First name is enough — then we start the day.'
+              : 'A quiet minute to set up Today. Then you’re in.'}
           </p>
           {needsName ? (
             <form

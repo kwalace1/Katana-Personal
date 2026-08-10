@@ -248,12 +248,11 @@ export default function LandingPage() {
         <motion.div {...pageEnterSubtle} className="flex flex-1 flex-col py-6 sm:py-10">
           {/* Hero — brand first */}
           <div className={cn('flex flex-col', standalone ? 'justify-center flex-1' : 'min-h-0 sm:min-h-[58vh] justify-center py-4')}>
-            <p className="kp-section-label">Calm daily OS</p>
-            <h1 className="font-display mt-3 text-5xl tracking-tight sm:text-6xl">Katana</h1>
+            <h1 className="font-display text-5xl tracking-tight sm:text-6xl">Katana</h1>
             <p className="mt-4 max-w-md text-base leading-relaxed text-muted-foreground sm:text-lg">
               {standalone
-                ? 'Your day loop on this phone — Today, Ask, optional Together.'
-                : 'One next step today. Ask that can act. Together only if you want it — private on this device.'}
+                ? 'Your day, on this phone.'
+                : 'Plan the day. Do the next thing. Share wins if you want.'}
             </p>
 
             {!standalone ? (
@@ -272,12 +271,6 @@ export default function LandingPage() {
                   Create with Cloud
                 </button>
               </div>
-            ) : null}
-
-            {!standalone ? (
-              <p className="mt-4 text-xs text-muted-foreground">
-                Not another list app — a daily OS. Stays on this device; add Cloud later for Friends & Circles.
-              </p>
             ) : null}
           </div>
 
