@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Send, Sparkles, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -33,11 +33,10 @@ import {
   coachPlaceholder,
   coachThinkingLabel,
   parseAskPersonality,
-  type AskPersonality,
 } from '../personality'
 
 export default function AskPage() {
-  const { user, profile, updatePreferences } = useAuth()
+  const { user, profile } = useAuth()
   const userId = user!.id
   const name = profile?.display_name || 'there'
   const personality = parseAskPersonality(profile?.preferences)
@@ -61,6 +60,7 @@ export default function AskPage() {
 
   const llmLeft = plus ? null : freeLlmAsksRemaining()
   const modeMeta = ASK_PERSONALITIES.find((p) => p.id === personality) || ASK_PERSONALITIES[0]!
+  const emptyChat = messages.filter((m) => m.role === 'you').length === 0
 
   useEffect(() => {
     if (messages.length === 0) {
@@ -81,11 +81,6 @@ export default function AskPage() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages.length, pending])
-
-  function setPersonality(next: AskPersonality) {
-    updatePreferences({ ask_personality: next })
-    toast.message(`${ASK_PERSONALITIES.find((p) => p.id === next)?.label || 'Coach'} mode on`)
-  }
 
   async function finalizeReply(question: string, reply: AskReply) {
     if (reply.useLlm) {
@@ -228,181 +223,195 @@ export default function AskPage() {
   }
 
   return (
-    <motion.div {...pageEnterSubtle} className="kp-page mx-auto max-w-2xl">
-      <PageHeader
-        eyebrow="Accountability coach"
-        title="Ask"
-        description={`${modeMeta.label} mode — ${modeMeta.blurb}`}
-        actions={
-          messages.length > 1 ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-1.5"
-              disabled={pending}
-              onClick={() => {
-                askApi.clear(userId)
-                setSpent({})
-                seededQ.current = false
-                const opening = answerQuestionWithActions(userId, 'briefing', name, personality)
-                askApi.append(userId, { role: 'katana', text: opening.text, actions: opening.actions })
-                refresh()
-              }}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              Clear
-            </Button>
-          ) : null
-        }
+    <motion.div {...pageEnterSubtle} className="kp-page relative mx-auto max-w-2xl overflow-hidden">
+      <div
+        className="pointer-events-none absolute -right-24 -top-16 h-56 w-56 rounded-full bg-primary/15 blur-3xl"
+        aria-hidden
+      />
+      <div
+        className="pointer-events-none absolute -left-20 top-40 h-48 w-48 rounded-full bg-[hsl(200_40%_50%/0.12)] blur-3xl"
+        aria-hidden
       />
 
-      <section className="mb-4 overflow-hidden rounded-2xl border border-border/50 bg-gradient-to-br from-primary/[0.08] via-card/80 to-card/40 p-4 sm:p-5">
-        <div className="flex items-start gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
-            <Sparkles className="h-5 w-5" />
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Coach voice</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Pick how Ask talks to you. Deeper replies use this personality end-to-end.
-            </p>
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {ASK_PERSONALITIES.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => setPersonality(p.id)}
-                  className={cn(
-                    'rounded-full px-3 py-1.5 text-xs font-semibold transition',
-                    personality === p.id
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-secondary/80 text-muted-foreground hover:text-foreground',
-                  )}
+      <div className="relative">
+        <PageHeader
+          eyebrow="Coach"
+          title="Ask"
+          description="Your day, one next step — tap a chip to act."
+          actions={
+            <div className="flex flex-wrap items-center gap-2">
+              <Button asChild variant="outline" size="sm" className="rounded-full text-xs">
+                <Link to="/settings#ask-coach">Voice · {modeMeta.label}</Link>
+              </Button>
+              {messages.length > 1 ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1.5"
+                  disabled={pending}
+                  onClick={() => {
+                    askApi.clear(userId)
+                    setSpent({})
+                    seededQ.current = false
+                    const opening = answerQuestionWithActions(userId, 'briefing', name, personality)
+                    askApi.append(userId, {
+                      role: 'katana',
+                      text: opening.text,
+                      actions: opening.actions,
+                    })
+                    refresh()
+                  }}
                 >
-                  {p.label}
-                </button>
-              ))}
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Clear
+                </Button>
+              ) : null}
             </div>
-          </div>
+          }
+        />
+
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+          {llmLeft != null ? (
+            <p>
+              Deeper coach: {llmLeft}/{FREE_LLM_ASKS_PER_DAY} free
+              {llmLeft === 0 ? (
+                <>
+                  {' · '}
+                  <button
+                    type="button"
+                    className="text-primary underline"
+                    onClick={() => setPlusOpen(true)}
+                  >
+                    Unlock pack
+                  </button>
+                </>
+              ) : null}
+            </p>
+          ) : (
+            <p className="inline-flex items-center gap-1.5 text-primary">
+              <Sparkles className="h-3.5 w-3.5" />
+              Accountability pack on
+            </p>
+          )}
+          <p className="text-muted-foreground/80">{modeMeta.blurb}</p>
         </div>
-      </section>
+        {llmHint ? <p className="mb-3 text-xs text-muted-foreground">{llmHint}</p> : null}
 
-      {llmLeft != null ? (
-        <p className="mb-3 text-xs text-muted-foreground">
-          Deeper coach today: {llmLeft}/{FREE_LLM_ASKS_PER_DAY} free
-          {llmLeft === 0 ? (
-            <>
-              {' · '}
-              <button type="button" className="text-primary underline" onClick={() => setPlusOpen(true)}>
-                Unlock Accountability pack
-              </button>
-            </>
-          ) : null}
-        </p>
-      ) : (
-        <p className="mb-3 text-xs text-primary">Accountability pack — unlimited deeper coach</p>
-      )}
-      {llmHint ? <p className="mb-3 text-xs text-muted-foreground">{llmHint}</p> : null}
-
-      <div className="mb-5 flex flex-wrap gap-2">
-        {messages.filter((m) => m.role === 'you').length === 0
-          ? suggestedAsksForHour().map((prompt) => (
+        {emptyChat ? (
+          <div className="mb-4 flex flex-wrap gap-2">
+            {suggestedAsksForHour().map((prompt) => (
               <Button
                 key={prompt}
                 type="button"
                 size="sm"
-                variant="outline"
+                variant="secondary"
                 disabled={pending}
-                className="rounded-full"
+                className="rounded-full border border-border/40 bg-background/70"
                 onClick={() => void ask(prompt)}
               >
                 {prompt}
               </Button>
-            ))
-          : null}
-      </div>
-
-      <div
-        className="mb-4 max-h-[min(52vh,28rem)] space-y-3 overflow-y-auto rounded-2xl border border-border/40 bg-card/30 p-4 sm:p-5"
-        role="log"
-        aria-live="polite"
-        aria-relevant="additions"
-      >
-        {messages.map((m) => (
-          <div key={m.id} className={cn('flex', m.role === 'you' ? 'justify-end' : 'justify-start')}>
-            <div
-              className={cn(
-                'max-w-[92%] rounded-[1.25rem] px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap shadow-sm',
-                m.role === 'you'
-                  ? 'rounded-br-md bg-primary text-primary-foreground'
-                  : 'rounded-bl-md border border-border/40 bg-background/90 text-foreground',
-              )}
-            >
-              {m.role === 'katana' ? (
-                <p className="mb-1.5 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-primary/80">
-                  Katana · {modeMeta.label}
-                </p>
-              ) : null}
-              {m.text}
-              {m.role === 'katana' && m.actions.length > 0 ? (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {m.actions.map((action) => {
-                    const key = `${m.id}:${action.id}`
-                    const used = Boolean(spent[key])
-                    return (
-                      <Button
-                        key={action.id}
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        disabled={used || pending}
-                        className="min-h-11 rounded-full px-4 text-xs"
-                        onClick={() => onAction(action, m)}
-                      >
-                        {used ? 'Done' : action.label}
-                      </Button>
-                    )
-                  })}
-                </div>
-              ) : null}
-            </div>
-          </div>
-        ))}
-        {pending ? (
-          <div className="flex justify-start">
-            <div className="rounded-[1.25rem] rounded-bl-md border border-border/40 bg-background/90 px-4 py-3 text-sm text-muted-foreground">
-              {coachThinkingLabel(personality)}
-            </div>
+            ))}
           </div>
         ) : null}
-        <div ref={bottomRef} />
-      </div>
 
-      <form onSubmit={onSubmit} className="flex gap-2">
-        <Textarea
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder={coachPlaceholder(personality)}
-          className="min-h-[52px] flex-1 resize-none"
-          rows={2}
-          disabled={pending}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault()
-              void ask(draft)
-            }
-          }}
-        />
-        <Button
-          type="submit"
-          size="icon"
-          className="h-[52px] w-[52px] shrink-0"
-          aria-label="Send"
-          disabled={pending || !draft.trim()}
-        >
-          <Send className="h-4 w-4" />
-        </Button>
-      </form>
+        <div className="relative overflow-hidden rounded-[1.75rem] border border-border/50 bg-gradient-to-b from-card/90 via-background/80 to-card/50 shadow-[0_20px_50px_-28px_hsl(200_25%_10%/0.35)]">
+          <div className="flex items-center gap-2 border-b border-border/40 px-4 py-3 sm:px-5">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-primary">
+              <Sparkles className="h-4 w-4" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold tracking-tight">Katana</p>
+              <p className="truncate text-[0.7rem] text-muted-foreground">{modeMeta.label} coach</p>
+            </div>
+          </div>
+
+          <div
+            className="max-h-[min(54vh,30rem)] space-y-3 overflow-y-auto px-4 py-4 sm:px-5"
+            role="log"
+            aria-live="polite"
+            aria-relevant="additions"
+          >
+            {messages.map((m) => (
+              <div
+                key={m.id}
+                className={cn('flex', m.role === 'you' ? 'justify-end' : 'justify-start')}
+              >
+                <div
+                  className={cn(
+                    'max-w-[90%] px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap',
+                    m.role === 'you'
+                      ? 'rounded-2xl rounded-br-md bg-primary text-primary-foreground shadow-sm'
+                      : 'rounded-2xl rounded-bl-md border border-border/50 bg-background/85 text-foreground',
+                  )}
+                >
+                  {m.text}
+                  {m.role === 'katana' && m.actions.length > 0 ? (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {m.actions.map((action) => {
+                        const key = `${m.id}:${action.id}`
+                        const used = Boolean(spent[key])
+                        return (
+                          <Button
+                            key={action.id}
+                            type="button"
+                            size="sm"
+                            variant={m.role === 'katana' ? 'secondary' : 'secondary'}
+                            disabled={used || pending}
+                            className="min-h-10 rounded-full px-3.5 text-xs"
+                            onClick={() => onAction(action, m)}
+                          >
+                            {used ? 'Done' : action.label}
+                          </Button>
+                        )
+                      })}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+            {pending ? (
+              <div className="flex justify-start">
+                <div className="rounded-2xl rounded-bl-md border border-border/50 bg-background/85 px-4 py-3 text-sm text-muted-foreground">
+                  {coachThinkingLabel(personality)}
+                </div>
+              </div>
+            ) : null}
+            <div ref={bottomRef} />
+          </div>
+
+          <form
+            onSubmit={onSubmit}
+            className="border-t border-border/40 bg-background/70 p-3 backdrop-blur-sm sm:p-4"
+          >
+            <div className="flex gap-2">
+              <Textarea
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                placeholder={coachPlaceholder(personality)}
+                className="min-h-[3.25rem] flex-1 resize-none border-border/50 bg-card/80"
+                rows={2}
+                disabled={pending}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    void ask(draft)
+                  }
+                }}
+              />
+              <Button
+                type="submit"
+                size="icon"
+                className="h-[3.25rem] w-[3.25rem] shrink-0 self-end rounded-2xl"
+                aria-label="Send"
+                disabled={pending || !draft.trim()}
+              >
+                <Send className="h-4 w-4" />
+              </Button>
+            </div>
+          </form>
+        </div>
+      </div>
 
       <PlusPaywallSheet open={plusOpen} onOpenChange={setPlusOpen} feature="llm" />
     </motion.div>

@@ -28,6 +28,11 @@ import { downloadBackup, parseBackup, restoreBackup, shareOrDownloadBackup } fro
 import { takeInviteReturn } from '@/lib/invite-return'
 import { ensureUserLoaded, localDb } from '@/lib/local-db'
 import { pageEnterSubtle } from '@/lib/motion-ui'
+import { cn } from '@/lib/utils'
+import {
+  ASK_PERSONALITIES,
+  parseAskPersonality,
+} from '@/modules/assistant/personality'
 import { remindersEnabled, requestReminderPermission } from '@/lib/reminders'
 import { seedDemoWorkspace } from '@/lib/seed-demo'
 import { DEFAULT_SHARE_PREFS, type SharePrefs } from '@/lib/social/types'
@@ -76,11 +81,13 @@ export default function SettingsPage() {
   const fileRef = useRef<HTMLInputElement>(null)
   const cloudSectionRef = useRef<HTMLElement>(null)
   const plusSectionRef = useRef<HTMLElement>(null)
+  const askCoachSectionRef = useRef<HTMLElement>(null)
   const plus = usePlusStatus()
   const llmLeft = plus ? null : freeLlmAsksRemaining()
   const [name, setName] = useState(profile?.display_name || '')
   const [busy, setBusy] = useState(false)
   const gentle = remindersEnabled(profile?.preferences)
+  const askPersonality = parseAskPersonality(profile?.preferences)
 
   const [cloudMode, setCloudMode] = useState<'signin' | 'signup'>('signup')
   const [email, setEmail] = useState('')
@@ -128,6 +135,9 @@ export default function SettingsPage() {
     }
     if (window.location.hash === '#cloud') {
       window.setTimeout(() => cloudSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
+    }
+    if (window.location.hash === '#ask-coach') {
+      window.setTimeout(() => askCoachSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
     }
   }, [searchParams])
 
@@ -290,6 +300,43 @@ export default function SettingsPage() {
               </Button>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section
+        ref={askCoachSectionRef}
+        id="ask-coach"
+        className="kp-surface mb-4 scroll-mt-24 space-y-4 p-5"
+      >
+        <div>
+          <h2 className="font-semibold">Ask coach voice</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            How Katana talks to you in Ask — set it once, change it anytime.
+          </p>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {ASK_PERSONALITIES.map((p) => {
+            const on = askPersonality === p.id
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => {
+                  updatePreferences({ ask_personality: p.id })
+                  toast.message(`${p.label} voice on`)
+                }}
+                className={cn(
+                  'rounded-2xl border px-4 py-3 text-left transition',
+                  on
+                    ? 'border-primary/40 bg-primary/[0.08]'
+                    : 'border-border/50 bg-card/40 hover:bg-secondary/50',
+                )}
+              >
+                <p className={cn('text-sm font-semibold', on && 'text-primary')}>{p.label}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">{p.blurb}</p>
+              </button>
+            )
+          })}
         </div>
       </section>
 
