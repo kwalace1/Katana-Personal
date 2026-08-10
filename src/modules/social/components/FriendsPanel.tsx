@@ -14,10 +14,13 @@ import {
   findUidByFriendCode,
   getAddMeUrl,
   getCloudProfile,
+  listSuggestedFriends,
   removeFriendship,
   requestFriend,
   resolveProfilePhotoUrl,
+  type FriendSuggestion,
 } from '@/lib/social/friends'
+import { listMyCircles } from '@/lib/social/circles'
 import { acceptCircleInvite, declineCircleInvite } from '@/lib/social/invites'
 import type { CloudProfile } from '@/lib/social/types'
 import { FeedAvatar, profilePath } from '@/modules/social/components/feed-ui'
@@ -35,6 +38,8 @@ export function FriendsPanel({ embedded }: Props) {
   const [busy, setBusy] = useState(false)
   const [profiles, setProfiles] = useState<Record<string, CloudProfile>>({})
   const [photos, setPhotos] = useState<Record<string, string | null>>({})
+  const [suggestions, setSuggestions] = useState<FriendSuggestion[]>([])
+  const [suggestBusy, setSuggestBusy] = useState<string | null>(null)
   const { friendships, circleInvites, revision, refresh } = useSharedSocialInbox()
 
   useEffect(() => {
@@ -84,6 +89,49 @@ export function FriendsPanel({ embedded }: Props) {
       cancelled = true
     }
   }, [cloudUser, friendships, circleInvites, revision])
+
+  useEffect(() => {
+    if (!cloudUser) {
+      setSuggestions([])
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      try {
+        const circles = await listMyCircles(cloudUser.uid)
+        const list = await listSuggestedFriends(cloudUser.uid, {
+          limit: 8,
+          circleMemberHints: circles.map((c) => ({
+            memberIds: c.memberIds,
+            circleName: c.name,
+          })),
+        })
+        if (cancelled) return
+        setSuggestions(list)
+        const ids = [...new Set(list.flatMap((s) => [s.uid, s.viaUid].filter(Boolean) as string[]))]
+        const fetched: Record<string, CloudProfile> = {}
+        const photoMap: Record<string, string | null> = {}
+        await Promise.all(
+          ids.map(async (id) => {
+            const p = await getCloudProfile(id)
+            if (p) {
+              fetched[id] = p
+              photoMap[id] = await resolveProfilePhotoUrl(p.photoURL)
+            }
+          }),
+        )
+        if (!cancelled) {
+          setProfiles((prev) => ({ ...prev, ...fetched }))
+          setPhotos((prev) => ({ ...prev, ...photoMap }))
+        }
+      } catch {
+        if (!cancelled) setSuggestions([])
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [cloudUser, friendships, revision])
 
   const incoming = useMemo(
     () =>
@@ -280,6 +328,72 @@ export function FriendsPanel({ embedded }: Props) {
           Add
         </Button>
       </form>
+
+      {suggestions.length > 0 ? (
+        <section className="space-y-2">
+          <h2 className="flex items-center gap-2 font-semibold">
+            <UserPlus className="h-4 w-4 text-primary" />
+            Suggested
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            People connected to your friends or Circles — open a profile or send a request.
+          </p>
+          <ul className="space-y-2">
+            {suggestions.map((s) => {
+              const p = profiles[s.uid]
+              const via = s.viaUid ? profiles[s.viaUid] : null
+              const subtitle =
+                s.reason === 'mutual'
+                  ? s.mutualCount > 1
+                    ? `${s.mutualCount} mutual friends${via ? ` · via ${via.displayName}` : ''}`
+                    : via
+                      ? `Friends with ${via.displayName}`
+                      : 'Friend of a friend'
+                  : s.circleName
+                    ? `In ${s.circleName} with you`
+                    : 'In a Circle with you'
+              return (
+                <li
+                  key={s.uid}
+                  className="flex items-center justify-between gap-3 rounded-2xl border border-border/50 bg-card/50 p-3"
+                >
+                  <Link to={profilePath(s.uid)} className="flex min-w-0 flex-1 items-center gap-3">
+                    <FeedAvatar name={p?.displayName || 'Someone'} photoURL={photos[s.uid]} />
+                    <div className="min-w-0">
+                      <p className="truncate font-medium hover:underline">
+                        {p?.displayName || 'Someone'}
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground">{subtitle}</p>
+                    </div>
+                  </Link>
+                  <Button
+                    size="sm"
+                    className="shrink-0 gap-1.5"
+                    disabled={suggestBusy === s.uid}
+                    onClick={async () => {
+                      if (!cloudUser) return
+                      setSuggestBusy(s.uid)
+                      try {
+                        await requestFriend(cloudUser.uid, s.uid)
+                        toast.success('Friend request sent')
+                        setSuggestions((list) => list.filter((x) => x.uid !== s.uid))
+                        refresh()
+                      } catch (err) {
+                        toast.error(err instanceof Error ? err.message : 'Couldn’t send request')
+                      } finally {
+                        setSuggestBusy(null)
+                      }
+                    }}
+                  >
+                    <UserPlus className="h-3.5 w-3.5" />
+                    Add
+                  </Button>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      ) : null}
 
       {hasInbox ? (
         <section id="invites" className="scroll-mt-24 space-y-2">

@@ -382,4 +382,66 @@ export async function listFriendProfiles(uid: string): Promise<CloudProfile[]> {
   return getCloudProfiles(ids)
 }
 
+export type FriendSuggestion = {
+  uid: string
+  mutualCount: number
+  viaUid: string | null
+  reason: 'mutual' | 'circle'
+  circleName?: string
+}
+
+/**
+ * People you may know: friends-of-friends (RPC) + circle co-members.
+ * Safe if the RPC isn’t migrated yet — falls back to circle suggestions.
+ */
+export async function listSuggestedFriends(
+  uid: string,
+  opts?: { limit?: number; circleMemberHints?: { memberIds: string[]; circleName: string }[] },
+): Promise<FriendSuggestion[]> {
+  const limit = opts?.limit ?? 12
+  const friendships = await listFriendships(uid)
+  const blocked = new Set(await listBlockedIds(uid))
+  const known = new Set<string>([uid])
+  for (const f of friendships) {
+    known.add(f.a === uid ? f.b : f.a)
+  }
+  for (const id of blocked) known.add(id)
+
+  const byUid = new Map<string, FriendSuggestion>()
+
+  try {
+    const { data, error } = await getSupabase().rpc('suggested_friends', { p_limit: limit })
+    if (error) throw error
+    for (const row of data || []) {
+      const suggestedUid = String((row as { suggested_uid: string }).suggested_uid || '')
+      if (!suggestedUid || known.has(suggestedUid)) continue
+      byUid.set(suggestedUid, {
+        uid: suggestedUid,
+        mutualCount: Number((row as { mutual_count: number }).mutual_count) || 1,
+        viaUid: (row as { sample_friend_uid: string | null }).sample_friend_uid || null,
+        reason: 'mutual',
+      })
+    }
+  } catch {
+    // RPC missing or denied — circle hints still help empty accounts.
+  }
+
+  for (const circle of opts?.circleMemberHints || []) {
+    for (const memberId of circle.memberIds) {
+      if (known.has(memberId) || byUid.has(memberId)) continue
+      byUid.set(memberId, {
+        uid: memberId,
+        mutualCount: 0,
+        viaUid: null,
+        reason: 'circle',
+        circleName: circle.circleName,
+      })
+    }
+  }
+
+  return Array.from(byUid.values())
+    .sort((a, b) => b.mutualCount - a.mutualCount || a.uid.localeCompare(b.uid))
+    .slice(0, limit)
+}
+
 export type { SharePrefs }
