@@ -108,7 +108,7 @@ export function FriendsPanel({ embedded }: Props) {
         })
         if (cancelled) return
         setSuggestions(list)
-        const ids = [...new Set(list.flatMap((s) => [s.uid, s.viaUid].filter(Boolean) as string[]))]
+        const ids = [...new Set(list.map((s) => s.uid))]
         const fetched: Record<string, CloudProfile> = {}
         const photoMap: Record<string, string | null> = {}
         await Promise.all(
@@ -336,22 +336,17 @@ export function FriendsPanel({ embedded }: Props) {
             Suggested
           </h2>
           <p className="text-sm text-muted-foreground">
-            People connected to your friends or Circles — open a profile or send a request.
+            People you may know — open a profile or send a request.
           </p>
           <ul className="space-y-2">
             {suggestions.map((s) => {
               const p = profiles[s.uid]
-              const via = s.viaUid ? profiles[s.viaUid] : null
               const subtitle =
                 s.reason === 'mutual'
                   ? s.mutualCount > 1
-                    ? `${s.mutualCount} mutual friends${via ? ` · via ${via.displayName}` : ''}`
-                    : via
-                      ? `Friends with ${via.displayName}`
-                      : 'Friend of a friend'
-                  : s.circleName
-                    ? `In ${s.circleName} with you`
-                    : 'In a Circle with you'
+                    ? 'Suggested · shared connections'
+                    : 'Suggested friend'
+                  : 'Suggested · shared Circle'
               return (
                 <li
                   key={s.uid}
