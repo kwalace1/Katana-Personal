@@ -15,13 +15,25 @@ export type TodayLayoutPrefs = {
   hidden: TodaySectionId[]
 }
 
+/** Quieter Today by default — create + recent feed + next action stay front. */
+export const DEFAULT_HIDDEN_SECTIONS: TodaySectionId[] = [
+  'together',
+  'also_today',
+  'for_you',
+  'coming_up',
+  'goals',
+  'recent_notes',
+]
+
 export function parseTodayLayout(prefs: Record<string, unknown> | undefined): TodayLayoutPrefs {
   const raw = prefs?.todayLayout
-  if (!raw || typeof raw !== 'object') return { hidden: [] }
+  if (!raw || typeof raw !== 'object') return { hidden: [...DEFAULT_HIDDEN_SECTIONS] }
   const hiddenRaw = (raw as { hidden?: unknown }).hidden
-  if (!Array.isArray(hiddenRaw)) return { hidden: [] }
+  if (!Array.isArray(hiddenRaw)) return { hidden: [...DEFAULT_HIDDEN_SECTIONS] }
   const valid = new Set(TODAY_SECTIONS.map((s) => s.id))
-  const hidden = hiddenRaw.filter((id): id is TodaySectionId => typeof id === 'string' && valid.has(id as TodaySectionId))
+  const hidden = hiddenRaw.filter(
+    (id): id is TodaySectionId => typeof id === 'string' && valid.has(id as TodaySectionId),
+  )
   return { hidden }
 }
 
