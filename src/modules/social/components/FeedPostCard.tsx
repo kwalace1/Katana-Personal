@@ -421,6 +421,7 @@ export function FeedPostCard({
         <SheetContent
           side="bottom"
           className="max-h-[min(88vh,34rem)] gap-0 rounded-t-[1.5rem] border-border/50 pb-[max(1rem,env(safe-area-inset-bottom))]"
+          onOpenAutoFocus={(e) => e.preventDefault()}
         >
           <SheetHeader className="border-b border-border/40 px-5 pb-3 pt-2 text-left">
             <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border" />
