@@ -1,16 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Loader2, Newspaper } from 'lucide-react'
+import { Heart, Loader2, Newspaper, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import { TogetherSetup } from '@/components/TogetherSetup'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
+import { format } from '@/lib/dates'
 import { pageEnterSubtle, staggerContainer } from '@/lib/motion-ui'
 import { listMyCircles } from '@/lib/social/circles'
 import {
+  filterFeedByAudience,
+  listPostsByAuthor,
   loadOlderTogetherPosts,
   resolveAuthorNames,
   resolveAuthorPhotos,
@@ -22,15 +25,20 @@ import {
   type PostEngagement,
 } from '@/lib/social/feed-engagement'
 import { resolveProfilePhotoUrl } from '@/lib/social/friends'
+import { offerFeelingShare } from '@/lib/social/share-win'
 import type { CircleGroup } from '@/lib/social/types'
 import { FeedPostCard } from '@/modules/social/components/FeedPostCard'
 import { FriendsPanel } from '@/modules/social/components/FriendsPanel'
 import { useSharedSocialInbox } from '@/contexts/SocialInboxContext'
 import { cn } from '@/lib/utils'
 
+type SocialTab = 'feed' | 'circles' | 'mine' | 'friends'
+
+const FEELINGS = ['Great', 'Good', 'Okay', 'Low', 'Rough'] as const
+
 /**
- * Social feed — cheer wins shared from the day loop (ShareWin).
- * Freeform photo/video/update compose is intentionally not available here.
+ * Social — wins-only posts. Feed is friends chronological;
+ * Circles and My posts are separate tabs.
  */
 export default function FeedPage() {
   const { user } = useAuth()
@@ -38,16 +46,20 @@ export default function FeedPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { pendingCount } = useSharedSocialInbox()
   void user
-  const tab = searchParams.get('tab') === 'friends' ? 'friends' : 'feed'
 
-  const [posts, setPosts] = useState<RankedPost[]>([])
+  const tab = parseTab(searchParams.get('tab'))
+
+  const [allPosts, setAllPosts] = useState<RankedPost[]>([])
+  const [myPosts, setMyPosts] = useState<RankedPost[]>([])
   const [names, setNames] = useState<Record<string, string>>({})
   const [photos, setPhotos] = useState<Record<string, string | null>>({})
   const [selfPhoto, setSelfPhoto] = useState<string | null>(null)
   const [engagement, setEngagement] = useState<Record<string, PostEngagement>>({})
   const [circles, setCircles] = useState<CircleGroup[]>([])
   const [loading, setLoading] = useState(true)
+  const [mineLoading, setMineLoading] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [feelingOpen, setFeelingOpen] = useState(false)
 
   const selfName = cloudProfile?.displayName || 'You'
 
@@ -56,6 +68,12 @@ export default function FeedPage() {
     for (const c of circles) map[c.id] = c.name
     return map
   }, [circles])
+
+  const feedPosts = useMemo(() => filterFeedByAudience(allPosts, 'friends'), [allPosts])
+  const circlePosts = useMemo(() => filterFeedByAudience(allPosts, 'circle'), [allPosts])
+
+  const visiblePosts =
+    tab === 'mine' ? myPosts : tab === 'circles' ? circlePosts : tab === 'feed' ? feedPosts : []
 
   useEffect(() => {
     if (!cloudProfile?.photoURL) {
@@ -71,24 +89,24 @@ export default function FeedPage() {
     }
   }, [cloudProfile?.photoURL])
 
-  function setTab(next: 'feed' | 'friends') {
+  function setTab(next: SocialTab) {
     const params = new URLSearchParams(searchParams)
-    if (next === 'friends') params.set('tab', 'friends')
-    else params.delete('tab')
+    if (next === 'feed') params.delete('tab')
+    else params.set('tab', next)
     setSearchParams(params, { replace: true })
   }
 
   useEffect(() => {
     if (!cloudUser) {
       setLoading(false)
-      setPosts([])
+      setAllPosts([])
       return
     }
     setLoading(true)
     const unsub = subscribeTogetherFeed(
       cloudUser.uid,
       (next) => {
-        setPosts(next)
+        setAllPosts(next)
         setLoading(false)
         const authorIds = next.flatMap((p) => [
           p.authorId,
@@ -120,9 +138,45 @@ export default function FeedPage() {
     }
   }, [cloudUser])
 
+  useEffect(() => {
+    if (!cloudUser || tab !== 'mine') return
+    let cancelled = false
+    setMineLoading(true)
+    void listPostsByAuthor(cloudUser.uid, cloudUser.uid)
+      .then(async (list) => {
+        if (cancelled) return
+        setMyPosts(list)
+        const authorIds = list.flatMap((p) => [
+          p.authorId,
+          ...(p.repost ? [p.repost.authorId] : []),
+        ])
+        const [extraNames, extraPhotos, eng] = await Promise.all([
+          resolveAuthorNames(authorIds),
+          resolveAuthorPhotos(authorIds),
+          loadEngagementForPosts(
+            list.map((p) => p.id),
+            cloudUser.uid,
+          ),
+        ])
+        if (cancelled) return
+        setNames((n) => ({ ...n, ...extraNames }))
+        setPhotos((p) => ({ ...p, ...extraPhotos }))
+        setEngagement((e) => ({ ...e, ...eng }))
+      })
+      .catch((err) => {
+        if (!cancelled) toast.error(err instanceof Error ? err.message : 'Couldn’t load your posts')
+      })
+      .finally(() => {
+        if (!cancelled) setMineLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [cloudUser, tab])
+
   async function loadMore() {
-    if (!cloudUser || posts.length === 0) return
-    const oldest = posts.reduce((a, b) => (a.createdAt < b.createdAt ? a : b))
+    if (!cloudUser || allPosts.length === 0) return
+    const oldest = allPosts.reduce((a, b) => (a.createdAt < b.createdAt ? a : b))
     setLoadingMore(true)
     try {
       const older = await loadOlderTogetherPosts(cloudUser.uid, oldest.createdAt)
@@ -130,7 +184,7 @@ export default function FeedPage() {
         toast.message('That’s the end of your feed')
         return
       }
-      setPosts((prev) => {
+      setAllPosts((prev) => {
         const map = new Map(prev.map((p) => [p.id, p]))
         for (const p of older) map.set(p.id, p)
         return Array.from(map.values()).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
@@ -150,6 +204,14 @@ export default function FeedPage() {
     } finally {
       setLoadingMore(false)
     }
+  }
+
+  function shareFeeling(mood: (typeof FEELINGS)[number]) {
+    offerFeelingShare({
+      dateLabel: format(new Date(), 'EEEE · MMM d'),
+      moodLabel: mood,
+    })
+    setFeelingOpen(false)
   }
 
   if (!cloudEnabled) {
@@ -182,6 +244,8 @@ export default function FeedPage() {
     )
   }
 
+  const listLoading = tab === 'mine' ? mineLoading : loading
+
   return (
     <motion.div {...pageEnterSubtle} className="relative mx-auto w-full max-w-xl overflow-x-hidden pb-10">
       <SocialHero tab={tab} onTabChange={setTab} pendingFriends={pendingCount} />
@@ -190,45 +254,104 @@ export default function FeedPage() {
         <FriendsPanel embedded />
       ) : (
         <>
-          <p className="border-b border-border/50 px-4 py-3 text-sm text-muted-foreground sm:px-5">
-            Wins from Today, tasks, calendar, habits, journal, health, and day close show up here — no random posts.
-          </p>
+          <div className="border-b border-border/50 px-4 py-3 sm:px-5">
+            <p className="text-sm text-muted-foreground">
+              {tab === 'circles'
+                ? 'Wins shared with your Circles — newest first.'
+                : tab === 'mine'
+                  ? 'Your shared wins.'
+                  : 'Friends feed · newest first. Wins only — no random posts.'}
+            </p>
+            {tab === 'feed' ? (
+              <div className="mt-3">
+                {!feelingOpen ? (
+                  <button
+                    type="button"
+                    onClick={() => setFeelingOpen(true)}
+                    className="inline-flex min-h-10 items-center gap-2 rounded-full border border-border/60 bg-card/60 px-3.5 text-sm font-medium transition hover:bg-secondary/70"
+                  >
+                    <Heart className="h-3.5 w-3.5 text-rose-500" />
+                    Share how you’re feeling
+                  </button>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">Pick a mood — then caption & post.</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {FEELINGS.map((mood) => (
+                        <Button
+                          key={mood}
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          className="rounded-full"
+                          onClick={() => shareFeeling(mood)}
+                        >
+                          {mood}
+                        </Button>
+                      ))}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="rounded-full"
+                        onClick={() => setFeelingOpen(false)}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : null}
+          </div>
 
-          {loading ? (
+          {listLoading ? (
             <div className="flex justify-center py-16">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
-          ) : posts.length === 0 ? (
+          ) : visiblePosts.length === 0 ? (
             <div className="px-4 py-10 sm:px-5">
               <EmptyState
-                icon={Newspaper}
-                title="No wins shared yet"
-                description="Create or finish something in Today, Tasks, Calendar, Habits, Goals, Journal, or Health — then share the win when Katana offers it."
+                icon={tab === 'circles' ? Users : Newspaper}
+                title={
+                  tab === 'circles'
+                    ? 'No Circle posts yet'
+                    : tab === 'mine'
+                      ? 'You haven’t shared a win yet'
+                      : 'No wins shared yet'
+                }
+                description={
+                  tab === 'circles'
+                    ? 'When someone posts a win to a Circle, it shows up here.'
+                    : 'Finish something in Today — or share how you’re feeling — then post the win card.'
+                }
                 action={
                   <div className="flex flex-wrap justify-center gap-2">
                     <Button asChild>
                       <Link to="/dashboard">Open Today</Link>
                     </Button>
-                    <Button variant="outline" onClick={() => setTab('friends')}>
-                      Invite a friend
-                    </Button>
+                    {tab === 'feed' ? (
+                      <Button variant="outline" onClick={() => setTab('friends')}>
+                        Invite a friend
+                      </Button>
+                    ) : tab === 'circles' ? (
+                      <Button asChild variant="outline">
+                        <Link to="/circles">Open Circles</Link>
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setTab('feed')
+                          setFeelingOpen(true)
+                        }}
+                      >
+                        Share a feeling
+                      </Button>
+                    )}
                   </div>
                 }
               />
-              <p className="mt-6 text-center text-xs text-muted-foreground">
-                How Together works:{' '}
-                <button type="button" className="text-primary underline" onClick={() => setTab('friends')}>
-                  Friends
-                </button>
-                {' · '}
-                <Link to="/shared" className="text-primary underline">
-                  Plans
-                </Link>
-                {' · '}
-                <Link to="/circles" className="text-primary underline">
-                  Circles
-                </Link>
-              </p>
             </div>
           ) : (
             <motion.div
@@ -237,7 +360,7 @@ export default function FeedPage() {
               animate="show"
               className="overflow-hidden border-y border-border/40 sm:rounded-none"
             >
-              {posts.map((post) => (
+              {visiblePosts.map((post) => (
                 <FeedPostCard
                   key={post.id}
                   post={post}
@@ -261,17 +384,27 @@ export default function FeedPage() {
                   onEngagementChange={(next) =>
                     setEngagement((e) => ({ ...e, [post.id]: next }))
                   }
-                  onDeleted={() => setPosts((p) => p.filter((x) => x.id !== post.id))}
+                  onDeleted={() => {
+                    setAllPosts((p) => p.filter((x) => x.id !== post.id))
+                    setMyPosts((p) => p.filter((x) => x.id !== post.id))
+                  }}
                   names={names}
                   photos={photos}
                   onNames={(extra) => setNames((n) => ({ ...n, ...extra }))}
                 />
               ))}
-              <div className="flex justify-center bg-card/30 py-5">
-                <Button type="button" variant="outline" disabled={loadingMore} onClick={() => void loadMore()}>
-                  {loadingMore ? 'Loading…' : 'Load earlier'}
-                </Button>
-              </div>
+              {tab !== 'mine' ? (
+                <div className="flex justify-center bg-card/30 py-5">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={loadingMore}
+                    onClick={() => void loadMore()}
+                  >
+                    {loadingMore ? 'Loading…' : 'Load earlier'}
+                  </Button>
+                </div>
+              ) : null}
             </motion.div>
           )}
         </>
@@ -280,48 +413,54 @@ export default function FeedPage() {
   )
 }
 
+function parseTab(raw: string | null): SocialTab {
+  if (raw === 'friends' || raw === 'circles' || raw === 'mine') return raw
+  return 'feed'
+}
+
 function SocialHero({
   tab,
   onTabChange,
   pendingFriends,
 }: {
-  tab: 'feed' | 'friends'
-  onTabChange: (tab: 'feed' | 'friends') => void
+  tab: SocialTab
+  onTabChange: (tab: SocialTab) => void
   pendingFriends: number
 }) {
+  const tabs: { id: SocialTab; label: string }[] = [
+    { id: 'feed', label: 'Feed' },
+    { id: 'circles', label: 'Circles' },
+    { id: 'mine', label: 'My posts' },
+    {
+      id: 'friends',
+      label: pendingFriends > 0 ? `Friends (${pendingFriends > 9 ? '9+' : pendingFriends})` : 'Friends',
+    },
+  ]
+
   return (
     <header className="sticky top-0 z-20 border-b border-border/50 bg-background/90 backdrop-blur-md">
       <div className="px-4 pt-3 sm:px-5">
         <h1 className="font-display text-xl tracking-tight sm:text-2xl">Social</h1>
         <p className="text-xs text-muted-foreground">
-          Cheer real wins from the day loop — not a general feed.
+          Cheer real wins — and how you’re feeling — not a general feed.
         </p>
       </div>
-      <div className="mt-3 flex px-2 sm:px-3">
-        <button
-          type="button"
-          onClick={() => onTabChange('feed')}
-          className={cn(
-            'flex-1 border-b-2 px-3 py-2.5 text-sm font-semibold transition',
-            tab === 'feed'
-              ? 'border-primary text-foreground'
-              : 'border-transparent text-muted-foreground hover:text-foreground',
-          )}
-        >
-          Feed
-        </button>
-        <button
-          type="button"
-          onClick={() => onTabChange('friends')}
-          className={cn(
-            'flex-1 border-b-2 px-3 py-2.5 text-sm font-semibold transition',
-            tab === 'friends'
-              ? 'border-primary text-foreground'
-              : 'border-transparent text-muted-foreground hover:text-foreground',
-          )}
-        >
-          Friends{pendingFriends > 0 ? ` (${pendingFriends > 9 ? '9+' : pendingFriends})` : ''}
-        </button>
+      <div className="mt-3 flex gap-0 overflow-x-auto px-2 sm:px-3">
+        {tabs.map(({ id, label }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => onTabChange(id)}
+            className={cn(
+              'shrink-0 border-b-2 px-3 py-2.5 text-sm font-semibold transition',
+              tab === id
+                ? 'border-primary text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {label}
+          </button>
+        ))}
       </div>
     </header>
   )

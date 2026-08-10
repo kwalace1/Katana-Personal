@@ -460,6 +460,29 @@ export function buildJournalShareCard(input: {
   }
 }
 
+/** Soft check-in: how you’re feeling today (still a win card, not freeform). */
+export function buildFeelingShareCard(input: {
+  dateLabel: string
+  moodLabel: string
+  note?: string
+}): ShareWinOffer {
+  const note = input.note?.trim()
+  return {
+    headline: 'Share how you’re feeling?',
+    defaultCaption: note
+      ? note.slice(0, 180)
+      : `Feeling ${input.moodLabel.toLowerCase()} today.`,
+    card: {
+      kind: 'journal',
+      badge: 'Feeling',
+      title: input.moodLabel,
+      subtitle: input.dateLabel,
+      stats: 'Check-in',
+      quote: note ? note.slice(0, 140) : undefined,
+    },
+  }
+}
+
 export function buildGoalProgressShareCard(input: {
   title: string
   progress: number
@@ -511,6 +534,14 @@ export function offerJournalShare(input: {
   snippet?: string
 }) {
   offerShareWin(buildJournalShareCard(input), 450, ACCOMPLISHMENT_SHARE)
+}
+
+export function offerFeelingShare(input: {
+  dateLabel: string
+  moodLabel: string
+  note?: string
+}) {
+  offerShareWin(buildFeelingShareCard(input), 200, ACCOMPLISHMENT_SHARE)
 }
 
 export function offerGoalProgressShare(input: {

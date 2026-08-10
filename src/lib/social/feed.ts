@@ -9,7 +9,7 @@ export const FEED_IMAGE_MAX_BYTES = 5 * 1024 * 1024
 export const FEED_VIDEO_MAX_SECONDS = 20
 export const FEED_VIDEO_MAX_MS = FEED_VIDEO_MAX_SECONDS * 1000
 export const FEED_VIDEO_MAX_BYTES = 12 * 1024 * 1024
-export const CIRCLE_BOOST_MS = 12 * 60 * 60 * 1000
+export const CIRCLE_BOOST_MS = 12 * 60 * 60 * 1000 // kept for older clients; main Feed is chronological now
 
 export type FeedAudience = 'friends' | 'circle'
 export type FeedMediaType = 'image' | 'video'
@@ -285,14 +285,21 @@ export async function deleteTogetherPost(id: string): Promise<void> {
   if (error) throw error
 }
 
+/** Newest first — no circle boost (Circles live in their own Social tab). */
 export function rankFeedPosts(posts: TogetherPost[]): RankedPost[] {
   return posts
     .map((p) => {
       const createdAtMs = Date.parse(p.createdAt) || 0
-      const boost = p.audience === 'circle' ? CIRCLE_BOOST_MS : 0
-      return { ...p, score: createdAtMs + boost }
+      return { ...p, score: createdAtMs }
     })
     .sort((a, b) => b.score - a.score || b.createdAt.localeCompare(a.createdAt))
+}
+
+export function filterFeedByAudience(
+  posts: RankedPost[],
+  audience: FeedAudience,
+): RankedPost[] {
+  return posts.filter((p) => p.audience === audience)
 }
 
 async function hydrateMediaUrls(posts: TogetherPost[]): Promise<TogetherPost[]> {
