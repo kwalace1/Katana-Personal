@@ -20,6 +20,8 @@ import {
   Menu,
   ChevronDown,
   ChevronRight,
+  ListTodo,
+  Users,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -139,12 +141,14 @@ function NavGroup({
 
 function NavExpandable({
   label,
+  icon: Icon,
   open,
   onToggle,
   items,
   onNavigate,
 }: {
   label: string
+  icon: React.ComponentType<{ className?: string }>
   open: boolean
   onToggle: () => void
   items: readonly { to: string; label: string; icon: React.ComponentType<{ className?: string }> }[]
@@ -155,10 +159,11 @@ function NavExpandable({
       <button
         type="button"
         onClick={onToggle}
-        className="flex min-h-11 w-full items-center justify-between rounded-xl px-3 py-2 text-[0.925rem] font-medium text-muted-foreground transition hover:bg-secondary/80 hover:text-foreground"
+        className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2 text-[0.925rem] font-medium text-muted-foreground transition hover:bg-secondary/80 hover:text-foreground"
         aria-expanded={open}
       >
-        <span>{label}</span>
+        <Icon className="h-[1.05rem] w-[1.05rem] shrink-0 opacity-80" />
+        <span className="flex-1 text-left">{label}</span>
         <ChevronDown className={cn('h-4 w-4 shrink-0 transition', open && 'rotate-180')} />
       </button>
       {open ? (
@@ -243,6 +248,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
         <div className="mt-1 space-y-0.5">
           <NavExpandable
             label="Plan"
+            icon={ListTodo}
             open={planOpen}
             onToggle={() => toggleSection('plan', planOpen, setPlanOpen)}
             items={PLAN}
@@ -250,6 +256,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
           />
           <NavExpandable
             label="Life"
+            icon={HeartPulse}
             open={lifeOpen}
             onToggle={() => toggleSection('life', lifeOpen, setLifeOpen)}
             items={LIFE}
@@ -257,6 +264,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
           />
           <NavExpandable
             label="Together"
+            icon={Users}
             open={togetherOpen}
             onToggle={() => toggleSection('together', togetherOpen, setTogetherOpen)}
             items={TOGETHER_MORE}
