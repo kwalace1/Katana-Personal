@@ -22,7 +22,7 @@ import {
  * otherwise auto link (upload empty cloud or download empty local).
  */
 export function WorkspaceSyncHost() {
-  const { user } = useAuth()
+  const { user, markOnboardingDone } = useAuth()
   const { cloudUser } = useCloudAuth()
   const { refresh } = useLocalRefresh()
   const [choice, setChoice] = useState(false)
@@ -45,9 +45,15 @@ export function WorkspaceSyncHost() {
         const localHas = localWorkspaceHasData(user.id)
         if (cancelled) return
 
+        // Existing cloud life → never force First Minute on this device.
+        if (cloudHas || localHas) markOnboardingDone()
+
         if (!needsWorkspaceMergeChoice(cloudUser.uid)) {
           await syncWorkspaceNow()
-          if (!cancelled) broadcastLocalRefresh()
+          if (!cancelled) {
+            if (localWorkspaceHasData(user.id)) markOnboardingDone()
+            broadcastLocalRefresh()
+          }
           return
         }
 
@@ -60,6 +66,7 @@ export function WorkspaceSyncHost() {
           toast.success('This device is now syncing to the cloud')
         } else if (!localHas && cloudHas) {
           await pullWorkspaceFromCloud()
+          markOnboardingDone()
           broadcastLocalRefresh()
           toast.success('Downloaded your cloud workspace')
         } else {
@@ -88,7 +95,7 @@ export function WorkspaceSyncHost() {
       cancelled = true
       document.removeEventListener('visibilitychange', onVis)
     }
-  }, [cloudUser?.uid, user?.id])
+  }, [cloudUser?.uid, user?.id, markOnboardingDone])
 
   if (!choice || !cloudUser || !user) return null
 
@@ -102,9 +109,11 @@ export function WorkspaceSyncHost() {
       if (kind === 'upload') await pushWorkspaceToCloud()
       else if (kind === 'download') {
         await pullWorkspaceFromCloud()
+        markOnboardingDone()
         broadcastLocalRefresh()
       } else {
         await mergeWorkspaceBothWays()
+        markOnboardingDone()
         broadcastLocalRefresh()
       }
       setChoice(false)

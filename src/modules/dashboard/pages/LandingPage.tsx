@@ -49,7 +49,7 @@ const STORY = [
  * Standalone: lean entrance only.
  */
 export default function LandingPage() {
-  const { user, loading, startWorkspace } = useAuth()
+  const { user, loading, startWorkspace, markOnboardingDone } = useAuth()
   const {
     cloudEnabled,
     appleSignInAvailable,
@@ -146,6 +146,8 @@ export default function LandingPage() {
       } else {
         await signInCloud(emailTrim, password)
         await startWorkspace(name.trim() || 'You')
+        // Returning accounts already know the loop — never trap them in First Minute.
+        markOnboardingDone()
         toast.success('Signed in')
       }
       goAfterEntrance()
@@ -189,6 +191,7 @@ export default function LandingPage() {
         id: workspaceId,
         preferences: backup.profile.preferences || {},
       })
+      markOnboardingDone()
       toast.success('Welcome back')
       navigate('/dashboard')
     } catch (err) {

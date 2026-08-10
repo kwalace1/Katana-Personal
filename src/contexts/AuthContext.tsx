@@ -1,9 +1,29 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { createId } from '@/lib/id'
 import { ensureUserLoaded, initLocalDb, localDb } from '@/lib/local-db'
+import { localWorkspaceHasData } from '@/lib/workspace-sync'
 
 const LOCAL_SESSION_KEY = 'katana-personal:local-session'
 const ONBOARDING_KEY = 'katana-personal:onboarding-done'
+const RITUAL_STEP_KEY = 'katana-personal:ritual-step'
+const CAPTURED_KEY = 'katana-personal:captured-once'
+
+/** Returning users (data, prior capture, or restored session) should never be locked in First Minute. */
+export function inferOnboardingComplete(userId: string | null | undefined): boolean {
+  try {
+    if (localStorage.getItem(ONBOARDING_KEY) === '1') return true
+    if (localStorage.getItem(CAPTURED_KEY) === '1') return true
+  } catch {
+    // ignore
+  }
+  if (!userId) return false
+  try {
+    return localWorkspaceHasData(userId)
+  } catch {
+    return false
+  }
+}
+
 
 export interface UserProfile {
   id: string
@@ -68,14 +88,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         await initLocalDb()
         const raw = localStorage.getItem(LOCAL_SESSION_KEY)
+        let userId: string | null = null
         if (raw) {
           const parsed = JSON.parse(raw) as StoredSession
           await ensureUserLoaded(parsed.id)
           if (!mounted) return
+          userId = parsed.id
           setUser({ id: parsed.id })
           setProfile(toProfile(parsed))
         }
-        if (mounted) setOnboardingDone(localStorage.getItem(ONBOARDING_KEY) === '1')
+        if (mounted) {
+          const done = inferOnboardingComplete(userId)
+          if (done) {
+            try {
+              localStorage.setItem(ONBOARDING_KEY, '1')
+              localStorage.removeItem(RITUAL_STEP_KEY)
+            } catch {
+              // ignore
+            }
+          }
+          setOnboardingDone(done)
+        }
       } catch (err) {
         console.warn('Could not open local storage', err)
       } finally {
@@ -86,6 +119,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       mounted = false
     }
   }, [])
+
+  // After cloud pull / later data lands, escape First Minute for returning accounts.
+  useEffect(() => {
+    if (!user?.id || onboardingDone || loading) return
+    if (!inferOnboardingComplete(user.id)) return
+    try {
+      localStorage.setItem(ONBOARDING_KEY, '1')
+      localStorage.removeItem(RITUAL_STEP_KEY)
+    } catch {
+      // ignore
+    }
+    setOnboardingDone(true)
+  }, [user?.id, onboardingDone, loading])
 
   const startWorkspace = useCallback(
     async (displayName?: string, options?: { id?: string; preferences?: Record<string, unknown> }) => {
@@ -139,12 +185,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const markOnboardingDone = useCallback(() => {
     localStorage.setItem(ONBOARDING_KEY, '1')
+    localStorage.removeItem(RITUAL_STEP_KEY)
     setOnboardingDone(true)
   }, [])
 
   const resetOnboarding = useCallback(() => {
     localStorage.removeItem(ONBOARDING_KEY)
-    localStorage.removeItem('katana-personal:ritual-step')
+    localStorage.removeItem(RITUAL_STEP_KEY)
     setOnboardingDone(false)
   }, [])
 
