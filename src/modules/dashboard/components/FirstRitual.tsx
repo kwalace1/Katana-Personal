@@ -11,6 +11,7 @@ import { burstConfetti } from '@/lib/celebrate'
 import { springSoft } from '@/lib/motion-ui'
 import { tasksApi } from '@/modules/tasks/api'
 import { habitsApi } from '@/modules/habits/api'
+import { offerEventCreatedShare, offerHabitCheckedInShare, offerTaskCompleteShare, offerTaskCreatedShare } from '@/lib/social/share-win'
 import { formatShortDate, todayKey } from '@/lib/dates'
 import { toast } from 'sonner'
 
@@ -86,6 +87,8 @@ export function FirstRitual({
     localStorage.setItem('katana-personal:captured-once', '1')
     setCapture('')
     if (firstCapture) burstConfetti()
+    if (result.kind === 'task') offerTaskCreatedShare(result.title)
+    else if (result.kind === 'event') offerEventCreatedShare(result.title, result.summary)
     toast.success(result.summary)
     onRefresh()
     go('next')
@@ -235,6 +238,7 @@ export function FirstRitual({
                     disabled={didNext}
                     onClick={() => {
                       tasksApi.completeTask(userId, nextItem.item.id)
+                      offerTaskCompleteShare(nextItem.item.title)
                       completeNext()
                     }}
                   >
@@ -248,6 +252,10 @@ export function FirstRitual({
                     disabled={didNext}
                     onClick={() => {
                       habitsApi.toggleToday(userId, nextItem.item.id)
+                      offerHabitCheckedInShare(
+                        nextItem.item.title,
+                        habitsApi.streak(userId, nextItem.item.id),
+                      )
                       completeNext()
                     }}
                   >

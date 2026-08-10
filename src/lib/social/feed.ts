@@ -13,7 +13,7 @@ export const CIRCLE_BOOST_MS = 12 * 60 * 60 * 1000
 
 export type FeedAudience = 'friends' | 'circle'
 export type FeedMediaType = 'image' | 'video'
-export type FeedCardKind = 'goal' | 'habit' | 'workout' | 'day'
+export type FeedCardKind = 'goal' | 'habit' | 'workout' | 'day' | 'task' | 'event' | 'journal'
 
 
 export interface FeedMedia {

@@ -16,7 +16,7 @@ import { goalsApi } from '../api'
 import { tasksApi } from '@/modules/tasks/api'
 import { ShareWithFriendsButton } from '@/components/ShareWithFriendsButton'
 import { burstConfetti } from '@/lib/celebrate'
-import { buildGoalCompleteShareCard, offerShareWin } from '@/lib/social/share-win'
+import { offerGoalProgressShare } from '@/lib/social/share-win'
 import type { GoalHorizon } from '../types'
 
 const HORIZONS: GoalHorizon[] = ['annual', 'quarterly', 'monthly', 'daily']
@@ -30,9 +30,14 @@ function syncProgressFromTasks(userId: string, goalId: string) {
   const target = Math.max(linked.length * 10, 10)
   const progress = Math.round((done / linked.length) * target)
   goalsApi.update(userId, goalId, { target, progress })
-  if (prev < target && progress >= target) {
-    burstConfetti()
-    offerShareWin(buildGoalCompleteShareCard({ title: goal?.title || 'Goal', target }))
+  if (progress > prev) {
+    if (prev < target && progress >= target) burstConfetti()
+    offerGoalProgressShare({
+      goalId,
+      title: goal?.title || 'Goal',
+      progress,
+      target,
+    })
   }
 }
 
@@ -302,14 +307,14 @@ export default function GoalsPage() {
                     const prev = selected.progress
                     const next = Math.min(selected.target, selected.progress + 10)
                     goalsApi.update(userId, selected.id, { progress: next })
-                    if (prev < selected.target && next >= selected.target) {
-                      burstConfetti()
-                      offerShareWin(
-                        buildGoalCompleteShareCard({
-                          title: selected.title,
-                          target: selected.target,
-                        }),
-                      )
+                    if (next > prev) {
+                      if (prev < selected.target && next >= selected.target) burstConfetti()
+                      offerGoalProgressShare({
+                        goalId: selected.id,
+                        title: selected.title,
+                        progress: next,
+                        target: selected.target,
+                      })
                     }
                     refresh()
                   }}

@@ -23,6 +23,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext'
 import { searchWorkspace, type SearchHit } from '@/lib/search'
 import { captureItem } from '@/lib/capture'
+import { offerEventCreatedShare, offerTaskCreatedShare } from '@/lib/social/share-win'
 import { toast } from 'sonner'
 
 const KIND_ICON: Record<SearchHit['kind'], React.ComponentType<{ className?: string }>> = {
@@ -77,6 +78,7 @@ export function CommandPalette({
     if (!user) return
     const result = captureItem(user.id, title || 'New task')
     if (!result) return
+    if (result.kind === 'task') offerTaskCreatedShare(result.title)
     toast.success(result.summary)
     go(result.to)
   }
@@ -93,6 +95,7 @@ export function CommandPalette({
     if (!user) return
     const result = captureItem(user.id, `@ ${title || 'New event'}`)
     if (!result) return
+    if (result.kind === 'event') offerEventCreatedShare(result.title, result.summary)
     toast.success(result.summary)
     go(result.to)
   }

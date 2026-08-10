@@ -103,15 +103,16 @@ export function resumeParkedShareWin(): ShareWinOffer | null {
  * Offer an optional Feed share after a meaningful win.
  * No-ops if the user chose “Don’t ask”, or another prompt was shown recently
  * (unless `force` — used for the evening day-card signature moment).
+ * Use `ignoreCooldown` for intentional accomplishments so rapid wins stay shareable.
  */
 export function offerShareWin(
   offer: ShareWinOffer,
   delayMs = 550,
-  opts?: { force?: boolean },
+  opts?: { force?: boolean; ignoreCooldown?: boolean },
 ) {
   // Signature day card uses force — never permanently block that clip.
   if (isShareWinNever() && !opts?.force) return
-  if (!opts?.force) {
+  if (!opts?.force && !opts?.ignoreCooldown) {
     try {
       const last = Number(localStorage.getItem(LAST_KEY) || '0')
       if (Number.isFinite(last) && Date.now() - last < COOLDOWN_MS) return
@@ -369,6 +370,196 @@ export function buildWeightProgressShareCard(input: {
       subtitle: `${input.current} lb → ${input.target} lb`,
       stats: hit ? '100% · locked in' : `${Math.round(input.percent)}% there`,
     },
+  }
+}
+
+export function buildTaskCompleteShareCard(input: { title: string }): ShareWinOffer {
+  return {
+    headline: 'Share this win?',
+    defaultCaption: `Done: ${input.title}`,
+    card: {
+      kind: 'task',
+      badge: 'Task done',
+      title: input.title,
+      subtitle: 'Checked off',
+      stats: 'One less thing on the list',
+    },
+  }
+}
+
+export function buildTaskCreatedShareCard(input: { title: string }): ShareWinOffer {
+  return {
+    headline: 'Share this plan?',
+    defaultCaption: `Added to my list: ${input.title}`,
+    card: {
+      kind: 'task',
+      badge: 'New task',
+      title: input.title,
+      subtitle: 'On the list',
+      stats: 'Committed',
+    },
+  }
+}
+
+export function buildEventCreatedShareCard(input: {
+  title: string
+  whenLabel: string
+}): ShareWinOffer {
+  return {
+    headline: 'Share this event?',
+    defaultCaption: `On my calendar: ${input.title}`,
+    card: {
+      kind: 'event',
+      badge: 'On the calendar',
+      title: input.title,
+      subtitle: input.whenLabel,
+      stats: 'Locked in',
+    },
+  }
+}
+
+export function buildHabitCheckInShareCard(input: {
+  title: string
+  streak?: number
+}): ShareWinOffer {
+  const streak = input.streak && input.streak > 0 ? input.streak : null
+  return {
+    headline: 'Share this check-in?',
+    defaultCaption: `Checked in on ${input.title}.`,
+    card: {
+      kind: 'habit',
+      badge: 'Checked in',
+      title: input.title,
+      subtitle: 'Done for today',
+      stats: streak ? `${streak} day streak` : 'Showing up',
+    },
+  }
+}
+
+export function buildJournalShareCard(input: {
+  dateLabel: string
+  moodLabel?: string
+  snippet?: string
+}): ShareWinOffer {
+  const snippet = input.snippet?.trim()
+  return {
+    headline: 'Share today’s journal?',
+    defaultCaption: snippet
+      ? snippet.slice(0, 180)
+      : input.moodLabel
+        ? `Journaled — feeling ${input.moodLabel.toLowerCase()}.`
+        : 'Took a minute to journal.',
+    card: {
+      kind: 'journal',
+      badge: 'Journal',
+      title: input.dateLabel,
+      subtitle: input.moodLabel ? `Mood · ${input.moodLabel}` : 'Reflection locked in',
+      stats: 'Wrote it down',
+      quote: snippet ? snippet.slice(0, 140) : undefined,
+    },
+  }
+}
+
+export function buildGoalProgressShareCard(input: {
+  title: string
+  progress: number
+  target: number
+  percent: number
+}): ShareWinOffer {
+  const hit = input.percent >= 100
+  return {
+    headline: hit ? 'Share this win?' : 'Share your progress?',
+    defaultCaption: hit
+      ? `Crushed my goal: ${input.title}.`
+      : `${Math.round(input.percent)}% on ${input.title}.`,
+    card: {
+      kind: 'goal',
+      badge: hit ? 'Goal crushed' : 'On track',
+      title: input.title,
+      subtitle: `${input.progress}/${input.target}`,
+      stats: hit ? 'Done — progress locked in' : `${Math.round(input.percent)}% there`,
+    },
+  }
+}
+
+const ACCOMPLISHMENT_SHARE = { ignoreCooldown: true } as const
+
+/** Task finished — always offer (respects “don’t ask”). */
+export function offerTaskCompleteShare(title: string) {
+  offerShareWin(buildTaskCompleteShareCard({ title }), 450, ACCOMPLISHMENT_SHARE)
+}
+
+export function offerTaskCreatedShare(title: string) {
+  offerShareWin(buildTaskCreatedShareCard({ title }), 450, ACCOMPLISHMENT_SHARE)
+}
+
+export function offerEventCreatedShare(title: string, whenLabel: string) {
+  offerShareWin(buildEventCreatedShareCard({ title, whenLabel }), 450, ACCOMPLISHMENT_SHARE)
+}
+
+export function offerHabitCheckedInShare(title: string, streak: number) {
+  if (isStreakMilestone(streak)) {
+    offerShareWin(buildHabitStreakShareCard({ title, streak }), 450, ACCOMPLISHMENT_SHARE)
+  } else {
+    offerShareWin(buildHabitCheckInShareCard({ title, streak }), 450, ACCOMPLISHMENT_SHARE)
+  }
+}
+
+export function offerJournalShare(input: {
+  dateLabel: string
+  moodLabel?: string
+  snippet?: string
+}) {
+  offerShareWin(buildJournalShareCard(input), 450, ACCOMPLISHMENT_SHARE)
+}
+
+export function offerGoalProgressShare(input: {
+  goalId: string
+  title: string
+  progress: number
+  target: number
+}) {
+  const percent = input.target > 0 ? (input.progress / input.target) * 100 : 0
+  if (percent >= 100) {
+    offerShareWin(
+      buildGoalCompleteShareCard({ title: input.title, target: input.target }),
+      450,
+      ACCOMPLISHMENT_SHARE,
+    )
+    return
+  }
+  const band = takeGoalProgressBand(input.goalId, percent)
+  if (band == null) return
+  offerShareWin(
+    buildGoalProgressShareCard({
+      title: input.title,
+      progress: input.progress,
+      target: input.target,
+      percent: band,
+    }),
+    450,
+    ACCOMPLISHMENT_SHARE,
+  )
+}
+
+const GOAL_PROGRESS_KEY = 'katana-personal:goal-progress-band'
+const GOAL_BANDS = [25, 50, 75] as const
+
+function takeGoalProgressBand(goalId: string, percent: number): number | null {
+  try {
+    const raw = localStorage.getItem(GOAL_PROGRESS_KEY)
+    const seen = raw ? (JSON.parse(raw) as Record<string, number>) : {}
+    const last = typeof seen[goalId] === 'number' ? seen[goalId]! : 0
+    let next: number | null = null
+    for (const band of GOAL_BANDS) {
+      if (percent >= band && last < band) next = band
+    }
+    if (next == null) return null
+    seen[goalId] = next
+    localStorage.setItem(GOAL_PROGRESS_KEY, JSON.stringify(seen))
+    return next
+  } catch {
+    return percent >= 25 ? Math.min(75, Math.floor(percent / 25) * 25) : null
   }
 }
 

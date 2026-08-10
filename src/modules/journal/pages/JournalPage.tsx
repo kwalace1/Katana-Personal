@@ -16,6 +16,7 @@ import { format, parseISO, todayKey } from '@/lib/dates'
 import { cn } from '@/lib/utils'
 import { journalApi } from '../api'
 import { ShareWithFriendsButton } from '@/components/ShareWithFriendsButton'
+import { offerJournalShare } from '@/lib/social/share-win'
 import type { Mood } from '../types'
 
 const MOODS: { id: Mood; label: string }[] = [
@@ -85,15 +86,6 @@ export default function JournalPage() {
     setJustSaved(false)
   }
 
-  function onSave(e: FormEvent) {
-    e.preventDefault()
-    journalApi.upsert(userId, { date: activeDate, mood, body, reflection })
-    refresh()
-    setDirty(false)
-    setJustSaved(true)
-    toast.success(existing ? 'Entry updated' : 'Entry saved')
-  }
-
   const dateLabel = (() => {
     try {
       return format(parseISO(activeDate), 'MMMM d')
@@ -101,6 +93,24 @@ export default function JournalPage() {
       return activeDate
     }
   })()
+
+  function onSave(e: FormEvent) {
+    e.preventDefault()
+    const wasNew = !existing
+    journalApi.upsert(userId, { date: activeDate, mood, body, reflection })
+    refresh()
+    setDirty(false)
+    setJustSaved(true)
+    toast.success(existing ? 'Entry updated' : 'Entry saved')
+    if (wasNew) {
+      const snippet = (body.trim() || reflection.trim()).slice(0, 180)
+      offerJournalShare({
+        dateLabel,
+        moodLabel: moodLabel(mood),
+        snippet: snippet || undefined,
+      })
+    }
+  }
 
   const canShare = Boolean(existing) || justSaved
   const shareMoodLabel = moodLabel(mood)

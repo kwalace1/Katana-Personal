@@ -36,7 +36,7 @@ import { notesApi } from '@/modules/notes/api'
 import { goalsApi } from '@/modules/goals/api'
 import { journalApi } from '@/modules/journal/api'
 import { healthApi } from '@/modules/health/api'
-import { buildDayCloseShareCard, offerShareWin } from '@/lib/social/share-win'
+import { buildDayCloseShareCard, offerEventCreatedShare, offerHabitCheckedInShare, offerShareWin, offerTaskCompleteShare, offerTaskCreatedShare } from '@/lib/social/share-win'
 import { takeDayCloseMoment, type DayCloseSummary } from '@/lib/ritual-path'
 import {
   buildDailyBriefing,
@@ -245,6 +245,8 @@ export default function DashboardPage() {
     localStorage.setItem('katana-personal:captured-once', '1')
     setCapture('')
     if (firstCapture) burstConfetti()
+    if (result.kind === 'task') offerTaskCreatedShare(result.title)
+    else if (result.kind === 'event') offerEventCreatedShare(result.title, result.summary)
     toast.success(result.summary, {
       action: {
         label: 'Open',
@@ -532,7 +534,9 @@ export default function DashboardPage() {
                     size="lg"
                     className="gap-2"
                     onClick={() => {
-                      tasksApi.completeTask(userId, data.next!.item.id)
+                      const task = data.next!.item
+                      tasksApi.completeTask(userId, task.id)
+                      offerTaskCompleteShare(task.title)
                       toast.success('Done')
                       refresh()
                     }}
@@ -560,7 +564,9 @@ export default function DashboardPage() {
                   size="lg"
                   className="gap-2"
                   onClick={() => {
-                    habitsApi.toggleToday(userId, data.next!.item.id)
+                    const habit = data.next!.item
+                    habitsApi.toggleToday(userId, habit.id)
+                    offerHabitCheckedInShare(habit.title, habitsApi.streak(userId, habit.id))
                     toast.success('Checked in')
                     cheerTogether()
                     refresh()
@@ -644,6 +650,7 @@ export default function DashboardPage() {
                     variant="ghost"
                     onClick={() => {
                       tasksApi.completeTask(userId, task.id)
+                      offerTaskCompleteShare(task.title)
                       refresh()
                     }}
                   >
@@ -664,6 +671,7 @@ export default function DashboardPage() {
                       variant="ghost"
                       onClick={() => {
                         habitsApi.toggleToday(userId, habit.id)
+                        offerHabitCheckedInShare(habit.title, habitsApi.streak(userId, habit.id))
                         cheerTogether()
                         refresh()
                       }}

@@ -29,6 +29,7 @@ import { formatShortDate, todayKey } from '@/lib/dates'
 import { useLocalRefresh } from '@/hooks/useLocalRefresh'
 import { cn } from '@/lib/utils'
 import { shareSuccessMessage, shareWithAudience } from '@/lib/social/share-with-audience'
+import { offerTaskCompleteShare, offerTaskCreatedShare } from '@/lib/social/share-win'
 import { tasksApi } from '../api'
 import { goalsApi } from '@/modules/goals/api'
 import { EVENT_CATEGORIES, categoryColor, categoryLabel, type EventCategory } from '@/modules/calendar/categories'
@@ -107,6 +108,7 @@ function TaskEditFields({
                 completed_at: value,
                 ...(value && task.status !== 'done' ? { status: 'done' as const } : {}),
               })
+              if (value && task.status !== 'done') offerTaskCompleteShare(task.title)
               refresh()
             }}
           />
@@ -178,7 +180,9 @@ function TaskEditFields({
           <Select
             value={task.status}
             onValueChange={(v) => {
-              tasksApi.updateTask(userId, task.id, { status: v as TaskStatus })
+              const status = v as TaskStatus
+              tasksApi.updateTask(userId, task.id, { status })
+              if (status === 'done' && task.status !== 'done') offerTaskCompleteShare(task.title)
               refresh()
             }}
           >
@@ -485,6 +489,7 @@ export default function TasksPage() {
     setShareAudience({ friendIds: [], circles: [], hasAny: false })
     setSelectedId(task.id)
     setParams({ id: task.id })
+    offerTaskCreatedShare(task.title)
     refresh()
   }
 
@@ -854,6 +859,7 @@ export default function TasksPage() {
                       }}
                       onToggle={() => {
                         tasksApi.completeTask(userId, task.id)
+                        offerTaskCompleteShare(task.title)
                         refresh()
                       }}
                       onDelete={() => {

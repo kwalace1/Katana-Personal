@@ -36,6 +36,7 @@ import {
 import { cn } from '@/lib/utils'
 import { calendarApi } from '../api'
 import { ShareWithFriendsButton } from '@/components/ShareWithFriendsButton'
+import { offerEventCreatedShare, offerTaskCreatedShare } from '@/lib/social/share-win'
 import { tasksApi } from '@/modules/tasks/api'
 import { goalsApi } from '@/modules/goals/api'
 import { habitsApi } from '@/modules/habits/api'
@@ -337,6 +338,10 @@ export default function CalendarPage() {
       setParams({ date: event.starts_at.slice(0, 10), id: event.id })
       setCursor(parseISO(event.starts_at))
       setView('day')
+      const whenLabel = allDay
+        ? format(start, 'MMM d') + ' · All day'
+        : format(start, 'MMM d · h:mm a')
+      offerEventCreatedShare(event.title, whenLabel)
     } else if (addKind === 'task') {
       const task = tasksApi.createTask(userId, {
         title: title.trim(),
@@ -348,6 +353,7 @@ export default function CalendarPage() {
       setCursor(start)
       setView('day')
       setSelectedId(null)
+      offerTaskCreatedShare(task.title)
     } else {
       const goal = goalsApi.create(userId, {
         title: title.trim(),

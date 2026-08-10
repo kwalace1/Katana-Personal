@@ -1,4 +1,4 @@
-import { Dumbbell, Flame, Moon, Target } from 'lucide-react'
+import { BookOpen, CalendarDays, CheckSquare, Dumbbell, Flame, Moon, Target } from 'lucide-react'
 import type { FeedCard } from '@/lib/social/feed'
 import { cn } from '@/lib/utils'
 
@@ -27,6 +27,24 @@ const KIND_META = {
     wash: 'from-[hsl(225_32%_12%)] via-[hsl(210_36%_18%)] to-[hsl(172_40%_16%)]',
     glow: 'bg-[radial-gradient(ellipse_at_40%_0%,hsl(200_55%_65%/0.32),transparent_55%)]',
   },
+  task: {
+    Icon: CheckSquare,
+    label: 'Task',
+    wash: 'from-[hsl(210_38%_24%)] via-[hsl(195_36%_28%)] to-[hsl(172_34%_22%)]',
+    glow: 'bg-[radial-gradient(ellipse_at_25%_0%,hsl(190_55%_70%/0.3),transparent_55%)]',
+  },
+  event: {
+    Icon: CalendarDays,
+    label: 'Event',
+    wash: 'from-[hsl(200_36%_22%)] via-[hsl(185_34%_28%)] to-[hsl(168_38%_24%)]',
+    glow: 'bg-[radial-gradient(ellipse_at_70%_0%,hsl(175_50%_65%/0.28),transparent_50%)]',
+  },
+  journal: {
+    Icon: BookOpen,
+    label: 'Journal',
+    wash: 'from-[hsl(220_30%_18%)] via-[hsl(200_32%_22%)] to-[hsl(172_36%_20%)]',
+    glow: 'bg-[radial-gradient(ellipse_at_40%_0%,hsl(210_50%_70%/0.28),transparent_55%)]',
+  },
 } as const
 
 /**
@@ -48,6 +66,7 @@ export function FeedCardView({
   const badge = card.badge || meta.label
   const hero = variant === 'hero'
   const isDay = card.kind === 'day'
+  const showQuote = Boolean(card.quote?.trim()) && (isDay || card.kind === 'journal')
 
   return (
     <div
@@ -123,15 +142,15 @@ export function FeedCardView({
           </p>
         ) : null}
 
-        {isDay && card.quote?.trim() ? (
+        {showQuote ? (
           <p
             className={cn(
               'mt-4 border-t border-white/15 pt-3 italic text-white/85',
               hero ? 'text-base' : 'text-sm',
             )}
           >
-            “{card.quote.trim()}
-            {card.quote.trim().length >= 140 ? '…' : ''}”
+            “{card.quote!.trim()}
+            {card.quote!.trim().length >= 140 ? '…' : ''}”
           </p>
         ) : null}
       </div>

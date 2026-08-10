@@ -191,7 +191,7 @@ export default function FeedPage() {
       ) : (
         <>
           <p className="border-b border-border/50 px-4 py-3 text-sm text-muted-foreground sm:px-5">
-            Wins from Today, habits, lifts, and day close show up here — no random posts.
+            Wins from Today, tasks, calendar, habits, journal, health, and day close show up here — no random posts.
           </p>
 
           {loading ? (
@@ -203,7 +203,7 @@ export default function FeedPage() {
               <EmptyState
                 icon={Newspaper}
                 title="No wins shared yet"
-                description="Close a day, hit a streak, finish a goal or workout — then share the win card when Katana offers it."
+                description="Create or finish something in Today, Tasks, Calendar, Habits, Goals, Journal, or Health — then share the win when Katana offers it."
                 action={
                   <div className="flex flex-wrap justify-center gap-2">
                     <Button asChild>
