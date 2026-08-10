@@ -252,7 +252,7 @@ export default function LandingPage() {
             <p className="mt-4 max-w-md text-base leading-relaxed text-muted-foreground sm:text-lg">
               {standalone
                 ? 'Your day, on this phone.'
-                : 'Plan the day. Do the next thing. Share wins if you want.'}
+                : 'Plan the day. Do the next thing. Share your wins.'}
             </p>
 
             {!standalone ? (
