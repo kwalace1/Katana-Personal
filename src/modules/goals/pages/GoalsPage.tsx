@@ -56,6 +56,8 @@ export default function GoalsPage() {
   const [filter, setFilter] = useState<GoalHorizon | 'all'>('all')
   const [selectedId, setSelectedId] = useState<string | null>(params.get('id'))
   const [milestoneTitle, setMilestoneTitle] = useState('')
+  const [descDraft, setDescDraft] = useState('')
+  const [titleDraft, setTitleDraft] = useState('')
 
   useEffect(() => {
     const id = params.get('id')
@@ -65,6 +67,11 @@ export default function GoalsPage() {
   const selected = selectedId ? goals.find((g) => g.id === selectedId) ?? null : null
   const milestones = selected ? goalsApi.milestones(userId, selected.id) : []
   const linkedTasks = selected ? tasksApi.forGoal(userId, selected.id) : []
+
+  useEffect(() => {
+    setDescDraft(selected?.description ?? '')
+    setTitleDraft(selected?.title ?? '')
+  }, [selected?.id, selected?.description, selected?.title])
   const openTasks = useMemo(() => {
     void tick
     return tasksApi.listTasks(userId).filter((t) => t.status !== 'done' && !t.goal_id)
@@ -223,18 +230,22 @@ export default function GoalsPage() {
                 </div>
               </div>
               <Input
-                value={selected.title}
+                value={titleDraft}
                 onChange={(e) => {
-                  goalsApi.update(userId, selected.id, { title: e.target.value })
-                  refresh()
+                  const v = e.target.value
+                  setTitleDraft(v)
+                  goalsApi.update(userId, selected.id, { title: v })
                 }}
+                onBlur={() => refresh()}
               />
               <Textarea
-                value={selected.description}
+                value={descDraft}
                 onChange={(e) => {
-                  goalsApi.update(userId, selected.id, { description: e.target.value })
-                  refresh()
+                  const v = e.target.value
+                  setDescDraft(v)
+                  goalsApi.update(userId, selected.id, { description: v })
                 }}
+                onBlur={() => refresh()}
               />
               <Select
                 value={selected.horizon}

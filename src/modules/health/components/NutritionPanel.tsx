@@ -281,7 +281,9 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
                 autoComplete="off"
               />
               {searching ? (
-                <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-hidden />
+                </span>
               ) : foodQuery ? (
                 <button
                   type="button"

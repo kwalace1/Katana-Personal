@@ -35,6 +35,7 @@ import { PwaInstallNudge } from '@/components/PwaInstallNudge'
 import { WorkspaceSyncHost } from '@/components/WorkspaceSyncHost'
 import { ShareWinHost } from '@/components/ShareWinHost'
 import { SocialInboxProvider, useSharedSocialInbox } from '@/contexts/SocialInboxContext'
+import { useKeepInputVisible } from '@/hooks/useKeepInputVisible'
 
 export const PRIMARY = [
   { to: '/dashboard', label: 'Today', icon: Sun },
@@ -127,6 +128,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   })
   const { pendingCount: pendingFriends } = useSharedSocialInbox()
   useNotificationToasts()
+  useKeepInputVisible()
 
   const closeNav = useCallback(() => setNavOpen(false), [])
   const openNav = useCallback(() => setNavOpen(true), [])
