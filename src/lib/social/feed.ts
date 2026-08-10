@@ -222,6 +222,10 @@ export async function createTogetherPost(input: {
   const text = input.text.trim()
   if (text.length > FEED_TEXT_MAX) throw new Error(`Keep it under ${FEED_TEXT_MAX} characters.`)
   const files = input.files || []
+  // Friends Social is wins-only: share a win card (or repost). Circles can still post freeform.
+  if (input.audience === 'friends' && !input.card && !input.repost) {
+    throw new Error('Social is for wins — share from Today, habits, health, or day close.')
+  }
   if (!text && files.length === 0 && !input.card && !input.repost) {
     throw new Error('Write something, add media, or attach a card.')
   }

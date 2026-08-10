@@ -280,7 +280,7 @@ export default function FeedProfilePage() {
             title={isSelf ? 'No posts yet' : 'Nothing to show'}
             description={
               isSelf
-                ? 'Share an update on Social and it’ll show up here.'
+                ? 'Wins you share from Today, habits, health, and day close show up here.'
                 : 'You only see posts shared with you.'
             }
             action={

@@ -52,18 +52,12 @@ type Props = {
   onNames: (extra: Record<string, string>) => void
 }
 
-function MediaBlock({
-  media,
-  compact,
-}: {
-  media: RankedPost['media']
-  compact?: boolean
-}) {
+function MediaBlock({ media, compact }: { media: RankedPost['media']; compact?: boolean }) {
   if (!media?.length) return null
   return (
     <div
       className={cn(
-        'mt-2 overflow-hidden rounded-2xl border border-border/50',
+        'relative mt-2 overflow-hidden rounded-2xl border border-border/50',
         media.length === 1 ? 'grid grid-cols-1' : 'grid grid-cols-2 gap-px bg-border/40',
       )}
     >
@@ -96,9 +90,70 @@ function MediaBlock({
                   : 'max-h-[min(70vh,28rem)]'
                 : 'aspect-square',
             )}
+            draggable={false}
           />
         ),
       )}
+    </div>
+  )
+}
+
+function DoubleTapLikeZone({
+  onLike,
+  children,
+  className,
+}: {
+  onLike: () => void
+  children: React.ReactNode
+  className?: string
+}) {
+  const lastTap = useRef(0)
+  const [burst, setBurst] = useState(false)
+
+  function handleTap() {
+    const now = Date.now()
+    if (now - lastTap.current < 320) {
+      lastTap.current = 0
+      onLike()
+      setBurst(true)
+      window.setTimeout(() => setBurst(false), 700)
+      return
+    }
+    lastTap.current = now
+  }
+
+  return (
+    <div
+      className={cn('relative', className)}
+      onDoubleClick={(e) => {
+        e.preventDefault()
+        onLike()
+        setBurst(true)
+        window.setTimeout(() => setBurst(false), 700)
+      }}
+      onTouchEnd={(e) => {
+        // Ignore multi-touch; don’t block video controls (target check).
+        if (e.target instanceof HTMLVideoElement || (e.target as HTMLElement).closest('video')) {
+          return
+        }
+        handleTap()
+      }}
+    >
+      {children}
+      <AnimatePresence>
+        {burst ? (
+          <motion.div
+            key="like-burst"
+            initial={{ opacity: 0, scale: 0.6 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 1.2 }}
+            transition={springSnappy}
+            className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center"
+          >
+            <Heart className="h-16 w-16 fill-rose-500 text-rose-500 drop-shadow-lg" />
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
     </div>
   )
 }
@@ -164,8 +219,9 @@ export function FeedPostCard({
     }
   }, [commentsOpen, post.id])
 
-  async function onLike() {
+  async function onLike(opts?: { likeOnly?: boolean }) {
     if (liking) return
+    if (opts?.likeOnly && engagement.likedByMe) return
     setLiking(true)
     const prev = engagement
     const optimistic: PostEngagement = {
@@ -342,42 +398,48 @@ export function FeedPostCard({
             ) : null}
           </div>
 
-          {post.text ? (
-            <p className="mt-1 whitespace-pre-wrap text-[0.95rem] leading-relaxed">{post.text}</p>
-          ) : null}
+          <DoubleTapLikeZone onLike={() => void onLike({ likeOnly: true })}>
+            {post.text ? (
+              <p className="mt-1 whitespace-pre-wrap text-[0.95rem] leading-relaxed">{post.text}</p>
+            ) : null}
 
-          {post.repost ? (
-            <div className="mt-2 rounded-2xl border border-border/60 bg-card/60 p-3">
-              <div className="flex items-center gap-2">
-                <FeedAvatar
-                  name={originalAuthorName || 'Friend'}
-                  photoURL={
-                    post.repost.authorId === selfUid
-                      ? authorPhotoURL
-                      : photos?.[post.repost.authorId]
-                  }
-                  size="sm"
-                  to={profilePath(post.repost.authorId)}
-                />
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold">{originalAuthorName}</p>
-                  <p className="text-xs text-muted-foreground">{relativeWhen(post.repost.createdAt)}</p>
+            {post.repost ? (
+              <div className="mt-2 rounded-2xl border border-border/60 bg-card/60 p-3">
+                <div className="flex items-center gap-2">
+                  <FeedAvatar
+                    name={originalAuthorName || 'Friend'}
+                    photoURL={
+                      post.repost.authorId === selfUid
+                        ? authorPhotoURL
+                        : photos?.[post.repost.authorId]
+                    }
+                    size="sm"
+                    to={profilePath(post.repost.authorId)}
+                  />
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold">{originalAuthorName}</p>
+                    <p className="text-xs text-muted-foreground">{relativeWhen(post.repost.createdAt)}</p>
+                  </div>
                 </div>
+                {post.repost.text ? (
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed">{post.repost.text}</p>
+                ) : null}
+                <MediaBlock media={post.repost.media} compact />
+                {post.repost.card ? (
+                  <div className="mt-2">
+                    <FeedCardView card={post.repost.card} />
+                  </div>
+                ) : null}
               </div>
-              {post.repost.text ? (
-                <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed">{post.repost.text}</p>
-              ) : null}
-              <MediaBlock media={post.repost.media} compact />
-              {post.repost.card ? <div className="mt-2"><FeedCardView card={post.repost.card} /></div> : null}
-            </div>
-          ) : null}
+            ) : null}
 
-          {!post.repost ? <MediaBlock media={post.media} /> : null}
-          {!post.repost && post.card ? (
-            <div className="mt-2">
-              <FeedCardView card={post.card} />
-            </div>
-          ) : null}
+            {!post.repost ? <MediaBlock media={post.media} /> : null}
+            {!post.repost && post.card ? (
+              <div className="mt-2">
+                <FeedCardView card={post.card} />
+              </div>
+            ) : null}
+          </DoubleTapLikeZone>
 
           <div className="mt-2 flex max-w-md items-center justify-between gap-2 text-muted-foreground">
             <button
