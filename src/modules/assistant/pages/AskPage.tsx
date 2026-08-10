@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Send, Trash2 } from 'lucide-react'
+import { Send, Sparkles, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -27,11 +27,20 @@ import { resolveWithLlm } from '../llm'
 import { askApi, type AskAction, type AskMessage } from '../ask-api'
 import { createId } from '@/lib/id'
 import { toast } from 'sonner'
+import {
+  ASK_PERSONALITIES,
+  coachFollowUp,
+  coachPlaceholder,
+  coachThinkingLabel,
+  parseAskPersonality,
+  type AskPersonality,
+} from '../personality'
 
 export default function AskPage() {
-  const { user, profile } = useAuth()
+  const { user, profile, updatePreferences } = useAuth()
   const userId = user!.id
   const name = profile?.display_name || 'there'
+  const personality = parseAskPersonality(profile?.preferences)
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -51,14 +60,15 @@ export default function AskPage() {
   }, [userId, tick])
 
   const llmLeft = plus ? null : freeLlmAsksRemaining()
+  const modeMeta = ASK_PERSONALITIES.find((p) => p.id === personality) || ASK_PERSONALITIES[0]!
 
   useEffect(() => {
     if (messages.length === 0) {
-      const opening = answerQuestionWithActions(userId, 'briefing', name)
+      const opening = answerQuestionWithActions(userId, 'briefing', name, personality)
       askApi.append(userId, { role: 'katana', text: opening.text, actions: opening.actions })
       refresh()
     }
-  }, [userId, name, messages.length])
+  }, [userId, name, messages.length, personality])
 
   useEffect(() => {
     const q = searchParams.get('q')?.trim()
@@ -72,12 +82,17 @@ export default function AskPage() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages.length, pending])
 
+  function setPersonality(next: AskPersonality) {
+    updatePreferences({ ask_personality: next })
+    toast.message(`${ASK_PERSONALITIES.find((p) => p.id === next)?.label || 'Coach'} mode on`)
+  }
+
   async function finalizeReply(question: string, reply: AskReply) {
     if (reply.useLlm) {
       if (!canUseLlmAsk()) {
         askApi.append(userId, {
           role: 'katana',
-          text: `${reply.text}\n\n—\nYou’ve used today’s ${FREE_LLM_ASKS_PER_DAY} free deeper Ask replies. Action chips still work; the Accountability pack unlocks unlimited coach depth.`,
+          text: `${reply.text}\n\n—\nYou’ve used today’s ${FREE_LLM_ASKS_PER_DAY} free deeper coach replies. Action chips still work; the Accountability pack unlocks unlimited depth.`,
           actions: [
             ...reply.actions.slice(0, 3),
             { id: createId(), label: 'Accountability pack', kind: 'open_route', route: '/settings#plus' },
@@ -91,14 +106,14 @@ export default function AskPage() {
       setLlmHint(null)
       try {
         const snap = buildSnapshot(userId, name)
-        const resolved = await resolveWithLlm(question, snap, reply)
+        const resolved = await resolveWithLlm(question, snap, reply, personality)
         const usedLlm = resolved.text !== reply.text
         if (usedLlm) {
           consumeLlmAsk()
           setLlmHint(null)
         } else {
           setLlmHint(
-            'Open-ended depth needs the Ask API key configured — showing a rules briefing instead (still useful).',
+            'Deeper coach needs the Ask API key configured — showing a rules briefing instead (still useful).',
           )
         }
         askApi.append(userId, {
@@ -123,7 +138,7 @@ export default function AskPage() {
     askApi.append(userId, { role: 'you', text: trimmed })
     setDraft('')
     refresh()
-    const reply = answerQuestionWithActions(userId, trimmed, name)
+    const reply = answerQuestionWithActions(userId, trimmed, name, personality)
     await finalizeReply(trimmed, reply)
   }
 
@@ -205,7 +220,7 @@ export default function AskPage() {
         role: 'katana',
         text: inRitualInvite
           ? `${result} One more tap — invite someone, or open Social.`
-          : `${result} What’s next?`,
+          : coachFollowUp(personality, result),
         actions: followUps,
       })
       refresh()
@@ -215,9 +230,9 @@ export default function AskPage() {
   return (
     <motion.div {...pageEnterSubtle} className="kp-page mx-auto max-w-2xl">
       <PageHeader
-        eyebrow="Day guide"
+        eyebrow="Accountability coach"
         title="Ask"
-        description="Day guide that knows your plate — and can draft small actions you confirm."
+        description={`${modeMeta.label} mode — ${modeMeta.blurb}`}
         actions={
           messages.length > 1 ? (
             <Button
@@ -229,7 +244,7 @@ export default function AskPage() {
                 askApi.clear(userId)
                 setSpent({})
                 seededQ.current = false
-                const opening = answerQuestionWithActions(userId, 'briefing', name)
+                const opening = answerQuestionWithActions(userId, 'briefing', name, personality)
                 askApi.append(userId, { role: 'katana', text: opening.text, actions: opening.actions })
                 refresh()
               }}
@@ -241,9 +256,40 @@ export default function AskPage() {
         }
       />
 
+      <section className="mb-4 overflow-hidden rounded-2xl border border-border/50 bg-gradient-to-br from-primary/[0.08] via-card/80 to-card/40 p-4 sm:p-5">
+        <div className="flex items-start gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
+            <Sparkles className="h-5 w-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Coach voice</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Pick how Ask talks to you. Deeper replies use this personality end-to-end.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {ASK_PERSONALITIES.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setPersonality(p.id)}
+                  className={cn(
+                    'rounded-full px-3 py-1.5 text-xs font-semibold transition',
+                    personality === p.id
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-secondary/80 text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
       {llmLeft != null ? (
         <p className="mb-3 text-xs text-muted-foreground">
-          Deeper Ask today: {llmLeft}/{FREE_LLM_ASKS_PER_DAY} free
+          Deeper coach today: {llmLeft}/{FREE_LLM_ASKS_PER_DAY} free
           {llmLeft === 0 ? (
             <>
               {' · '}
@@ -254,9 +300,10 @@ export default function AskPage() {
           ) : null}
         </p>
       ) : (
-        <p className="mb-3 text-xs text-primary">Accountability pack — unlimited deeper Ask</p>
+        <p className="mb-3 text-xs text-primary">Accountability pack — unlimited deeper coach</p>
       )}
       {llmHint ? <p className="mb-3 text-xs text-muted-foreground">{llmHint}</p> : null}
+
       <div className="mb-5 flex flex-wrap gap-2">
         {messages.filter((m) => m.role === 'you').length === 0
           ? suggestedAsksForHour().map((prompt) => (
@@ -266,6 +313,7 @@ export default function AskPage() {
                 size="sm"
                 variant="outline"
                 disabled={pending}
+                className="rounded-full"
                 onClick={() => void ask(prompt)}
               >
                 {prompt}
@@ -275,7 +323,7 @@ export default function AskPage() {
       </div>
 
       <div
-        className="kp-surface mb-4 max-h-[52vh] space-y-3 overflow-y-auto p-4 sm:p-5"
+        className="mb-4 max-h-[min(52vh,28rem)] space-y-3 overflow-y-auto rounded-2xl border border-border/40 bg-card/30 p-4 sm:p-5"
         role="log"
         aria-live="polite"
         aria-relevant="additions"
@@ -284,12 +332,17 @@ export default function AskPage() {
           <div key={m.id} className={cn('flex', m.role === 'you' ? 'justify-end' : 'justify-start')}>
             <div
               className={cn(
-                'max-w-[92%] rounded-[1.25rem] px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap',
+                'max-w-[92%] rounded-[1.25rem] px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap shadow-sm',
                 m.role === 'you'
                   ? 'rounded-br-md bg-primary text-primary-foreground'
-                  : 'rounded-bl-md bg-secondary/70 text-foreground',
+                  : 'rounded-bl-md border border-border/40 bg-background/90 text-foreground',
               )}
             >
+              {m.role === 'katana' ? (
+                <p className="mb-1.5 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-primary/80">
+                  Katana · {modeMeta.label}
+                </p>
+              ) : null}
               {m.text}
               {m.role === 'katana' && m.actions.length > 0 ? (
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -317,8 +370,8 @@ export default function AskPage() {
         ))}
         {pending ? (
           <div className="flex justify-start">
-            <div className="rounded-[1.25rem] rounded-bl-md bg-secondary/70 px-4 py-3 text-sm text-muted-foreground">
-              Thinking…
+            <div className="rounded-[1.25rem] rounded-bl-md border border-border/40 bg-background/90 px-4 py-3 text-sm text-muted-foreground">
+              {coachThinkingLabel(personality)}
             </div>
           </div>
         ) : null}
@@ -329,7 +382,7 @@ export default function AskPage() {
         <Textarea
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder="Ask about your day, or “add gym tomorrow”…"
+          placeholder={coachPlaceholder(personality)}
           className="min-h-[52px] flex-1 resize-none"
           rows={2}
           disabled={pending}

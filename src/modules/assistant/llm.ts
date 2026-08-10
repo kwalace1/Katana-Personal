@@ -59,11 +59,12 @@ export function compactSnapshot(snap: LifeSnapshot): CompactLifeSnapshot {
 export async function askLlm(
   question: string,
   snapshot: CompactLifeSnapshot,
+  personality?: string | null,
 ): Promise<{ text: string; model: string }> {
   const res = await fetch('/api/ask-llm', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question, snapshot }),
+    body: JSON.stringify({ question, snapshot, personality: personality || 'supportive' }),
   })
   const data = (await res.json().catch(() => null)) as
     | { text?: string; model?: string; error?: string }
@@ -82,9 +83,10 @@ export async function resolveWithLlm(
   question: string,
   snap: LifeSnapshot,
   fallback: AskReply,
+  personality?: string | null,
 ): Promise<AskReply> {
   try {
-    const { text } = await askLlm(question, compactSnapshot(snap))
+    const { text } = await askLlm(question, compactSnapshot(snap), personality)
     return {
       text,
       actions: fallback.actions.slice(0, 4),

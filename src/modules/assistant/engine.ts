@@ -16,6 +16,7 @@ import type { CalendarEvent } from '@/modules/calendar/types'
 import type { Habit } from '@/modules/habits/types'
 import type { Goal } from '@/modules/goals/types'
 import type { AskAction } from './ask-api'
+import { flavorBriefingText, type AskPersonality } from './personality'
 
 export interface LifeSnapshot {
   name: string
@@ -988,12 +989,16 @@ export function answerQuestionWithActions(
   userId: string,
   question: string,
   displayName?: string,
+  personality: AskPersonality = 'supportive',
 ): AskReply {
   const snap = buildSnapshot(userId, displayName)
   const q = question.trim().toLowerCase()
 
   if (!q || q === 'briefing') {
-    return { text: buildDailyBriefing(snap), actions: briefingActions(snap) }
+    return {
+      text: flavorBriefingText(personality, buildDailyBriefing(snap), snap.name),
+      actions: briefingActions(snap),
+    }
   }
 
   const created = tryParseCreate(question.trim())
@@ -1003,7 +1008,12 @@ export function answerQuestionWithActions(
     if (intent.test(q)) return intent.answer(snap, q)
   }
 
-  return { ...answerDefault(snap), useLlm: true }
+  const fallback = answerDefault(snap)
+  return {
+    ...fallback,
+    text: flavorBriefingText(personality, fallback.text, snap.name),
+    useLlm: true,
+  }
 }
 
 export function runAskAction(userId: string, action: AskAction): string {
