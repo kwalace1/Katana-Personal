@@ -2,13 +2,17 @@ import { FormEvent, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
+  Flag,
   Heart,
+  ImagePlus,
   Loader2,
   MessageCircle,
   MoreHorizontal,
+  Pencil,
   Repeat2,
   Trash2,
   Users,
+  X,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { FeedCardView } from '@/components/FeedCardView'
@@ -33,7 +37,22 @@ import {
   type PostEngagement,
 } from '@/lib/social/feed-engagement'
 import { notifyPostEngagement } from '@/lib/social/notifications'
-import { deleteTogetherPost, resolveAuthorNames, type RankedPost } from '@/lib/social/feed'
+import {
+  assertFeedMedia,
+  deleteTogetherPost,
+  FEED_TEXT_MAX,
+  reportTogetherPost,
+  resolveAuthorNames,
+  updateTogetherPost,
+  type FeedMedia,
+  type RankedPost,
+} from '@/lib/social/feed'
+import {
+  hideReportedPost,
+  REPORT_REASONS,
+  type ReportReason,
+} from '@/lib/social/feed-moderation'
+import { blockUser } from '@/lib/social/friends'
 import { cn } from '@/lib/utils'
 import { FeedAvatar, profilePath, relativeWhen } from './feed-ui'
 
@@ -47,6 +66,9 @@ type Props = {
   engagement: PostEngagement
   onEngagementChange: (next: PostEngagement) => void
   onDeleted: () => void
+  onUpdated?: (next: RankedPost) => void
+  onHidden?: (postId: string) => void
+  onAuthorBlocked?: (authorId: string) => void
   names: Record<string, string>
   photos?: Record<string, string | null>
   onNames: (extra: Record<string, string>) => void
@@ -168,6 +190,9 @@ export function FeedPostCard({
   engagement,
   onEngagementChange,
   onDeleted,
+  onUpdated,
+  onHidden,
+  onAuthorBlocked,
   names,
   photos,
   onNames,
@@ -177,15 +202,124 @@ export function FeedPostCard({
   const [liking, setLiking] = useState(false)
   const [reposting, setReposting] = useState(false)
   const [commentsOpen, setCommentsOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  const [reportOpen, setReportOpen] = useState(false)
+  const [editText, setEditText] = useState(post.text)
+  const [keepMedia, setKeepMedia] = useState<FeedMedia[]>(post.media || [])
+  const [newFiles, setNewFiles] = useState<File[]>([])
+  const [reportReason, setReportReason] = useState<ReportReason | null>(null)
+  const [reportNote, setReportNote] = useState('')
   const [comments, setComments] = useState<FeedComment[]>([])
   const [commentDraft, setCommentDraft] = useState('')
   const [commentsLoading, setCommentsLoading] = useState(false)
   const [commentBusy, setCommentBusy] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
   const onNamesRef = useRef(onNames)
   onNamesRef.current = onNames
 
   const isMine = post.authorId === selfUid
   const profileTo = profilePath(post.authorId)
+  const mediaSlotsLeft = Math.max(0, 4 - keepMedia.length - newFiles.length)
+
+  useEffect(() => {
+    if (!editOpen) return
+    setEditText(post.text)
+    setKeepMedia(post.media || [])
+    setNewFiles([])
+  }, [editOpen, post.text, post.media])
+
+  useEffect(() => {
+    if (!reportOpen) return
+    setReportReason(null)
+    setReportNote('')
+  }, [reportOpen])
+
+  async function onDelete() {
+    setMenuOpen(false)
+    if (!window.confirm('Delete this post? This can’t be undone.')) return
+    setBusy(true)
+    try {
+      await deleteTogetherPost(post.id)
+      toast.message('Post removed')
+      onDeleted()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Couldn’t delete')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function onSaveEdit(e: FormEvent) {
+    e.preventDefault()
+    if (busy) return
+    setBusy(true)
+    try {
+      for (const file of newFiles) await assertFeedMedia(file)
+      const updated = await updateTogetherPost({
+        postId: post.id,
+        authorId: selfUid,
+        text: editText,
+        keepMedia,
+        newFiles,
+      })
+      onUpdated?.({ ...post, ...updated, score: post.score })
+      toast.success('Post updated')
+      setEditOpen(false)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Couldn’t update')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function onSubmitReport(e: FormEvent) {
+    e.preventDefault()
+    if (busy || !reportReason) return
+    setBusy(true)
+    try {
+      await reportTogetherPost({
+        postId: post.id,
+        reporterId: selfUid,
+        authorId: post.authorId,
+        reason: reportReason,
+        note: reportNote,
+      })
+      hideReportedPost(selfUid, post.id)
+      setReportOpen(false)
+      onHidden?.(post.id)
+      toast.message('Thanks — we got your report')
+      if (window.confirm('Also block this person? They won’t be able to connect with you.')) {
+        try {
+          await blockUser(selfUid, post.authorId)
+          onAuthorBlocked?.(post.authorId)
+          toast.message('Blocked')
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : 'Couldn’t block')
+        }
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Couldn’t report')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function onPickFiles(files: FileList | null) {
+    if (!files?.length) return
+    const incoming = [...files]
+    const room = Math.max(0, 4 - keepMedia.length - newFiles.length)
+    if (room <= 0) {
+      toast.error('Up to 4 media files per post.')
+      return
+    }
+    const slice = incoming.slice(0, room)
+    try {
+      for (const file of slice) await assertFeedMedia(file)
+      setNewFiles((prev) => [...prev, ...slice])
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Couldn’t add media')
+    }
+  }
 
   useEffect(() => {
     if (!commentsOpen) return
@@ -347,55 +481,68 @@ export function FeedPostCard({
                 ) : null}
               </div>
             </div>
-            {isMine ? (
-              <div className="relative">
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  className="h-8 w-8 text-muted-foreground"
-                  aria-label="Post options"
-                  onClick={() => setMenuOpen((v) => !v)}
-                >
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-                <AnimatePresence>
-                  {menuOpen ? (
-                    <motion.div
-                      initial={{ opacity: 0, y: 4, scale: 0.96 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 4, scale: 0.96 }}
-                      transition={springSnappy}
-                      className="absolute right-0 top-9 z-10 min-w-[8.5rem] overflow-hidden rounded-xl border border-border/60 bg-card py-1 shadow-lg"
-                    >
+            <div className="relative">
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8 text-muted-foreground"
+                aria-label="Post options"
+                onClick={() => setMenuOpen((v) => !v)}
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+              <AnimatePresence>
+                {menuOpen ? (
+                  <motion.div
+                    initial={{ opacity: 0, y: 4, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 4, scale: 0.96 }}
+                    transition={springSnappy}
+                    className="absolute right-0 top-9 z-10 min-w-[9rem] overflow-hidden rounded-xl border border-border/60 bg-card py-1 shadow-lg"
+                  >
+                    {isMine ? (
+                      <>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-secondary/80"
+                          onClick={() => {
+                            setMenuOpen(false)
+                            setEditOpen(true)
+                          }}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-destructive hover:bg-secondary/80"
+                          onClick={() => void onDelete()}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Delete
+                        </button>
+                      </>
+                    ) : (
                       <button
                         type="button"
                         disabled={busy}
-                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-destructive hover:bg-secondary/80"
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-secondary/80"
                         onClick={() => {
-                          setBusy(true)
-                          void deleteTogetherPost(post.id)
-                            .then(() => {
-                              toast.message('Post removed')
-                              onDeleted()
-                            })
-                            .catch((err) =>
-                              toast.error(err instanceof Error ? err.message : 'Couldn’t delete'),
-                            )
-                            .finally(() => {
-                              setBusy(false)
-                              setMenuOpen(false)
-                            })
+                          setMenuOpen(false)
+                          setReportOpen(true)
                         }}
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
-                        Delete
+                        <Flag className="h-3.5 w-3.5" />
+                        Report
                       </button>
-                    </motion.div>
-                  ) : null}
-                </AnimatePresence>
-              </div>
-            ) : null}
+                    )}
+                  </motion.div>
+                ) : null}
+              </AnimatePresence>
+            </div>
           </div>
 
           <DoubleTapLikeZone onLike={() => void onLike({ likeOnly: true })}>
@@ -555,6 +702,160 @@ export function FeedPostCard({
             <Button type="submit" disabled={commentBusy || !commentDraft.trim()} className="self-end">
               {commentBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Reply'}
             </Button>
+          </form>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={editOpen} onOpenChange={setEditOpen}>
+        <SheetContent
+          side="bottom"
+          className="max-h-[min(88vh,36rem)] gap-0 rounded-t-[1.5rem] border-border/50 pb-[max(1rem,env(safe-area-inset-bottom))]"
+        >
+          <SheetHeader className="border-b border-border/40 px-5 pb-3 pt-2 text-left">
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border" />
+            <SheetTitle className="text-lg">Edit post</SheetTitle>
+            <SheetDescription>Update the caption or media. Win cards stay as-is.</SheetDescription>
+          </SheetHeader>
+          <form onSubmit={(e) => void onSaveEdit(e)} className="space-y-3 overflow-y-auto px-5 py-4">
+            <Textarea
+              value={editText}
+              onChange={(e) => setEditText(e.target.value.slice(0, FEED_TEXT_MAX))}
+              rows={4}
+              placeholder="Say something…"
+              className="resize-none"
+            />
+            <p className="text-right text-[0.7rem] text-muted-foreground">
+              {editText.length}/{FEED_TEXT_MAX}
+            </p>
+
+            {keepMedia.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {keepMedia.map((m) => (
+                  <div
+                    key={m.path}
+                    className="relative h-20 w-20 overflow-hidden rounded-xl border border-border/50 bg-secondary/40"
+                  >
+                    {m.type === 'video' ? (
+                      <video src={m.url} className="h-full w-full object-cover" muted playsInline />
+                    ) : (
+                      <img src={m.url} alt="" className="h-full w-full object-cover" />
+                    )}
+                    <button
+                      type="button"
+                      className="absolute right-1 top-1 rounded-full bg-background/90 p-0.5 text-muted-foreground hover:text-destructive"
+                      aria-label="Remove media"
+                      onClick={() => setKeepMedia((list) => list.filter((x) => x.path !== m.path))}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            {newFiles.length > 0 ? (
+              <ul className="space-y-1 text-xs text-muted-foreground">
+                {newFiles.map((f, i) => (
+                  <li key={`${f.name}-${f.lastModified}`} className="flex items-center justify-between gap-2">
+                    <span className="truncate">{f.name}</span>
+                    <button
+                      type="button"
+                      className="shrink-0 text-destructive"
+                      onClick={() => setNewFiles((list) => list.filter((_, idx) => idx !== i))}
+                    >
+                      Remove
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,video/mp4,video/webm"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                void onPickFiles(e.target.files)
+                e.target.value = ''
+              }}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={mediaSlotsLeft <= 0 || busy}
+              onClick={() => fileRef.current?.click()}
+            >
+              <ImagePlus className="mr-1.5 h-3.5 w-3.5" />
+              Add media
+            </Button>
+
+            {post.card ? (
+              <div className="opacity-80">
+                <FeedCardView card={post.card} />
+                <p className="mt-1 text-[0.7rem] text-muted-foreground">Win card can’t be edited here.</p>
+              </div>
+            ) : null}
+
+            <div className="flex justify-end gap-2 pt-1">
+              <Button type="button" variant="ghost" onClick={() => setEditOpen(false)} disabled={busy}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={busy}>
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
+              </Button>
+            </div>
+          </form>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={reportOpen} onOpenChange={setReportOpen}>
+        <SheetContent
+          side="bottom"
+          className="max-h-[min(88vh,32rem)] gap-0 rounded-t-[1.5rem] border-border/50 pb-[max(1rem,env(safe-area-inset-bottom))]"
+        >
+          <SheetHeader className="border-b border-border/40 px-5 pb-3 pt-2 text-left">
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border" />
+            <SheetTitle className="text-lg">Report post</SheetTitle>
+            <SheetDescription>
+              Reports help keep Social safe. We’ll hide this post for you.
+            </SheetDescription>
+          </SheetHeader>
+          <form onSubmit={(e) => void onSubmitReport(e)} className="space-y-4 px-5 py-4">
+            <div className="flex flex-wrap gap-2">
+              {REPORT_REASONS.map((r) => (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => setReportReason(r.id)}
+                  className={cn(
+                    'rounded-full px-3 py-1.5 text-xs font-semibold transition',
+                    reportReason === r.id
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-secondary/80 text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+            <Textarea
+              value={reportNote}
+              onChange={(e) => setReportNote(e.target.value.slice(0, 280))}
+              rows={3}
+              placeholder="Anything else we should know? (optional)"
+              className="resize-none"
+            />
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="ghost" onClick={() => setReportOpen(false)} disabled={busy}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={busy || !reportReason}>
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Submit report'}
+              </Button>
+            </div>
           </form>
         </SheetContent>
       </Sheet>

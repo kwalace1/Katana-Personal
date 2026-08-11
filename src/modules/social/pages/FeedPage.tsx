@@ -20,6 +20,7 @@ import {
   subscribeTogetherFeed,
   type RankedPost,
 } from '@/lib/social/feed'
+import { filterHiddenPosts } from '@/lib/social/feed-moderation'
 import {
   loadEngagementForPosts,
   type PostEngagement,
@@ -72,8 +73,26 @@ export default function FeedPage() {
   const feedPosts = useMemo(() => filterFeedByAudience(allPosts, 'friends'), [allPosts])
   const circlePosts = useMemo(() => filterFeedByAudience(allPosts, 'circle'), [allPosts])
 
-  const visiblePosts =
-    tab === 'mine' ? myPosts : tab === 'circles' ? circlePosts : tab === 'feed' ? feedPosts : []
+  const visiblePosts = useMemo(() => {
+    const base =
+      tab === 'mine' ? myPosts : tab === 'circles' ? circlePosts : tab === 'feed' ? feedPosts : []
+    return cloudUser ? filterHiddenPosts(cloudUser.uid, base) : base
+  }, [tab, myPosts, circlePosts, feedPosts, cloudUser])
+
+  function patchPost(next: RankedPost) {
+    setAllPosts((p) => p.map((x) => (x.id === next.id ? next : x)))
+    setMyPosts((p) => p.map((x) => (x.id === next.id ? next : x)))
+  }
+
+  function dropPost(postId: string) {
+    setAllPosts((p) => p.filter((x) => x.id !== postId))
+    setMyPosts((p) => p.filter((x) => x.id !== postId))
+  }
+
+  function dropAuthor(authorId: string) {
+    setAllPosts((p) => p.filter((x) => x.authorId !== authorId))
+    setMyPosts((p) => p.filter((x) => x.authorId !== authorId))
+  }
 
   useEffect(() => {
     if (!cloudProfile?.photoURL) {
@@ -384,10 +403,10 @@ export default function FeedPage() {
                   onEngagementChange={(next) =>
                     setEngagement((e) => ({ ...e, [post.id]: next }))
                   }
-                  onDeleted={() => {
-                    setAllPosts((p) => p.filter((x) => x.id !== post.id))
-                    setMyPosts((p) => p.filter((x) => x.id !== post.id))
-                  }}
+                  onDeleted={() => dropPost(post.id)}
+                  onUpdated={patchPost}
+                  onHidden={dropPost}
+                  onAuthorBlocked={dropAuthor}
                   names={names}
                   photos={photos}
                   onNames={(extra) => setNames((n) => ({ ...n, ...extra }))}

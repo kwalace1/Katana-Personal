@@ -23,6 +23,7 @@ import {
   resolveAuthorPhotos,
   type RankedPost,
 } from '@/lib/social/feed'
+import { filterHiddenPosts } from '@/lib/social/feed-moderation'
 import {
   loadEngagementForPosts,
   type PostEngagement,
@@ -60,6 +61,10 @@ export default function FeedProfilePage() {
 
   const isSelf = Boolean(cloudUser && uid === cloudUser.uid)
   const selfName = cloudProfile?.displayName || 'You'
+  const visiblePosts = useMemo(
+    () => (cloudUser ? filterHiddenPosts(cloudUser.uid, posts) : posts),
+    [cloudUser, posts],
+  )
 
   useEffect(() => {
     if (!cloudUser || !uid) {
@@ -271,7 +276,7 @@ export default function FeedProfilePage() {
               <p className="mt-2 text-sm text-muted-foreground">Add a short bio so friends know what you’re working on.</p>
             ) : null}
             <p className="mt-2 text-sm text-muted-foreground">
-              {posts.length} post{posts.length === 1 ? '' : 's'}
+              {visiblePosts.length} post{visiblePosts.length === 1 ? '' : 's'}
             </p>
           </div>
         </div>
@@ -281,7 +286,7 @@ export default function FeedProfilePage() {
         <div className="flex justify-center py-16">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
-      ) : posts.length === 0 ? (
+      ) : visiblePosts.length === 0 ? (
         <div className="px-4 py-10 sm:px-5">
           <EmptyState
             icon={Newspaper}
@@ -302,7 +307,7 @@ export default function FeedProfilePage() {
         </div>
       ) : (
         <motion.div variants={staggerContainer} initial="hidden" animate="show">
-          {posts.map((post) => (
+          {visiblePosts.map((post) => (
             <FeedPostCard
               key={post.id}
               post={post}
@@ -334,6 +339,11 @@ export default function FeedProfilePage() {
                 setEngagement((e) => ({ ...e, [post.id]: next }))
               }
               onDeleted={() => setPosts((p) => p.filter((x) => x.id !== post.id))}
+              onUpdated={(next) => setPosts((p) => p.map((x) => (x.id === next.id ? next : x)))}
+              onHidden={(postId) => setPosts((p) => p.filter((x) => x.id !== postId))}
+              onAuthorBlocked={(authorId) =>
+                setPosts((p) => p.filter((x) => x.authorId !== authorId))
+              }
               names={names}
               photos={photos}
               onNames={(extra) => setNames((n) => ({ ...n, ...extra }))}

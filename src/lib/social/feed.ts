@@ -285,6 +285,127 @@ export async function deleteTogetherPost(id: string): Promise<void> {
   if (error) throw error
 }
 
+function serializeMedia(media: FeedMedia[]) {
+  return media.map(({ type, path, contentType, width, height, durationMs }) => ({
+    type,
+    path,
+    contentType,
+    ...(width != null ? { width } : {}),
+    ...(height != null ? { height } : {}),
+    ...(durationMs != null ? { durationMs } : {}),
+  }))
+}
+
+/** Edit text + media only (win card / audience / repost unchanged). */
+export async function updateTogetherPost(input: {
+  postId: string
+  authorId: string
+  text: string
+  keepMedia: FeedMedia[]
+  newFiles?: File[]
+}): Promise<TogetherPost> {
+  const text = input.text.trim()
+  if (text.length > FEED_TEXT_MAX) throw new Error(`Keep it under ${FEED_TEXT_MAX} characters.`)
+  const newFiles = input.newFiles || []
+  if (input.keepMedia.length + newFiles.length > 4) {
+    throw new Error('Up to 4 media files per post.')
+  }
+
+  const supabase = getSupabase()
+  const { data: existingRow, error: loadErr } = await supabase
+    .from('together_posts')
+    .select('*')
+    .eq('id', input.postId)
+    .eq('author_id', input.authorId)
+    .maybeSingle()
+  if (loadErr) throw loadErr
+  if (!existingRow) throw new Error('Post not found.')
+  const existing = mapPost(existingRow as PostRow)
+
+  if (
+    !text &&
+    input.keepMedia.length + newFiles.length === 0 &&
+    !existing.card &&
+    !existing.repost
+  ) {
+    throw new Error('Write something or keep/add media.')
+  }
+
+  const uploaded: FeedMedia[] = []
+  for (const file of newFiles) {
+    await assertFeedMedia(file)
+    uploaded.push(
+      await uploadFeedMedia({ authorId: input.authorId, postId: input.postId, file }),
+    )
+  }
+  const media = [...input.keepMedia, ...uploaded]
+  const keptPaths = new Set(media.map((m) => m.path))
+  const removedPaths = existing.media.map((m) => m.path).filter((p) => !keptPaths.has(p))
+
+  const { data, error } = await supabase
+    .from('together_posts')
+    .update({
+      text,
+      media: serializeMedia(media),
+    })
+    .eq('id', input.postId)
+    .eq('author_id', input.authorId)
+    .select('*')
+    .maybeSingle()
+
+  if (error) {
+    if (/permission denied|row-level security|policy/i.test(error.message)) {
+      throw new Error('Editing needs a cloud update — run the latest Supabase migration.')
+    }
+    throw error
+  }
+  if (!data) throw new Error('Couldn’t update that post.')
+
+  if (removedPaths.length > 0) {
+    void supabase.storage.from('together').remove(removedPaths)
+  }
+
+  const post = mapPost(data as PostRow)
+  return {
+    ...post,
+    media: media.map((m) => ({ ...m })),
+  }
+}
+
+/** Persist a report. Caller should hide locally and optionally offer block. */
+export async function reportTogetherPost(input: {
+  postId: string
+  reporterId: string
+  authorId: string
+  reason: string
+  note?: string
+}): Promise<void> {
+  if (input.reporterId === input.authorId) {
+    throw new Error('You can’t report your own post.')
+  }
+  const reason = input.reason.trim()
+  if (!reason) throw new Error('Pick a reason.')
+  const note = (input.note || '').trim().slice(0, 280)
+  const { error } = await getSupabase().from('together_post_reports').insert({
+    id: createId(),
+    post_id: input.postId,
+    reporter_id: input.reporterId,
+    author_id: input.authorId,
+    reason,
+    note,
+    created_at: new Date().toISOString(),
+  })
+  if (error) {
+    if (/duplicate|unique/i.test(error.message)) {
+      throw new Error('You already reported this post.')
+    }
+    if (/does not exist|schema cache|permission denied|row-level security|policy/i.test(error.message)) {
+      throw new Error('Reporting needs a cloud update — run the latest Supabase migration.')
+    }
+    throw error
+  }
+}
+
 /** Newest first — no circle boost (Circles live in their own Social tab). */
 export function rankFeedPosts(posts: TogetherPost[]): RankedPost[] {
   return posts
