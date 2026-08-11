@@ -189,7 +189,10 @@ export async function resolveProfilePhotoUrl(photo: string | null | undefined): 
   if (/^https?:\/\//i.test(photo)) return photo
   const path = photo.replace(/^together\//, '')
   const { data, error } = await getSupabase().storage.from('together').createSignedUrl(path, 60 * 60 * 24 * 7)
-  if (error || !data?.signedUrl) return null
+  if (error || !data?.signedUrl) {
+    console.warn('resolveProfilePhotoUrl failed', path, error?.message)
+    return null
+  }
   return data.signedUrl
 }
 
