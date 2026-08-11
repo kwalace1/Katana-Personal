@@ -36,6 +36,7 @@ export function CardioPanel({ userId, logDate, tick, refresh }: Props) {
   const [hours, setHours] = useState('')
   const [minutes, setMinutes] = useState('')
   const [seconds, setSeconds] = useState('')
+  const [calories, setCalories] = useState('')
   const [notes, setNotes] = useState('')
 
   function save(e: FormEvent) {
@@ -48,6 +49,11 @@ export function CardioPanel({ userId, logDate, tick, refresh }: Props) {
       toast.error('Add a date')
       return
     }
+    const caloriesNum = calories.trim() === '' ? undefined : Number(calories)
+    if (caloriesNum != null && (!Number.isFinite(caloriesNum) || caloriesNum < 0)) {
+      toast.error('Enter a valid calories number')
+      return
+    }
     const row = healthApi.addCardio(userId, {
       activity,
       date,
@@ -55,6 +61,7 @@ export function CardioPanel({ userId, logDate, tick, refresh }: Props) {
       minutes: Number(minutes) || 0,
       seconds: Number(seconds) || 0,
       notes,
+      calories: caloriesNum,
     })
     if (!row) {
       toast.error('Enter a duration greater than zero')
@@ -88,6 +95,7 @@ export function CardioPanel({ userId, logDate, tick, refresh }: Props) {
     setHours('')
     setMinutes('')
     setSeconds('')
+    setCalories('')
     setNotes('')
     refresh()
   }
@@ -142,6 +150,15 @@ export function CardioPanel({ userId, logDate, tick, refresh }: Props) {
             />
           </div>
         </div>
+        <Input
+          type="number"
+          min={0}
+          step={1}
+          placeholder="Calories burned (optional)"
+          value={calories}
+          onChange={(e) => setCalories(e.target.value)}
+          aria-label="Calories burned"
+        />
         <Textarea
           rows={4}
           placeholder="Pace, distance, how it felt…"
@@ -166,6 +183,9 @@ export function CardioPanel({ userId, logDate, tick, refresh }: Props) {
                     <p className="font-medium">{entry.activity}</p>
                     <p className="text-xs text-muted-foreground">
                       {formatLiftDate(entry.date)} · {formatCardioDuration(entry)}
+                      {entry.calories != null && entry.calories > 0
+                        ? ` · ${Math.round(entry.calories)} cal`
+                        : ''}
                     </p>
                     {entry.notes ? <p className="mt-1 text-sm text-muted-foreground">{entry.notes}</p> : null}
                   </div>

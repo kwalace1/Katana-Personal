@@ -51,11 +51,11 @@ function emptySet(): DraftSet {
   return { key: nextKey('set'), weight: '', reps: '' }
 }
 
-function emptyExercise(defaultName = 'Bench Press'): DraftExercise {
+function emptyExercise(defaultName = ''): DraftExercise {
   return { key: nextKey('ex'), name: defaultName, sets: [emptySet()] }
 }
 
-function loadInitialDraft(userId: string, logDate: string, defaultExerciseName: string) {
+function loadInitialDraft(userId: string, logDate: string) {
   const saved = readLiftDraft(userId)
   if (saved) {
     bumpKeyCounter(saved.exercises)
@@ -69,7 +69,7 @@ function loadInitialDraft(userId: string, logDate: string, defaultExerciseName: 
   return {
     name: '',
     date: logDate || todayKey(),
-    exercises: [emptyExercise(defaultExerciseName)],
+    exercises: [emptyExercise()],
     restored: false,
   }
 }
@@ -77,7 +77,7 @@ function loadInitialDraft(userId: string, logDate: string, defaultExerciseName: 
 export function LiftLogPanel({ userId, logDate, tick, refresh }: Props) {
   const names = useMemo(() => {
     void tick
-    return liftApi.getExerciseNames(userId)
+    return liftApi.getLoggedExerciseNames(userId)
   }, [userId, tick])
 
   const sessions = useMemo(() => {
@@ -90,9 +90,7 @@ export function LiftLogPanel({ userId, logDate, tick, refresh }: Props) {
     return liftApi.plannedDay(userId, logDate)
   }, [userId, logDate, tick])
 
-  const [boot] = useState(() =>
-    loadInitialDraft(userId, logDate, liftApi.getExerciseNames(userId)[0] || 'Bench Press'),
-  )
+  const [boot] = useState(() => loadInitialDraft(userId, logDate))
 
   const [name, setName] = useState(boot.name)
   const [date, setDate] = useState(boot.date)
@@ -168,7 +166,7 @@ export function LiftLogPanel({ userId, logDate, tick, refresh }: Props) {
     if (clearStorage) clearLiftDraft(userId)
     setName('')
     setDate(logDate || todayKey())
-    setExercises([emptyExercise(names[0] || 'Bench Press')])
+    setExercises([emptyExercise()])
     setDraftBanner(false)
   }
 

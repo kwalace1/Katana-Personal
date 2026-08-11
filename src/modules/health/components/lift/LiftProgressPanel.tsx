@@ -19,17 +19,18 @@ const METRICS: { value: LiftProgressMetric; label: string }[] = [
 export function LiftProgressPanel({ userId, tick }: Props) {
   const names = useMemo(() => {
     void tick
-    return liftApi.getExerciseNames(userId)
+    return liftApi.getLoggedExerciseNames(userId)
   }, [userId, tick])
 
-  const [exercise, setExercise] = useState(names[0] || 'Bench Press')
+  const [exercise, setExercise] = useState('')
   const [metric, setMetric] = useState<LiftProgressMetric>('topWeight')
 
   // Keep selection valid when names load/change
-  const selected = names.includes(exercise) ? exercise : names[0] || exercise
+  const selected = names.includes(exercise) ? exercise : names[0] || ''
 
   const data = useMemo(() => {
     void tick
+    if (!selected) return []
     return liftApi.getExerciseProgress(userId, selected, metric)
   }, [userId, selected, metric, tick])
 
@@ -45,18 +46,24 @@ export function LiftProgressPanel({ userId, tick }: Props) {
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <p className="mb-1 text-xs text-muted-foreground">Exercise</p>
-            <Select value={selected} onValueChange={setExercise}>
-              <SelectTrigger>
-                <SelectValue placeholder="Exercise" />
-              </SelectTrigger>
-              <SelectContent>
-                {names.map((n) => (
-                  <SelectItem key={n} value={n}>
-                    {n}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {names.length === 0 ? (
+              <p className="rounded-md border border-border/50 px-3 py-2 text-sm text-muted-foreground">
+                Log a workout first
+              </p>
+            ) : (
+              <Select value={selected} onValueChange={setExercise}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Exercise" />
+                </SelectTrigger>
+                <SelectContent>
+                  {names.map((n) => (
+                    <SelectItem key={n} value={n}>
+                      {n}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
           <div>
             <p className="mb-1 text-xs text-muted-foreground">Metric</p>
@@ -100,7 +107,10 @@ export function LiftProgressPanel({ userId, tick }: Props) {
       <div className="kp-surface p-4">
         <h3 className="mb-3 font-display text-lg tracking-tight">Exercise history</h3>
         {data.length === 0 ? (
-          <EmptyState title="No progress yet" description="Log this exercise in a workout to generate a graph." />
+          <EmptyState
+            title="No progress yet"
+            description="Log an exercise in a workout to generate a graph."
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[28rem] text-left text-sm">

@@ -86,6 +86,6 @@ export function liftDraftHasContent(draft: {
     (ex) =>
       ex.sets.length > 1 ||
       ex.sets.some((s) => s.weight.trim() !== '' || s.reps.trim() !== '') ||
-      (ex.name.trim() !== '' && ex.name.trim() !== 'Bench Press'),
+      ex.name.trim() !== '',
   )
 }

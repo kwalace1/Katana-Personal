@@ -146,6 +146,19 @@ export const liftApi = {
     return [...names].sort((a, b) => a.localeCompare(b))
   },
 
+  /** Names that appear in at least one logged set (excludes unused library defaults). */
+  getLoggedExerciseNames(userId: string): string[] {
+    const byId = new Map(
+      localDb.list<LiftExercise>(EXERCISES, userId).map((e) => [e.id, e.name]),
+    )
+    const names = new Set<string>()
+    for (const set of localDb.list<LiftSet>(SETS, userId)) {
+      const n = byId.get(set.exercise_id)
+      if (n) names.add(n)
+    }
+    return [...names].sort((a, b) => a.localeCompare(b))
+  },
+
   addExercise(userId: string, input: { name: string; muscle?: string }): LiftExercise {
     return localDb.insert(EXERCISES, userId, {
       id: createId(),
@@ -493,15 +506,17 @@ export const liftApi = {
 
   logBodyWeight(
     userId: string,
-    input: { weight: number; date?: string; notes?: string },
+    input: { weight: number; date?: string; notes?: string; time?: string },
   ): BodyWeightLog {
     const date = input.date || todayKey()
+    const time = input.time?.trim() || undefined
     const existing = liftApi.listBodyWeight(userId).find((w) => w.date === date)
     if (existing) {
       return (
         localDb.update<BodyWeightLog>(WEIGHT_LOGS, userId, existing.id, {
           weight: input.weight,
           notes: input.notes ?? existing.notes,
+          time: time ?? existing.time,
         }) || existing
       )
     }
@@ -512,6 +527,7 @@ export const liftApi = {
       weight: input.weight,
       notes: input.notes || '',
       created_at: now(),
+      time: time || '',
     })
     notifyCheckIn(`Logged weight — ${input.weight}`)
     return row

@@ -13,6 +13,8 @@ export interface Workout {
   duration_hours?: number
   duration_mins?: number
   duration_secs?: number
+  /** Optional calories burned from cardio log. */
+  calories?: number
 }
 
 export interface WaterLog {
@@ -107,6 +109,8 @@ export interface BodyWeightLog {
   weight: number
   notes: string
   created_at: string
+  /** Local time HH:MM */
+  time?: string
 }
 
 export type WeightGoalMode = 'bulk' | 'cut' | 'maintain'

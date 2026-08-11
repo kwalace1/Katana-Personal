@@ -170,6 +170,7 @@ export const healthApi = {
       duration_hours?: number
       duration_mins?: number
       duration_secs?: number
+      calories?: number
     },
   ): Workout {
     const row = localDb.insert(WORKOUTS, userId, {
@@ -184,6 +185,7 @@ export const healthApi = {
       duration_hours: input.duration_hours ?? 0,
       duration_mins: input.duration_mins ?? 0,
       duration_secs: input.duration_secs ?? 0,
+      calories: input.calories != null ? Math.max(0, Number(input.calories) || 0) : undefined,
     })
     if (!input.silent) {
       notifyCheckIn(
@@ -202,6 +204,7 @@ export const healthApi = {
       minutes?: number
       seconds?: number
       notes?: string
+      calories?: number
     },
   ): Workout | null {
     const hours = Math.max(0, Number(input.hours) || 0)
@@ -216,6 +219,7 @@ export const healthApi = {
       duration_mins: minutes,
       duration_secs: seconds,
       duration_minutes: durationTotalMinutes({ hours, minutes, seconds }),
+      calories: input.calories == null ? undefined : Math.max(0, Number(input.calories) || 0),
     })
   },
 

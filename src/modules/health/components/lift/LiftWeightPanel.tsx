@@ -6,14 +6,16 @@ import { Input } from '@/components/ui/input'
 import { QuantityInput, QUANTITY } from '@/components/ui/quantity-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { EmptyState } from '@/components/ui/empty-state'
-import { todayKey } from '@/lib/dates'
+import { addDays, todayKey } from '@/lib/dates'
 import { burstConfetti } from '@/lib/celebrate'
+import { cn } from '@/lib/utils'
 import {
   buildWeightProgressShareCard,
   offerShareWin,
   resetWeightProgressMilestones,
   takeWeightProgressMilestone,
 } from '@/lib/social/share-win'
+import { formatMealTime } from '../../api'
 import { liftApi } from '../../lift-api'
 import type { WeightGoalMode } from '../../types'
 import { formatLiftDate, LiftLineChart } from './LiftLineChart'
@@ -23,6 +25,23 @@ type Props = {
   logDate: string
   tick: number
   refresh: () => void
+}
+
+type TrendRange = 'week' | 'month' | 'year' | 'all'
+
+const TREND_RANGES: { id: TrendRange; label: string; days: number | null }[] = [
+  { id: 'week', label: 'Week', days: 7 },
+  { id: 'month', label: 'Month', days: 30 },
+  { id: 'year', label: 'Year', days: 365 },
+  { id: 'all', label: 'All time', days: null },
+]
+
+function localTimeHHMM(date = new Date()) {
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+}
+
+function cutoffKey(days: number) {
+  return todayKey(addDays(new Date(), -(days - 1)))
 }
 
 export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
@@ -41,14 +60,28 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
     return liftApi.weightGoalProgress(userId)
   }, [userId, tick])
 
+  const [range, setRange] = useState<TrendRange>('month')
   const [date, setDate] = useState(logDate || todayKey())
+  const [time, setTime] = useState(localTimeHHMM())
   const [weight, setWeight] = useState('')
   const [mode, setMode] = useState<WeightGoalMode>(goal?.mode || 'maintain')
   const [targetWeight, setTargetWeight] = useState(goal?.target_weight ? String(goal.target_weight) : '')
   const [targetDate, setTargetDate] = useState(goal?.target_date || '')
 
-  const latest = entries[entries.length - 1]
+  const filtered = useMemo(() => {
+    const meta = TREND_RANGES.find((r) => r.id === range) || TREND_RANGES[1]!
+    if (meta.days == null) return entries
+    const start = cutoffKey(meta.days)
+    return entries.filter((e) => e.date >= start)
+  }, [entries, range])
+
+  const average =
+    filtered.length > 0
+      ? filtered.reduce((sum, e) => sum + e.weight, 0) / filtered.length
+      : null
+  const latest = filtered[filtered.length - 1] ?? entries[entries.length - 1]
   const first = entries[0]
+  const rangeLabel = TREND_RANGES.find((r) => r.id === range)?.label || 'Month'
 
   function saveWeight(e: FormEvent) {
     e.preventDefault()
@@ -57,7 +90,7 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
       toast.error('Enter a weight')
       return
     }
-    liftApi.logBodyWeight(userId, { weight: w, date })
+    liftApi.logBodyWeight(userId, { weight: w, date, time })
     toast.success('Weight saved')
     const nextProgress = liftApi.weightGoalProgress(userId)
     const active = liftApi.getActiveWeightGoal(userId)
@@ -76,6 +109,7 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
       }
     }
     setWeight('')
+    setTime(localTimeHHMM())
     refresh()
   }
 
@@ -108,6 +142,12 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
             <h3 className="font-display text-2xl tracking-tight">
               {latest ? `${latest.weight} lb` : 'No entries yet'}
             </h3>
+            {average != null ? (
+              <p className="mt-1 text-sm text-muted-foreground">
+                Avg {rangeLabel.toLowerCase()} · {average.toFixed(1)} lb
+                {filtered.length ? ` · ${filtered.length} check-in${filtered.length === 1 ? '' : 's'}` : ''}
+              </p>
+            ) : null}
           </div>
           {progress.delta != null ? (
             <span className="rounded-full border border-border/60 px-3 py-1 text-sm">
@@ -117,8 +157,26 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
           ) : null}
         </div>
 
+        <div className="flex flex-wrap gap-1.5">
+          {TREND_RANGES.map((r) => (
+            <button
+              key={r.id}
+              type="button"
+              onClick={() => setRange(r.id)}
+              className={cn(
+                'rounded-full px-3 py-1.5 text-xs font-semibold transition',
+                range === r.id
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-secondary/80 text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
+
         <LiftLineChart
-          data={entries.map((e) => ({ date: e.date, value: e.weight }))}
+          data={filtered.map((e) => ({ date: e.date, value: e.weight }))}
           label="Body weight"
         />
 
@@ -149,13 +207,14 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
           </div>
           <div className="grid gap-3 sm:grid-cols-2 *:min-w-0">
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} aria-label="Date" />
-            <QuantityInput
-              {...QUANTITY.bodyWeightLb}
-              placeholder="187.2"
-              value={weight}
-              onChange={setWeight}
-            />
+            <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} aria-label="Time" />
           </div>
+          <QuantityInput
+            {...QUANTITY.bodyWeightLb}
+            placeholder="187.2"
+            value={weight}
+            onChange={setWeight}
+          />
           <Button type="submit">Save weight</Button>
         </form>
 
@@ -199,10 +258,11 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
           <EmptyState title="No weight logs" description="Log a check-in to start the trend." />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[20rem] text-left text-sm">
+            <table className="w-full min-w-[22rem] text-left text-sm">
               <thead>
                 <tr className="border-b border-border/60 text-xs text-muted-foreground">
                   <th className="pb-2 pr-3 font-medium">Date</th>
+                  <th className="pb-2 pr-3 font-medium">Time</th>
                   <th className="pb-2 pr-3 font-medium">Weight</th>
                   <th className="pb-2 pr-3 font-medium">Change</th>
                   <th className="pb-2 font-medium" />
@@ -216,6 +276,9 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
                   return (
                     <tr key={entry.id} className="border-b border-border/40">
                       <td className="py-2 pr-3">{formatLiftDate(entry.date)}</td>
+                      <td className="py-2 pr-3 text-muted-foreground">
+                        {entry.time ? formatMealTime(entry.time) : '—'}
+                      </td>
                       <td className="py-2 pr-3">{entry.weight} lb</td>
                       <td className="py-2 pr-3 text-muted-foreground">
                         {delta == null ? '—' : `${delta >= 0 ? '+' : ''}${delta.toFixed(1)}`}
