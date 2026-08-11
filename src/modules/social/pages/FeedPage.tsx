@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { TogetherSetup } from '@/components/TogetherSetup'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
+import { Input } from '@/components/ui/input'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
 import { format } from '@/lib/dates'
@@ -49,6 +50,7 @@ export default function FeedPage() {
   void user
 
   const tab = parseTab(searchParams.get('tab'))
+  const circleFilter = searchParams.get('circle') || 'all'
 
   const [allPosts, setAllPosts] = useState<RankedPost[]>([])
   const [myPosts, setMyPosts] = useState<RankedPost[]>([])
@@ -61,6 +63,7 @@ export default function FeedPage() {
   const [mineLoading, setMineLoading] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [feelingOpen, setFeelingOpen] = useState(false)
+  const [circleQuery, setCircleQuery] = useState('')
 
   const selfName = cloudProfile?.displayName || 'You'
 
@@ -70,14 +73,32 @@ export default function FeedPage() {
     return map
   }, [circles])
 
+  const sortedCircles = useMemo(
+    () => [...circles].sort((a, b) => a.name.localeCompare(b.name)),
+    [circles],
+  )
+
+  const filteredCircleOptions = useMemo(() => {
+    const q = circleQuery.trim().toLowerCase()
+    if (!q) return sortedCircles
+    return sortedCircles.filter((c) => c.name.toLowerCase().includes(q))
+  }, [sortedCircles, circleQuery])
+
   const feedPosts = useMemo(() => filterFeedByAudience(allPosts, 'friends'), [allPosts])
-  const circlePosts = useMemo(() => filterFeedByAudience(allPosts, 'circle'), [allPosts])
+  const circlePosts = useMemo(() => {
+    const all = filterFeedByAudience(allPosts, 'circle')
+    if (circleFilter === 'all') return all
+    return all.filter((p) => p.circleId === circleFilter)
+  }, [allPosts, circleFilter])
 
   const visiblePosts = useMemo(() => {
     const base =
       tab === 'mine' ? myPosts : tab === 'circles' ? circlePosts : tab === 'feed' ? feedPosts : []
     return cloudUser ? filterHiddenPosts(cloudUser.uid, base) : base
   }, [tab, myPosts, circlePosts, feedPosts, cloudUser])
+
+  const activeCircleName =
+    circleFilter !== 'all' ? circleNames[circleFilter] || 'Circle' : null
 
   function patchPost(next: RankedPost) {
     setAllPosts((p) => p.map((x) => (x.id === next.id ? next : x)))
@@ -112,8 +133,30 @@ export default function FeedPage() {
     const params = new URLSearchParams(searchParams)
     if (next === 'feed') params.delete('tab')
     else params.set('tab', next)
+    if (next !== 'circles') {
+      params.delete('circle')
+      setCircleQuery('')
+    }
     setSearchParams(params, { replace: true })
   }
+
+  function setCircleFilter(next: string) {
+    const params = new URLSearchParams(searchParams)
+    params.set('tab', 'circles')
+    if (next === 'all') params.delete('circle')
+    else params.set('circle', next)
+    setSearchParams(params, { replace: true })
+  }
+
+  // Drop stale circle filter if you left that circle
+  useEffect(() => {
+    if (tab !== 'circles' || circleFilter === 'all' || circles.length === 0) return
+    if (circles.some((c) => c.id === circleFilter)) return
+    const params = new URLSearchParams(searchParams)
+    params.set('tab', 'circles')
+    params.delete('circle')
+    setSearchParams(params, { replace: true })
+  }, [tab, circleFilter, circles, searchParams, setSearchParams])
 
   useEffect(() => {
     if (!cloudUser) {
@@ -276,11 +319,58 @@ export default function FeedPage() {
           <div className="border-b border-border/50 px-4 py-3 sm:px-5">
             <p className="text-sm text-muted-foreground">
               {tab === 'circles'
-                ? 'Wins shared with your Circles — newest first.'
+                ? activeCircleName
+                  ? `Wins in ${activeCircleName} — newest first.`
+                  : 'Wins shared with your Circles — pick one to focus, or see all.'
                 : tab === 'mine'
                   ? 'Your shared wins.'
                   : 'Friends feed · newest first. Wins only — no random posts.'}
             </p>
+            {tab === 'circles' && sortedCircles.length > 0 ? (
+              <div className="mt-3 space-y-2">
+                {sortedCircles.length > 4 ? (
+                  <Input
+                    value={circleQuery}
+                    onChange={(e) => setCircleQuery(e.target.value)}
+                    placeholder="Find a circle…"
+                    aria-label="Find a circle"
+                    className="h-9"
+                  />
+                ) : null}
+                <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setCircleFilter('all')}
+                    className={cn(
+                      'shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition',
+                      circleFilter === 'all'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-secondary/80 text-muted-foreground hover:text-foreground',
+                    )}
+                  >
+                    All circles
+                  </button>
+                  {filteredCircleOptions.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setCircleFilter(c.id)}
+                      className={cn(
+                        'shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition',
+                        circleFilter === c.id
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-secondary/80 text-muted-foreground hover:text-foreground',
+                      )}
+                    >
+                      {c.name}
+                    </button>
+                  ))}
+                </div>
+                {circleQuery.trim() && filteredCircleOptions.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No circles match that name.</p>
+                ) : null}
+              </div>
+            ) : null}
             {tab === 'feed' ? (
               <div className="mt-3">
                 {!feelingOpen ? (
@@ -334,14 +424,18 @@ export default function FeedPage() {
                 icon={tab === 'circles' ? Users : Newspaper}
                 title={
                   tab === 'circles'
-                    ? 'No Circle posts yet'
+                    ? activeCircleName
+                      ? `No wins in ${activeCircleName} yet`
+                      : 'No Circle posts yet'
                     : tab === 'mine'
                       ? 'You haven’t shared a win yet'
                       : 'No wins shared yet'
                 }
                 description={
                   tab === 'circles'
-                    ? 'When someone posts a win to a Circle, it shows up here.'
+                    ? activeCircleName
+                      ? 'Share a win to this Circle, or switch filters above.'
+                      : 'When someone posts a win to a Circle, it shows up here.'
                     : 'Finish something in Today — or share how you’re feeling — then post the win card.'
                 }
                 action={
