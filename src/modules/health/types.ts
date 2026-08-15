@@ -88,6 +88,12 @@ export interface SplitDay {
   name: string
   /** Optional suggested exercise names */
   focus: string
+  /** Optional pre-made workout prescription for this day. */
+  exercises?: {
+    name: string
+    sets: number
+    reps: string
+  }[]
 }
 
 export interface TrainingSplit {
@@ -154,6 +160,8 @@ export interface SupplementItem {
   dose_notes: string
   sort_order: number
   archived: boolean
+  /** Older rows without a kind are treated as supplements. */
+  kind?: 'vitamin' | 'supplement'
   created_at: string
 }
 

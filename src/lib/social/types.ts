@@ -56,7 +56,16 @@ export interface Friendship {
   updatedAt: string
 }
 
-export type SharedKind = 'task' | 'event' | 'goal' | 'habit' | 'note' | 'file' | 'journal'
+export type SharedKind =
+  | 'task'
+  | 'event'
+  | 'goal'
+  | 'habit'
+  | 'note'
+  | 'file'
+  | 'journal'
+  | 'training_split'
+  | 'lift_session'
 
 export interface SharedItem {
   id: string

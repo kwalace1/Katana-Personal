@@ -20,6 +20,10 @@ import { createTogetherPost } from '@/lib/social/feed'
 import type { CloudProfile, SharePrefs, StreakSnapshot } from '@/lib/social/types'
 import { relativeWhen } from './relative-when'
 import { cn } from '@/lib/utils'
+import {
+  MentionTextarea,
+  type MentionCandidate,
+} from '@/modules/social/components/MentionTextarea'
 
 type TimelineItem =
   | { kind: 'post'; id: string; uid: string; message: string; at: string; postId: string }
@@ -69,6 +73,7 @@ export function CircleBoardExtras({
   const { tick, refresh } = useLocalRefresh()
   const [posts, setPosts] = useState<CirclePost[]>([])
   const [draft, setDraft] = useState('')
+  const [mentions, setMentions] = useState<MentionCandidate[]>([])
   const [posting, setPosting] = useState(false)
 
   const water = useMemo(() => {
@@ -151,6 +156,7 @@ export function CircleBoardExtras({
         text: message,
         audience: 'circle',
         circleId,
+        mentions,
       })
       try {
         await createCirclePost({
@@ -162,6 +168,7 @@ export function CircleBoardExtras({
         // Feed post succeeded; legacy circlePosts optional during migration
       }
       setDraft('')
+      setMentions([])
       toast.success('Posted to the circle')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Couldn’t post')
@@ -313,11 +320,25 @@ export function CircleBoardExtras({
           </Link>
         </div>
         <form onSubmit={(e) => void onPost(e)} className="mb-4 flex gap-2">
-          <Input
-            placeholder="Say something to the crew…"
+          <MentionTextarea
+            placeholder="Say something… type @ to mention someone"
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={setDraft}
+            candidates={[
+              ...new Map(
+                [
+                  ...friends.map((friend) => ({ uid: friend.uid, name: friend.displayName })),
+                  ...board
+                    .filter((member) => member.uid !== selfUid)
+                    .map((member) => ({ uid: member.uid, name: member.displayName })),
+                ].map((candidate) => [candidate.uid, candidate]),
+              ).values(),
+            ]}
+            mentions={mentions}
+            onMentionsChange={setMentions}
             maxLength={500}
+            rows={2}
+            className="min-h-11 resize-none"
           />
           <Button type="submit" size="icon" disabled={!draft.trim() || posting} aria-label="Post">
             <Send className="h-4 w-4" />

@@ -59,6 +59,7 @@ export default function FeedPage() {
   const [selfPhoto, setSelfPhoto] = useState<string | null>(null)
   const [engagement, setEngagement] = useState<Record<string, PostEngagement>>({})
   const [circles, setCircles] = useState<CircleGroup[]>([])
+  const [circlesLoaded, setCirclesLoaded] = useState(false)
   const [loading, setLoading] = useState(true)
   const [mineLoading, setMineLoading] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -150,13 +151,13 @@ export default function FeedPage() {
 
   // Drop stale circle filter if you left that circle
   useEffect(() => {
-    if (tab !== 'circles' || circleFilter === 'all' || circles.length === 0) return
+    if (tab !== 'circles' || circleFilter === 'all' || !circlesLoaded) return
     if (circles.some((c) => c.id === circleFilter)) return
     const params = new URLSearchParams(searchParams)
     params.set('tab', 'circles')
     params.delete('circle')
     setSearchParams(params, { replace: true })
-  }, [tab, circleFilter, circles, searchParams, setSearchParams])
+  }, [tab, circleFilter, circles, circlesLoaded, searchParams, setSearchParams])
 
   useEffect(() => {
     if (!cloudUser) {
@@ -190,11 +191,20 @@ export default function FeedPage() {
   }, [cloudUser])
 
   useEffect(() => {
-    if (!cloudUser) return
+    if (!cloudUser) {
+      setCircles([])
+      setCirclesLoaded(true)
+      return
+    }
     let cancelled = false
-    void listMyCircles(cloudUser.uid).then((list) => {
-      if (!cancelled) setCircles(list)
-    })
+    setCirclesLoaded(false)
+    void listMyCircles(cloudUser.uid)
+      .then((list) => {
+        if (!cancelled) setCircles(list)
+      })
+      .finally(() => {
+        if (!cancelled) setCirclesLoaded(true)
+      })
     return () => {
       cancelled = true
     }

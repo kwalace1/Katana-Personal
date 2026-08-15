@@ -18,13 +18,19 @@ type Props = {
   logDate: string
   tick: number
   refresh: () => void
+  kind?: 'vitamin' | 'supplement'
 }
 
-export function VitaminsPanel({ userId, logDate, tick, refresh }: Props) {
+export function VitaminsPanel({ userId, logDate, tick, refresh, kind = 'supplement' }: Props) {
   const checklist = useMemo(() => {
     void tick
-    return healthApi.getDayChecklist(userId, logDate)
-  }, [userId, logDate, tick])
+    return healthApi.getDayChecklist(userId, logDate).filter((row) => {
+      const inferredKind =
+        row.item.kind ||
+        (/^vitamin\b|multivitamin/i.test(row.item.name) ? 'vitamin' : 'supplement')
+      return inferredKind === kind
+    })
+  }, [userId, logDate, tick, kind])
 
   const takenCount = checklist.filter((row) => row.taken).length
 
@@ -33,7 +39,7 @@ export function VitaminsPanel({ userId, logDate, tick, refresh }: Props) {
 
   function addItem(e: FormEvent) {
     e.preventDefault()
-    const row = healthApi.addSupplement(userId, { name, dose_notes: doseNotes })
+    const row = healthApi.addSupplement(userId, { name, dose_notes: doseNotes, kind })
     if (!row) {
       toast.error('Add a name')
       return
@@ -49,7 +55,9 @@ export function VitaminsPanel({ userId, logDate, tick, refresh }: Props) {
       <div className="kp-surface p-4 sm:p-5">
         <div className="mb-1 flex items-center gap-2">
           <Pill className="h-4 w-4 text-primary" />
-          <p className="text-xs text-muted-foreground">Vitamins & supplements</p>
+          <p className="text-xs text-muted-foreground">
+            {kind === 'vitamin' ? 'Vitamins' : 'Supplements'}
+          </p>
         </div>
         <h3 className="font-display text-xl tracking-tight">Daily checklist</h3>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -61,8 +69,12 @@ export function VitaminsPanel({ userId, logDate, tick, refresh }: Props) {
         {checklist.length === 0 ? (
           <div className="mt-4">
             <EmptyState
-              title="No supplements yet"
-              description="Vitamin D, fish oil, creatine — whatever you track."
+              title={kind === 'vitamin' ? 'No vitamins yet' : 'No supplements yet'}
+              description={
+                kind === 'vitamin'
+                  ? 'Vitamin D, B12, a multivitamin — whatever you track.'
+                  : 'Creatine, fish oil, protein — whatever you track.'
+              }
             />
           </div>
         ) : (
@@ -131,11 +143,13 @@ export function VitaminsPanel({ userId, logDate, tick, refresh }: Props) {
       <form onSubmit={addItem} className="kp-surface space-y-3 p-4">
         <div>
           <p className="text-xs text-muted-foreground">Catalog</p>
-          <h3 className="font-display text-lg tracking-tight">Add a vitamin or supplement</h3>
+          <h3 className="font-display text-lg tracking-tight">
+            Add {kind === 'vitamin' ? 'a vitamin' : 'a supplement'}
+          </h3>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <Input
-            placeholder="Name (e.g. Vitamin D)"
+            placeholder={kind === 'vitamin' ? 'Name (e.g. Vitamin D)' : 'Name (e.g. Creatine)'}
             value={name}
             onChange={(e) => setName(e.target.value)}
             aria-label="Supplement name"

@@ -127,6 +127,7 @@ export default function CirclesPage() {
   const [params, setParams] = useSearchParams()
   const [metric, setMetric] = useState<BoardMetric>('habit')
   const [circles, setCircles] = useState<CircleGroup[]>([])
+  const [circlesStatus, setCirclesStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [board, setBoard] = useState<StreakSnapshot[]>([])
   const [friends, setFriends] = useState<CloudProfile[]>([])
   const [memberDirectory, setMemberDirectory] = useState<CloudProfile[]>([])
@@ -166,8 +167,16 @@ export default function CirclesPage() {
 
   async function loadCirclesList() {
     if (!cloudUser) return
-    const list = await listMyCircles(cloudUser.uid)
-    setCircles(list)
+    setCirclesStatus('loading')
+    let list: CircleGroup[]
+    try {
+      list = await listMyCircles(cloudUser.uid)
+      setCircles(list)
+      setCirclesStatus('ready')
+    } catch (err) {
+      setCirclesStatus('error')
+      throw err
+    }
     const memberIds = Array.from(new Set(list.flatMap((c) => c.memberIds)))
     try {
       const [profiles, rels] = await Promise.all([
@@ -264,15 +273,18 @@ export default function CirclesPage() {
     let cancelled = false
     void (async () => {
       try {
-        const [list, friendList, rels] = await Promise.all([
-          listMyCircles(cloudUser.uid),
-          listFriendProfiles(cloudUser.uid),
-          listFriendships(cloudUser.uid),
-        ])
+        setCirclesStatus('loading')
+        const list = await listMyCircles(cloudUser.uid)
         if (cancelled) return
         setCircles(list)
-        setFriends(friendList)
-        setFriendships(rels)
+        setCirclesStatus('ready')
+
+        const id = params.get('id')
+        const circle = (id && list.find((c) => c.id === id)) || null
+        if (id && !circle) {
+          setParams({}, { replace: true })
+          toast.message('You’re no longer in that circle')
+        }
 
         try {
           const memberIds = Array.from(new Set(list.flatMap((c) => c.memberIds)))
@@ -282,8 +294,20 @@ export default function CirclesPage() {
           // optional
         }
 
-        const id = params.get('id')
-        const circle = (id && list.find((c) => c.id === id)) || null
+        let friendList: CloudProfile[] = []
+        try {
+          const [loadedFriends, rels] = await Promise.all([
+            listFriendProfiles(cloudUser.uid),
+            listFriendships(cloudUser.uid),
+          ])
+          friendList = loadedFriends
+          if (!cancelled) {
+            setFriends(loadedFriends)
+            setFriendships(rels)
+          }
+        } catch {
+          // Friends are optional; a failure must not erase Circle membership.
+        }
 
         try {
           await syncStreaksToCloud()
@@ -315,6 +339,7 @@ export default function CirclesPage() {
         }
       } catch (err) {
         if (!cancelled) {
+          setCirclesStatus('error')
           toast.error(err instanceof Error ? err.message : 'Couldn’t load circles')
         }
       }
@@ -349,6 +374,32 @@ export default function CirclesPage() {
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId])
+
+  // Membership can change from another user's device; reconcile without a reload.
+  useEffect(() => {
+    if (!cloudUser) return
+    let cancelled = false
+    const refreshMembership = async () => {
+      try {
+        const list = await listMyCircles(cloudUser.uid)
+        if (cancelled) return
+        setCircles(list)
+        setCirclesStatus('ready')
+        if (activeId && !list.some((circle) => circle.id === activeId)) {
+          setParams({}, { replace: true })
+          setBoard([])
+          toast.message('You’re no longer in that circle')
+        }
+      } catch {
+        // Keep the last good list; polling failures are not an empty state.
+      }
+    }
+    const timer = window.setInterval(() => void refreshMembership(), 20_000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [cloudUser, activeId, setParams])
 
   const metricDef = METRICS.find((m) => m.id === metric)!
 
@@ -1101,12 +1152,32 @@ export default function CirclesPage() {
         .{cloudProfile ? ` Signed in as ${cloudProfile.displayName}.` : null}
       </p>
 
-      {circles.length === 0 ? (
+      {circlesStatus === 'loading' ? (
+        <div className="flex justify-center py-16">
+          <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      ) : circlesStatus === 'error' ? (
+        <EmptyState
+          title="Couldn’t load circles"
+          description="Your memberships are still there. Check your connection and try again."
+          action={
+            <Button
+              onClick={() => {
+                void loadCirclesList().catch((err) =>
+                  toast.error(err instanceof Error ? err.message : 'Couldn’t load circles'),
+                )
+              }}
+            >
+              Try again
+            </Button>
+          }
+        />
+      ) : circles.length === 0 ? (
         <>
           <TogetherSetup highlight="circles" compact cloudConnected={Boolean(cloudUser)} className="mb-4" />
           <EmptyState
-            title="No circles yet"
-            description="Create a group streak board for gym buddies or roommates — then invite friends (they accept before joining)."
+            title="You’re not in any circles right now"
+            description="Create a group streak board for gym buddies or roommates, or ask a friend for an invite."
             action={
               <div className="flex flex-wrap justify-center gap-2">
                 <Button onClick={() => setCreateOpen(true)}>Create a circle</Button>

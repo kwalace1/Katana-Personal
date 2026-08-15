@@ -1,6 +1,6 @@
 /** Katana Plus entitlements — local demo unlock until RevenueCat wires in. */
 
-export type PlusFeature = 'llm' | 'challenge' | 'nutrition_ai'
+export type PlusFeature = 'llm' | 'challenge' | 'nutrition_ai' | 'programs'
 
 const PLUS_KEY = 'katana-personal:plus'
 const LLM_USAGE_KEY = 'katana-personal:llm-asks-day'
@@ -86,6 +86,12 @@ export function plusFeatureBlurb(feature: PlusFeature): { title: string; body: s
     return {
       title: 'Accountability pack · challenges',
       body: 'Circle boards stay free. Plus starts 7-day challenges that keep the group honest.',
+    }
+  }
+  if (feature === 'programs') {
+    return {
+      title: 'Accountability pack · training programs',
+      body: 'Free includes starter programs. Plus unlocks complete intermediate and advanced training templates.',
     }
   }
   return {

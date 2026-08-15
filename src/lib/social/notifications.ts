@@ -11,6 +11,7 @@ export type NotificationKind =
   | 'post_like'
   | 'post_comment'
   | 'post_repost'
+  | 'post_mention'
   | 'generic'
 
 export interface AppNotification {

@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   Dumbbell,
@@ -47,12 +48,64 @@ const QUICK = [
   { id: 'sleep', label: 'Sleep', icon: Moon },
 ] as const
 
+const FITNESS_TABS = [
+  { id: 'lift', label: 'Lift' },
+  { id: 'splits', label: 'Splits' },
+  { id: 'progress', label: 'Progress' },
+  { id: 'workouts', label: 'Cardio' },
+] as const
+
+const WELLNESS_TABS = [
+  { id: 'overview', label: 'Today' },
+  { id: 'weight', label: 'Weight' },
+  { id: 'sleep', label: 'Sleep' },
+  { id: 'nutrition', label: 'Diet' },
+  { id: 'vitamins', label: 'Vitamins' },
+  { id: 'supplements', label: 'Supplements' },
+] as const
+
+type HealthTab =
+  | (typeof FITNESS_TABS)[number]['id']
+  | (typeof WELLNESS_TABS)[number]['id']
+type HealthArea = 'fitness' | 'wellness'
+
+function areaForTab(tab: HealthTab): HealthArea {
+  return FITNESS_TABS.some((item) => item.id === tab) ? 'fitness' : 'wellness'
+}
+
+function parseHealthTab(value: string | null): HealthTab {
+  const all = [...FITNESS_TABS, ...WELLNESS_TABS] as readonly { id: HealthTab }[]
+  return all.some((item) => item.id === value) ? (value as HealthTab) : 'overview'
+}
+
 export default function HealthPage() {
   const { user } = useAuth()
   const userId = user!.id
   const { tick, refresh } = useLocalRefresh()
   const { cloudUser, syncStreaksToCloud } = useCloudAuth()
-  const [healthTab, setHealthTab] = useState('overview')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const healthTab = parseHealthTab(searchParams.get('tab'))
+  const requestedArea = searchParams.get('area')
+  const healthArea: HealthArea =
+    requestedArea === 'fitness' || requestedArea === 'wellness'
+      ? requestedArea
+      : areaForTab(healthTab)
+
+  function setHealthTab(next: string) {
+    const tab = parseHealthTab(next)
+    const params = new URLSearchParams(searchParams)
+    params.set('tab', tab)
+    params.set('area', areaForTab(tab))
+    setSearchParams(params, { replace: true })
+  }
+
+  function setHealthArea(area: HealthArea) {
+    const params = new URLSearchParams(searchParams)
+    const nextTab = area === 'fitness' ? 'lift' : 'weight'
+    params.set('area', area)
+    params.set('tab', nextTab)
+    setSearchParams(params, { replace: true })
+  }
 
   useEffect(() => {
     if (!cloudUser) return
@@ -156,8 +209,12 @@ export default function HealthPage() {
   return (
     <motion.div {...pageEnterSubtle} className="kp-page">
       <PageHeader
-        title="Health and Wellness"
-        description="Day signals first — dig into strength, fuel, and rest when you need them."
+        title={healthArea === 'fitness' ? 'Fitness' : 'Wellness'}
+        description={
+          healthArea === 'fitness'
+            ? 'Train, follow your split, and see what is getting stronger.'
+            : 'Weight, rest, fuel, supplements, and mental check-ins.'
+        }
         eyebrow="Life"
       />
 
@@ -176,17 +233,32 @@ export default function HealthPage() {
         ) : null}
       </div>
 
+      <div className="mb-3 grid grid-cols-2 gap-2 rounded-2xl bg-secondary/50 p-1">
+        <Button
+          type="button"
+          variant={healthArea === 'fitness' ? 'default' : 'ghost'}
+          className="rounded-xl"
+          onClick={() => setHealthArea('fitness')}
+        >
+          Fitness
+        </Button>
+        <Button
+          type="button"
+          variant={healthArea === 'wellness' ? 'default' : 'ghost'}
+          className="rounded-xl"
+          onClick={() => setHealthArea('wellness')}
+        >
+          Wellness
+        </Button>
+      </div>
+
       <Tabs value={healthTab} onValueChange={setHealthTab}>
         <TabsList fluid className="mb-1 w-full max-w-full">
-          <TabsTrigger value="overview">Today</TabsTrigger>
-          <TabsTrigger value="lift">Lift</TabsTrigger>
-          <TabsTrigger value="splits">Splits</TabsTrigger>
-          <TabsTrigger value="progress">Progress</TabsTrigger>
-          <TabsTrigger value="weight">Weight</TabsTrigger>
-          <TabsTrigger value="workouts">Cardio</TabsTrigger>
-          <TabsTrigger value="nutrition">Nutrition</TabsTrigger>
-          <TabsTrigger value="vitamins">Vitamins</TabsTrigger>
-          <TabsTrigger value="sleep">Sleep</TabsTrigger>
+          {(healthArea === 'fitness' ? FITNESS_TABS : WELLNESS_TABS).map((item) => (
+            <TabsTrigger key={item.id} value={item.id}>
+              {item.label}
+            </TabsTrigger>
+          ))}
         </TabsList>
 
         <TabsContent value="overview" className="space-y-5">
@@ -403,7 +475,23 @@ export default function HealthPage() {
         </TabsContent>
 
         <TabsContent value="vitamins" className="space-y-4">
-          <VitaminsPanel userId={userId} logDate={logDate} tick={tick} refresh={refresh} />
+          <VitaminsPanel
+            userId={userId}
+            logDate={logDate}
+            tick={tick}
+            refresh={refresh}
+            kind="vitamin"
+          />
+        </TabsContent>
+
+        <TabsContent value="supplements" className="space-y-4">
+          <VitaminsPanel
+            userId={userId}
+            logDate={logDate}
+            tick={tick}
+            refresh={refresh}
+            kind="supplement"
+          />
         </TabsContent>
 
         <TabsContent value="sleep" className="space-y-4">
@@ -468,6 +556,18 @@ export default function HealthPage() {
           )}
         </TabsContent>
       </Tabs>
+
+      {healthArea === 'wellness' ? (
+        <div className="kp-surface mt-4 flex flex-wrap items-center justify-between gap-3 p-4">
+          <div>
+            <p className="text-xs text-muted-foreground">Mental wellness</p>
+            <p className="font-medium">Mood, reflection, and journal</p>
+          </div>
+          <Button asChild variant="outline">
+            <Link to="/journal">Open Journal</Link>
+          </Button>
+        </div>
+      ) : null}
     </motion.div>
   )
 }

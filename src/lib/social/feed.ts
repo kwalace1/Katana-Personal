@@ -2,6 +2,7 @@ import { getSupabase } from '@/lib/supabase'
 import { createId } from '@/lib/id'
 import { listMyCircles } from '@/lib/social/circles'
 import { listFriendProfiles, getCloudProfile, getCloudProfiles, resolveProfilePhotoUrl, type Unsubscribe } from '@/lib/social/friends'
+import { createNotification } from '@/lib/social/notifications'
 
 export const FEED_TEXT_MAX = 500
 export const FEED_IMAGE_MAX_BYTES = 5 * 1024 * 1024
@@ -37,6 +38,11 @@ export interface FeedCard {
   quote?: string
 }
 
+export interface FeedMention {
+  uid: string
+  name: string
+}
+
 export interface RepostSnapshot {
   postId: string
   authorId: string
@@ -55,6 +61,7 @@ export interface TogetherPost {
   circleId?: string | null
   viewerIds: string[]
   media: FeedMedia[]
+  mentions: FeedMention[]
   card?: FeedCard | null
   /** When set, this post is a repost/quote of another post */
   repost?: RepostSnapshot | null
@@ -71,6 +78,7 @@ type PostRow = {
   circle_id?: string | null
   viewer_ids: string[]
   media?: FeedMedia[] | null
+  mentions?: FeedMention[] | null
   card?: FeedCard | null
   repost?: RepostSnapshot | null
 }
@@ -85,6 +93,7 @@ function mapPost(row: PostRow): TogetherPost {
     circleId: row.circle_id ?? null,
     viewerIds: row.viewer_ids || [],
     media: row.media || [],
+    mentions: row.mentions || [],
     card: row.card ?? null,
     repost: row.repost ?? null,
   }
@@ -218,6 +227,7 @@ export async function createTogetherPost(input: {
   files?: File[]
   card?: FeedCard | null
   repost?: RepostSnapshot | null
+  mentions?: FeedMention[]
 }): Promise<TogetherPost> {
   const text = input.text.trim()
   if (text.length > FEED_TEXT_MAX) throw new Error(`Keep it under ${FEED_TEXT_MAX} characters.`)
@@ -236,6 +246,12 @@ export async function createTogetherPost(input: {
     audience: input.audience,
     circleId: input.circleId,
   })
+  const viewerSet = new Set(viewerIds)
+  const mentions = (input.mentions || [])
+    .filter((mention) => mention.uid !== input.authorId && viewerSet.has(mention.uid))
+    .filter(
+      (mention, index, all) => all.findIndex((candidate) => candidate.uid === mention.uid) === index,
+    )
 
   const id = createId()
   const media: FeedMedia[] = []
@@ -262,10 +278,24 @@ export async function createTogetherPost(input: {
     })),
     card: input.card || null,
     repost: input.repost || null,
+    mentions,
   }
 
   const { error } = await getSupabase().from('together_posts').insert(row)
   if (error) throw error
+  const author = await getCloudProfile(input.authorId)
+  await Promise.all(
+    mentions.map((mention) =>
+      createNotification({
+        uid: mention.uid,
+        kind: 'post_mention',
+        title: `${author?.displayName || 'A friend'} mentioned you`,
+        body: text.slice(0, 180) || 'Open Social to see the post',
+        href: '/social',
+        meta: { postId: id, actorId: input.authorId },
+      }).catch(() => undefined),
+    ),
+  )
   return {
     id,
     authorId: input.authorId,
@@ -277,6 +307,7 @@ export async function createTogetherPost(input: {
     media: media.map((m) => ({ ...m })),
     card: input.card || null,
     repost: input.repost || null,
+    mentions,
   }
 }
 
@@ -339,6 +370,9 @@ export async function updateTogetherPost(input: {
     )
   }
   const media = [...input.keepMedia, ...uploaded]
+  const mentions = existing.mentions.filter((mention) =>
+    text.toLowerCase().includes(`@${mention.name.toLowerCase()}`),
+  )
   const keptPaths = new Set(media.map((m) => m.path))
   const removedPaths = existing.media.map((m) => m.path).filter((p) => !keptPaths.has(p))
 
@@ -347,6 +381,7 @@ export async function updateTogetherPost(input: {
     .update({
       text,
       media: serializeMedia(media),
+      mentions,
     })
     .eq('id', input.postId)
     .eq('author_id', input.authorId)

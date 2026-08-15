@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, Plus, Trash2 } from 'lucide-react'
+import { ChevronDown, Plus, Share2, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -19,6 +19,17 @@ import {
 import { liftApi } from '../../lift-api'
 import { formatLiftDate } from './LiftLineChart'
 import { cn } from '@/lib/utils'
+import type { SplitDay } from '../../types'
+import type { LiftSession } from '../../types'
+import { useCloudAuth } from '@/contexts/CloudAuthContext'
+import { ShareAudiencePicker, type ShareAudienceSelection } from '@/components/ShareAudiencePicker'
+import { shareSuccessMessage, shareWithAudience } from '@/lib/social/share-with-audience'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 type Props = {
   userId: string
@@ -55,7 +66,7 @@ function emptyExercise(defaultName = ''): DraftExercise {
   return { key: nextKey('ex'), name: defaultName, sets: [emptySet()] }
 }
 
-function loadInitialDraft(userId: string, logDate: string) {
+function loadInitialDraft(userId: string, logDate: string, plannedDay?: SplitDay | null) {
   const saved = readLiftDraft(userId)
   if (saved) {
     bumpKeyCounter(saved.exercises)
@@ -69,12 +80,22 @@ function loadInitialDraft(userId: string, logDate: string) {
   return {
     name: '',
     date: logDate || todayKey(),
-    exercises: [emptyExercise()],
+    exercises: plannedDay?.exercises?.length
+      ? plannedDay.exercises.map((exercise) => ({
+          key: nextKey('ex'),
+          name: exercise.name,
+          sets: Array.from({ length: Math.max(1, exercise.sets) }, () => ({
+            ...emptySet(),
+            reps: String(Number.parseInt(exercise.reps, 10) || ''),
+          })),
+        }))
+      : [emptyExercise()],
     restored: false,
   }
 }
 
 export function LiftLogPanel({ userId, logDate, tick, refresh }: Props) {
+  const { cloudUser } = useCloudAuth()
   const names = useMemo(() => {
     void tick
     return liftApi.getLoggedExerciseNames(userId)
@@ -90,13 +111,24 @@ export function LiftLogPanel({ userId, logDate, tick, refresh }: Props) {
     return liftApi.plannedDay(userId, logDate)
   }, [userId, logDate, tick])
 
-  const [boot] = useState(() => loadInitialDraft(userId, logDate))
+  const [boot] = useState(() =>
+    loadInitialDraft(userId, logDate, liftApi.plannedDay(userId, logDate)?.day),
+  )
 
   const [name, setName] = useState(boot.name)
   const [date, setDate] = useState(boot.date)
   const [exercises, setExercises] = useState<DraftExercise[]>(boot.exercises)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [draftBanner, setDraftBanner] = useState(boot.restored)
+  const [shareSession, setShareSession] = useState<LiftSession | null>(null)
+  const [selectedFriends, setSelectedFriends] = useState<Record<string, boolean>>({})
+  const [selectedCircles, setSelectedCircles] = useState<Record<string, boolean>>({})
+  const [audience, setAudience] = useState<ShareAudienceSelection>({
+    friendIds: [],
+    circles: [],
+    hasAny: false,
+  })
+  const [sharing, setSharing] = useState(false)
   const skipPersist = useRef(false)
   const latestRef = useRef({ name, date, exercises })
   latestRef.current = { name, date, exercises }
@@ -202,6 +234,45 @@ export function LiftLogPanel({ userId, logDate, tick, refresh }: Props) {
     })
     resetForm(true)
     refresh()
+  }
+
+  async function shareCompletedWorkout() {
+    if (!shareSession || !cloudUser || !audience.hasAny || sharing) return
+    setSharing(true)
+    try {
+      const groups = liftApi.sessionExerciseGroups(userId, shareSession.id)
+      const result = await shareWithAudience({
+        kind: 'lift_session',
+        title: shareSession.title,
+        body: `${formatLiftDate(shareSession.date)} · ${groups.reduce((sum, group) => sum + group.sets.length, 0)} sets`,
+        data: {
+          workout: {
+            date: shareSession.date,
+            notes: shareSession.notes,
+            exercises: groups.map((group) => ({
+              name: group.name,
+              sets: group.sets.map((set) => ({ weight: set.weight, reps: set.reps })),
+            })),
+          },
+        },
+        ownerId: cloudUser.uid,
+        friendIds: audience.friendIds,
+        circles: audience.circles,
+        activityFeed: true,
+      })
+      if (!result.ok) {
+        toast.error(result.error)
+        return
+      }
+      toast.success(shareSuccessMessage(result))
+      setShareSession(null)
+      setSelectedFriends({})
+      setSelectedCircles({})
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Couldn’t share workout')
+    } finally {
+      setSharing(false)
+    }
   }
 
   return (
@@ -387,6 +458,20 @@ export function LiftLogPanel({ userId, logDate, tick, refresh }: Props) {
                         size="sm"
                         variant="outline"
                         onClick={() => {
+                          if (!cloudUser) {
+                            toast.message('Connect Social in Settings to share workouts')
+                            return
+                          }
+                          setShareSession(session)
+                        }}
+                      >
+                        <Share2 className="mr-1 h-3.5 w-3.5" />
+                        Share workout
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
                           liftApi.removeSession(userId, session.id)
                           refresh()
                           toast.message('Workout deleted')
@@ -403,6 +488,36 @@ export function LiftLogPanel({ userId, logDate, tick, refresh }: Props) {
           </ul>
         )}
       </div>
+      <Dialog open={Boolean(shareSession)} onOpenChange={(open) => !open && setShareSession(null)}>
+        <DialogContent className="max-h-[85vh] max-w-md overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Share {shareSession?.title}</DialogTitle>
+          </DialogHeader>
+          {cloudUser ? (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Share every exercise, set, rep, and weight from this workout.
+              </p>
+              <ShareAudiencePicker
+                uid={cloudUser.uid}
+                selectedFriends={selectedFriends}
+                selectedCircles={selectedCircles}
+                onFriendsChange={setSelectedFriends}
+                onCirclesChange={setSelectedCircles}
+                onAudienceChange={setAudience}
+                compact
+              />
+              <Button
+                className="w-full"
+                disabled={!audience.hasAny || sharing}
+                onClick={() => void shareCompletedWorkout()}
+              >
+                {sharing ? 'Sharing…' : 'Share complete workout'}
+              </Button>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -10,6 +10,32 @@
   "orientation": "portrait-primary",
   "categories": ["productivity", "lifestyle"],
   "prefer_related_applications": false,
+  "shortcuts": [
+    {
+      "name": "Calendar",
+      "short_name": "Calendar",
+      "url": "/calendar?source=shortcut",
+      "icons": [{ "src": "/icons/katana-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Today",
+      "short_name": "Today",
+      "url": "/dashboard?source=shortcut",
+      "icons": [{ "src": "/icons/katana-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Log a lift",
+      "short_name": "Lift",
+      "url": "/health?area=fitness&tab=lift&source=shortcut",
+      "icons": [{ "src": "/icons/katana-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Wellness",
+      "short_name": "Wellness",
+      "url": "/health?area=wellness&tab=weight&source=shortcut",
+      "icons": [{ "src": "/icons/katana-192.png", "sizes": "192x192" }]
+    }
+  ],
   "icons": [
     {
       "src": "/icons/katana-192.png",

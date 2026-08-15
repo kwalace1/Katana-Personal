@@ -430,7 +430,7 @@ export const healthApi = {
 
   addSupplement(
     userId: string,
-    input: { name: string; dose_notes?: string },
+    input: { name: string; dose_notes?: string; kind?: 'vitamin' | 'supplement' },
   ): SupplementItem | null {
     const name = input.name.trim()
     if (!name) return null
@@ -442,6 +442,7 @@ export const healthApi = {
       dose_notes: (input.dose_notes || '').trim(),
       sort_order: existing.length,
       archived: false,
+      kind: input.kind || 'supplement',
       created_at: now(),
     })
   },

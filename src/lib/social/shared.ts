@@ -131,5 +131,7 @@ export function sharedItemHref(item: SharedItem): string | null {
   if (item.kind === 'note') return '/notes'
   if (item.kind === 'file') return '/documents'
   if (item.kind === 'journal') return '/journal'
+  if (item.kind === 'training_split') return '/health?area=fitness&tab=splits'
+  if (item.kind === 'lift_session') return '/health?area=fitness&tab=progress'
   return null
 }

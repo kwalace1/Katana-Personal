@@ -120,6 +120,40 @@ function MediaBlock({ media, compact }: { media: RankedPost['media']; compact?: 
   )
 }
 
+function MentionedPostText({
+  text,
+  mentions,
+}: {
+  text: string
+  mentions: RankedPost['mentions']
+}) {
+  if (!mentions.length) return <>{text}</>
+  const escaped = mentions
+    .map((mention) => mention.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .sort((a, b) => b.length - a.length)
+  const regex = new RegExp(`(@(?:${escaped.join('|')}))`, 'gi')
+  const byName = new Map(mentions.map((mention) => [mention.name.toLowerCase(), mention]))
+  return (
+    <>
+      {text.split(regex).map((part, index) => {
+        if (!part.startsWith('@')) return <span key={index}>{part}</span>
+        const mention = byName.get(part.slice(1).toLowerCase())
+        return mention ? (
+          <Link
+            key={`${mention.uid}-${index}`}
+            to={profilePath(mention.uid)}
+            className="font-semibold text-primary hover:underline"
+          >
+            {part}
+          </Link>
+        ) : (
+          <span key={index}>{part}</span>
+        )
+      })}
+    </>
+  )
+}
+
 function DoubleTapLikeZone({
   onLike,
   children,
@@ -547,7 +581,9 @@ export function FeedPostCard({
 
           <DoubleTapLikeZone onLike={() => void onLike({ likeOnly: true })}>
             {post.text ? (
-              <p className="mt-1 whitespace-pre-wrap text-[0.95rem] leading-relaxed">{post.text}</p>
+              <p className="mt-1 whitespace-pre-wrap text-[0.95rem] leading-relaxed">
+                <MentionedPostText text={post.text} mentions={post.mentions} />
+              </p>
             ) : null}
 
             {post.repost ? (

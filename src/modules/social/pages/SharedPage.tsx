@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { CheckSquare, LogOut, Trash2, Users } from 'lucide-react'
+import { CheckSquare, Dumbbell, LogOut, Trash2, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
@@ -21,6 +21,70 @@ import { getCloudProfile } from '@/lib/social/friends'
 import { tasksApi } from '@/modules/tasks/api'
 import type { SharedItem } from '@/lib/social/types'
 import { formatShortDate } from '@/lib/dates'
+import { liftApi } from '@/modules/health/lift-api'
+import type { SplitDay, SplitPattern } from '@/modules/health/types'
+
+function readSharedSplit(item: SharedItem): {
+  name: string
+  pattern: SplitPattern
+  days: SplitDay[]
+} | null {
+  if (item.kind !== 'training_split') return null
+  const raw = item.data?.split
+  if (!raw || typeof raw !== 'object') return null
+  const split = raw as Record<string, unknown>
+  if (typeof split.name !== 'string' || !Array.isArray(split.days)) return null
+  const pattern: SplitPattern = split.pattern === 'weekdays' ? 'weekdays' : 'cycle'
+  const days: SplitDay[] = split.days
+    .filter((day): day is Record<string, unknown> => Boolean(day) && typeof day === 'object')
+    .map((day) => ({
+      name: typeof day.name === 'string' ? day.name : 'Day',
+      focus: typeof day.focus === 'string' ? day.focus : '',
+      exercises: Array.isArray(day.exercises)
+        ? day.exercises
+            .filter(
+              (exercise): exercise is Record<string, unknown> =>
+                Boolean(exercise) && typeof exercise === 'object',
+            )
+            .map((exercise) => ({
+              name: typeof exercise.name === 'string' ? exercise.name : 'Exercise',
+              sets: Math.max(1, Number(exercise.sets) || 1),
+              reps: typeof exercise.reps === 'string' ? exercise.reps : String(exercise.reps || ''),
+            }))
+        : [],
+    }))
+  return days.length ? { name: split.name, pattern, days } : null
+}
+
+function readSharedWorkout(item: SharedItem): {
+  date: string
+  exercises: { name: string; sets: { weight: number; reps: number }[] }[]
+} | null {
+  if (item.kind !== 'lift_session') return null
+  const raw = item.data?.workout
+  if (!raw || typeof raw !== 'object') return null
+  const workout = raw as Record<string, unknown>
+  if (!Array.isArray(workout.exercises)) return null
+  return {
+    date: typeof workout.date === 'string' ? workout.date : '',
+    exercises: workout.exercises
+      .filter(
+        (exercise): exercise is Record<string, unknown> =>
+          Boolean(exercise) && typeof exercise === 'object',
+      )
+      .map((exercise) => ({
+        name: typeof exercise.name === 'string' ? exercise.name : 'Exercise',
+        sets: Array.isArray(exercise.sets)
+          ? exercise.sets
+              .filter((set): set is Record<string, unknown> => Boolean(set) && typeof set === 'object')
+              .map((set) => ({
+                weight: Number(set.weight) || 0,
+                reps: Number(set.reps) || 0,
+              }))
+          : [],
+      })),
+  }
+}
 
 export default function SharedPage() {
   const { user } = useAuth()
@@ -149,6 +213,43 @@ export default function SharedPage() {
                 </p>
               ) : null}
               {selected.body ? <p className="text-sm text-muted-foreground">{selected.body}</p> : null}
+              {readSharedSplit(selected) ? (
+                <div className="rounded-2xl bg-secondary/40 p-3">
+                  <p className="mb-2 text-sm font-medium">Complete split</p>
+                  <ul className="space-y-2 text-sm">
+                    {readSharedSplit(selected)!.days.map((day, index) => (
+                      <li key={`${day.name}-${index}`}>
+                        <div className="flex justify-between gap-3">
+                          <span className="font-medium">{day.name}</span>
+                          <span className="text-muted-foreground">{day.focus || 'Rest'}</span>
+                        </div>
+                        {day.exercises?.length ? (
+                          <p className="text-xs text-muted-foreground">
+                            {day.exercises
+                              .map((exercise) => `${exercise.name} ${exercise.sets}×${exercise.reps}`)
+                              .join(' · ')}
+                          </p>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {readSharedWorkout(selected) ? (
+                <div className="rounded-2xl bg-secondary/40 p-3">
+                  <p className="mb-2 text-sm font-medium">Complete workout</p>
+                  <ul className="space-y-2 text-sm">
+                    {readSharedWorkout(selected)!.exercises.map((exercise) => (
+                      <li key={exercise.name}>
+                        <p className="font-medium">{exercise.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {exercise.sets.map((set) => `${set.weight} × ${set.reps}`).join(' · ')}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
               <div>
                 <p className="mb-2 text-sm font-medium">People</p>
                 <ul className="space-y-1">
@@ -189,6 +290,27 @@ export default function SharedPage() {
                   >
                     <CheckSquare className="h-3.5 w-3.5" />
                     Copy into my tasks
+                  </Button>
+                ) : null}
+                {selected.kind === 'training_split' && user && readSharedSplit(selected) ? (
+                  <Button
+                    className="gap-1.5"
+                    onClick={() => {
+                      const split = readSharedSplit(selected)
+                      if (!split) return
+                      liftApi.saveSplit(user.id, {
+                        name: split.name,
+                        pattern: split.pattern,
+                        days: split.days,
+                        active: true,
+                      })
+                      toast.success('Split imported and activated')
+                      setSelected(null)
+                      window.location.href = '/health?area=fitness&tab=splits'
+                    }}
+                  >
+                    <Dumbbell className="h-3.5 w-3.5" />
+                    Import to Fitness
                   </Button>
                 ) : null}
                 {selected.ownerId === cloudUser.uid ? (

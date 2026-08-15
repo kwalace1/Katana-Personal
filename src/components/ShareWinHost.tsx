@@ -11,7 +11,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
-import { Textarea } from '@/components/ui/textarea'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
 import { listMyCircles } from '@/lib/social/circles'
 import { createTogetherPost, FEED_TEXT_MAX, type FeedAudience } from '@/lib/social/feed'
@@ -25,7 +24,12 @@ import {
   type ShareWinOffer,
 } from '@/lib/social/share-win'
 import { DEFAULT_SHARE_PREFS } from '@/lib/social/types'
-import type { CircleGroup } from '@/lib/social/types'
+import type { CircleGroup, CloudProfile } from '@/lib/social/types'
+import { getCloudProfiles, listFriendProfiles } from '@/lib/social/friends'
+import {
+  MentionTextarea,
+  type MentionCandidate,
+} from '@/modules/social/components/MentionTextarea'
 
 /**
  * Global host: listens for win offers and opens a celebratory share sheet.
@@ -39,6 +43,9 @@ export function ShareWinHost() {
   const [audience, setAudience] = useState<FeedAudience>('friends')
   const [circleId, setCircleId] = useState('')
   const [circles, setCircles] = useState<CircleGroup[]>([])
+  const [friends, setFriends] = useState<CloudProfile[]>([])
+  const [circleProfiles, setCircleProfiles] = useState<CloudProfile[]>([])
+  const [mentions, setMentions] = useState<MentionCandidate[]>([])
   const [posting, setPosting] = useState(false)
   const resumedRef = useRef(false)
 
@@ -58,16 +65,23 @@ export function ShareWinHost() {
     if (!offer) return
     setCaption(offer.defaultCaption)
     setAudience('friends')
+    setMentions([])
   }, [offer])
 
   useEffect(() => {
     if (!cloudUser || !offer) return
     let cancelled = false
-    void listMyCircles(cloudUser.uid).then((list) => {
-      if (cancelled) return
-      setCircles(list)
-      if (list[0]) setCircleId(list[0].id)
-    })
+    void Promise.all([listMyCircles(cloudUser.uid), listFriendProfiles(cloudUser.uid)]).then(
+      async ([list, friendList]) => {
+        if (cancelled) return
+        setCircles(list)
+        setFriends(friendList)
+        if (list[0]) setCircleId(list[0].id)
+        const memberIds = [...new Set(list.flatMap((circle) => circle.memberIds))]
+        const profiles = await getCloudProfiles(memberIds)
+        if (!cancelled) setCircleProfiles(profiles)
+      },
+    )
     return () => {
       cancelled = true
     }
@@ -106,6 +120,7 @@ export function ShareWinHost() {
         audience,
         circleId: audience === 'circle' ? circleId : null,
         card: offer.card,
+        mentions,
       })
       toast.success('Posted to Social')
       close()
@@ -119,6 +134,15 @@ export function ShareWinHost() {
 
   const open = Boolean(offer)
   const needsCloud = !cloudEnabled || !cloudUser
+  const mentionCandidates: MentionCandidate[] =
+    audience === 'circle'
+      ? (circles.find((circle) => circle.id === circleId)?.memberIds || [])
+          .filter((uid) => uid !== cloudUser?.uid)
+          .map((uid) => {
+            const profile = circleProfiles.find((candidate) => candidate.uid === uid)
+            return { uid, name: profile?.displayName || 'Member' }
+          })
+      : friends.map((friend) => ({ uid: friend.uid, name: friend.displayName }))
 
   return (
     <Sheet
@@ -172,12 +196,15 @@ export function ShareWinHost() {
                       </p>
                     ) : null}
 
-                    <Textarea
+                    <MentionTextarea
                       value={caption}
-                      onChange={(e) => setCaption(e.target.value)}
+                      onChange={setCaption}
+                      candidates={mentionCandidates}
+                      mentions={mentions}
+                      onMentionsChange={setMentions}
                       maxLength={FEED_TEXT_MAX}
                       rows={3}
-                      placeholder="Add a caption…"
+                      placeholder="Add a caption… type @ to mention someone"
                       className="min-h-[88px] resize-none"
                     />
 
@@ -188,10 +215,12 @@ export function ShareWinHost() {
                         const v = e.target.value
                         if (v === 'friends') {
                           setAudience('friends')
+                          setMentions([])
                           return
                         }
                         setAudience('circle')
                         setCircleId(v.replace(/^circle:/, ''))
+                        setMentions([])
                       }}
                       aria-label="Audience"
                     >

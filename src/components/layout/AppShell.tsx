@@ -1,4 +1,4 @@
-import { NavLink, useNavigate, Link } from 'react-router-dom'
+import { NavLink, useNavigate, Link, useLocation } from 'react-router-dom'
 import {
   CalendarDays,
   CheckSquare,
@@ -22,6 +22,7 @@ import {
   ChevronRight,
   ListTodo,
   Users,
+  Dumbbell,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -45,6 +46,7 @@ import { FeedAvatar, profilePath } from '@/modules/social/components/feed-ui'
 export const PRIMARY = [
   { to: '/dashboard', label: 'Today', icon: Sun },
   { to: '/ask', label: 'Ask', icon: Sparkles },
+  { to: '/calendar', label: 'Calendar', icon: CalendarDays },
 ] as const
 
 export const TOGETHER_PRIMARY = [
@@ -53,16 +55,16 @@ export const TOGETHER_PRIMARY = [
 
 export const PLAN = [
   { to: '/tasks', label: 'Tasks', icon: CheckSquare },
-  { to: '/calendar', label: 'Calendar', icon: CalendarDays },
   { to: '/goals', label: 'Goals', icon: Target },
+  { to: '/habits', label: 'Habits', icon: Flame },
+  { to: '/notes', label: 'Notes', icon: NotebookPen },
+  { to: '/documents', label: 'Files', icon: FileText },
 ] as const
 
 export const LIFE = [
-  { to: '/habits', label: 'Habits', icon: Flame },
+  { to: '/health?area=fitness&tab=lift', label: 'Fitness', icon: Dumbbell },
+  { to: '/health?area=wellness&tab=weight', label: 'Wellness', icon: HeartPulse },
   { to: '/journal', label: 'Journal', icon: BookOpen },
-  { to: '/health', label: 'Health and Wellness', icon: HeartPulse },
-  { to: '/notes', label: 'Notes', icon: NotebookPen },
-  { to: '/documents', label: 'Files', icon: FileText },
 ] as const
 
 export const SOCIAL = [
@@ -114,6 +116,7 @@ function NavGroup({
   items: readonly { to: string; label: string; icon: React.ComponentType<{ className?: string }> }[]
   onNavigate?: () => void
 }) {
+  const location = useLocation()
   return (
     <div className="space-y-1">
       {label ? <p className="kp-section-label px-3 pb-1 pt-3">{label}</p> : null}
@@ -122,14 +125,19 @@ function NavGroup({
           key={to}
           to={to}
           onClick={onNavigate}
-          className={({ isActive }) =>
-            cn(
+          className={({ isActive }) => {
+            const query = to.includes('?') ? new URLSearchParams(to.split('?')[1]) : null
+            const active = query
+              ? location.pathname === to.split('?')[0] &&
+                [...query.entries()].every(([key, value]) => new URLSearchParams(location.search).get(key) === value)
+              : isActive
+            return cn(
               'group flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-[0.925rem] font-medium transition-all duration-200',
-              isActive
+              active
                 ? 'bg-primary/10 text-primary shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.12)]'
                 : 'text-muted-foreground hover:bg-secondary/80 hover:text-foreground',
             )
-          }
+          }}
         >
           <Icon className="h-[1.05rem] w-[1.05rem] shrink-0 opacity-80" />
           {itemLabel}
