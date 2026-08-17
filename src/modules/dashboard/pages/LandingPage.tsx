@@ -150,7 +150,9 @@ export default function LandingPage() {
           return
         }
         const { needsEmailConfirmation } = await signUpCloud(emailTrim, password, display)
-        await startWorkspace(display)
+        if (needsEmailConfirmation && !user) {
+          await startWorkspace(display)
+        }
         if (needsEmailConfirmation) {
           toast.success('Check your email', {
             description: 'Open the confirmation link to finish Cloud. Your space is ready on this device.',
@@ -161,7 +163,6 @@ export default function LandingPage() {
         }
       } else {
         await signInCloud(emailTrim, password)
-        await startWorkspace(name.trim() || 'You')
         // Returning accounts already know the loop — never trap them in First Minute.
         markOnboardingDone()
         toast.success('Signed in')

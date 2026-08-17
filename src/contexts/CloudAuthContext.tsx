@@ -97,7 +97,7 @@ async function loadOrCreateProfile(
 }
 
 export function CloudAuthProvider({ children }: { children: React.ReactNode }) {
-  const { user: localUser, profile: localProfile, updateDisplayName } = useAuth()
+  const { user: localUser, profile: localProfile, updateDisplayName, adoptCloudWorkspace } = useAuth()
   const [cloudUser, setCloudUser] = useState<CloudUser | null>(null)
   const [cloudProfile, setCloudProfile] = useState<CloudProfile | null>(null)
   const [cloudLoading, setCloudLoading] = useState(supabaseConfigured)
@@ -135,9 +135,10 @@ export function CloudAuthProvider({ children }: { children: React.ReactNode }) {
         return
       }
       const cu = toCloudUser(session.user)
+      await adoptCloudWorkspace(cu.uid, cu.displayName || undefined)
       setCloudUser(cu)
       try {
-        const profile = await loadOrCreateProfile(cu, localNameRef.current, updateDisplayName)
+        const profile = await loadOrCreateProfile(cu, cu.displayName || localNameRef.current, updateDisplayName)
         setCloudProfile(profile)
       } catch (err) {
         console.warn('Cloud profile error', err)
@@ -155,9 +156,10 @@ export function CloudAuthProvider({ children }: { children: React.ReactNode }) {
         return
       }
       const cu = toCloudUser(session.user)
+      await adoptCloudWorkspace(cu.uid, cu.displayName || undefined)
       setCloudUser(cu)
       try {
-        const profile = await loadOrCreateProfile(cu, localNameRef.current, updateDisplayName)
+        const profile = await loadOrCreateProfile(cu, cu.displayName || localNameRef.current, updateDisplayName)
         setCloudProfile(profile)
       } catch (err) {
         console.warn('Cloud profile error', err)
@@ -169,7 +171,7 @@ export function CloudAuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       sub.subscription.unsubscribe()
     }
-  }, [updateDisplayName])
+  }, [adoptCloudWorkspace, updateDisplayName])
 
   const signUpCloud = useCallback(async (email: string, password: string, displayName: string) => {
     const supabase = getSupabase()
@@ -194,6 +196,7 @@ export function CloudAuthProvider({ children }: { children: React.ReactNode }) {
       return { needsEmailConfirmation: true }
     }
     const cu = toCloudUser({ ...data.user, user_metadata: { display_name: name } })
+    const adopted = await adoptCloudWorkspace(cu.uid, name)
     const profile = await ensureCloudProfile({
       uid: cu.uid,
       email: email.trim(),
@@ -201,17 +204,23 @@ export function CloudAuthProvider({ children }: { children: React.ReactNode }) {
     })
     setCloudUser(cu)
     setCloudProfile(profile)
-    updateDisplayName(profile.displayName)
+    if (adopted !== 'pending-bind') {
+      updateDisplayName(profile.displayName)
+    }
     return { needsEmailConfirmation: false }
-  }, [updateDisplayName])
+  }, [adoptCloudWorkspace, updateDisplayName])
 
   const signInCloud = useCallback(async (email: string, password: string) => {
-    const { error } = await getSupabase().auth.signInWithPassword({
+    const { data, error } = await getSupabase().auth.signInWithPassword({
       email: email.trim(),
       password,
     })
     if (error) throw new Error(mapCloudAuthError(error))
-  }, [])
+    if (data.user) {
+      const cu = toCloudUser(data.user)
+      await adoptCloudWorkspace(cu.uid, cu.displayName || undefined)
+    }
+  }, [adoptCloudWorkspace])
 
   const signInWithApple = useCallback(async () => {
     const { error } = await getSupabase().auth.signInWithOAuth({

@@ -22,7 +22,7 @@ function sleep(ms: number) {
  */
 export default function AuthCallbackPage() {
   const navigate = useNavigate()
-  const { user, loading, startWorkspace } = useAuth()
+  const { loading, adoptCloudWorkspace } = useAuth()
   const [message, setMessage] = useState('Confirming your account…')
   const started = useRef(false)
 
@@ -59,9 +59,7 @@ export default function AuthCallbackPage() {
         const { data } = await supabase.auth.getSession()
         if (data.session?.user) {
           const cu = toCloudUser(data.session.user)
-          if (!user) {
-            await startWorkspace(cu.displayName || 'You')
-          }
+          await adoptCloudWorkspace(cu.uid, cu.displayName || 'You')
           toast.success('You’re in', { description: 'Cloud account confirmed.' })
           navigate(takeInviteReturn() || '/dashboard', { replace: true })
           return
@@ -85,7 +83,7 @@ export default function AuthCallbackPage() {
     return () => {
       cancelled = true
     }
-  }, [loading, navigate, startWorkspace, user])
+  }, [adoptCloudWorkspace, loading, navigate])
 
   return (
     <div className="relative flex min-h-[100dvh] flex-col items-center justify-center px-6">

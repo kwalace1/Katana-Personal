@@ -193,7 +193,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
 function AppShellInner({ children }: { children: React.ReactNode }) {
   const { profile, signOut, onboardingDone } = useAuth()
-  const { cloudUser, cloudProfile } = useCloudAuth()
+  const { cloudUser, cloudProfile, signOutCloud } = useCloudAuth()
   const navigate = useNavigate()
   const [navOpen, setNavOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
@@ -232,6 +232,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   }
 
   async function handleSignOut() {
+    await signOutCloud()
     await signOut()
     navigate('/')
   }

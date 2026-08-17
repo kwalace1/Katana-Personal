@@ -93,6 +93,7 @@ export default function SettingsPage() {
   const [cloudMode, setCloudMode] = useState<'signin' | 'signup'>('signup')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [cloudName, setCloudName] = useState('')
   const [prefs, setPrefs] = useState<SharePrefs>(DEFAULT_SHARE_PREFS)
   const [syncAt, setSyncAt] = useState<string | null>(null)
   const [syncBusy, setSyncBusy] = useState(false)
@@ -232,11 +233,15 @@ export default function SettingsPage() {
     setBusy(true)
     try {
       if (cloudMode === 'signup') {
-        const { needsEmailConfirmation } = await signUpCloud(
-          emailTrim,
-          password,
-          name || profile?.display_name || 'Friend',
-        )
+        const alreadyBound = Boolean(profile?.bound_cloud_uid)
+        const signupName =
+          cloudName.trim() || (!alreadyBound ? name || profile?.display_name || 'Friend' : '')
+        if (!signupName) {
+          toast.error('Enter a name for this new account')
+          setBusy(false)
+          return
+        }
+        const { needsEmailConfirmation } = await signUpCloud(emailTrim, password, signupName)
         if (needsEmailConfirmation) {
           toast.success('Check your email', {
             description: 'Open the confirmation link to finish this Cloud account.',
@@ -541,6 +546,17 @@ export default function SettingsPage() {
                   Sign in
                 </Button>
               </div>
+              {cloudMode === 'signup' ? (
+                <Input
+                  name="cloud-name"
+                  type="text"
+                  autoComplete="name"
+                  autoCapitalize="words"
+                  placeholder="Name for this account"
+                  value={cloudName}
+                  onChange={(e) => setCloudName(e.target.value)}
+                />
+              ) : null}
               <Input
                 name="email"
                 type="text"

@@ -1,5 +1,12 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { createId } from '@/lib/id'
+import { broadcastLocalRefresh } from '@/hooks/useLocalRefresh'
+import {
+  decideCloudWorkspaceAdopt,
+  markFreshCloudWorkspace,
+  readCloudWorkspaceMap,
+  rememberBoundSession,
+} from '@/lib/cloud-workspace'
 import { ensureUserLoaded, initLocalDb, localDb } from '@/lib/local-db'
 import { localWorkspaceHasData } from '@/lib/workspace-sync'
 
@@ -31,6 +38,7 @@ export interface UserProfile {
   preferences: Record<string, unknown>
   created_at: string
   updated_at: string
+  bound_cloud_uid?: string
 }
 
 export interface LocalUser {
@@ -44,6 +52,11 @@ interface AuthContextType {
   isLocalMode: true
   onboardingDone: boolean
   startWorkspace: (displayName?: string, options?: { id?: string; preferences?: Record<string, unknown> }) => Promise<void>
+  adoptCloudWorkspace: (
+    cloudUid: string,
+    displayName?: string,
+    options?: { forceBind?: boolean; forceFresh?: boolean },
+  ) => Promise<'noop' | 'restore' | 'bind-current' | 'create-fresh' | 'pending-bind'>
   updateDisplayName: (name: string) => void
   updatePreferences: (patch: Record<string, unknown>) => void
   markOnboardingDone: () => void
@@ -59,6 +72,7 @@ interface StoredSession {
   preferences?: Record<string, unknown>
   created_at?: string
   updated_at?: string
+  bound_cloud_uid?: string
 }
 
 function toProfile(raw: StoredSession): UserProfile {
@@ -69,6 +83,7 @@ function toProfile(raw: StoredSession): UserProfile {
     preferences: raw.preferences || {},
     created_at: raw.created_at || now,
     updated_at: raw.updated_at || now,
+    bound_cloud_uid: raw.bound_cloud_uid,
   }
 }
 
@@ -81,6 +96,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [onboardingDone, setOnboardingDone] = useState(false)
+  const sessionRef = useRef<StoredSession | null>(null)
+
+  const applySession = useCallback((session: StoredSession | null) => {
+    sessionRef.current = session
+    if (!session) {
+      setUser(null)
+      setProfile(null)
+      return
+    }
+    persist(session)
+    rememberBoundSession(session)
+    setUser({ id: session.id })
+    setProfile(toProfile(session))
+  }, [])
 
   useEffect(() => {
     let mounted = true
@@ -94,6 +123,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           await ensureUserLoaded(parsed.id)
           if (!mounted) return
           userId = parsed.id
+          sessionRef.current = parsed
           setUser({ id: parsed.id })
           setProfile(toProfile(parsed))
         }
@@ -143,44 +173,107 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         created_at: now,
         updated_at: now,
       }
-      persist(session)
       await ensureUserLoaded(session.id)
-      setUser({ id: session.id })
-      setProfile(toProfile(session))
+      applySession(session)
     },
-    [],
+    [applySession],
+  )
+
+  const adoptCloudWorkspace = useCallback(
+    async (
+      cloudUid: string,
+      displayName?: string,
+      options?: { forceBind?: boolean; forceFresh?: boolean },
+    ) => {
+      const current = sessionRef.current
+      const map = readCloudWorkspaceMap()
+      const mapped = map[cloudUid] ?? null
+      const action = options?.forceFresh
+        ? 'create-fresh'
+        : options?.forceBind
+          ? current
+            ? 'bind-current'
+            : 'create-fresh'
+          : decideCloudWorkspaceAdopt({ cloudUid, current, mapped })
+
+      if (action === 'bind-current' && current && !options?.forceBind && localWorkspaceHasData(current.id)) {
+        return 'pending-bind' as const
+      }
+
+      if (action === 'noop') {
+        if (current && current.bound_cloud_uid !== cloudUid) {
+          applySession({ ...current, bound_cloud_uid: cloudUid, updated_at: new Date().toISOString() })
+        }
+        return action
+      }
+
+      if (action === 'restore' && mapped) {
+        rememberBoundSession(current)
+        await ensureUserLoaded(mapped.id)
+        applySession({ ...mapped, bound_cloud_uid: cloudUid })
+        broadcastLocalRefresh()
+        return action
+      }
+
+      if (action === 'bind-current' && current) {
+        applySession({
+          ...current,
+          bound_cloud_uid: cloudUid,
+          updated_at: new Date().toISOString(),
+        })
+        return action
+      }
+
+      rememberBoundSession(current)
+      markFreshCloudWorkspace(cloudUid)
+      const now = new Date().toISOString()
+      const session: StoredSession = {
+        id: createId(),
+        display_name: displayName?.trim() || 'You',
+        preferences: {},
+        created_at: now,
+        updated_at: now,
+        bound_cloud_uid: cloudUid,
+      }
+      await ensureUserLoaded(session.id)
+      applySession(session)
+      try {
+        localStorage.removeItem(ONBOARDING_KEY)
+        localStorage.removeItem(RITUAL_STEP_KEY)
+      } catch {
+        // ignore
+      }
+      setOnboardingDone(false)
+      broadcastLocalRefresh()
+      return 'create-fresh' as const
+    },
+    [applySession],
   )
 
   const updateDisplayName = useCallback(
     (name: string) => {
-      if (!profile) return
-      const next: StoredSession = {
-        id: profile.id,
+      const current = sessionRef.current
+      if (!current) return
+      applySession({
+        ...current,
         display_name: name.trim() || 'You',
-        preferences: profile.preferences,
-        created_at: profile.created_at,
         updated_at: new Date().toISOString(),
-      }
-      persist(next)
-      setProfile(toProfile(next))
+      })
     },
-    [profile],
+    [applySession],
   )
 
   const updatePreferences = useCallback(
     (patch: Record<string, unknown>) => {
-      if (!profile) return
-      const next: StoredSession = {
-        id: profile.id,
-        display_name: profile.display_name,
-        preferences: { ...profile.preferences, ...patch },
-        created_at: profile.created_at,
+      const current = sessionRef.current
+      if (!current) return
+      applySession({
+        ...current,
+        preferences: { ...current.preferences, ...patch },
         updated_at: new Date().toISOString(),
-      }
-      persist(next)
-      setProfile(toProfile(next))
+      })
     },
-    [profile],
+    [applySession],
   )
 
   const markOnboardingDone = useCallback(() => {
@@ -197,7 +290,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = useCallback(async () => {
     await localDb.flush()
+    rememberBoundSession(sessionRef.current)
     localStorage.removeItem(LOCAL_SESSION_KEY)
+    sessionRef.current = null
     setUser(null)
     setProfile(null)
   }, [])
@@ -210,6 +305,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isLocalMode: true as const,
       onboardingDone,
       startWorkspace,
+      adoptCloudWorkspace,
       updateDisplayName,
       updatePreferences,
       markOnboardingDone,
@@ -222,6 +318,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       loading,
       onboardingDone,
       startWorkspace,
+      adoptCloudWorkspace,
       updateDisplayName,
       updatePreferences,
       markOnboardingDone,
