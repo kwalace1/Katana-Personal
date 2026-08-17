@@ -26,6 +26,7 @@ import {
 } from '@/lib/accent'
 import { downloadBackup, parseBackup, restoreBackup, shareOrDownloadBackup } from '@/lib/backup'
 import { takeInviteReturn } from '@/lib/invite-return'
+import { mapCloudAuthError } from '@/lib/auth-callback'
 import { ensureUserLoaded, localDb } from '@/lib/local-db'
 import { pageEnterSubtle } from '@/lib/motion-ui'
 import { cn } from '@/lib/utils'
@@ -231,8 +232,19 @@ export default function SettingsPage() {
     setBusy(true)
     try {
       if (cloudMode === 'signup') {
-        await signUpCloud(emailTrim, password, name || profile?.display_name || 'Friend')
-        toast.success('Cloud account created')
+        const { needsEmailConfirmation } = await signUpCloud(
+          emailTrim,
+          password,
+          name || profile?.display_name || 'Friend',
+        )
+        if (needsEmailConfirmation) {
+          toast.success('Check your email', {
+            description: 'Open the confirmation link to finish this Cloud account.',
+            duration: 8000,
+          })
+        } else {
+          toast.success('Cloud account created')
+        }
       } else {
         await signInCloud(emailTrim, password)
         toast.success('Signed in')
@@ -241,7 +253,7 @@ export default function SettingsPage() {
       const back = takeInviteReturn()
       if (back) navigate(back)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Couldn’t connect')
+      toast.error(mapCloudAuthError(err))
     } finally {
       setBusy(false)
     }
@@ -552,6 +564,11 @@ export default function SettingsPage() {
               <Button type="submit" disabled={busy} className="w-full">
                 {busy ? 'Working…' : cloudMode === 'signup' ? 'Create free account' : 'Sign in'}
               </Button>
+              {cloudMode === 'signup' ? (
+                <p className="text-center text-xs text-muted-foreground">
+                  You’ll get a confirmation email. Open that link to finish Cloud.
+                </p>
+              ) : null}
               <p className="text-center text-[10px] text-muted-foreground/70">Cloud build 2026-08-07-cloud4</p>
             </form>
           </div>

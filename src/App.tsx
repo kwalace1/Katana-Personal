@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { ritualAllowsPath } from '@/lib/ritual-path'
 import LandingPage from '@/modules/dashboard/pages/LandingPage'
 import AuthPage from '@/modules/dashboard/pages/AuthPage'
+import AuthCallbackPage from '@/modules/dashboard/pages/AuthCallbackPage'
 import DashboardPage from '@/modules/dashboard/pages/DashboardPage'
 import SettingsPage from '@/modules/dashboard/pages/SettingsPage'
 import TasksPage from '@/modules/tasks/pages/TasksPage'
@@ -66,6 +67,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/auth" element={<AuthPage />} />
+      <Route path="/auth/callback" element={<AuthCallbackPage />} />
       <Route path="/invite/circle/:token" element={<InviteJoinPage />} />
       <Route path="/invite/friend/:code" element={<FriendInvitePage />} />
       <Route path="/home" element={<RootRedirect />} />

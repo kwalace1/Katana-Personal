@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useRef, useState } from 'react'
-import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
+import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
 import { Loader2, Sparkles, Users, CalendarCheck } from 'lucide-react'
@@ -11,7 +11,9 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
 import { parseBackup, restoreBackup } from '@/lib/backup'
 import { createId } from '@/lib/id'
+import { isAuthCallbackLocation, mapCloudAuthError } from '@/lib/auth-callback'
 import { takeInviteReturn, peekInviteReturn } from '@/lib/invite-return'
+import AuthCallbackPage from '@/modules/dashboard/pages/AuthCallbackPage'
 import { ensureUserLoaded, localDb } from '@/lib/local-db'
 import { pageEnterSubtle, staggerContainer, staggerItem } from '@/lib/motion-ui'
 import { cn } from '@/lib/utils'
@@ -59,6 +61,7 @@ export default function LandingPage() {
     signInWithApple,
   } = useCloudAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [searchParams] = useSearchParams()
   const fileRef = useRef<HTMLInputElement>(null)
   const formRef = useRef<HTMLDivElement>(null)
@@ -82,6 +85,12 @@ export default function LandingPage() {
 
   function goAfterEntrance() {
     navigate(takeInviteReturn() || '/dashboard')
+  }
+
+  // Confirmation / magic-link returns must not bounce to dashboard before the
+  // session is exchanged — that was dropping the code and looking like "just the website".
+  if (isAuthCallbackLocation(location.search, location.hash)) {
+    return <AuthCallbackPage />
   }
 
   if (!loading && user && !busy) {
@@ -140,9 +149,16 @@ export default function LandingPage() {
           setBusy(false)
           return
         }
-        await signUpCloud(emailTrim, password, display)
+        const { needsEmailConfirmation } = await signUpCloud(emailTrim, password, display)
         await startWorkspace(display)
-        toast.success('Account created — you’re in')
+        if (needsEmailConfirmation) {
+          toast.success('Check your email', {
+            description: 'Open the confirmation link to finish Cloud. Your space is ready on this device.',
+            duration: 8000,
+          })
+        } else {
+          toast.success('Account created — you’re in')
+        }
       } else {
         await signInCloud(emailTrim, password)
         await startWorkspace(name.trim() || 'You')
@@ -152,7 +168,7 @@ export default function LandingPage() {
       }
       goAfterEntrance()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Couldn’t sign in')
+      toast.error(mapCloudAuthError(err))
     } finally {
       setBusy(false)
     }
@@ -434,7 +450,9 @@ export default function LandingPage() {
                   </p>
                 ) : null}
                 <p className="text-center text-xs text-muted-foreground">
-                  Signs you into Friends, Circles, and cloud sync for this device.
+                  {mode === 'signup'
+                    ? 'We’ll email a confirmation link. Open it to finish Cloud — Friends, Circles, and sync.'
+                    : 'Signs you into Friends, Circles, and cloud sync for this device.'}
                 </p>
               </form>
             )}

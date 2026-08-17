@@ -6,6 +6,7 @@ import React, {
   useMemo,
   useState,
 } from 'react'
+import { cloudEmailRedirectTo, mapCloudAuthError } from '@/lib/auth-callback'
 import {
   appleAuthEnabled,
   getSupabase,
@@ -32,7 +33,11 @@ interface CloudAuthContextType {
   cloudUser: CloudUser | null
   cloudProfile: CloudProfile | null
   cloudLoading: boolean
-  signUpCloud: (email: string, password: string, displayName: string) => Promise<void>
+  signUpCloud: (
+    email: string,
+    password: string,
+    displayName: string,
+  ) => Promise<{ needsEmailConfirmation: boolean }>
   signInCloud: (email: string, password: string) => Promise<void>
   signInWithApple: () => Promise<void>
   signOutCloud: () => Promise<void>
@@ -172,10 +177,22 @@ export function CloudAuthProvider({ children }: { children: React.ReactNode }) {
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
-      options: { data: { display_name: name } },
+      options: {
+        data: { display_name: name },
+        emailRedirectTo: cloudEmailRedirectTo(),
+      },
     })
-    if (error) throw error
+    if (error) throw new Error(mapCloudAuthError(error))
     if (!data.user) throw new Error('Sign-up failed.')
+    // Existing accounts get a fake user with no identities; a real new user always has one.
+    if (Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+      throw new Error('This email already has an account. Use Sign in instead.')
+    }
+    // Confirm-email is on: user exists but there is no session yet. Profile insert
+    // requires auth, so wait until they open the email link.
+    if (!data.session) {
+      return { needsEmailConfirmation: true }
+    }
     const cu = toCloudUser({ ...data.user, user_metadata: { display_name: name } })
     const profile = await ensureCloudProfile({
       uid: cu.uid,
@@ -185,6 +202,7 @@ export function CloudAuthProvider({ children }: { children: React.ReactNode }) {
     setCloudUser(cu)
     setCloudProfile(profile)
     updateDisplayName(profile.displayName)
+    return { needsEmailConfirmation: false }
   }, [updateDisplayName])
 
   const signInCloud = useCallback(async (email: string, password: string) => {
@@ -192,7 +210,7 @@ export function CloudAuthProvider({ children }: { children: React.ReactNode }) {
       email: email.trim(),
       password,
     })
-    if (error) throw error
+    if (error) throw new Error(mapCloudAuthError(error))
   }, [])
 
   const signInWithApple = useCallback(async () => {
