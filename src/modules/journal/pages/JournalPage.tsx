@@ -12,19 +12,19 @@ import { MoodSparkline } from '@/components/MiniBars'
 import { useAuth } from '@/contexts/AuthContext'
 import { pageEnterSubtle } from '@/lib/motion-ui'
 import { useLocalRefresh } from '@/hooks/useLocalRefresh'
-import { format, parseISO, todayKey } from '@/lib/dates'
+import { format, parseISO, todayKey, addDays } from '@/lib/dates'
 import { cn } from '@/lib/utils'
 import { journalApi } from '../api'
 import { ShareWithFriendsButton } from '@/components/ShareWithFriendsButton'
 import { offerJournalShare } from '@/lib/social/share-win'
 import type { Mood } from '../types'
 
-const MOODS: { id: Mood; label: string }[] = [
-  { id: 'great', label: 'Great' },
-  { id: 'good', label: 'Good' },
-  { id: 'okay', label: 'Okay' },
-  { id: 'low', label: 'Low' },
-  { id: 'rough', label: 'Rough' },
+const MOODS: { id: Mood; label: string; color: string }[] = [
+  { id: 'great', label: 'Great', color: '#10b981' },
+  { id: 'good', label: 'Good', color: '#14b8a6' },
+  { id: 'okay', label: 'Okay', color: '#f59e0b' },
+  { id: 'low', label: 'Low', color: '#f97316' },
+  { id: 'rough', label: 'Rough', color: '#f43f5e' },
 ]
 
 const MOOD_SCORE: Record<Mood, number> = {
@@ -37,6 +37,10 @@ const MOOD_SCORE: Record<Mood, number> = {
 
 function moodLabel(mood: Mood): string {
   return MOODS.find((m) => m.id === mood)?.label ?? mood
+}
+
+function moodColor(mood: Mood): string {
+  return MOODS.find((m) => m.id === mood)?.color ?? '#94a3b8'
 }
 
 export default function JournalPage() {
@@ -67,6 +71,21 @@ export default function JournalPage() {
     return last14.map((e) => MOOD_SCORE[e.mood])
   }, [entries])
 
+  const weekBlips = useMemo(() => {
+    const byDate = new Map(entries.map((e) => [e.date, e.mood] as const))
+    const today = parseISO(todayKey())
+    return Array.from({ length: 7 }, (_, i) => {
+      const day = addDays(today, i - 6)
+      const date = todayKey(day)
+      return {
+        date,
+        label: format(day, 'EEEEE'),
+        mood: byDate.get(date) ?? null,
+        selected: date === activeDate,
+      }
+    })
+  }, [entries, activeDate])
+
   const [mood, setMood] = useState<Mood>('good')
   const [body, setBody] = useState('')
   const [reflection, setReflection] = useState('')
@@ -94,6 +113,14 @@ export default function JournalPage() {
     }
   })()
 
+  function checkInMood(next: Mood) {
+    setMood(next)
+    journalApi.upsert(userId, { date: activeDate, mood: next, body, reflection })
+    refresh()
+    setDirty(false)
+    setJustSaved(true)
+  }
+
   function onSave(e: FormEvent) {
     e.preventDefault()
     const wasNew = !existing
@@ -119,8 +146,8 @@ export default function JournalPage() {
     <motion.div {...pageEnterSubtle} className="kp-page">
       <PageHeader
         title="Journal"
-        description={`Mental check-in for ${dateLabel} — mood, the day, and a quiet thought.`}
-        eyebrow="Mental wellness"
+        description="How you’re doing today — a quick mood check-in, or a longer note when you want one."
+        eyebrow="Life"
         actions={
           moodSeries.length > 1 ? (
             <div className="hidden sm:block">
@@ -154,21 +181,45 @@ export default function JournalPage() {
         </Button>
       </div>
 
+      <div className="mb-4 flex gap-1.5">
+        {weekBlips.map((blip) => (
+          <button
+            key={blip.date}
+            type="button"
+            onClick={() => {
+              setActiveDate(blip.date)
+              setParams({ date: blip.date })
+            }}
+            className={cn(
+              'flex min-h-11 flex-1 flex-col items-center justify-center gap-1 rounded-xl border py-1.5 transition',
+              blip.selected
+                ? 'border-primary bg-primary/10'
+                : 'border-border/50 bg-card/40 hover:border-primary/40',
+            )}
+            aria-label={`${blip.date}${blip.mood ? `, ${moodLabel(blip.mood)}` : ', no check-in'}`}
+          >
+            <span className="text-[0.65rem] font-semibold uppercase text-muted-foreground">{blip.label}</span>
+            <span
+              className={cn('h-2.5 w-2.5 rounded-full', !blip.mood && 'bg-border')}
+              style={blip.mood ? { background: moodColor(blip.mood) } : undefined}
+            />
+          </button>
+        ))}
+      </div>
+
       <form onSubmit={onSave} className="kp-surface mb-8 space-y-5 p-5">
         <div>
-          <p className="mb-2 text-sm font-medium">How are you feeling?</p>
+          <p className="mb-1 text-sm font-medium">How are you doing today?</p>
+          <p className="mb-2 text-xs text-muted-foreground">Tap a mood to check in — no writing required.</p>
           <div className="flex flex-wrap gap-2">
             {MOODS.map((m) => (
               <Button
                 key={m.id}
                 type="button"
                 size="sm"
-                variant={mood === m.id ? 'default' : 'outline'}
+                variant={mood === m.id && (Boolean(existing) || justSaved) ? 'default' : 'outline'}
                 className="rounded-full"
-                onClick={() => {
-                  setMood(m.id)
-                  markDirty()
-                }}
+                onClick={() => checkInMood(m.id)}
               >
                 {m.label}
               </Button>

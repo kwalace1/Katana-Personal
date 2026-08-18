@@ -98,7 +98,7 @@ export default function HealthPage() {
 
   function setHealthArea(area: HealthArea) {
     const params = new URLSearchParams(searchParams)
-    const nextTab = area === 'fitness' ? 'lift' : 'weight'
+    const nextTab = area === 'fitness' ? 'lift' : 'overview'
     params.set('area', area)
     params.set('tab', nextTab)
     setSearchParams(params, { replace: true })
@@ -180,7 +180,7 @@ export default function HealthPage() {
             ? 'Train, follow your split, and see what is getting stronger.'
             : 'Weight, rest, fuel, and supplements.'
         }
-        eyebrow="Life"
+        eyebrow="Health & Wellness"
       />
 
       <div className="mb-4 flex min-w-0 flex-wrap items-center gap-2">

@@ -22,7 +22,6 @@ import {
   ChevronRight,
   ListTodo,
   Users,
-  Dumbbell,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -62,8 +61,7 @@ export const PLAN = [
 ] as const
 
 export const LIFE = [
-  { to: '/health?area=fitness&tab=lift', label: 'Fitness', icon: Dumbbell },
-  { to: '/health?area=wellness&tab=weight', label: 'Wellness', icon: HeartPulse },
+  { to: '/health', label: 'Health & Wellness', icon: HeartPulse },
   { to: '/journal', label: 'Journal', icon: BookOpen },
 ] as const
 
@@ -125,12 +123,14 @@ function NavGroup({
           key={to}
           to={to}
           onClick={onNavigate}
-          className={({ isActive }) => {
+          className={() => {
+            const path = to.split('?')[0]
             const query = to.includes('?') ? new URLSearchParams(to.split('?')[1]) : null
+            const search = new URLSearchParams(location.search)
             const active = query
-              ? location.pathname === to.split('?')[0] &&
-                [...query.entries()].every(([key, value]) => new URLSearchParams(location.search).get(key) === value)
-              : isActive
+              ? location.pathname === path &&
+                [...query.entries()].every(([key, value]) => search.get(key) === value)
+              : location.pathname === path
             return cn(
               'group flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-[0.925rem] font-medium transition-all duration-200',
               active
