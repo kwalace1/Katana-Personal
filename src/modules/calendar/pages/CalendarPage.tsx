@@ -9,7 +9,6 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { EmptyState } from '@/components/ui/empty-state'
 import {
   Dialog,
   DialogContent,
@@ -53,6 +52,7 @@ import {
   type AgendaFilter,
   type AgendaItem,
 } from '../agenda'
+import { CalendarGrid, DayWeekStrip, dayTaskCount } from '../components/CalendarGrid'
 
 type View = 'day' | 'week' | 'month'
 type AddKind = 'event' | 'task' | 'goal'
@@ -128,23 +128,13 @@ export default function CalendarPage() {
   const [params, setParams] = useSearchParams()
 
   const initialDate = params.get('date')
+  const [selectedDay, setSelectedDay] = useState(() => (initialDate ? parseISO(initialDate) : new Date()))
   const [cursor, setCursor] = useState(() => (initialDate ? parseISO(initialDate) : new Date()))
   const [view, setView] = useState<View>(() => {
-    if (params.get('date')) return 'day'
-    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches) return 'day'
-    return 'week'
+    const v = params.get('view')
+    if (v === 'day' || v === 'week' || v === 'month') return v
+    return 'month'
   })
-  const [isNarrow, setIsNarrow] = useState(
-    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches,
-  )
-
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 767px)')
-    const onChange = () => setIsNarrow(mq.matches)
-    onChange()
-    mq.addEventListener('change', onChange)
-    return () => mq.removeEventListener('change', onChange)
-  }, [])
 
   const [selectedId, setSelectedId] = useState<string | null>(params.get('id'))
   const [filter, setFilter] = useState<AgendaFilter>(DEFAULT_AGENDA_FILTER)
@@ -168,11 +158,14 @@ export default function CalendarPage() {
   useEffect(() => {
     const date = params.get('date')
     const id = params.get('id')
+    const v = params.get('view')
     if (date) {
-      setCursor(parseISO(date))
-      setView('day')
+      const parsed = parseISO(date)
+      setSelectedDay(parsed)
+      setCursor(parsed)
     }
     if (id) setSelectedId(id)
+    if (v === 'day' || v === 'week' || v === 'month') setView(v)
   }, [params])
 
   useEffect(() => {
@@ -239,11 +232,12 @@ export default function CalendarPage() {
   }, [circles, circleEnabled])
 
   const days = useMemo(() => {
-    if (view === 'day') return [cursor]
+    const focus = view === 'day' ? selectedDay : cursor
+    if (view === 'day') return [focus]
     if (view === 'week') {
       return eachDayOfInterval({
-        start: startOfWeek(cursor, { weekStartsOn: 0 }),
-        end: endOfWeek(cursor, { weekStartsOn: 0 }),
+        start: startOfWeek(focus, { weekStartsOn: 0 }),
+        end: endOfWeek(focus, { weekStartsOn: 0 }),
       })
     }
     const start = new Date(cursor.getFullYear(), cursor.getMonth(), 1)
@@ -251,7 +245,16 @@ export default function CalendarPage() {
     const gridStart = startOfWeek(start, { weekStartsOn: 0 })
     const gridEnd = endOfWeek(end, { weekStartsOn: 0 })
     return eachDayOfInterval({ start: gridStart, end: gridEnd })
-  }, [cursor, view])
+  }, [cursor, selectedDay, view])
+
+  const weekDays = useMemo(
+    () =>
+      eachDayOfInterval({
+        start: startOfWeek(selectedDay, { weekStartsOn: 0 }),
+        end: endOfWeek(selectedDay, { weekStartsOn: 0 }),
+      }),
+    [selectedDay],
+  )
 
   const agenda = useMemo(() => {
     const rangeStart = days[0] ?? cursor
@@ -298,8 +301,21 @@ export default function CalendarPage() {
 
   const conflicts = useMemo(() => {
     void tick
-    return calendarApi.conflicts(userId, cursor)
-  }, [userId, cursor, tick])
+    return calendarApi.conflicts(userId, selectedDay)
+  }, [userId, selectedDay, tick])
+
+  function selectDay(day: Date, extra?: { id?: string | null }) {
+    setSelectedDay(day)
+    setCursor(day)
+    const next: Record<string, string> = { date: todayKey(day) }
+    if (extra?.id) {
+      next.id = extra.id
+      setSelectedId(extra.id)
+    } else {
+      setSelectedId(null)
+    }
+    setParams(next)
+  }
 
   function openAdd(day?: Date) {
     setStartsAt(defaultStartLocal(day))
@@ -336,8 +352,8 @@ export default function CalendarPage() {
       })
       setSelectedId(event.id)
       setParams({ date: event.starts_at.slice(0, 10), id: event.id })
+      setSelectedDay(parseISO(event.starts_at))
       setCursor(parseISO(event.starts_at))
-      setView('day')
       const whenLabel = allDay
         ? format(start, 'MMM d') + ' · All day'
         : format(start, 'MMM d · h:mm a')
@@ -350,8 +366,8 @@ export default function CalendarPage() {
         list_id: lists[0]?.id ?? null,
       })
       setParams({ date: (task.due_at || startsAt).slice(0, 10) })
+      setSelectedDay(start)
       setCursor(start)
-      setView('day')
       setSelectedId(null)
       offerTaskCreatedShare(task.title)
     } else {
@@ -361,8 +377,8 @@ export default function CalendarPage() {
         target_date: todayKey(start),
       })
       setParams({ date: todayKey(start) })
+      setSelectedDay(start)
       setCursor(start)
-      setView('day')
       navigate(`/goals?id=${goal.id}`)
     }
 
@@ -371,9 +387,18 @@ export default function CalendarPage() {
   }
 
   function shift(delta: number) {
-    if (view === 'day') setCursor(addDays(cursor, delta))
-    else if (view === 'week') setCursor(addDays(cursor, delta * 7))
-    else setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + delta, 1))
+    if (view === 'day') {
+      selectDay(addDays(selectedDay, delta))
+      return
+    }
+    if (view === 'week') {
+      selectDay(addDays(selectedDay, delta * 7))
+      return
+    }
+    const nextMonth = new Date(cursor.getFullYear(), cursor.getMonth() + delta, 1)
+    const last = new Date(nextMonth.getFullYear(), nextMonth.getMonth() + 1, 0).getDate()
+    const day = Math.min(selectedDay.getDate(), last)
+    selectDay(new Date(nextMonth.getFullYear(), nextMonth.getMonth(), day))
   }
 
   function selectItem(item: AgendaItem) {
@@ -388,13 +413,8 @@ export default function CalendarPage() {
     }
   }
 
-  const dayAgenda = view === 'day' ? agendaForDay(agenda, cursor) : []
-  const hasAnything =
-    events.length > 0 ||
-    tasks.some((t) => t.due_at && t.status !== 'done') ||
-    goals.some((g) => g.target_date) ||
-    habits.length > 0 ||
-    circleEvents.length > 0
+  const dayAgenda = agendaForDay(agenda, selectedDay)
+  const selectedTaskCount = dayTaskCount(dayAgenda)
 
   function toggleFilter(key: keyof AgendaFilter) {
     setFilter((f) => ({ ...f, [key]: !f[key] }))
@@ -408,14 +428,14 @@ export default function CalendarPage() {
         eyebrow="Plan"
         actions={
           <div className="flex items-center gap-2">
-            <Button size="sm" className="gap-1.5" onClick={() => openAdd()}>
+            <Button size="sm" className="gap-1.5" onClick={() => openAdd(selectedDay)}>
               <Plus className="h-4 w-4" />
               Add
             </Button>
             <Button size="icon" variant="outline" onClick={() => shift(-1)}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <Button size="sm" variant="outline" onClick={() => setCursor(new Date())}>
+            <Button size="sm" variant="outline" onClick={() => selectDay(new Date())}>
               Today
             </Button>
             <Button size="icon" variant="outline" onClick={() => shift(1)}>
@@ -425,22 +445,31 @@ export default function CalendarPage() {
         }
       />
 
-      <div className="mb-3 flex flex-wrap gap-2">
-        {([
-          ['day', 'Day'],
-          ['week', 'Week'],
-          ['month', 'Month'],
-        ] as const).map(([v, label]) => (
-          <Button
-            key={v}
-            size="sm"
-            variant={view === v ? 'default' : 'outline'}
-            className="rounded-full"
-            onClick={() => setView(v)}
-          >
-            {label}
-          </Button>
-        ))}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
+          {([
+            ['day', 'Day'],
+            ['week', 'Week'],
+            ['month', 'Month'],
+          ] as const).map(([v, label]) => (
+            <Button
+              key={v}
+              size="sm"
+              variant={view === v ? 'default' : 'outline'}
+              className="rounded-full"
+              onClick={() => setView(v)}
+            >
+              {label}
+            </Button>
+          ))}
+        </div>
+        <p className="font-display text-lg tracking-tight sm:text-xl">
+          {view === 'month'
+            ? format(cursor, 'MMMM yyyy')
+            : view === 'week'
+              ? `${format(days[0] ?? selectedDay, 'MMM d')} – ${format(days[days.length - 1] ?? selectedDay, 'MMM d')}`
+              : format(selectedDay, 'MMMM d, yyyy')}
+        </p>
       </div>
 
       <div className="mb-4 flex flex-wrap gap-2">
@@ -508,40 +537,79 @@ export default function CalendarPage() {
         </span>
       </p>
 
-      {view === 'day' ? (
-        <div className="mb-6 grid gap-4 lg:grid-cols-[1fr_320px]">
-          <div className="kp-surface p-4 sm:p-5">
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <p className="kp-section-label">{format(cursor, 'EEEE')}</p>
-                <h2 className="mt-1 font-display text-2xl tracking-tight">{format(cursor, 'MMMM d')}</h2>
-              </div>
-              <Button size="sm" variant="outline" className="gap-1" onClick={() => openAdd(cursor)}>
+      {view !== 'day' ? (
+        <div className="kp-surface mb-4 p-3 sm:p-4">
+          <CalendarGrid
+            days={days}
+            selectedDay={selectedDay}
+            viewMonth={cursor}
+            muteOutsideMonth={view === 'month'}
+            compact={view === 'month'}
+            agenda={agenda}
+            onSelectDay={(day) => selectDay(day)}
+          />
+        </div>
+      ) : (
+        <DayWeekStrip
+          days={weekDays}
+          selectedDay={selectedDay}
+          agenda={agenda}
+          onSelectDay={(day) => selectDay(day)}
+        />
+      )}
+
+      <div className="mb-6 grid gap-4 lg:grid-cols-[1fr_320px]">
+        <div className="kp-surface p-4 sm:p-5">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="kp-section-label">
+                {isToday(selectedDay) ? 'Today' : format(selectedDay, 'EEEE')}
+              </p>
+              <h2 className="mt-1 font-display text-2xl tracking-tight">
+                {format(selectedDay, 'MMMM d')}
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {selectedTaskCount > 0
+                  ? `${selectedTaskCount} ${selectedTaskCount === 1 ? 'task' : 'tasks'}`
+                  : 'No tasks'}
+                {dayAgenda.length - selectedTaskCount > 0
+                  ? ` · ${dayAgenda.length - selectedTaskCount} other`
+                  : ''}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              {view !== 'day' ? (
+                <Button size="sm" variant="outline" onClick={() => setView('day')}>
+                  Day view
+                </Button>
+              ) : null}
+              <Button size="sm" variant="outline" className="gap-1" onClick={() => openAdd(selectedDay)}>
                 <Plus className="h-3.5 w-3.5" />
                 Add
               </Button>
             </div>
-            {dayAgenda.length === 0 ? (
-              <p className="mt-4 text-sm text-muted-foreground">Nothing on this day yet.</p>
-            ) : (
-              <ul className="mt-4 space-y-2">
-                {dayAgenda.map((item) => (
-                  <li key={`${item.kind}-${item.id}`}>
-                    <AgendaChip
-                      item={item}
-                      selected={selectedId === item.id}
-                      onSelect={() => selectItem(item)}
-                    />
-                    {item.kind === 'event' && conflicts.has(item.id) ? (
-                      <p className="mt-1 px-1 text-[0.65rem] font-semibold uppercase tracking-wide text-destructive">
-                        Time conflict
-                      </p>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            )}
           </div>
+          {dayAgenda.length === 0 ? (
+            <p className="mt-4 text-sm text-muted-foreground">Nothing on this day yet.</p>
+          ) : (
+            <ul className="mt-4 space-y-2">
+              {dayAgenda.map((item) => (
+                <li key={`${item.kind}-${item.id}`}>
+                  <AgendaChip
+                    item={item}
+                    selected={selectedId === item.id}
+                    onSelect={() => selectItem(item)}
+                  />
+                  {item.kind === 'event' && conflicts.has(item.id) ? (
+                    <p className="mt-1 px-1 text-[0.65rem] font-semibold uppercase tracking-wide text-destructive">
+                      Time conflict
+                    </p>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
           {selected ? (
             <aside className="kp-surface h-fit space-y-3 p-4">
               <div className="flex items-center justify-between gap-2">
@@ -719,158 +787,6 @@ export default function CalendarPage() {
             </aside>
           ) : null}
         </div>
-      ) : view === 'week' && isNarrow ? (
-        <ul className="mb-6 space-y-2">
-          {days.map((day) => {
-            const dayItems = agendaForDay(agenda, day)
-            return (
-              <li key={day.toISOString()}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCursor(day)
-                    setView('day')
-                    setParams({ date: todayKey(day) })
-                  }}
-                  className={cn(
-                    'kp-surface flex min-h-11 w-full items-start gap-3 p-3.5 text-left transition hover:ring-1 hover:ring-primary/30',
-                    isToday(day) && 'ring-1 ring-primary/40',
-                  )}
-                >
-                  <div className="w-14 shrink-0">
-                    <p className="text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">
-                      {format(day, 'EEE')}
-                    </p>
-                    <p className="font-display text-xl leading-none">{format(day, 'd')}</p>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    {dayItems.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">Nothing planned</p>
-                    ) : (
-                      <ul className="space-y-1">
-                        {dayItems.slice(0, 4).map((item) => (
-                          <li key={`${item.kind}-${item.id}`} className="truncate text-sm">
-                            <span
-                              className="mr-1.5 inline-block h-2 w-2 rounded-full align-middle"
-                              style={{ background: item.color }}
-                            />
-                            <span className="font-medium">{item.title}</span>
-                            <span className="text-muted-foreground">
-                              {' '}
-                              · {item.all_day ? 'All day' : formatTime(item.starts_at)}
-                            </span>
-                          </li>
-                        ))}
-                        {dayItems.length > 4 ? (
-                          <li className="text-xs text-muted-foreground">+{dayItems.length - 4} more</li>
-                        ) : null}
-                      </ul>
-                    )}
-                  </div>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-11 w-11 shrink-0"
-                    aria-label="Add"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      openAdd(day)
-                    }}
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </button>
-              </li>
-            )
-          })}
-        </ul>
-      ) : (
-        <div
-          className={cn(
-            'grid gap-3',
-            view === 'week' && 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-7',
-            view === 'month' && 'grid-cols-2 sm:grid-cols-4 lg:grid-cols-7',
-          )}
-        >
-          {days.map((day) => {
-            const dayItems = agendaForDay(agenda, day)
-            return (
-              <button
-                type="button"
-                key={day.toISOString()}
-                onClick={() => {
-                  setCursor(day)
-                  setView('day')
-                  setParams({ date: todayKey(day) })
-                }}
-                className={cn(
-                  'kp-surface min-h-[100px] p-3 text-left transition hover:ring-1 hover:ring-primary/30 sm:min-h-[120px]',
-                  isToday(day) && 'ring-1 ring-primary/40',
-                  view === 'month' && day.getMonth() !== cursor.getMonth() && 'opacity-45',
-                )}
-              >
-                <div className="flex items-center justify-between gap-1">
-                  <p className="text-xs font-semibold text-muted-foreground">
-                    {format(day, view === 'month' ? 'd' : 'EEE d')}
-                  </p>
-                  <span
-                    role="button"
-                    tabIndex={0}
-                    className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      openAdd(day)
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.stopPropagation()
-                        openAdd(day)
-                      }
-                    }}
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                  </span>
-                </div>
-                <ul className="mt-2 space-y-1">
-                  {dayItems.slice(0, view === 'month' ? 3 : 6).map((item) => (
-                    <li key={`${item.kind}-${item.id}`}>
-                      <AgendaChip
-                        item={item}
-                        compact
-                        onSelect={() => {
-                          setCursor(day)
-                          setView('day')
-                          selectItem(item)
-                        }}
-                      />
-                    </li>
-                  ))}
-                  {dayItems.length > (view === 'month' ? 3 : 6) ? (
-                    <li className="px-1 text-[0.65rem] text-muted-foreground">
-                      +{dayItems.length - (view === 'month' ? 3 : 6)} more
-                    </li>
-                  ) : null}
-                </ul>
-              </button>
-            )
-          })}
-        </div>
-      )}
-
-      {!hasAnything ? (
-        <div className="mt-6">
-          <EmptyState
-            title="Nothing planned"
-            description="Add an event, a task due date, or a goal target — or open a Circle Schedule with friends."
-            action={
-              <Button onClick={() => openAdd()}>
-                <Plus className="mr-1 h-4 w-4" />
-                Add something
-              </Button>
-            }
-          />
-        </div>
-      ) : null}
 
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent>
