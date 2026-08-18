@@ -418,11 +418,27 @@ export default function HealthPage() {
 
         {/* Lift log only mounts on Lift — draft still autosaves to this device */}
         <TabsContent value="lift" className="space-y-4">
-          <LiftTrackingPanel userId={userId} logDate={logDate} tick={tick} refresh={refresh} panel="lift" />
+          <LiftTrackingPanel
+            userId={userId}
+            logDate={logDate}
+            tick={tick}
+            refresh={refresh}
+            panel="lift"
+            onGoLift={() => setHealthTab('lift')}
+            onGoSplits={() => setHealthTab('splits')}
+          />
         </TabsContent>
 
         <TabsContent value="splits" className="space-y-4">
-          <LiftTrackingPanel userId={userId} logDate={logDate} tick={tick} refresh={refresh} panel="splits" />
+          <LiftTrackingPanel
+            userId={userId}
+            logDate={logDate}
+            tick={tick}
+            refresh={refresh}
+            panel="splits"
+            onGoLift={() => setHealthTab('lift')}
+            onGoSplits={() => setHealthTab('splits')}
+          />
         </TabsContent>
 
         <TabsContent value="progress" className="space-y-4">

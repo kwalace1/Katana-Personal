@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { QuantityInput, QUANTITY } from '@/components/ui/quantity-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { EmptyState } from '@/components/ui/empty-state'
-import { addDays, todayKey } from '@/lib/dates'
+import { todayKey } from '@/lib/dates'
 import { burstConfetti } from '@/lib/celebrate'
 import { cn } from '@/lib/utils'
 import {
@@ -16,7 +16,15 @@ import {
   takeWeightProgressMilestone,
 } from '@/lib/social/share-win'
 import { formatMealTime } from '../../api'
-import { liftApi } from '../../lift-api'
+import {
+  formatLb,
+  formatSignedLb,
+  getWeightGoalPaceStatus,
+  latestWeekWithAverage,
+  liftApi,
+  weeklyTargetOnDate,
+  type WeightGoalPlan,
+} from '../../lift-api'
 import type { WeightGoalMode } from '../../types'
 import { formatLiftDate, LiftLineChart } from './LiftLineChart'
 
@@ -29,19 +37,36 @@ type Props = {
 
 type TrendRange = 'week' | 'month' | 'year' | 'all'
 
-const TREND_RANGES: { id: TrendRange; label: string; days: number | null }[] = [
-  { id: 'week', label: 'Week', days: 7 },
-  { id: 'month', label: 'Month', days: 30 },
-  { id: 'year', label: 'Year', days: 365 },
-  { id: 'all', label: 'All time', days: null },
+const TREND_RANGES: { id: TrendRange; label: string }[] = [
+  { id: 'week', label: 'Week' },
+  { id: 'month', label: 'Month' },
+  { id: 'year', label: 'Year' },
+  { id: 'all', label: 'All time' },
 ]
 
 function localTimeHHMM(date = new Date()) {
   return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
 }
 
-function cutoffKey(days: number) {
-  return todayKey(addDays(new Date(), -(days - 1)))
+function rangeCutoff(range: TrendRange): string | null {
+  if (range === 'all') return null
+  const end = new Date(`${todayKey()}T12:00:00`)
+  if (range === 'week') end.setDate(end.getDate() - 6)
+  else if (range === 'month') end.setDate(end.getDate() - 29)
+  else if (range === 'year') end.setFullYear(end.getFullYear() - 1)
+  else return null
+  return todayKey(end)
+}
+
+function rangeLabel(range: TrendRange) {
+  return (
+    {
+      week: 'Past week',
+      month: 'Past month',
+      year: 'Past year',
+      all: 'All time',
+    }[range] || 'All time'
+  )
 }
 
 export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
@@ -55,33 +80,48 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
     return liftApi.getActiveWeightGoal(userId)
   }, [userId, tick])
 
+  const plan = useMemo(() => {
+    void tick
+    return liftApi.getWeightGoalPlan(userId)
+  }, [userId, tick])
+
   const progress = useMemo(() => {
     void tick
     return liftApi.weightGoalProgress(userId)
   }, [userId, tick])
+
+  const firstOverall = entries[0]
+  const latestOverall = entries[entries.length - 1]
+  const hasSavedGoal = Boolean(goal?.target_weight && goal?.target_date)
 
   const [range, setRange] = useState<TrendRange>('month')
   const [date, setDate] = useState(logDate || todayKey())
   const [time, setTime] = useState(localTimeHHMM())
   const [weight, setWeight] = useState('')
   const [mode, setMode] = useState<WeightGoalMode>(goal?.mode || 'maintain')
+  const [startWeight, setStartWeight] = useState(
+    goal?.start_weight
+      ? String(goal.start_weight)
+      : String(hasSavedGoal ? firstOverall?.weight ?? latestOverall?.weight ?? '' : latestOverall?.weight ?? ''),
+  )
+  const [startDate, setStartDate] = useState(goal?.start_date || (hasSavedGoal ? firstOverall?.date : todayKey()) || todayKey())
   const [targetWeight, setTargetWeight] = useState(goal?.target_weight ? String(goal.target_weight) : '')
   const [targetDate, setTargetDate] = useState(goal?.target_date || '')
 
   const filtered = useMemo(() => {
-    const meta = TREND_RANGES.find((r) => r.id === range) || TREND_RANGES[1]!
-    if (meta.days == null) return entries
-    const start = cutoffKey(meta.days)
+    const start = rangeCutoff(range)
+    if (!start) return entries
     return entries.filter((e) => e.date >= start)
   }, [entries, range])
 
   const average =
-    filtered.length > 0
-      ? filtered.reduce((sum, e) => sum + e.weight, 0) / filtered.length
-      : null
-  const latest = filtered[filtered.length - 1] ?? entries[entries.length - 1]
-  const first = entries[0]
-  const rangeLabel = TREND_RANGES.find((r) => r.id === range)?.label || 'Month'
+    filtered.length > 0 ? filtered.reduce((sum, e) => sum + e.weight, 0) / filtered.length : null
+  const latest = filtered[filtered.length - 1]
+  const first = filtered[0]
+  const rangeChange = filtered.length > 1 && latest && first ? latest.weight - first.weight : null
+  const rangeHigh = filtered.length ? Math.max(...filtered.map((e) => e.weight)) : null
+  const rangeLow = filtered.length ? Math.min(...filtered.map((e) => e.weight)) : null
+  const selectedRangeLabel = rangeLabel(range)
 
   function saveWeight(e: FormEvent) {
     e.preventDefault()
@@ -115,18 +155,26 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
 
   function saveGoal(e: FormEvent) {
     e.preventDefault()
+    const start = Number(startWeight)
     const target = Number(targetWeight)
-    if (!target || target <= 0) {
-      toast.error('Enter a target weight')
+    if (!start || start <= 0 || !target || target <= 0) {
+      toast.error('Enter a starting weight and goal weight')
       return
     }
-    const start = first?.weight ?? latest?.weight ?? target
+    if (!startDate || !targetDate) {
+      toast.error('Enter a start date and target date')
+      return
+    }
+    if (targetDate <= startDate) {
+      toast.error('Target date needs to be after the start date')
+      return
+    }
     liftApi.setWeightGoal(userId, {
       mode,
       start_weight: start,
       target_weight: target,
-      start_date: first?.date || todayKey(),
-      target_date: targetDate || null,
+      start_date: startDate,
+      target_date: targetDate,
     })
     resetWeightProgressMilestones(userId)
     toast.success('Goal saved')
@@ -140,21 +188,9 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
           <div>
             <p className="text-xs text-muted-foreground">Bodyweight trend</p>
             <h3 className="font-display text-2xl tracking-tight">
-              {latest ? `${latest.weight} lb` : 'No entries yet'}
+              {latestOverall ? `${latestOverall.weight} lb` : 'No entries yet'}
             </h3>
-            {average != null ? (
-              <p className="mt-1 text-sm text-muted-foreground">
-                Avg {rangeLabel.toLowerCase()} · {average.toFixed(1)} lb
-                {filtered.length ? ` · ${filtered.length} check-in${filtered.length === 1 ? '' : 's'}` : ''}
-              </p>
-            ) : null}
           </div>
-          {progress.delta != null ? (
-            <span className="rounded-full border border-border/60 px-3 py-1 text-sm">
-              {progress.delta >= 0 ? '+' : ''}
-              {progress.delta.toFixed(1)} lb total
-            </span>
-          ) : null}
         </div>
 
         <div className="flex flex-wrap gap-1.5">
@@ -175,15 +211,50 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
           ))}
         </div>
 
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <MetricCard
+            label="Average"
+            value={average == null ? '—' : `${average.toFixed(1)} lb`}
+            hint={filtered.length ? `${filtered.length} check-in${filtered.length === 1 ? '' : 's'}` : 'No data'}
+          />
+          <MetricCard
+            label="Change"
+            value={rangeChange == null ? '—' : `${rangeChange >= 0 ? '+' : ''}${rangeChange.toFixed(1)} lb`}
+            hint={filtered.length > 1 ? 'First to latest' : 'Need 2 weigh-ins'}
+          />
+          <MetricCard
+            label="High"
+            value={rangeHigh == null ? '—' : `${rangeHigh} lb`}
+            hint={filtered.length ? selectedRangeLabel : 'No data'}
+          />
+          <MetricCard
+            label="Low"
+            value={rangeLow == null ? '—' : `${rangeLow} lb`}
+            hint={filtered.length ? selectedRangeLabel : 'No data'}
+          />
+        </div>
+
         <LiftLineChart
-          data={filtered.map((e) => ({ date: e.date, value: e.weight }))}
+          data={filtered.map((e) => ({
+            date: e.date,
+            value: e.weight,
+            target: plan ? weeklyTargetOnDate(plan, e.date) : undefined,
+          }))}
           label="Body weight"
         />
+        {plan && filtered.length ? (
+          <p className="text-xs text-muted-foreground">
+            Dashed line is the weekly-average goal pace. Daily weigh-ins will fluctuate around it.
+          </p>
+        ) : null}
 
         {progress.goal != null ? (
           <div>
             <div className="mb-1.5 flex justify-between text-sm">
-              <span className="text-muted-foreground">Progress toward {progress.goal} lb</span>
+              <span className="text-muted-foreground">
+                Progress toward {formatLb(progress.goal)} lb
+                {plan ? ` · ${formatSignedLb(plan.weeklyChange)} / week` : ''}
+              </span>
               <strong>{Math.round(progress.percent)}%</strong>
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-secondary">
@@ -192,9 +263,6 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
                 style={{ width: `${progress.percent}%` }}
               />
             </div>
-            {goal?.target_date ? (
-              <p className="mt-1 text-xs text-muted-foreground">Target date · {formatLiftDate(goal.target_date)}</p>
-            ) : null}
           </div>
         ) : null}
       </div>
@@ -221,7 +289,7 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
         <form onSubmit={saveGoal} className="kp-surface min-w-0 space-y-3 overflow-hidden p-4">
           <div>
             <p className="text-xs text-muted-foreground">Goal</p>
-            <h3 className="font-display text-lg tracking-tight">Bulk, cut, or maintain</h3>
+            <h3 className="font-display text-lg tracking-tight">Set direction</h3>
           </div>
           <Select value={mode} onValueChange={(v) => setMode(v as WeightGoalMode)}>
             <SelectTrigger className="min-w-0">
@@ -234,6 +302,14 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
             </SelectContent>
           </Select>
           <div className="grid gap-3 sm:grid-cols-2 *:min-w-0">
+            <QuantityInput
+              {...QUANTITY.bodyWeightLb}
+              label="Starting weight"
+              placeholder="Start lb"
+              value={startWeight}
+              onChange={setStartWeight}
+            />
+            <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} aria-label="Start date" />
             <QuantityInput
               {...QUANTITY.bodyWeightLb}
               label="Target weight"
@@ -249,13 +325,30 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
             />
           </div>
           <Button type="submit">Save goal</Button>
+          <p className="text-xs text-muted-foreground">
+            {plan
+              ? `${formatSignedLb(plan.weeklyChange)} each week, measured by weekly average, for ${plan.weeks.length} week${plan.weeks.length === 1 ? '' : 's'}`
+              : 'Targets are weekly averages, paced evenly from your start weight to the goal date.'}
+          </p>
         </form>
       </div>
 
+      <WeeklyTargetsCard plan={plan} />
+
       <div className="kp-surface p-4">
-        <h3 className="mb-3 font-display text-lg tracking-tight">History</h3>
-        {entries.length === 0 ? (
-          <EmptyState title="No weight logs" description="Log a check-in to start the trend." />
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="font-display text-lg tracking-tight">Weight history</h3>
+          <span className="text-xs text-muted-foreground">{selectedRangeLabel}</span>
+        </div>
+        {filtered.length === 0 ? (
+          <EmptyState
+            title={entries.length ? `No weigh-ins in the ${selectedRangeLabel.toLowerCase()}` : 'No weight logs'}
+            description={
+              entries.length
+                ? 'Try a wider range or log a new check-in.'
+                : 'Log a check-in to start the trend.'
+            }
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[22rem] text-left text-sm">
@@ -269,8 +362,7 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {[...entries].reverse().map((entry, idx, arr) => {
-                  // arr is newest-first; previous chronological is the next item
+                {[...filtered].reverse().map((entry, idx, arr) => {
                   const older = arr[idx + 1]
                   const delta = older ? entry.weight - older.weight : null
                   return (
@@ -302,6 +394,152 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
             </table>
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+function MetricCard({
+  label,
+  value,
+  hint,
+  valueClassName,
+}: {
+  label: string
+  value: string
+  hint: string
+  valueClassName?: string
+}) {
+  return (
+    <div className="rounded-xl border border-border/50 bg-secondary/20 p-3">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className={cn('font-display text-xl tracking-tight', valueClassName)}>{value}</p>
+      <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>
+    </div>
+  )
+}
+
+function WeeklyTargetsCard({ plan }: { plan: WeightGoalPlan | null }) {
+  if (!plan) {
+    return (
+      <div className="kp-surface p-4">
+        <p className="text-xs text-muted-foreground">Weekly targets</p>
+        <h3 className="font-display text-lg tracking-tight">Goal pace</h3>
+        <EmptyState
+          title="Set a start, goal, and date"
+          description="A 5 lb gain over 20 weeks becomes +0.25 lb each week."
+          className="mt-3"
+        />
+      </div>
+    )
+  }
+
+  const currentWeek = plan.weeks.find((week) => week.isCurrent)
+  const paceWeek =
+    currentWeek && Number.isFinite(currentWeek.actual) ? currentWeek : latestWeekWithAverage(plan)
+  const pace = getWeightGoalPaceStatus(
+    paceWeek?.actual,
+    paceWeek?.targetWeight,
+    plan.weeklyChange,
+    paceWeek?.checkInCount ?? 0,
+  )
+  const remaining = plan.weeks.filter((week) => !week.isPast).length
+  const pastGoal = todayKey() > plan.targetDate
+  const thisWeekNote = currentWeek
+    ? `${formatLiftDate(currentWeek.weekStart)} – ${formatLiftDate(currentWeek.weekEnd)}`
+    : pastGoal
+      ? 'Goal date reached'
+      : `Starts ${formatLiftDate(plan.startDate)}`
+
+  return (
+    <div className="kp-surface space-y-4 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="text-xs text-muted-foreground">Weekly targets</p>
+          <h3 className="font-display text-lg tracking-tight">{formatSignedLb(plan.weeklyChange)} / week</h3>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {formatLb(plan.startWeight)} lb → {formatLb(plan.targetWeight)} lb · {formatLiftDate(plan.startDate)} to{' '}
+          {formatLiftDate(plan.targetDate)}
+        </p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <MetricCard
+          label="This week avg"
+          value={`${formatLb(currentWeek ? currentWeek.targetWeight : plan.targetWeight)} lb`}
+          hint={thisWeekNote}
+        />
+        <MetricCard
+          label="Remaining"
+          value={pastGoal ? '0' : String(remaining)}
+          hint={`${plan.weeks.length} week${plan.weeks.length === 1 ? '' : 's'} total · ${formatSignedLb(plan.totalChange)} overall`}
+        />
+        <MetricCard
+          label="Pace"
+          value={pace.label}
+          hint={pace.note}
+          valueClassName={
+            pace.tone === 'ahead'
+              ? 'text-emerald-600'
+              : pace.tone === 'behind'
+                ? 'text-destructive'
+                : undefined
+          }
+        />
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[36rem] text-left text-sm">
+          <thead>
+            <tr className="border-b border-border/60 text-xs text-muted-foreground">
+              <th className="pb-2 pr-3 font-medium">Week</th>
+              <th className="pb-2 pr-3 font-medium">Start</th>
+              <th className="pb-2 pr-3 font-medium">End</th>
+              <th className="pb-2 pr-3 font-medium">Avg target</th>
+              <th className="pb-2 pr-3 font-medium">Change</th>
+              <th className="pb-2 pr-3 font-medium">Weekly avg</th>
+              <th className="pb-2 font-medium">Vs target</th>
+            </tr>
+          </thead>
+          <tbody>
+            {plan.weeks.map((week) => {
+              const vsTarget = Number.isFinite(week.actual) ? Number(week.actual) - week.targetWeight : null
+              return (
+                <tr
+                  key={week.week}
+                  className={cn('border-b border-border/40', week.isCurrent && 'bg-primary/5')}
+                >
+                  <td className="py-2 pr-3">
+                    Week {week.week}
+                    {week.isCurrent ? (
+                      <span className="ml-2 rounded-full bg-primary/15 px-2 py-0.5 text-[0.65rem] font-semibold text-primary">
+                        Now
+                      </span>
+                    ) : week.isFinal ? (
+                      <span className="ml-2 rounded-full border border-border/60 px-2 py-0.5 text-[0.65rem] font-semibold">
+                        Goal
+                      </span>
+                    ) : null}
+                  </td>
+                  <td className="py-2 pr-3">{formatLiftDate(week.weekStart)}</td>
+                  <td className="py-2 pr-3">{formatLiftDate(week.weekEnd)}</td>
+                  <td className="py-2 pr-3">{formatLb(week.targetWeight)} lb</td>
+                  <td className="py-2 pr-3">{formatSignedLb(week.change)}</td>
+                  <td className="py-2 pr-3">
+                    {Number.isFinite(week.actual) ? (
+                      <>
+                        {formatLb(week.actual)} lb{' '}
+                        <span className="text-muted-foreground">({week.checkInCount})</span>
+                      </>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
+                  <td className="py-2">{vsTarget == null ? '—' : formatSignedLb(vsTarget)}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   )

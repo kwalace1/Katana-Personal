@@ -97,6 +97,156 @@ export function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n))
 }
 
+export function parseRepRange(reps: string | undefined): { min: string; max: string } {
+  const raw = (reps || '').trim()
+  const match = raw.match(/^(\d+)\s*[–-]\s*(\d+)$/)
+  if (match) return { min: match[1] || '', max: match[2] || '' }
+  if (/^\d+$/.test(raw)) return { min: raw, max: raw }
+  return { min: '', max: '' }
+}
+
+export function formatRepRange(min: string | number, max: string | number): string {
+  const a = Number(min)
+  const b = Number(max)
+  const hasA = Number.isFinite(a) && a > 0
+  const hasB = Number.isFinite(b) && b > 0
+  if (hasA && hasB) {
+    const lo = Math.min(a, b)
+    const hi = Math.max(a, b)
+    return lo === hi ? String(lo) : `${lo}–${hi}`
+  }
+  if (hasA) return String(a)
+  if (hasB) return String(b)
+  return ''
+}
+
+export function formatSplitExerciseLine(exercise: { name: string; sets: number; reps: string }): string {
+  const name = exercise.name.trim()
+  if (!name) return ''
+  const sets = exercise.sets > 0 ? String(exercise.sets) : ''
+  const reps = exercise.reps.trim()
+  if (sets && reps) return `${name} · ${sets} × ${reps}`
+  if (sets) return `${name} · ${sets} sets`
+  if (reps) return `${name} · ${reps} reps`
+  return name
+}
+
+export function cleanSplitExercises(
+  exercises: { name: string; sets: number; reps: string }[] | undefined,
+): { name: string; sets: number; reps: string }[] {
+  return (exercises || [])
+    .map((exercise) => {
+      const parsed = parseRepRange(exercise.reps)
+      return {
+        name: exercise.name.trim(),
+        sets: Math.max(0, Math.round(Number(exercise.sets) || 0)),
+        reps: formatRepRange(parsed.min, parsed.max),
+      }
+    })
+    .filter((exercise) => exercise.name)
+}
+
+function addDaysIso(iso: string, days: number): string {
+  const d = new Date(`${iso}T12:00:00`)
+  d.setDate(d.getDate() + days)
+  return todayKey(d)
+}
+
+function daysBetween(start: string, end: string): number {
+  const a = new Date(`${start}T12:00:00`).getTime()
+  const b = new Date(`${end}T12:00:00`).getTime()
+  return Math.round((b - a) / 86_400_000)
+}
+
+function roundLb(n: number): number {
+  return Number(n.toFixed(2))
+}
+
+export function formatLb(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return '—'
+  return String(Number(value.toFixed(2)))
+}
+
+export function formatSignedLb(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return '—'
+  if (value > 0) return `+${formatLb(value)} lb`
+  if (value < 0) return `-${formatLb(Math.abs(value))} lb`
+  return '0 lb'
+}
+
+export function weeklyTargetOnDate(plan: WeightGoalPlan | null, dateISO: string): number | null {
+  if (!plan) return null
+  if (dateISO < plan.startDate) return plan.startWeight
+  if (dateISO > plan.targetDate) return plan.targetWeight
+  const week = plan.weeks.find((item) => dateISO >= item.weekStart && dateISO <= item.weekEnd)
+  if (week) return week.targetWeight
+  return plan.weeks.find((item) => dateISO < item.weekStart)?.targetWeight ?? plan.weeks.at(-1)?.targetWeight ?? null
+}
+
+export function getWeightGoalPaceStatus(
+  actual: number | null | undefined,
+  expected: number | null | undefined,
+  weeklyChange: number,
+  checkInCount: number,
+): { label: string; tone: 'muted' | 'ok' | 'ahead' | 'behind'; note: string } {
+  if (!Number.isFinite(actual) || !Number.isFinite(expected)) {
+    return { label: '—', tone: 'muted', note: "Log weigh-ins to compare this week's average" }
+  }
+  const diff = Number(actual) - Number(expected)
+  const sample = checkInCount
+    ? `${checkInCount} check-in${checkInCount === 1 ? '' : 's'}`
+    : 'weekly average'
+  if (Math.abs(diff) <= 0.5) {
+    return {
+      label: 'On track',
+      tone: 'ok',
+      note: `${formatSignedLb(diff)} vs ${formatLb(expected)} lb avg target · ${sample}`,
+    }
+  }
+  if (Math.abs(weeklyChange) < 0.01) {
+    return {
+      label: 'Off pace',
+      tone: 'behind',
+      note: `${formatSignedLb(diff)} vs ${formatLb(expected)} lb avg target · ${sample}`,
+    }
+  }
+  const ahead = weeklyChange > 0 ? diff > 0 : diff < 0
+  return {
+    label: ahead ? 'Ahead' : 'Behind',
+    tone: ahead ? 'ahead' : 'behind',
+    note: `${formatSignedLb(diff)} vs ${formatLb(expected)} lb avg target · ${sample}`,
+  }
+}
+
+export function latestWeekWithAverage(plan: WeightGoalPlan | null): WeightGoalWeek | null {
+  return [...(plan?.weeks || [])].reverse().find((week) => Number.isFinite(week.actual)) ?? null
+}
+
+export type WeightGoalWeek = {
+  week: number
+  weekStart: string
+  weekEnd: string
+  targetWeight: number
+  change: number
+  actual: number | null
+  checkInCount: number
+  isCurrent: boolean
+  isPast: boolean
+  isFinal: boolean
+}
+
+export type WeightGoalPlan = {
+  startWeight: number
+  startDate: string
+  targetWeight: number
+  targetDate: string
+  totalDays: number
+  totalWeeks: number
+  totalChange: number
+  weeklyChange: number
+  weeks: WeightGoalWeek[]
+}
+
 export const liftApi = {
   ensureDefaultExercises(userId: string): void {
     const existing = localDb.list<LiftExercise>(EXERCISES, userId)
@@ -313,6 +463,139 @@ export const liftApi = {
     })
   },
 
+  updateWorkout(
+    userId: string,
+    sessionId: string,
+    input: {
+      date?: string
+      name: string
+      notes?: string
+      exercises: LiftWorkoutDraftExercise[]
+    },
+  ): LiftSession | null {
+    const session = liftApi.getSession(userId, sessionId)
+    if (!session) return null
+    const flat: { exercise_id: string; reps: number; weight: number }[] = []
+    for (const ex of input.exercises) {
+      const name = ex.name.trim()
+      if (!name) continue
+      const kept = ex.sets.filter((s) => s.reps > 0)
+      if (kept.length === 0) continue
+      const exercise = liftApi.findOrCreateExercise(userId, name)
+      for (const s of kept) {
+        flat.push({
+          exercise_id: exercise.id,
+          reps: s.reps,
+          weight: Number(s.weight) || 0,
+        })
+      }
+    }
+    if (flat.length === 0) return null
+    for (const set of liftApi.listSetsForSession(userId, sessionId)) {
+      localDb.remove(SETS, userId, set.id)
+    }
+    const date = input.date || session.date
+    const title = input.name.trim() || session.title
+    const notes = input.notes ?? session.notes
+    const updated =
+      localDb.update<LiftSession>(SESSIONS, userId, sessionId, {
+        date,
+        title,
+        notes,
+      }) || session
+    flat.forEach((s, i) => {
+      localDb.insert(SETS, userId, {
+        id: createId(),
+        user_id: userId,
+        session_id: sessionId,
+        exercise_id: s.exercise_id,
+        set_index: i + 1,
+        reps: Math.max(0, s.reps),
+        weight: Math.max(0, s.weight),
+        created_at: now(),
+      })
+    })
+    for (const w of healthApi.listWorkouts(userId)) {
+      if (w.lift_session_id !== sessionId) continue
+      healthApi.removeWorkout(userId, w.id)
+      healthApi.addWorkout(userId, {
+        activity: title,
+        duration_minutes: Math.max(20, flat.length * 3),
+        notes,
+        date,
+        lift_session_id: sessionId,
+        silent: true,
+      })
+    }
+    return updated
+  },
+
+  getPreviousTopSet(
+    userId: string,
+    exerciseName: string,
+    excludeSessionId?: string | null,
+  ): { weight: number; reps: number; date: string } | null {
+    const needle = exerciseName.trim().toLowerCase()
+    if (!needle) return null
+    const match = liftApi
+      .listExercises(userId)
+      .find((e) => e.name.toLowerCase() === needle)
+    if (!match) return null
+    for (const session of liftApi.listSessions(userId)) {
+      if (excludeSessionId && session.id === excludeSessionId) continue
+      const sets = liftApi
+        .listSetsForSession(userId, session.id)
+        .filter((s) => s.exercise_id === match.id)
+      if (sets.length === 0) continue
+      let best = sets[0]
+      for (const set of sets) {
+        if (!best || set.weight > best.weight || (set.weight === best.weight && set.reps > best.reps)) {
+          best = set
+        }
+      }
+      if (!best) continue
+      return { weight: best.weight, reps: best.reps, date: session.date }
+    }
+    return null
+  },
+
+  exercisesFromSession(
+    userId: string,
+    sessionId: string,
+  ): { name: string; sets: number; reps: string }[] {
+    return liftApi.sessionExerciseGroups(userId, sessionId).map((group) => {
+      const reps = group.sets.map((s) => s.reps).filter((n) => n > 0)
+      const min = reps.length ? Math.min(...reps) : 0
+      const max = reps.length ? Math.max(...reps) : 0
+      return {
+        name: group.name,
+        sets: group.sets.length,
+        reps: formatRepRange(min, max),
+      }
+    })
+  },
+
+  saveSplitFromSessions(
+    userId: string,
+    input: { name: string; sessionIds: string[] },
+  ): TrainingSplit | null {
+    const sessions = input.sessionIds
+      .map((id) => liftApi.getSession(userId, id))
+      .filter((session): session is LiftSession => Boolean(session))
+    if (sessions.length === 0) return null
+    const hasActive = liftApi.listSplits(userId).some((s) => s.active)
+    return liftApi.saveSplit(userId, {
+      name: input.name.trim(),
+      pattern: 'cycle',
+      days: sessions.map((session, index) => ({
+        name: `Day ${index + 1}`,
+        focus: session.title || 'Workout',
+        exercises: liftApi.exercisesFromSession(userId, session.id),
+      })),
+      active: !hasActive,
+    })
+  },
+
   removeSession(userId: string, sessionId: string): void {
     for (const set of liftApi.listSetsForSession(userId, sessionId)) {
       localDb.remove(SETS, userId, set.id)
@@ -431,7 +714,10 @@ export const liftApi = {
       const updated = localDb.update<TrainingSplit>(SPLITS, userId, input.id, {
         name: input.name.trim(),
         pattern: input.pattern,
-        days: input.days,
+        days: input.days.map((day) => ({
+          ...day,
+          exercises: cleanSplitExercises(day.exercises),
+        })),
         active: makeActive,
         updated_at: ts,
       })
@@ -449,7 +735,10 @@ export const liftApi = {
       user_id: userId,
       name: input.name.trim(),
       pattern: input.pattern,
-      days: input.days,
+      days: input.days.map((day) => ({
+        ...day,
+        exercises: cleanSplitExercises(day.exercises),
+      })),
       active: autoActive,
       created_at: ts,
       updated_at: ts,
@@ -501,7 +790,11 @@ export const liftApi = {
   },
 
   listBodyWeight(userId: string): BodyWeightLog[] {
-    return localDb.list<BodyWeightLog>(WEIGHT_LOGS, userId).sort((a, b) => a.date.localeCompare(b.date))
+    return localDb.list<BodyWeightLog>(WEIGHT_LOGS, userId).sort((a, b) => {
+      const dateCompare = a.date.localeCompare(b.date)
+      if (dateCompare) return dateCompare
+      return (a.time || '').localeCompare(b.time || '') || a.created_at.localeCompare(b.created_at)
+    })
   },
 
   logBodyWeight(
@@ -550,10 +843,13 @@ export const liftApi = {
   } {
     const entries = liftApi.listBodyWeight(userId)
     const active = liftApi.getActiveWeightGoal(userId)
+    const plan = liftApi.getWeightGoalPlan(userId)
     const first = entries[0]
     const latest = entries[entries.length - 1]
-    const start = first ? first.weight : active?.start_weight ?? null
-    const current = latest?.weight ?? null
+    const start = plan ? plan.startWeight : first ? first.weight : active?.start_weight ?? null
+    const current = plan
+      ? (latestWeekWithAverage(plan)?.actual ?? latest?.weight ?? null)
+      : (latest?.weight ?? null)
     const goal = active?.target_weight ?? null
     let percent = 0
     if (goal != null && start != null && current != null && goal !== start) {
@@ -602,6 +898,70 @@ export const liftApi = {
       created_at: ts,
       updated_at: ts,
     })
+  },
+
+  getWeightGoalPlan(userId: string): WeightGoalPlan | null {
+    const entries = liftApi.listBodyWeight(userId)
+    const goal = liftApi.getActiveWeightGoal(userId)
+    const targetWeight = Number(goal?.target_weight)
+    const targetDate = goal?.target_date || ''
+    const startWeight = Number(goal?.start_weight) || Number(entries[0]?.weight)
+    const startDate = goal?.start_date || entries[0]?.date || ''
+
+    if (!goal || !targetWeight || !targetDate || !Number.isFinite(startWeight) || !startDate) return null
+    if (targetDate < startDate) return null
+
+    const elapsedDays = daysBetween(startDate, targetDate)
+    if (elapsedDays <= 0) return null
+
+    const weekCount = Math.max(1, Math.round(elapsedDays / 7))
+    const totalChange = targetWeight - startWeight
+    const weeklyChange = totalChange / weekCount
+    const today = todayKey()
+    const weeks: WeightGoalWeek[] = []
+
+    for (let week = 1; week <= weekCount; week += 1) {
+      const startOffset = (week - 1) * 7
+      const weekStart = addDaysIso(startDate, startOffset)
+      const naturalEnd = addDaysIso(startDate, startOffset + 6)
+      const weekEnd = week === weekCount || naturalEnd > targetDate ? targetDate : naturalEnd
+      const previousTarget =
+        week === 1
+          ? roundLb(startWeight)
+          : roundLb(startWeight + (totalChange * (week - 1)) / weekCount)
+      const target =
+        week === weekCount
+          ? roundLb(targetWeight)
+          : roundLb(startWeight + (totalChange * week) / weekCount)
+      const weekEntries = entries.filter((entry) => entry.date >= weekStart && entry.date <= weekEnd)
+      const actual = weekEntries.length
+        ? weekEntries.reduce((sum, entry) => sum + Number(entry.weight), 0) / weekEntries.length
+        : null
+      weeks.push({
+        week,
+        weekStart,
+        weekEnd,
+        targetWeight: target,
+        change: roundLb(target - previousTarget),
+        actual,
+        checkInCount: weekEntries.length,
+        isCurrent: today >= weekStart && today <= weekEnd,
+        isPast: today > weekEnd,
+        isFinal: week === weekCount,
+      })
+    }
+
+    return {
+      startWeight,
+      startDate,
+      targetWeight,
+      targetDate,
+      totalDays: elapsedDays,
+      totalWeeks: weekCount,
+      totalChange,
+      weeklyChange,
+      weeks,
+    }
   },
 
   /** Clear lift-related collections only (keeps cardio/nutrition/sleep/water). */

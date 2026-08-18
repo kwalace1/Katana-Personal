@@ -8,9 +8,41 @@ export type LiftWorkoutDraft = {
   date: string
   exercises: LiftDraftExercise[]
   updatedAt: string
+  fromSplit?: boolean
+  editingSessionId?: string | null
 }
 
 const PREFIX = 'katana-personal:lift-draft:'
+
+let draftKey = Date.now()
+
+export function nextLiftDraftKey(prefix: string) {
+  draftKey += 1
+  return `${prefix}-${draftKey}`
+}
+
+export function bumpLiftDraftKeyCounter(exercises: LiftDraftExercise[]) {
+  for (const ex of exercises) {
+    const em = /-(\d+)$/.exec(ex.key)
+    if (em) draftKey = Math.max(draftKey, Number(em[1]))
+    for (const s of ex.sets) {
+      const sm = /-(\d+)$/.exec(s.key)
+      if (sm) draftKey = Math.max(draftKey, Number(sm[1]))
+    }
+  }
+}
+
+export function emptyLiftDraftSet(reps = ''): LiftDraftSet {
+  return { key: nextLiftDraftKey('set'), weight: '', reps }
+}
+
+export function emptyLiftDraftExercise(name = '', setCount = 1, reps = ''): LiftDraftExercise {
+  return {
+    key: nextLiftDraftKey('ex'),
+    name,
+    sets: Array.from({ length: Math.max(1, setCount) }, () => emptyLiftDraftSet(reps)),
+  }
+}
 
 function storageKey(userId: string) {
   return `${PREFIX}${userId}`
@@ -49,6 +81,8 @@ export function readLiftDraft(userId: string): LiftWorkoutDraft | null {
       date: d.date,
       exercises: d.exercises,
       updatedAt: typeof d.updatedAt === 'string' ? d.updatedAt : new Date().toISOString(),
+      fromSplit: d.fromSplit === true,
+      editingSessionId: typeof d.editingSessionId === 'string' ? d.editingSessionId : null,
     }
   } catch {
     return null
@@ -79,7 +113,9 @@ export function clearLiftDraft(userId: string) {
 export function liftDraftHasContent(draft: {
   name: string
   exercises: LiftDraftExercise[]
+  editingSessionId?: string | null
 }): boolean {
+  if (draft.editingSessionId) return true
   if (draft.name.trim()) return true
   if (draft.exercises.length > 1) return true
   return draft.exercises.some(

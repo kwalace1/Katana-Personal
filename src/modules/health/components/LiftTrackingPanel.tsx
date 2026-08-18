@@ -27,8 +27,8 @@ export function LiftTrackingPanel({ userId, logDate, tick, refresh, panel, onGoL
       />
     )
   }
-  if (panel === 'lift') return <LiftLogPanel userId={userId} logDate={logDate} tick={tick} refresh={refresh} />
-  if (panel === 'splits') return <LiftSplitsPanel userId={userId} tick={tick} refresh={refresh} />
+  if (panel === 'lift') return <LiftLogPanel userId={userId} logDate={logDate} tick={tick} refresh={refresh} onGoSplits={onGoSplits} />
+  if (panel === 'splits') return <LiftSplitsPanel userId={userId} tick={tick} refresh={refresh} onGoLift={onGoLift} />
   if (panel === 'progress') return <LiftProgressPanel userId={userId} tick={tick} />
   return <LiftWeightPanel userId={userId} logDate={logDate} tick={tick} refresh={refresh} />
 }

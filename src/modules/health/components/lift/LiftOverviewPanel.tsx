@@ -4,7 +4,8 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { todayKey } from '@/lib/dates'
-import { liftApi } from '../../lift-api'
+import { formatMealTime } from '../../api'
+import { formatLb, formatSplitExerciseLine, liftApi } from '../../lift-api'
 import { formatLiftDate } from './LiftLineChart'
 import { cn } from '@/lib/utils'
 
@@ -38,6 +39,12 @@ export function LiftOverviewPanel({ userId, tick, refresh, onGoLift, onGoSplits 
     void tick
     return liftApi.getActiveWeightGoal(userId)
   }, [userId, tick])
+
+  const plan = useMemo(() => {
+    void tick
+    return liftApi.getWeightGoalPlan(userId)
+  }, [userId, tick])
+  const currentWeightWeek = plan?.weeks.find((week) => week.isCurrent)
 
   const now = new Date()
   const [calendarMonth, setCalendarMonth] = useState(now.getMonth())
@@ -126,7 +133,13 @@ export function LiftOverviewPanel({ userId, tick, refresh, onGoLift, onGoSplits 
         <MetricCard
           label="Bodyweight"
           value={latestWeight ? `${latestWeight.weight} lb` : '—'}
-          hint={goal ? `Goal ${goal.target_weight} lb · ${goal.mode}` : 'No goal set'}
+          hint={
+            currentWeightWeek
+              ? `This week avg: ${formatLb(currentWeightWeek.targetWeight)} lb`
+              : goal
+                ? `Goal ${goal.target_weight} lb · ${goal.mode}`
+                : 'No goal set'
+          }
         />
         <MetricCard
           label="Active split"
@@ -226,7 +239,10 @@ export function LiftOverviewPanel({ userId, tick, refresh, onGoLift, onGoSplits 
                 </li>
               ))}
               {dayDetail.weight ? (
-                <li className="text-sm text-muted-foreground">Bodyweight · {dayDetail.weight.weight} lb</li>
+                <li className="text-sm text-muted-foreground">
+                  Bodyweight · {dayDetail.weight.weight} lb
+                  {dayDetail.weight.time ? ` · ${formatMealTime(dayDetail.weight.time)}` : ''}
+                </li>
               ) : null}
             </ul>
           )}
@@ -267,11 +283,18 @@ export function LiftOverviewPanel({ userId, tick, refresh, onGoLift, onGoSplits 
               className="mt-3"
             />
           ) : (
-            <ul className="mt-3 space-y-1.5">
+            <ul className="mt-3 space-y-2">
               {activeSplit.days.slice(0, 7).map((day, i) => (
-                <li key={`${day.name}-${i}`} className="flex justify-between gap-2 text-sm">
-                  <span className="text-muted-foreground">{day.name}</span>
-                  <span className="font-medium">{day.focus || 'Rest'}</span>
+                <li key={`${day.name}-${i}`} className="text-sm">
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground">{day.name}</span>
+                    <span className="font-medium">{day.focus || 'Rest'}</span>
+                  </div>
+                  {day.exercises?.length ? (
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {day.exercises.map((exercise) => formatSplitExerciseLine(exercise)).join(' · ')}
+                    </p>
+                  ) : null}
                 </li>
               ))}
             </ul>

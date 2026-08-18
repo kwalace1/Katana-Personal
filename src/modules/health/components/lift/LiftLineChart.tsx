@@ -4,7 +4,7 @@ export function LiftLineChart({
   label,
   unit = 'lb',
 }: {
-  data: { date: string; value: number }[]
+  data: { date: string; value: number; target?: number | null }[]
   label: string
   unit?: string
 }) {
@@ -19,7 +19,7 @@ export function LiftLineChart({
   const width = 900
   const height = 270
   const pad = { left: 48, right: 20, top: 20, bottom: 36 }
-  const values = data.map((item) => item.value)
+  const values = data.flatMap((item) => [item.value, item.target].filter((value): value is number => Number.isFinite(value)))
   let min = Math.min(...values)
   let max = Math.max(...values)
   if (min === max) {
@@ -36,6 +36,10 @@ export function LiftLineChart({
   const y = (value: number) => pad.top + ((max - value) * innerHeight) / (max - min)
   const points = data.map((item, index) => `${x(index)},${y(item.value)}`).join(' ')
   const areaPoints = `${pad.left},${height - pad.bottom} ${points} ${x(data.length - 1)},${height - pad.bottom}`
+  const goalPoints = data
+    .map((item, index) => (Number.isFinite(item.target) ? `${x(index)},${y(Number(item.target))}` : null))
+    .filter((point): point is string => Boolean(point))
+    .join(' ')
 
   return (
     <div className="w-full overflow-x-auto" aria-label={`${label} graph`}>
@@ -66,6 +70,17 @@ export function LiftLineChart({
           )
         })}
         <polygon points={areaPoints} fill="url(#liftChartGradient)" />
+        {goalPoints ? (
+          <polyline
+            points={goalPoints}
+            fill="none"
+            stroke="hsl(var(--muted-foreground))"
+            strokeWidth={2}
+            strokeDasharray="7 6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        ) : null}
         <polyline
           points={points}
           fill="none"

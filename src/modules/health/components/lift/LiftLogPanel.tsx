@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, Plus, Share2, Trash2 } from 'lucide-react'
+import { ChevronDown, Pencil, Plus, Share2, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,7 +9,10 @@ import { todayKey } from '@/lib/dates'
 import { burstConfetti } from '@/lib/celebrate'
 import { offerBestLiftShare } from '@/lib/social/share-win'
 import {
+  bumpLiftDraftKeyCounter,
   clearLiftDraft,
+  emptyLiftDraftExercise,
+  emptyLiftDraftSet,
   liftDraftHasContent,
   readLiftDraft,
   writeLiftDraft,
@@ -36,65 +39,52 @@ type Props = {
   logDate: string
   tick: number
   refresh: () => void
+  onGoSplits?: () => void
 }
 
 type DraftSet = LiftDraftSet
 type DraftExercise = LiftDraftExercise
 
-let draftKey = 0
-function nextKey(prefix: string) {
-  draftKey += 1
-  return `${prefix}-${draftKey}`
-}
-
-function bumpKeyCounter(exercises: DraftExercise[]) {
-  for (const ex of exercises) {
-    const em = /-(\d+)$/.exec(ex.key)
-    if (em) draftKey = Math.max(draftKey, Number(em[1]))
-    for (const s of ex.sets) {
-      const sm = /-(\d+)$/.exec(s.key)
-      if (sm) draftKey = Math.max(draftKey, Number(sm[1]))
-    }
-  }
-}
-
-function emptySet(): DraftSet {
-  return { key: nextKey('set'), weight: '', reps: '' }
-}
-
-function emptyExercise(defaultName = ''): DraftExercise {
-  return { key: nextKey('ex'), name: defaultName, sets: [emptySet()] }
+function exercisesFromPlannedDay(plannedDay?: SplitDay | null): DraftExercise[] {
+  if (!plannedDay?.exercises?.length) return [emptyLiftDraftExercise()]
+  return plannedDay.exercises.map((exercise) =>
+    emptyLiftDraftExercise(
+      exercise.name,
+      Math.max(1, exercise.sets),
+      String(Number.parseInt(exercise.reps, 10) || ''),
+    ),
+  )
 }
 
 function loadInitialDraft(userId: string, logDate: string, plannedDay?: SplitDay | null) {
   const saved = readLiftDraft(userId)
   if (saved) {
-    bumpKeyCounter(saved.exercises)
+    bumpLiftDraftKeyCounter(saved.exercises)
     return {
       name: saved.name,
       date: saved.date || logDate || todayKey(),
       exercises: saved.exercises,
+      fromSplit: Boolean(saved.fromSplit),
+      editingSessionId: saved.editingSessionId || null,
       restored: true,
     }
   }
   return {
     name: '',
     date: logDate || todayKey(),
-    exercises: plannedDay?.exercises?.length
-      ? plannedDay.exercises.map((exercise) => ({
-          key: nextKey('ex'),
-          name: exercise.name,
-          sets: Array.from({ length: Math.max(1, exercise.sets) }, () => ({
-            ...emptySet(),
-            reps: String(Number.parseInt(exercise.reps, 10) || ''),
-          })),
-        }))
-      : [emptyExercise()],
+    exercises: exercisesFromPlannedDay(plannedDay),
+    fromSplit: false,
+    editingSessionId: null,
     restored: false,
   }
 }
 
-export function LiftLogPanel({ userId, logDate, tick, refresh }: Props) {
+function previousTopSetLabel(record: { weight: number; reps: number; date: string } | null) {
+  if (!record) return ''
+  return `Last time: ${record.weight} lb × ${record.reps} · ${formatLiftDate(record.date)}`
+}
+
+export function LiftLogPanel({ userId, logDate, tick, refresh, onGoSplits }: Props) {
   const { cloudUser } = useCloudAuth()
   const names = useMemo(() => {
     void tick
@@ -118,8 +108,13 @@ export function LiftLogPanel({ userId, logDate, tick, refresh }: Props) {
   const [name, setName] = useState(boot.name)
   const [date, setDate] = useState(boot.date)
   const [exercises, setExercises] = useState<DraftExercise[]>(boot.exercises)
+  const [fromSplit, setFromSplit] = useState(boot.fromSplit)
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(boot.editingSessionId)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [draftBanner, setDraftBanner] = useState(boot.restored)
+  const [creatingSplitFromLifts, setCreatingSplitFromLifts] = useState(false)
+  const [splitSelectionIds, setSplitSelectionIds] = useState<string[]>([])
+  const [splitFromLiftsName, setSplitFromLiftsName] = useState('')
   const [shareSession, setShareSession] = useState<LiftSession | null>(null)
   const [selectedFriends, setSelectedFriends] = useState<Record<string, boolean>>({})
   const [selectedCircles, setSelectedCircles] = useState<Record<string, boolean>>({})
@@ -130,25 +125,30 @@ export function LiftLogPanel({ userId, logDate, tick, refresh }: Props) {
   })
   const [sharing, setSharing] = useState(false)
   const skipPersist = useRef(false)
-  const latestRef = useRef({ name, date, exercises })
-  latestRef.current = { name, date, exercises }
+  const latestRef = useRef({ name, date, exercises, fromSplit, editingSessionId })
+  latestRef.current = { name, date, exercises, fromSplit, editingSessionId }
 
-  const hasDraft = liftDraftHasContent({ name, exercises })
+  const hasDraft = liftDraftHasContent({ name, exercises, editingSessionId })
+  const selectedSplitWorkouts = splitSelectionIds
+    .map((id) => sessions.find((session) => session.id === id))
+    .filter((session): session is LiftSession => Boolean(session))
+  const suggestedSplitName = [...new Set(selectedSplitWorkouts.map((session) => session.title).filter(Boolean))].join(
+    ' / ',
+  )
 
-  // Persist while typing; flush immediately when leaving the app
   useEffect(() => {
     if (skipPersist.current) {
       skipPersist.current = false
       return
     }
-    const payload = { name, date, exercises }
+    const payload = { name, date, exercises, fromSplit, editingSessionId }
     if (!liftDraftHasContent(payload)) {
       clearLiftDraft(userId)
       return
     }
     const t = window.setTimeout(() => writeLiftDraft(userId, payload), 200)
     return () => window.clearTimeout(t)
-  }, [userId, name, date, exercises])
+  }, [userId, name, date, exercises, fromSplit, editingSessionId])
 
   useEffect(() => {
     const flush = () => {
@@ -169,10 +169,14 @@ export function LiftLogPanel({ userId, logDate, tick, refresh }: Props) {
 
   useEffect(() => {
     if (!boot.restored) return
+    if (boot.editingSessionId) {
+      toast.message('Editing restored', { description: 'Your changes were kept while you were away.' })
+      return
+    }
     toast.message('Workout draft restored', {
       description: 'Your sets were kept while you were away.',
     })
-  }, [boot.restored])
+  }, [boot.restored, boot.editingSessionId])
 
   const listId = `lift-exercise-list-${userId}`
 
@@ -198,14 +202,51 @@ export function LiftLogPanel({ userId, logDate, tick, refresh }: Props) {
     if (clearStorage) clearLiftDraft(userId)
     setName('')
     setDate(logDate || todayKey())
-    setExercises([emptyExercise()])
+    setExercises([emptyLiftDraftExercise()])
+    setFromSplit(false)
+    setEditingSessionId(null)
     setDraftBanner(false)
+  }
+
+  function startEditWorkout(session: LiftSession) {
+    const groups = liftApi.sessionExerciseGroups(userId, session.id)
+    const nextExercises =
+      groups.length > 0
+        ? groups.map((group) => ({
+            key: `ex-${group.exercise_id}`,
+            name: group.name,
+            sets:
+              group.sets.length > 0
+                ? group.sets.map((set) => ({
+                    key: `set-${set.id}`,
+                    weight: set.weight ? String(set.weight) : '',
+                    reps: set.reps ? String(set.reps) : '',
+                  }))
+                : [emptyLiftDraftSet()],
+          }))
+        : [emptyLiftDraftExercise()]
+    bumpLiftDraftKeyCounter(nextExercises)
+    skipPersist.current = true
+    setEditingSessionId(session.id)
+    setFromSplit(false)
+    setName(session.title)
+    setDate(session.date)
+    setExercises(nextExercises)
+    setDraftBanner(false)
+    writeLiftDraft(userId, {
+      name: session.title,
+      date: session.date,
+      exercises: nextExercises,
+      fromSplit: false,
+      editingSessionId: session.id,
+    })
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   function saveWorkout(e: FormEvent) {
     e.preventDefault()
     const title = name.trim() || planned?.day.name || 'Lift'
-    const session = liftApi.logWorkout(userId, {
+    const payload = {
       date,
       name: title,
       exercises: exercises.map((ex) => ({
@@ -215,7 +256,19 @@ export function LiftLogPanel({ userId, logDate, tick, refresh }: Props) {
           reps: Number(s.reps) || 0,
         })),
       })),
-    })
+    }
+    if (editingSessionId) {
+      const session = liftApi.updateWorkout(userId, editingSessionId, payload)
+      if (!session) {
+        toast.error('Add at least one set with reps')
+        return
+      }
+      toast.success('Workout updated')
+      resetForm(true)
+      refresh()
+      return
+    }
+    const session = liftApi.logWorkout(userId, payload)
     if (!session) {
       toast.error('Add at least one set with reps')
       return
@@ -234,6 +287,51 @@ export function LiftLogPanel({ userId, logDate, tick, refresh }: Props) {
     })
     resetForm(true)
     refresh()
+  }
+
+  function toggleSplitSelection(sessionId: string) {
+    setSplitSelectionIds((ids) =>
+      ids.includes(sessionId) ? ids.filter((id) => id !== sessionId) : [...ids, sessionId],
+    )
+  }
+
+  function moveSplitSelection(sessionId: string, delta: number) {
+    setSplitSelectionIds((ids) => {
+      const index = ids.indexOf(sessionId)
+      const next = index + delta
+      if (index < 0 || next < 0 || next >= ids.length) return ids
+      const copy = [...ids]
+      const swap = copy[index]
+      copy[index] = copy[next]!
+      copy[next] = swap!
+      return copy
+    })
+  }
+
+  function saveSplitFromLifts() {
+    if (selectedSplitWorkouts.length === 0) {
+      toast.error('Select at least one logged lift')
+      return
+    }
+    const splitName = splitFromLiftsName.trim() || suggestedSplitName
+    if (!splitName) {
+      toast.error('Add a split name')
+      return
+    }
+    const split = liftApi.saveSplitFromSessions(userId, {
+      name: splitName,
+      sessionIds: splitSelectionIds,
+    })
+    if (!split) {
+      toast.error('Couldn’t create split')
+      return
+    }
+    setCreatingSplitFromLifts(false)
+    setSplitSelectionIds([])
+    setSplitFromLiftsName('')
+    toast.success('Split saved from logged lifts')
+    refresh()
+    onGoSplits?.()
   }
 
   async function shareCompletedWorkout() {
@@ -277,7 +375,7 @@ export function LiftLogPanel({ userId, logDate, tick, refresh }: Props) {
 
   return (
     <div className="space-y-4">
-      {planned ? (
+      {planned && !editingSessionId ? (
         <div className="kp-surface border-primary/20 bg-primary/5 p-4">
           <p className="text-xs text-muted-foreground">Planned for {formatLiftDate(logDate)}</p>
           <p className="font-display text-xl tracking-tight">
@@ -292,31 +390,42 @@ export function LiftLogPanel({ userId, logDate, tick, refresh }: Props) {
         </div>
       ) : null}
 
-      <form onSubmit={saveWorkout} className="kp-surface min-w-0 space-y-4 overflow-hidden p-4">
+      <form
+        onSubmit={saveWorkout}
+        className={cn('kp-surface min-w-0 space-y-4 overflow-hidden p-4', editingSessionId && 'ring-2 ring-primary/25')}
+      >
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
-            <p className="text-xs text-muted-foreground">Log workout</p>
-            <h3 className="font-display text-xl tracking-tight">New session</h3>
+            <p className="text-xs text-muted-foreground">{editingSessionId ? 'Editing workout' : 'Log workout'}</p>
+            <h3 className="font-display text-xl tracking-tight">
+              {editingSessionId ? 'Update session' : 'New session'}
+            </h3>
             {hasDraft || draftBanner ? (
               <p className="mt-1 text-xs text-primary">
                 Autosaved on this device — safe if you leave mid-workout.
               </p>
             ) : null}
           </div>
-          {hasDraft ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              className="text-muted-foreground"
-              onClick={() => {
-                resetForm(true)
-                toast.message('Draft discarded')
-              }}
-            >
-              Discard draft
-            </Button>
-          ) : null}
+          <div className="flex flex-wrap gap-2">
+            {editingSessionId ? (
+              <Button type="button" size="sm" variant="ghost" className="text-muted-foreground" onClick={() => resetForm(true)}>
+                Cancel edit
+              </Button>
+            ) : hasDraft ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="text-muted-foreground"
+                onClick={() => {
+                  resetForm(true)
+                  toast.message('Draft discarded')
+                }}
+              >
+                Discard draft
+              </Button>
+            ) : null}
+          </div>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 *:min-w-0">
           <Input
@@ -335,84 +444,169 @@ export function LiftLogPanel({ userId, logDate, tick, refresh }: Props) {
         </datalist>
 
         <div className="space-y-3">
-          {exercises.map((ex, exIndex) => (
-            <div key={ex.key} className="rounded-xl border border-border/60 p-3">
-              <div className="mb-2 flex flex-wrap items-center gap-2">
-                <Input
-                  list={listId}
-                  value={ex.name}
-                  onChange={(e) => updateExercise(ex.key, { name: e.target.value })}
-                  placeholder="Exercise"
-                  className="min-w-[12rem] flex-1"
-                />
+          {exercises.map((ex, exIndex) => {
+            const previous = fromSplit
+              ? null
+              : liftApi.getPreviousTopSet(userId, ex.name, editingSessionId)
+            return (
+              <div key={ex.key} className="rounded-xl border border-border/60 p-3">
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <Input
+                    list={listId}
+                    value={ex.name}
+                    onChange={(e) => updateExercise(ex.key, { name: e.target.value })}
+                    placeholder="Exercise"
+                    className="min-w-[12rem] flex-1"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    disabled={exercises.length <= 1}
+                    onClick={() => setExercises((rows) => rows.filter((r) => r.key !== ex.key))}
+                  >
+                    Remove
+                  </Button>
+                </div>
+                {previous ? (
+                  <p className="mb-2 text-xs text-muted-foreground">{previousTopSetLabel(previous)}</p>
+                ) : null}
+                <div className="space-y-2">
+                  {ex.sets.map((set, setIndex) => (
+                    <div key={set.key} className="grid grid-cols-[1fr_1fr_auto] items-center gap-2">
+                      <QuantityInput
+                        {...QUANTITY.liftWeightLb}
+                        placeholder="lb"
+                        value={set.weight}
+                        onChange={(weight) => updateSet(ex.key, set.key, { weight })}
+                        aria-label={`Exercise ${exIndex + 1} set ${setIndex + 1} weight`}
+                      />
+                      <QuantityInput
+                        {...QUANTITY.reps}
+                        placeholder="Reps"
+                        value={set.reps}
+                        onChange={(reps) => updateSet(ex.key, set.key, { reps })}
+                        aria-label={`Exercise ${exIndex + 1} set ${setIndex + 1} reps`}
+                      />
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        disabled={ex.sets.length <= 1}
+                        onClick={() =>
+                          updateExercise(ex.key, {
+                            sets: ex.sets.filter((s) => s.key !== set.key),
+                          })
+                        }
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
                 <Button
                   type="button"
                   size="sm"
-                  variant="ghost"
-                  disabled={exercises.length <= 1}
-                  onClick={() => setExercises((rows) => rows.filter((r) => r.key !== ex.key))}
+                  variant="outline"
+                  className="mt-2"
+                  onClick={() => updateExercise(ex.key, { sets: [...ex.sets, emptyLiftDraftSet()] })}
                 >
-                  Remove
+                  <Plus className="mr-1 h-3.5 w-3.5" />
+                  Add set
                 </Button>
               </div>
-              <div className="space-y-2">
-                {ex.sets.map((set, setIndex) => (
-                  <div key={set.key} className="grid grid-cols-[1fr_1fr_auto] items-center gap-2">
-                    <QuantityInput
-                      {...QUANTITY.liftWeightLb}
-                      placeholder="lb"
-                      value={set.weight}
-                      onChange={(weight) => updateSet(ex.key, set.key, { weight })}
-                      aria-label={`Exercise ${exIndex + 1} set ${setIndex + 1} weight`}
-                    />
-                    <QuantityInput
-                      {...QUANTITY.reps}
-                      placeholder="Reps"
-                      value={set.reps}
-                      onChange={(reps) => updateSet(ex.key, set.key, { reps })}
-                      aria-label={`Exercise ${exIndex + 1} set ${setIndex + 1} reps`}
-                    />
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      disabled={ex.sets.length <= 1}
-                      onClick={() =>
-                        updateExercise(ex.key, {
-                          sets: ex.sets.filter((s) => s.key !== set.key),
-                        })
-                      }
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="mt-2"
-                onClick={() => updateExercise(ex.key, { sets: [...ex.sets, emptySet()] })}
-              >
-                <Plus className="mr-1 h-3.5 w-3.5" />
-                Add set
-              </Button>
-            </div>
-          ))}
+            )
+          })}
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" onClick={() => setExercises((rows) => [...rows, emptyExercise()])}>
+          <Button type="button" variant="outline" onClick={() => setExercises((rows) => [...rows, emptyLiftDraftExercise()])}>
             <Plus className="mr-1 h-4 w-4" />
             Add exercise
           </Button>
-          <Button type="submit">Save workout</Button>
+          <Button type="submit">{editingSessionId ? 'Save changes' : 'Save workout'}</Button>
         </div>
       </form>
 
       <div>
-        <h3 className="mb-2 font-display text-lg tracking-tight">History</h3>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="font-display text-lg tracking-tight">History</h3>
+          {sessions.length > 0 ? (
+            <Button
+              type="button"
+              size="sm"
+              variant={creatingSplitFromLifts ? 'default' : 'outline'}
+              onClick={() => {
+                if (creatingSplitFromLifts) {
+                  setCreatingSplitFromLifts(false)
+                  setSplitSelectionIds([])
+                  setSplitFromLiftsName('')
+                  return
+                }
+                setCreatingSplitFromLifts(true)
+              }}
+            >
+              {creatingSplitFromLifts ? 'Cancel' : 'Create split'}
+            </Button>
+          ) : null}
+        </div>
+        {creatingSplitFromLifts ? (
+          <div className="kp-surface mb-3 space-y-3 p-4">
+            <Input
+              placeholder={suggestedSplitName || 'Push / Pull / Legs'}
+              value={splitFromLiftsName}
+              onChange={(e) => setSplitFromLiftsName(e.target.value)}
+              aria-label="Split name"
+            />
+            <p className="text-xs text-muted-foreground">
+              Select lifts in the order they should appear as days in the cycle. Exercises, set counts, and
+              rep ranges are copied from each session.
+            </p>
+            {selectedSplitWorkouts.length ? (
+              <ul className="space-y-2">
+                {selectedSplitWorkouts.map((workout, index) => (
+                  <li key={workout.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/50 px-3 py-2">
+                    <div>
+                      <p className="text-sm font-medium">Day {index + 1}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {workout.title || 'Workout'} · {formatLiftDate(workout.date)} ·{' '}
+                        {liftApi.sessionExerciseGroups(userId, workout.id).length} exercises
+                      </p>
+                    </div>
+                    <div className="flex gap-1">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        disabled={index === 0}
+                        onClick={() => moveSplitSelection(workout.id, -1)}
+                      >
+                        ↑
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        disabled={index === selectedSplitWorkouts.length - 1}
+                        onClick={() => moveSplitSelection(workout.id, 1)}
+                      >
+                        ↓
+                      </Button>
+                      <Button type="button" size="sm" variant="outline" onClick={() => toggleSplitSelection(workout.id)}>
+                        Remove
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-muted-foreground">No lifts selected yet.</p>
+            )}
+            <Button type="button" disabled={selectedSplitWorkouts.length === 0} onClick={saveSplitFromLifts}>
+              Save split
+            </Button>
+          </div>
+        ) : null}
         {sessions.length === 0 ? (
           <EmptyState title="No workouts yet" description="Log a multi-exercise session above." />
         ) : (
@@ -420,30 +614,50 @@ export function LiftLogPanel({ userId, logDate, tick, refresh }: Props) {
             {sessions.map((session) => {
               const open = expanded.has(session.id)
               const groups = liftApi.sessionExerciseGroups(userId, session.id)
+              const selected = splitSelectionIds.includes(session.id)
               return (
-                <li key={session.id} className="kp-surface overflow-hidden p-0">
-                  <button
-                    type="button"
-                    className="flex w-full items-center gap-3 p-4 text-left"
-                    onClick={() =>
-                      setExpanded((prev) => {
-                        const next = new Set(prev)
-                        if (next.has(session.id)) next.delete(session.id)
-                        else next.add(session.id)
-                        return next
-                      })
-                    }
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium">{session.title}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatLiftDate(session.date)} · {groups.length} exercise
-                        {groups.length === 1 ? '' : 's'} ·{' '}
-                        {groups.reduce((n, g) => n + g.sets.length, 0)} sets
-                      </p>
-                    </div>
-                    <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition', open && 'rotate-180')} />
-                  </button>
+                <li
+                  key={session.id}
+                  className={cn(
+                    'kp-surface overflow-hidden p-0',
+                    editingSessionId === session.id && 'ring-2 ring-primary/25',
+                    selected && 'ring-2 ring-primary/20',
+                  )}
+                >
+                  <div className="flex w-full items-center gap-2 p-4">
+                    {creatingSplitFromLifts ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={selected ? 'default' : 'outline'}
+                        onClick={() => toggleSplitSelection(session.id)}
+                      >
+                        {selected ? 'Selected' : 'Select'}
+                      </Button>
+                    ) : null}
+                    <button
+                      type="button"
+                      className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                      onClick={() =>
+                        setExpanded((prev) => {
+                          const next = new Set(prev)
+                          if (next.has(session.id)) next.delete(session.id)
+                          else next.add(session.id)
+                          return next
+                        })
+                      }
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium">{session.title}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatLiftDate(session.date)} · {groups.length} exercise
+                          {groups.length === 1 ? '' : 's'} ·{' '}
+                          {groups.reduce((n, g) => n + g.sets.length, 0)} sets
+                        </p>
+                      </div>
+                      <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition', open && 'rotate-180')} />
+                    </button>
+                  </div>
                   {open ? (
                     <div className="space-y-3 border-t border-border/50 px-4 pb-4 pt-3">
                       {groups.map((g) => (
@@ -454,32 +668,40 @@ export function LiftLogPanel({ userId, logDate, tick, refresh }: Props) {
                           </p>
                         </div>
                       ))}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          if (!cloudUser) {
-                            toast.message('Connect Social in Settings to share workouts')
-                            return
-                          }
-                          setShareSession(session)
-                        }}
-                      >
-                        <Share2 className="mr-1 h-3.5 w-3.5" />
-                        Share workout
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          liftApi.removeSession(userId, session.id)
-                          refresh()
-                          toast.message('Workout deleted')
-                        }}
-                      >
-                        <Trash2 className="mr-1 h-3.5 w-3.5" />
-                        Delete workout
-                      </Button>
+                      <div className="flex flex-wrap gap-2">
+                        <Button size="sm" variant="outline" onClick={() => startEditWorkout(session)}>
+                          <Pencil className="mr-1 h-3.5 w-3.5" />
+                          Edit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            if (!cloudUser) {
+                              toast.message('Connect Social in Settings to share workouts')
+                              return
+                            }
+                            setShareSession(session)
+                          }}
+                        >
+                          <Share2 className="mr-1 h-3.5 w-3.5" />
+                          Share workout
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            if (editingSessionId === session.id) resetForm(true)
+                            setSplitSelectionIds((ids) => ids.filter((id) => id !== session.id))
+                            liftApi.removeSession(userId, session.id)
+                            refresh()
+                            toast.message('Workout deleted')
+                          }}
+                        >
+                          <Trash2 className="mr-1 h-3.5 w-3.5" />
+                          Delete workout
+                        </Button>
+                      </div>
                     </div>
                   ) : null}
                 </li>
