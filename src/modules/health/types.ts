@@ -1,3 +1,10 @@
+export interface GeoPoint {
+  lat: number
+  lng: number
+  /** Unix ms */
+  t: number
+}
+
 export interface Workout {
   id: string
   user_id: string
@@ -15,6 +22,10 @@ export interface Workout {
   duration_secs?: number
   /** Optional calories burned from cardio log. */
   calories?: number
+  /** GPS track from an in-app run (Strava-style). */
+  path?: GeoPoint[]
+  /** Distance in meters when a GPS path was recorded. */
+  distance_m?: number
 }
 
 export interface WaterLog {
@@ -51,6 +62,11 @@ export interface SleepLog {
   quality: 'poor' | 'fair' | 'good' | 'great'
   notes: string
   created_at: string
+  /** Local HH:MM when you got in bed */
+  bedtime?: string
+  /** Local HH:MM when you woke */
+  wake?: string
+  source?: 'manual' | 'apple_health' | 'fitbit'
 }
 
 /** User exercise library for lift tracking */
@@ -152,6 +168,8 @@ export interface LiftWorkoutDraftExercise {
   sets: { weight: number; reps: number }[]
 }
 
+export type SupplementTimeOfDay = 'morning' | 'afternoon' | 'evening'
+
 /** Reusable vitamins / supplements catalog */
 export interface SupplementItem {
   id: string
@@ -162,6 +180,8 @@ export interface SupplementItem {
   archived: boolean
   /** Older rows without a kind are treated as supplements. */
   kind?: 'vitamin' | 'supplement'
+  /** When you usually take it. Older rows default to morning. */
+  time_of_day?: SupplementTimeOfDay
   created_at: string
 }
 

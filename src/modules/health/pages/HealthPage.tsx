@@ -1,5 +1,5 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   Dumbbell,
@@ -9,15 +9,12 @@ import {
   Pill,
   Plus,
   Salad,
-  Trash2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { EmptyState } from '@/components/ui/empty-state'
 import { MiniBars } from '@/components/MiniBars'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
@@ -37,7 +34,7 @@ import { CardioPanel } from '../components/CardioPanel'
 import { LiftTrackingPanel } from '../components/LiftTrackingPanel'
 import { NutritionPanel } from '../components/NutritionPanel'
 import { VitaminsPanel } from '../components/VitaminsPanel'
-import type { SleepLog } from '../types'
+import { SleepPanel } from '../components/SleepPanel'
 import { cn } from '@/lib/utils'
 
 const QUICK = [
@@ -79,7 +76,7 @@ function parseHealthTab(value: string | null): HealthTab {
 }
 
 export default function HealthPage() {
-  const { user } = useAuth()
+  const { user, profile, updatePreferences } = useAuth()
   const userId = user!.id
   const { tick, refresh } = useLocalRefresh()
   const { cloudUser, syncStreaksToCloud } = useCloudAuth()
@@ -167,44 +164,12 @@ export default function HealthPage() {
     return `${left} glasses left to lock your hydration streak.`
   })()
 
-  const sleep = useMemo(() => {
-    void tick
-    return healthApi.listSleep(userId)
-  }, [userId, tick])
-
   const waterSeries = useMemo(() => healthApi.waterSeries(userId, range).map((d) => d.glasses), [userId, range, tick])
   const sleepSeries = useMemo(() => healthApi.sleepSeries(userId, range).map((d) => d.hours), [userId, range, tick])
   const workoutSeries = useMemo(
     () => healthApi.workoutMinutesSeries(userId, range).map((d) => d.minutes),
     [userId, range, tick],
   )
-
-  const [hours, setHours] = useState('7.5')
-  const [quality, setQuality] = useState<SleepLog['quality']>('good')
-
-  function addSleep(e: FormEvent) {
-    e.preventDefault()
-    const hrs = Number(hours) || 0
-    healthApi.addSleep(userId, {
-      hours: hrs,
-      quality,
-      date: logDate,
-    })
-    if (hrs >= 7) {
-      const { sleepStreak } = computeLocalStreaks(userId)
-      if (isStreakMilestone(sleepStreak)) {
-        burstConfetti()
-        offerShareWin(
-          buildHealthStreakShareCard({
-            kind: 'sleep',
-            streak: sleepStreak,
-            detail: `${hrs}h · ${quality}`,
-          }),
-        )
-      }
-    }
-    refresh()
-  }
 
   return (
     <motion.div {...pageEnterSubtle} className="kp-page">
@@ -213,7 +178,7 @@ export default function HealthPage() {
         description={
           healthArea === 'fitness'
             ? 'Train, follow your split, and see what is getting stronger.'
-            : 'Weight, rest, fuel, supplements, and mental check-ins.'
+            : 'Weight, rest, fuel, and supplements.'
         }
         eyebrow="Life"
       />
@@ -495,79 +460,24 @@ export default function HealthPage() {
         </TabsContent>
 
         <TabsContent value="sleep" className="space-y-4">
-          <form onSubmit={addSleep} className="kp-surface grid gap-3 p-4 sm:grid-cols-3">
-            <div className="sm:col-span-3">
-              <p className="text-xs text-muted-foreground">Sleep</p>
-              <h3 className="font-display text-xl tracking-tight">Log last night</h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Hours and how it felt — feeds your week review and Circles sleep streak.
-              </p>
-            </div>
-            <Input
-              type="number"
-              step="0.5"
-              min={0}
-              placeholder="Hours"
-              value={hours}
-              onChange={(e) => setHours(e.target.value)}
-              aria-label="Hours slept"
-            />
-            <Select value={quality} onValueChange={(v) => setQuality(v as SleepLog['quality'])}>
-              <SelectTrigger aria-label="Sleep quality">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="poor">Poor</SelectItem>
-                <SelectItem value="fair">Fair</SelectItem>
-                <SelectItem value="good">Good</SelectItem>
-                <SelectItem value="great">Great</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button type="submit">Log sleep</Button>
-          </form>
-          {sleep.length === 0 ? (
-            <EmptyState
-              title="No sleep logs yet"
-              description="Log hours and quality above when you wake — it feeds your week review."
-            />
-          ) : (
-            <ul className="space-y-2">
-              {sleep.map((s) => (
-                <li key={s.id} className="kp-surface flex items-center justify-between p-4">
-                  <div>
-                    <p className="font-medium">
-                      {s.hours} hours · {s.quality}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{s.date}</p>
-                  </div>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => {
-                      healthApi.removeSleep(userId, s.id)
-                      refresh()
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          )}
+          <SleepPanel
+            userId={userId}
+            logDate={logDate}
+            tick={tick}
+            refresh={refresh}
+            goalHours={Number(profile?.preferences.sleep_goal_hours) || 8}
+            targetBedtime={String(profile?.preferences.sleep_bedtime || '22:30')}
+            targetWake={String(profile?.preferences.sleep_wake || '06:30')}
+            onSaveSchedule={({ goalHours, targetBedtime, targetWake }) => {
+              updatePreferences({
+                sleep_goal_hours: goalHours,
+                sleep_bedtime: targetBedtime,
+                sleep_wake: targetWake,
+              })
+            }}
+          />
         </TabsContent>
       </Tabs>
-
-      {healthArea === 'wellness' ? (
-        <div className="kp-surface mt-4 flex flex-wrap items-center justify-between gap-3 p-4">
-          <div>
-            <p className="text-xs text-muted-foreground">Mental wellness</p>
-            <p className="font-medium">Mood, reflection, and journal</p>
-          </div>
-          <Button asChild variant="outline">
-            <Link to="/journal">Open Journal</Link>
-          </Button>
-        </div>
-      ) : null}
     </motion.div>
   )
 }

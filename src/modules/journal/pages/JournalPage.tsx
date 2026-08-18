@@ -119,8 +119,8 @@ export default function JournalPage() {
     <motion.div {...pageEnterSubtle} className="kp-page">
       <PageHeader
         title="Journal"
-        description={`How was ${dateLabel}?`}
-        eyebrow="Life"
+        description={`Mental check-in for ${dateLabel} — mood, the day, and a quiet thought.`}
+        eyebrow="Mental wellness"
         actions={
           moodSeries.length > 1 ? (
             <div className="hidden sm:block">
@@ -156,7 +156,7 @@ export default function JournalPage() {
 
       <form onSubmit={onSave} className="kp-surface mb-8 space-y-5 p-5">
         <div>
-          <p className="mb-2 text-sm font-medium">How are you?</p>
+          <p className="mb-2 text-sm font-medium">How are you feeling?</p>
           <div className="flex flex-wrap gap-2">
             {MOODS.map((m) => (
               <Button

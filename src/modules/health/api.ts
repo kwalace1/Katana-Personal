@@ -11,6 +11,8 @@ import type {
   SupplementItem,
   SupplementLog,
   SupplementChecklistRow,
+  SupplementTimeOfDay,
+  GeoPoint,
 } from './types'
 
 const WORKOUTS = 'workouts'
@@ -29,6 +31,16 @@ export const MEAL_CATEGORIES: { value: MealCategory; label: string }[] = [
   { value: 'dinner', label: 'Dinner' },
   { value: 'snack', label: 'Snack' },
 ]
+
+export const SUPPLEMENT_TIMES: { value: SupplementTimeOfDay; label: string }[] = [
+  { value: 'morning', label: 'Morning' },
+  { value: 'afternoon', label: 'Afternoon' },
+  { value: 'evening', label: 'Evening' },
+]
+
+export function supplementTimeOfDay(item: Pick<SupplementItem, 'time_of_day'>): SupplementTimeOfDay {
+  return item.time_of_day === 'afternoon' || item.time_of_day === 'evening' ? item.time_of_day : 'morning'
+}
 
 function now() {
   return new Date().toISOString()
@@ -171,6 +183,8 @@ export const healthApi = {
       duration_mins?: number
       duration_secs?: number
       calories?: number
+      path?: GeoPoint[]
+      distance_m?: number
     },
   ): Workout {
     const row = localDb.insert(WORKOUTS, userId, {
@@ -186,6 +200,8 @@ export const healthApi = {
       duration_mins: input.duration_mins ?? 0,
       duration_secs: input.duration_secs ?? 0,
       calories: input.calories != null ? Math.max(0, Number(input.calories) || 0) : undefined,
+      path: input.path,
+      distance_m: input.distance_m != null ? Math.max(0, Number(input.distance_m) || 0) : undefined,
     })
     if (!input.silent) {
       notifyCheckIn(
@@ -205,6 +221,8 @@ export const healthApi = {
       seconds?: number
       notes?: string
       calories?: number
+      path?: GeoPoint[]
+      distance_m?: number
     },
   ): Workout | null {
     const hours = Math.max(0, Number(input.hours) || 0)
@@ -220,6 +238,8 @@ export const healthApi = {
       duration_secs: seconds,
       duration_minutes: durationTotalMinutes({ hours, minutes, seconds }),
       calories: input.calories == null ? undefined : Math.max(0, Number(input.calories) || 0),
+      path: input.path,
+      distance_m: input.distance_m,
     })
   },
 
@@ -351,7 +371,16 @@ export const healthApi = {
 
   addSleep(
     userId: string,
-    input: { hours: number; quality: SleepLog['quality']; notes?: string; date?: string },
+    input: {
+      hours: number
+      quality: SleepLog['quality']
+      notes?: string
+      date?: string
+      bedtime?: string
+      wake?: string
+      source?: SleepLog['source']
+      silent?: boolean
+    },
   ): SleepLog {
     const row = localDb.insert(SLEEP, userId, {
       id: createId(),
@@ -361,9 +390,44 @@ export const healthApi = {
       quality: input.quality,
       notes: input.notes || '',
       created_at: now(),
+      bedtime: input.bedtime,
+      wake: input.wake,
+      source: input.source || 'manual',
     })
-    notifyCheckIn(`Logged sleep — ${row.hours}h (${row.quality})`)
+    if (!input.silent) {
+      notifyCheckIn(`Logged sleep — ${row.hours}h (${row.quality})`)
+    }
     return row
+  },
+
+  importSleepNights(
+    userId: string,
+    nights: {
+      date: string
+      hours: number
+      bedtime?: string
+      wake?: string
+      source?: SleepLog['source']
+    }[],
+  ): number {
+    const have = new Set(healthApi.listSleep(userId).map((s) => s.date))
+    let added = 0
+    for (const night of nights) {
+      if (have.has(night.date) || night.hours <= 0) continue
+      healthApi.addSleep(userId, {
+        date: night.date,
+        hours: night.hours,
+        quality: night.hours >= 7 ? 'good' : 'fair',
+        bedtime: night.bedtime,
+        wake: night.wake,
+        source: night.source || 'apple_health',
+        notes: night.source === 'fitbit' ? 'Imported from Fitbit' : 'Imported from Apple Health',
+        silent: true,
+      })
+      have.add(night.date)
+      added += 1
+    }
+    return added
   },
 
   removeSleep(userId: string, id: string) {
@@ -430,7 +494,12 @@ export const healthApi = {
 
   addSupplement(
     userId: string,
-    input: { name: string; dose_notes?: string; kind?: 'vitamin' | 'supplement' },
+    input: {
+      name: string
+      dose_notes?: string
+      kind?: 'vitamin' | 'supplement'
+      time_of_day?: SupplementTimeOfDay
+    },
   ): SupplementItem | null {
     const name = input.name.trim()
     if (!name) return null
@@ -443,6 +512,7 @@ export const healthApi = {
       sort_order: existing.length,
       archived: false,
       kind: input.kind || 'supplement',
+      time_of_day: input.time_of_day || 'morning',
       created_at: now(),
     })
   },
@@ -450,7 +520,7 @@ export const healthApi = {
   updateSupplement(
     userId: string,
     id: string,
-    patch: Partial<Pick<SupplementItem, 'name' | 'dose_notes' | 'sort_order' | 'archived'>>,
+    patch: Partial<Pick<SupplementItem, 'name' | 'dose_notes' | 'sort_order' | 'archived' | 'time_of_day'>>,
   ): SupplementItem | null {
     const next: Partial<SupplementItem> = { ...patch }
     if (typeof patch.name === 'string') next.name = patch.name.trim()
