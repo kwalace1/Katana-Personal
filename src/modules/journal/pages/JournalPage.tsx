@@ -191,10 +191,10 @@ export default function JournalPage() {
               setParams({ date: blip.date })
             }}
             className={cn(
-              'flex min-h-11 flex-1 flex-col items-center justify-center gap-1 rounded-xl border py-1.5 transition',
+              'flex min-h-11 flex-1 flex-col items-center justify-center gap-1 rounded-xl py-1.5 transition',
               blip.selected
-                ? 'border-primary bg-primary/10'
-                : 'border-border/50 bg-card/40 hover:border-primary/40',
+                ? 'bg-primary/12 ring-1 ring-primary/30'
+                : 'bg-secondary/35 hover:bg-secondary/55',
             )}
             aria-label={`${blip.date}${blip.mood ? `, ${moodLabel(blip.mood)}` : ', no check-in'}`}
           >

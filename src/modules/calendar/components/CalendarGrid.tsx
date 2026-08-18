@@ -63,19 +63,19 @@ export function CalendarGrid({
                 tasks > 0 ? `, ${tasks} ${tasks === 1 ? 'task' : 'tasks'}` : ''
               }`}
               className={cn(
-                'flex flex-col rounded-lg border p-1.5 text-left transition',
+                'flex flex-col rounded-xl p-1.5 text-left transition',
                 compact ? 'min-h-[4.25rem] sm:min-h-[4.75rem]' : 'min-h-[5.25rem] sm:min-h-[6.5rem]',
                 selected
-                  ? 'border-primary bg-primary/10'
-                  : 'border-border/50 bg-card/40 hover:border-primary/40',
-                isToday(day) && !selected && 'ring-1 ring-primary/30',
+                  ? 'bg-primary/12 ring-1 ring-primary/30'
+                  : 'bg-secondary/30 hover:bg-secondary/55',
                 outside && 'opacity-40',
               )}
             >
               <span
                 className={cn(
-                  'text-xs font-semibold leading-none',
-                  isToday(day) && 'text-primary',
+                  'inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold leading-none',
+                  selected && 'bg-primary text-primary-foreground',
+                  isToday(day) && !selected && 'text-primary',
                 )}
               >
                 {format(day, 'd')}
@@ -132,17 +132,22 @@ export function DayWeekStrip({
             type="button"
             onClick={() => onSelectDay(day)}
             className={cn(
-              'rounded-lg border px-1 py-2 text-center transition',
+              'rounded-xl px-1 py-2 text-center transition',
               selected
-                ? 'border-primary bg-primary/10'
-                : 'border-border/50 bg-card/40 hover:border-primary/40',
-              isToday(day) && !selected && 'ring-1 ring-primary/30',
+                ? 'bg-primary/12 ring-1 ring-primary/30'
+                : 'bg-secondary/30 hover:bg-secondary/55',
             )}
           >
             <p className="text-[0.65rem] font-semibold uppercase text-muted-foreground">
               {format(day, 'EEE')}
             </p>
-            <p className={cn('font-display text-lg leading-none', isToday(day) && 'text-primary')}>
+            <p
+              className={cn(
+                'mx-auto flex h-8 w-8 items-center justify-center rounded-full font-display text-lg leading-none',
+                selected && 'bg-primary text-primary-foreground',
+                isToday(day) && !selected && 'text-primary',
+              )}
+            >
               {format(day, 'd')}
             </p>
             {tasks > 0 ? (

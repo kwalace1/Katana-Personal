@@ -28,6 +28,7 @@ import { DIET_PRESETS, DIET_PROGRAMS, type DietProgram } from '../diet-programs'
 import { cloneIngredients, sumMacros } from '../meal-ingredients'
 import type { DietPlan, DietPlanDay, DietPlanMeal, DietPlanPattern, MealCategory } from '../types'
 import { MealIngredientPicker } from './MealIngredientPicker'
+import { HealthCardHeader, HealthInner, HealthPill, HealthSegmented } from './health-ui'
 
 type Props = {
   userId: string
@@ -224,15 +225,13 @@ export function DietPlansPanel({ userId, tick, refresh }: Props) {
   }
 
   return (
-    <div className="space-y-4">
-      <form onSubmit={save} className="kp-surface space-y-4 p-4">
-        <div>
-          <p className="text-xs text-muted-foreground">Diet plan</p>
-          <h3 className="font-display text-xl tracking-tight">Create a plan</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Set calories and macros, then add the meals (with ingredients) for each day.
-          </p>
-        </div>
+    <div className="space-y-5">
+      <form onSubmit={save} className="kp-surface space-y-5 p-4 sm:p-5">
+        <HealthCardHeader
+          eyebrow="Diet plan"
+          title="Create a plan"
+          description="Set calories and macros, then add the meals (with ingredients) for each day."
+        />
 
         <div className="flex flex-wrap gap-2">
           {DIET_PRESETS.map((preset) => (
@@ -250,14 +249,14 @@ export function DietPlansPanel({ userId, tick, refresh }: Props) {
         </div>
 
         <div className="space-y-2">
-          <p className="text-xs text-muted-foreground">Pre-made plans</p>
+          <p className="kp-section-label">Pre-made plans</p>
           <div className="grid gap-2 sm:grid-cols-2">
             {DIET_PROGRAMS.map((program) => (
               <button
                 key={program.id}
                 type="button"
                 onClick={() => applyProgram(program)}
-                className="rounded-2xl border border-border/60 bg-card/50 p-3 text-left transition hover:border-primary/35 hover:bg-secondary/40"
+                className="rounded-2xl bg-secondary/40 p-3.5 text-left transition hover:bg-secondary/65"
               >
                 <div className="flex items-start justify-between gap-2">
                   <p className="font-semibold">{program.name}</p>
@@ -286,30 +285,18 @@ export function DietPlansPanel({ userId, tick, refresh }: Props) {
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            size="sm"
-            variant={pattern === 'cycle' ? 'default' : 'outline'}
-            className="rounded-full"
-            onClick={() => switchPattern('cycle')}
-          >
-            Repeating cycle
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant={pattern === 'weekdays' ? 'default' : 'outline'}
-            className="rounded-full"
-            onClick={() => switchPattern('weekdays')}
-          >
-            Weekday plan
-          </Button>
-        </div>
+        <HealthSegmented
+          value={pattern}
+          onChange={switchPattern}
+          options={[
+            { id: 'cycle', label: 'Repeating cycle' },
+            { id: 'weekdays', label: 'Weekday plan' },
+          ]}
+        />
 
         <div className="space-y-3">
           {days.map((day, dayIndex) => (
-            <div key={`${day.name}-${dayIndex}`} className="rounded-2xl border border-border/50 p-3">
+            <HealthInner key={`${day.name}-${dayIndex}`} className="space-y-3">
               <div className="mb-2 flex items-center gap-2">
                 {pattern === 'cycle' ? (
                   <Input
@@ -431,7 +418,7 @@ export function DietPlansPanel({ userId, tick, refresh }: Props) {
                 <Plus className="mr-1 h-3.5 w-3.5" />
                 Add meal
               </Button>
-            </div>
+            </HealthInner>
           ))}
         </div>
 
@@ -447,19 +434,20 @@ export function DietPlansPanel({ userId, tick, refresh }: Props) {
       </form>
 
       <div>
-        <h3 className="mb-2 font-display text-lg tracking-tight">Saved plans</h3>
+        <p className="kp-section-label">Library</p>
+        <h3 className="mb-3 mt-1 font-display text-xl tracking-tight">Saved plans</h3>
         {plans.length === 0 ? (
           <EmptyState title="No diet plans yet" description="Save a calorie target and meals above." />
         ) : (
-          <ul className="space-y-2">
+          <ul className="space-y-3">
             {plans.map((plan) => (
-              <li key={plan.id} className={cn('kp-surface p-4', plan.active && 'ring-2 ring-primary/30')}>
+              <li key={plan.id} className={cn('kp-surface p-4 sm:p-5', plan.active && 'ring-2 ring-primary/20')}>
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="font-medium">
-                      {plan.name}
-                      {plan.active ? <span className="ml-2 text-xs font-semibold text-primary">Active</span> : null}
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-medium">{plan.name}</p>
+                      {plan.active ? <HealthPill tone="primary">Active</HealthPill> : null}
+                    </div>
                     <p className="text-xs text-muted-foreground">
                       {plan.calories.toLocaleString()} kcal · {formatMacros(plan)} ·{' '}
                       {plan.pattern === 'cycle' ? 'Repeating cycle' : 'Weekday'}

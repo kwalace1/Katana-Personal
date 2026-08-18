@@ -21,6 +21,7 @@ import {
 } from '../../lift-draft'
 import { liftApi } from '../../lift-api'
 import { formatLiftDate } from './LiftLineChart'
+import { HealthCardHeader, HealthFieldLabel, HealthInner, HealthPill } from '../health-ui'
 import { cn } from '@/lib/utils'
 import type { SplitDay } from '../../types'
 import type { LiftSession } from '../../types'
@@ -374,11 +375,11 @@ export function LiftLogPanel({ userId, logDate, tick, refresh, onGoSplits }: Pro
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {planned && !editingSessionId ? (
-        <div className="kp-surface border-primary/20 bg-primary/5 p-4">
-          <p className="text-xs text-muted-foreground">Planned for {formatLiftDate(logDate)}</p>
-          <p className="font-display text-xl tracking-tight">
+        <div className="kp-surface bg-primary/[0.06] p-4 sm:p-5">
+          <p className="kp-section-label">Planned for {formatLiftDate(logDate)}</p>
+          <p className="mt-1 font-display text-xl tracking-tight">
             {planned.day.name}
             {planned.day.focus ? (
               <span className="ml-2 text-base font-sans font-normal text-muted-foreground">
@@ -386,28 +387,24 @@ export function LiftLogPanel({ userId, logDate, tick, refresh, onGoSplits }: Pro
               </span>
             ) : null}
           </p>
-          <p className="text-xs text-muted-foreground">{planned.split.name}</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">{planned.split.name}</p>
         </div>
       ) : null}
 
       <form
         onSubmit={saveWorkout}
-        className={cn('kp-surface min-w-0 space-y-4 overflow-hidden p-4', editingSessionId && 'ring-2 ring-primary/25')}
+        className={cn('kp-surface min-w-0 space-y-4 overflow-hidden p-4 sm:p-5', editingSessionId && 'ring-2 ring-primary/20')}
       >
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div>
-            <p className="text-xs text-muted-foreground">{editingSessionId ? 'Editing workout' : 'Log workout'}</p>
-            <h3 className="font-display text-xl tracking-tight">
-              {editingSessionId ? 'Update session' : 'New session'}
-            </h3>
-            {hasDraft || draftBanner ? (
-              <p className="mt-1 text-xs text-primary">
-                Autosaved on this device — safe if you leave mid-workout.
-              </p>
-            ) : null}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {editingSessionId ? (
+        <HealthCardHeader
+          eyebrow={editingSessionId ? 'Editing workout' : 'Log workout'}
+          title={editingSessionId ? 'Update session' : 'New session'}
+          description={
+            hasDraft || draftBanner
+              ? 'Autosaved on this device — safe if you leave mid-workout.'
+              : 'Name the session, then add exercises and working sets.'
+          }
+          actions={
+            editingSessionId ? (
               <Button type="button" size="sm" variant="ghost" className="text-muted-foreground" onClick={() => resetForm(true)}>
                 Cancel edit
               </Button>
@@ -424,17 +421,23 @@ export function LiftLogPanel({ userId, logDate, tick, refresh, onGoSplits }: Pro
               >
                 Discard draft
               </Button>
-            ) : null}
-          </div>
-        </div>
+            ) : null
+          }
+        />
         <div className="grid gap-3 sm:grid-cols-2 *:min-w-0">
-          <Input
-            placeholder="Workout name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            aria-label="Workout name"
-          />
-          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} aria-label="Date" />
+          <div>
+            <HealthFieldLabel>Workout name</HealthFieldLabel>
+            <Input
+              placeholder="Push, Pull, Legs…"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              aria-label="Workout name"
+            />
+          </div>
+          <div>
+            <HealthFieldLabel>Date</HealthFieldLabel>
+            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} aria-label="Date" />
+          </div>
         </div>
 
         <datalist id={listId}>
@@ -449,8 +452,8 @@ export function LiftLogPanel({ userId, logDate, tick, refresh, onGoSplits }: Pro
               ? null
               : liftApi.getPreviousTopSet(userId, ex.name, editingSessionId)
             return (
-              <div key={ex.key} className="rounded-xl border border-border/60 p-3">
-                <div className="mb-2 flex flex-wrap items-center gap-2">
+              <HealthInner key={ex.key} className="space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
                   <Input
                     list={listId}
                     value={ex.name}
@@ -469,7 +472,7 @@ export function LiftLogPanel({ userId, logDate, tick, refresh, onGoSplits }: Pro
                   </Button>
                 </div>
                 {previous ? (
-                  <p className="mb-2 text-xs text-muted-foreground">{previousTopSetLabel(previous)}</p>
+                  <p className="text-xs text-muted-foreground">{previousTopSetLabel(previous)}</p>
                 ) : null}
                 <div className="space-y-2">
                   {ex.sets.map((set, setIndex) => (
@@ -514,7 +517,7 @@ export function LiftLogPanel({ userId, logDate, tick, refresh, onGoSplits }: Pro
                   <Plus className="mr-1 h-3.5 w-3.5" />
                   Add set
                 </Button>
-              </div>
+              </HealthInner>
             )
           })}
         </div>
@@ -529,13 +532,17 @@ export function LiftLogPanel({ userId, logDate, tick, refresh, onGoSplits }: Pro
       </form>
 
       <div>
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <h3 className="font-display text-lg tracking-tight">History</h3>
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <p className="kp-section-label">History</p>
+            <h3 className="mt-1 font-display text-xl tracking-tight">Logged sessions</h3>
+          </div>
           {sessions.length > 0 ? (
             <Button
               type="button"
               size="sm"
               variant={creatingSplitFromLifts ? 'default' : 'outline'}
+              className="rounded-full"
               onClick={() => {
                 if (creatingSplitFromLifts) {
                   setCreatingSplitFromLifts(false)
@@ -551,21 +558,23 @@ export function LiftLogPanel({ userId, logDate, tick, refresh, onGoSplits }: Pro
           ) : null}
         </div>
         {creatingSplitFromLifts ? (
-          <div className="kp-surface mb-3 space-y-3 p-4">
+          <div className="kp-surface mb-3 space-y-3 p-4 sm:p-5">
+            <HealthCardHeader
+              eyebrow="From lifts"
+              title="Build a cycle"
+              description="Select sessions in the order they should appear as days. Exercises, set counts, and rep ranges are copied from each one."
+            />
+            <HealthFieldLabel>Split name</HealthFieldLabel>
             <Input
               placeholder={suggestedSplitName || 'Push / Pull / Legs'}
               value={splitFromLiftsName}
               onChange={(e) => setSplitFromLiftsName(e.target.value)}
               aria-label="Split name"
             />
-            <p className="text-xs text-muted-foreground">
-              Select lifts in the order they should appear as days in the cycle. Exercises, set counts, and
-              rep ranges are copied from each session.
-            </p>
             {selectedSplitWorkouts.length ? (
               <ul className="space-y-2">
                 {selectedSplitWorkouts.map((workout, index) => (
-                  <li key={workout.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/50 px-3 py-2">
+                  <li key={workout.id} className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-secondary/40 px-3.5 py-2.5">
                     <div>
                       <p className="text-sm font-medium">Day {index + 1}</p>
                       <p className="text-xs text-muted-foreground">
@@ -592,7 +601,7 @@ export function LiftLogPanel({ userId, logDate, tick, refresh, onGoSplits }: Pro
                       >
                         ↓
                       </Button>
-                      <Button type="button" size="sm" variant="outline" onClick={() => toggleSplitSelection(workout.id)}>
+                      <Button type="button" size="sm" variant="ghost" onClick={() => toggleSplitSelection(workout.id)}>
                         Remove
                       </Button>
                     </div>
@@ -620,16 +629,17 @@ export function LiftLogPanel({ userId, logDate, tick, refresh, onGoSplits }: Pro
                   key={session.id}
                   className={cn(
                     'kp-surface overflow-hidden p-0',
-                    editingSessionId === session.id && 'ring-2 ring-primary/25',
+                    editingSessionId === session.id && 'ring-2 ring-primary/20',
                     selected && 'ring-2 ring-primary/20',
                   )}
                 >
-                  <div className="flex w-full items-center gap-2 p-4">
+                  <div className="flex w-full items-center gap-2 px-4 py-3.5">
                     {creatingSplitFromLifts ? (
                       <Button
                         type="button"
                         size="sm"
                         variant={selected ? 'default' : 'outline'}
+                        className="rounded-full"
                         onClick={() => toggleSplitSelection(session.id)}
                       >
                         {selected ? 'Selected' : 'Select'}
@@ -655,11 +665,12 @@ export function LiftLogPanel({ userId, logDate, tick, refresh, onGoSplits }: Pro
                           {groups.reduce((n, g) => n + g.sets.length, 0)} sets
                         </p>
                       </div>
+                      {editingSessionId === session.id ? <HealthPill tone="primary">Editing</HealthPill> : null}
                       <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition', open && 'rotate-180')} />
                     </button>
                   </div>
                   {open ? (
-                    <div className="space-y-3 border-t border-border/50 px-4 pb-4 pt-3">
+                    <div className="space-y-3 border-t border-border/40 bg-secondary/20 px-4 pb-4 pt-3">
                       {groups.map((g) => (
                         <div key={g.exercise_id}>
                           <p className="text-sm font-medium">{g.name}</p>
@@ -669,13 +680,14 @@ export function LiftLogPanel({ userId, logDate, tick, refresh, onGoSplits }: Pro
                         </div>
                       ))}
                       <div className="flex flex-wrap gap-2">
-                        <Button size="sm" variant="outline" onClick={() => startEditWorkout(session)}>
+                        <Button size="sm" variant="outline" className="rounded-full" onClick={() => startEditWorkout(session)}>
                           <Pencil className="mr-1 h-3.5 w-3.5" />
                           Edit
                         </Button>
                         <Button
                           size="sm"
                           variant="outline"
+                          className="rounded-full"
                           onClick={() => {
                             if (!cloudUser) {
                               toast.message('Connect Social in Settings to share workouts')
@@ -685,11 +697,12 @@ export function LiftLogPanel({ userId, logDate, tick, refresh, onGoSplits }: Pro
                           }}
                         >
                           <Share2 className="mr-1 h-3.5 w-3.5" />
-                          Share workout
+                          Share
                         </Button>
                         <Button
                           size="sm"
-                          variant="outline"
+                          variant="ghost"
+                          className="rounded-full text-muted-foreground"
                           onClick={() => {
                             if (editingSessionId === session.id) resetForm(true)
                             setSplitSelectionIds((ids) => ids.filter((id) => id !== session.id))
@@ -699,7 +712,7 @@ export function LiftLogPanel({ userId, logDate, tick, refresh, onGoSplits }: Pro
                           }}
                         >
                           <Trash2 className="mr-1 h-3.5 w-3.5" />
-                          Delete workout
+                          Delete
                         </Button>
                       </div>
                     </div>

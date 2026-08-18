@@ -14,6 +14,7 @@ import {
 } from '../../lift-api'
 import type { SplitDay, SplitPattern } from '../../types'
 import { cn } from '@/lib/utils'
+import { HealthCardHeader, HealthInner, HealthPill, HealthSegmented } from '../health-ui'
 import { WORKOUT_PROGRAMS, type WorkoutProgram } from '../../workout-programs'
 import { ShareAudiencePicker, type ShareAudienceSelection } from '@/components/ShareAudiencePicker'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
@@ -271,27 +272,28 @@ export function LiftSplitsPanel({ userId, tick, refresh, onGoLift }: Props) {
   const listId = `split-exercise-list-${userId}`
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <form
         onSubmit={save}
-        className={cn('kp-surface space-y-4 p-4', editingSplitId && 'ring-2 ring-primary/25')}
+        className={cn('kp-surface space-y-5 p-4 sm:p-5', editingSplitId && 'ring-2 ring-primary/20')}
       >
         <datalist id={listId}>
           {exerciseNames.map((n) => (
             <option key={n} value={n} />
           ))}
         </datalist>
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div>
-            <p className="text-xs text-muted-foreground">{editingSplitId ? 'Editing split' : 'Training split'}</p>
-            <h3 className="font-display text-xl tracking-tight">{editingSplitId ? 'Update split' : 'Create split'}</h3>
-          </div>
-          {editingSplitId ? (
-            <Button type="button" size="sm" variant="ghost" className="text-muted-foreground" onClick={resetForm}>
-              Cancel
-            </Button>
-          ) : null}
-        </div>
+        <HealthCardHeader
+          eyebrow={editingSplitId ? 'Editing split' : 'Training split'}
+          title={editingSplitId ? 'Update split' : 'Create split'}
+          description="Name the routine, then add exercises, sets, and rep ranges for each day."
+          actions={
+            editingSplitId ? (
+              <Button type="button" size="sm" variant="ghost" className="text-muted-foreground" onClick={resetForm}>
+                Cancel
+              </Button>
+            ) : null
+          }
+        />
 
         <div className="flex flex-wrap gap-2">
           {SPLIT_PRESETS.map((preset) => (
@@ -302,17 +304,14 @@ export function LiftSplitsPanel({ userId, tick, refresh, onGoLift }: Props) {
         </div>
 
         <div className="space-y-2">
-          <div>
-            <p className="text-xs text-muted-foreground">Pre-made programs</p>
-            <h4 className="font-medium">Pick a proven starting point</h4>
-          </div>
+          <p className="kp-section-label">Pre-made programs</p>
           <div className="grid gap-2 sm:grid-cols-2">
             {WORKOUT_PROGRAMS.map((program) => (
               <button
                 key={program.id}
                 type="button"
                 onClick={() => applyProgram(program)}
-                className="rounded-2xl border border-border/60 bg-card/50 p-3 text-left transition hover:border-primary/35 hover:bg-secondary/40"
+                className="rounded-2xl bg-secondary/40 p-3.5 text-left transition hover:bg-secondary/65"
               >
                 <div className="flex items-start justify-between gap-2">
                   <p className="font-semibold">{program.name}</p>
@@ -330,30 +329,18 @@ export function LiftSplitsPanel({ userId, tick, refresh, onGoLift }: Props) {
 
         <Input placeholder="Split name" value={name} onChange={(e) => setName(e.target.value)} />
 
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            size="sm"
-            variant={pattern === 'cycle' ? 'default' : 'outline'}
-            className="rounded-full"
-            onClick={() => switchPattern('cycle')}
-          >
-            Repeating cycle
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant={pattern === 'weekdays' ? 'default' : 'outline'}
-            className="rounded-full"
-            onClick={() => switchPattern('weekdays')}
-          >
-            Weekday plan
-          </Button>
-        </div>
+        <HealthSegmented
+          value={pattern}
+          onChange={switchPattern}
+          options={[
+            { id: 'cycle', label: 'Repeating cycle' },
+            { id: 'weekdays', label: 'Weekday plan' },
+          ]}
+        />
 
         <div className="space-y-3">
           {days.map((day, index) => (
-            <div key={day.key} className="space-y-2 rounded-xl border border-border/60 p-3">
+            <HealthInner key={day.key} className="space-y-3">
               <div className="grid gap-2 sm:grid-cols-[8rem_1fr_auto]">
                 {pattern === 'cycle' ? (
                   <Input
@@ -518,7 +505,7 @@ export function LiftSplitsPanel({ userId, tick, refresh, onGoLift }: Props) {
                 <Plus className="mr-1 h-3.5 w-3.5" />
                 Add exercise
               </Button>
-            </div>
+            </HealthInner>
           ))}
         </div>
 
@@ -540,62 +527,36 @@ export function LiftSplitsPanel({ userId, tick, refresh, onGoLift }: Props) {
       </form>
 
       <div>
-        <h3 className="mb-2 font-display text-lg tracking-tight">Saved splits</h3>
+        <p className="kp-section-label">Library</p>
+        <h3 className="mb-3 mt-1 font-display text-xl tracking-tight">Saved splits</h3>
         {splits.length === 0 ? (
           <EmptyState title="No splits yet" description="Save a cycle or weekday plan above." />
         ) : (
-          <ul className="space-y-2">
+          <ul className="space-y-3">
             {splits.map((split) => (
               <li
                 key={split.id}
                 className={cn(
-                  'kp-surface p-4',
-                  split.active && 'ring-2 ring-primary/30',
-                  editingSplitId === split.id && 'ring-2 ring-primary/40',
+                  'kp-surface p-4 sm:p-5',
+                  (split.active || editingSplitId === split.id) && 'ring-2 ring-primary/20',
                 )}
               >
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium">
-                      {split.name}
-                      {split.active ? (
-                        <span className="ml-2 text-xs font-semibold text-primary">Active</span>
-                      ) : null}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-medium">{split.name}</p>
+                      {split.active ? <HealthPill tone="primary">Active</HealthPill> : null}
+                      {editingSplitId === split.id ? <HealthPill>Editing</HealthPill> : null}
+                    </div>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
                       {split.pattern === 'cycle' ? 'Repeating cycle' : 'Weekday'} · {split.days.length} days
                     </p>
-                    <ul className="mt-2 space-y-2 text-sm">
-                      {split.days.map((d, i) => (
-                        <li key={`${split.id}-${i}`} className="border-t border-border/30 py-2 first:border-0">
-                          <div className="flex flex-wrap items-start justify-between gap-2">
-                            <div>
-                              <p className="font-medium">{d.name}</p>
-                              <p className="text-xs text-muted-foreground">{d.focus || 'Rest'}</p>
-                            </div>
-                            <Button type="button" size="sm" variant="outline" onClick={() => logSplitDay(split, d)}>
-                              Log
-                            </Button>
-                          </div>
-                          {d.exercises?.length ? (
-                            <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
-                              {d.exercises.map((exercise) => (
-                                <p key={`${exercise.name}-${exercise.sets}-${exercise.reps}`}>
-                                  {formatSplitExerciseLine(exercise)}
-                                </p>
-                              ))}
-                            </div>
-                          ) : (
-                            <p className="mt-1 text-xs text-muted-foreground">No exercises prescribed</p>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Button
                       size="sm"
                       variant={editingSplitId === split.id ? 'default' : 'outline'}
+                      className="rounded-full"
                       onClick={() => startEditSplit(split)}
                     >
                       {editingSplitId === split.id ? 'Editing' : 'Edit'}
@@ -603,6 +564,7 @@ export function LiftSplitsPanel({ userId, tick, refresh, onGoLift }: Props) {
                     <Button
                       size="sm"
                       variant="outline"
+                      className="rounded-full"
                       onClick={() => {
                         if (!cloudUser) {
                           toast.message('Connect Social in Settings to share a split')
@@ -618,6 +580,7 @@ export function LiftSplitsPanel({ userId, tick, refresh, onGoLift }: Props) {
                       <Button
                         size="sm"
                         variant="outline"
+                        className="rounded-full"
                         onClick={() => {
                           liftApi.setActiveSplit(userId, split.id)
                           refresh()
@@ -640,6 +603,32 @@ export function LiftSplitsPanel({ userId, tick, refresh, onGoLift }: Props) {
                     </Button>
                   </div>
                 </div>
+                <ul className="mt-3 space-y-2">
+                  {split.days.map((d, i) => (
+                    <li key={`${split.id}-${i}`}>
+                      <HealthInner className="py-2.5">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-medium">{d.name}</p>
+                            <p className="text-xs text-muted-foreground">{d.focus || 'Rest'}</p>
+                          </div>
+                          <Button type="button" size="sm" variant="outline" className="h-8 rounded-full" onClick={() => logSplitDay(split, d)}>
+                            Log
+                          </Button>
+                        </div>
+                        {d.exercises?.length ? (
+                          <div className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
+                            {d.exercises.map((exercise) => (
+                              <p key={`${exercise.name}-${exercise.sets}-${exercise.reps}`}>
+                                {formatSplitExerciseLine(exercise)}
+                              </p>
+                            ))}
+                          </div>
+                        ) : null}
+                      </HealthInner>
+                    </li>
+                  ))}
+                </ul>
               </li>
             ))}
           </ul>

@@ -27,6 +27,14 @@ import {
 } from '../../lift-api'
 import type { WeightGoalMode } from '../../types'
 import { formatLiftDate, LiftLineChart } from './LiftLineChart'
+import {
+  HealthCardHeader,
+  HealthFieldLabel,
+  HealthSegmented,
+  HealthStat,
+  healthTableCell,
+  healthTableHead,
+} from '../health-ui'
 
 type Props = {
   userId: string
@@ -182,52 +190,31 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="kp-surface space-y-4 p-4">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div>
-            <p className="text-xs text-muted-foreground">Bodyweight trend</p>
-            <h3 className="font-display text-2xl tracking-tight">
-              {latestOverall ? `${latestOverall.weight} lb` : 'No entries yet'}
-            </h3>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-1.5">
-          {TREND_RANGES.map((r) => (
-            <button
-              key={r.id}
-              type="button"
-              onClick={() => setRange(r.id)}
-              className={cn(
-                'rounded-full px-3 py-1.5 text-xs font-semibold transition',
-                range === r.id
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-secondary/80 text-muted-foreground hover:text-foreground',
-              )}
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
+    <div className="space-y-5">
+      <div className="kp-surface space-y-5 p-4 sm:p-5">
+        <HealthCardHeader
+          eyebrow="Bodyweight trend"
+          title={latestOverall ? `${latestOverall.weight} lb` : 'No entries yet'}
+          actions={<HealthSegmented options={TREND_RANGES} value={range} onChange={setRange} />}
+        />
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <MetricCard
+          <HealthStat
             label="Average"
             value={average == null ? '—' : `${average.toFixed(1)} lb`}
             hint={filtered.length ? `${filtered.length} check-in${filtered.length === 1 ? '' : 's'}` : 'No data'}
           />
-          <MetricCard
+          <HealthStat
             label="Change"
             value={rangeChange == null ? '—' : `${rangeChange >= 0 ? '+' : ''}${rangeChange.toFixed(1)} lb`}
             hint={filtered.length > 1 ? 'First to latest' : 'Need 2 weigh-ins'}
           />
-          <MetricCard
+          <HealthStat
             label="High"
             value={rangeHigh == null ? '—' : `${rangeHigh} lb`}
             hint={filtered.length ? selectedRangeLabel : 'No data'}
           />
-          <MetricCard
+          <HealthStat
             label="Low"
             value={rangeLow == null ? '—' : `${rangeLow} lb`}
             hint={filtered.length ? selectedRangeLabel : 'No data'}
@@ -268,14 +255,17 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
       </div>
 
       <div className="grid min-w-0 gap-4 lg:grid-cols-2">
-        <form onSubmit={saveWeight} className="kp-surface min-w-0 space-y-3 overflow-hidden p-4">
-          <div>
-            <p className="text-xs text-muted-foreground">Check-in</p>
-            <h3 className="font-display text-lg tracking-tight">Log weight</h3>
-          </div>
+        <form onSubmit={saveWeight} className="kp-surface min-w-0 space-y-4 overflow-hidden p-4 sm:p-5">
+          <HealthCardHeader eyebrow="Check-in" title="Log weight" />
           <div className="grid gap-3 sm:grid-cols-2 *:min-w-0">
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} aria-label="Date" />
-            <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} aria-label="Time" />
+            <div>
+              <HealthFieldLabel>Date</HealthFieldLabel>
+              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} aria-label="Date" />
+            </div>
+            <div>
+              <HealthFieldLabel>Time</HealthFieldLabel>
+              <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} aria-label="Time" />
+            </div>
           </div>
           <QuantityInput
             {...QUANTITY.bodyWeightLb}
@@ -286,21 +276,21 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
           <Button type="submit">Save weight</Button>
         </form>
 
-        <form onSubmit={saveGoal} className="kp-surface min-w-0 space-y-3 overflow-hidden p-4">
+        <form onSubmit={saveGoal} className="kp-surface min-w-0 space-y-4 overflow-hidden p-4 sm:p-5">
+          <HealthCardHeader eyebrow="Goal" title="Set direction" />
           <div>
-            <p className="text-xs text-muted-foreground">Goal</p>
-            <h3 className="font-display text-lg tracking-tight">Set direction</h3>
+            <HealthFieldLabel>Goal type</HealthFieldLabel>
+            <Select value={mode} onValueChange={(v) => setMode(v as WeightGoalMode)}>
+              <SelectTrigger className="min-w-0">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="bulk">Bulk</SelectItem>
+                <SelectItem value="cut">Cut</SelectItem>
+                <SelectItem value="maintain">Maintain</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-          <Select value={mode} onValueChange={(v) => setMode(v as WeightGoalMode)}>
-            <SelectTrigger className="min-w-0">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="bulk">Bulk</SelectItem>
-              <SelectItem value="cut">Cut</SelectItem>
-              <SelectItem value="maintain">Maintain</SelectItem>
-            </SelectContent>
-          </Select>
           <div className="grid gap-3 sm:grid-cols-2 *:min-w-0">
             <QuantityInput
               {...QUANTITY.bodyWeightLb}
@@ -335,9 +325,9 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
 
       <WeeklyTargetsCard plan={plan} />
 
-      <div className="kp-surface p-4">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h3 className="font-display text-lg tracking-tight">Weight history</h3>
+      <div className="kp-surface p-4 sm:p-5">
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+          <HealthCardHeader eyebrow="Log" title="Weight history" />
           <span className="text-xs text-muted-foreground">{selectedRangeLabel}</span>
         </div>
         {filtered.length === 0 ? (
@@ -351,14 +341,14 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
           />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[22rem] text-left text-sm">
+            <table className="w-full min-w-[22rem] text-sm">
               <thead>
-                <tr className="border-b border-border/60 text-xs text-muted-foreground">
-                  <th className="pb-2 pr-3 font-medium">Date</th>
-                  <th className="pb-2 pr-3 font-medium">Time</th>
-                  <th className="pb-2 pr-3 font-medium">Weight</th>
-                  <th className="pb-2 pr-3 font-medium">Change</th>
-                  <th className="pb-2 font-medium" />
+                <tr className={healthTableHead}>
+                  <th className="pb-2 pr-3">Date</th>
+                  <th className="pb-2 pr-3">Time</th>
+                  <th className="pb-2 pr-3">Weight</th>
+                  <th className="pb-2 pr-3">Change</th>
+                  <th className="pb-2" />
                 </tr>
               </thead>
               <tbody>
@@ -367,12 +357,12 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
                   const delta = older ? entry.weight - older.weight : null
                   return (
                     <tr key={entry.id} className="border-b border-border/40">
-                      <td className="py-2 pr-3">{formatLiftDate(entry.date)}</td>
-                      <td className="py-2 pr-3 text-muted-foreground">
+                      <td className={healthTableCell}>{formatLiftDate(entry.date)}</td>
+                      <td className={`${healthTableCell} text-muted-foreground`}>
                         {entry.time ? formatMealTime(entry.time) : '—'}
                       </td>
-                      <td className="py-2 pr-3">{entry.weight} lb</td>
-                      <td className="py-2 pr-3 text-muted-foreground">
+                      <td className={healthTableCell}>{entry.weight} lb</td>
+                      <td className={`${healthTableCell} text-muted-foreground`}>
                         {delta == null ? '—' : `${delta >= 0 ? '+' : ''}${delta.toFixed(1)}`}
                       </td>
                       <td className="py-2 text-right">
@@ -399,32 +389,11 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
   )
 }
 
-function MetricCard({
-  label,
-  value,
-  hint,
-  valueClassName,
-}: {
-  label: string
-  value: string
-  hint: string
-  valueClassName?: string
-}) {
-  return (
-    <div className="rounded-xl border border-border/50 bg-secondary/20 p-3">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className={cn('font-display text-xl tracking-tight', valueClassName)}>{value}</p>
-      <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>
-    </div>
-  )
-}
-
 function WeeklyTargetsCard({ plan }: { plan: WeightGoalPlan | null }) {
   if (!plan) {
     return (
-      <div className="kp-surface p-4">
-        <p className="text-xs text-muted-foreground">Weekly targets</p>
-        <h3 className="font-display text-lg tracking-tight">Goal pace</h3>
+      <div className="kp-surface p-4 sm:p-5">
+        <HealthCardHeader eyebrow="Weekly targets" title="Goal pace" />
         <EmptyState
           title="Set a start, goal, and date"
           description="A 5 lb gain over 20 weeks becomes +0.25 lb each week."
@@ -452,29 +421,24 @@ function WeeklyTargetsCard({ plan }: { plan: WeightGoalPlan | null }) {
       : `Starts ${formatLiftDate(plan.startDate)}`
 
   return (
-    <div className="kp-surface space-y-4 p-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <p className="text-xs text-muted-foreground">Weekly targets</p>
-          <h3 className="font-display text-lg tracking-tight">{formatSignedLb(plan.weeklyChange)} / week</h3>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          {formatLb(plan.startWeight)} lb → {formatLb(plan.targetWeight)} lb · {formatLiftDate(plan.startDate)} to{' '}
-          {formatLiftDate(plan.targetDate)}
-        </p>
-      </div>
+    <div className="kp-surface space-y-5 p-4 sm:p-5">
+      <HealthCardHeader
+        eyebrow="Weekly targets"
+        title={`${formatSignedLb(plan.weeklyChange)} / week`}
+        description={`${formatLb(plan.startWeight)} lb → ${formatLb(plan.targetWeight)} lb · ${formatLiftDate(plan.startDate)} to ${formatLiftDate(plan.targetDate)}`}
+      />
       <div className="grid gap-3 sm:grid-cols-3">
-        <MetricCard
+        <HealthStat
           label="This week avg"
           value={`${formatLb(currentWeek ? currentWeek.targetWeight : plan.targetWeight)} lb`}
           hint={thisWeekNote}
         />
-        <MetricCard
+        <HealthStat
           label="Remaining"
           value={pastGoal ? '0' : String(remaining)}
           hint={`${plan.weeks.length} week${plan.weeks.length === 1 ? '' : 's'} total · ${formatSignedLb(plan.totalChange)} overall`}
         />
-        <MetricCard
+        <HealthStat
           label="Pace"
           value={pace.label}
           hint={pace.note}
@@ -488,16 +452,16 @@ function WeeklyTargetsCard({ plan }: { plan: WeightGoalPlan | null }) {
         />
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[36rem] text-left text-sm">
+        <table className="w-full min-w-[36rem] text-sm">
           <thead>
-            <tr className="border-b border-border/60 text-xs text-muted-foreground">
-              <th className="pb-2 pr-3 font-medium">Week</th>
-              <th className="pb-2 pr-3 font-medium">Start</th>
-              <th className="pb-2 pr-3 font-medium">End</th>
-              <th className="pb-2 pr-3 font-medium">Avg target</th>
-              <th className="pb-2 pr-3 font-medium">Change</th>
-              <th className="pb-2 pr-3 font-medium">Weekly avg</th>
-              <th className="pb-2 font-medium">Vs target</th>
+            <tr className={healthTableHead}>
+              <th className="pb-2 pr-3">Week</th>
+              <th className="pb-2 pr-3">Start</th>
+              <th className="pb-2 pr-3">End</th>
+              <th className="pb-2 pr-3">Avg target</th>
+              <th className="pb-2 pr-3">Change</th>
+              <th className="pb-2 pr-3">Weekly avg</th>
+              <th className="pb-2">Vs target</th>
             </tr>
           </thead>
           <tbody>

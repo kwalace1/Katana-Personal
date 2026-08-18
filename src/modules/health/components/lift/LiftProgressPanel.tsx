@@ -4,6 +4,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { liftApi } from '../../lift-api'
 import type { LiftProgressMetric } from '../../types'
 import { formatLiftDate, LiftLineChart } from './LiftLineChart'
+import { HealthCardHeader, HealthFieldLabel, HealthStat, healthTableCell, healthTableHead } from '../health-ui'
 
 type Props = {
   userId: string
@@ -41,11 +42,12 @@ export function LiftProgressPanel({ userId, tick }: Props) {
   const metricLabel = METRICS.find((m) => m.value === metric)?.label || metric
 
   return (
-    <div className="space-y-4">
-      <div className="kp-surface space-y-4 p-4">
+    <div className="space-y-5">
+      <div className="kp-surface space-y-5 p-4 sm:p-5">
+        <HealthCardHeader eyebrow="Performance" title={selected || 'No exercises yet'} />
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <p className="mb-1 text-xs text-muted-foreground">Exercise</p>
+            <HealthFieldLabel>Exercise</HealthFieldLabel>
             {names.length === 0 ? (
               <p className="rounded-md border border-border/50 px-3 py-2 text-sm text-muted-foreground">
                 Log a workout first
@@ -66,7 +68,7 @@ export function LiftProgressPanel({ userId, tick }: Props) {
             )}
           </div>
           <div>
-            <p className="mb-1 text-xs text-muted-foreground">Metric</p>
+            <HealthFieldLabel>Metric</HealthFieldLabel>
             <Select value={metric} onValueChange={(v) => setMetric(v as LiftProgressMetric)}>
               <SelectTrigger>
                 <SelectValue />
@@ -83,18 +85,18 @@ export function LiftProgressPanel({ userId, tick }: Props) {
         </div>
 
         <div className="grid gap-3 sm:grid-cols-4">
-          <Stat label="Logged sessions" value={String(data.length)} hint="For this exercise" />
-          <Stat
+          <HealthStat label="Logged sessions" value={String(data.length)} hint="For this exercise" />
+          <HealthStat
             label="Latest"
             value={latest ? `${Math.round(latest.value).toLocaleString()} lb` : '—'}
             hint={latest ? formatLiftDate(latest.date) : 'No data'}
           />
-          <Stat
+          <HealthStat
             label="Change"
             value={change != null ? `${change >= 0 ? '+' : ''}${Math.round(change)} lb` : '—'}
             hint={data.length > 1 ? 'First to latest' : 'Need 2 sessions'}
           />
-          <Stat
+          <HealthStat
             label="Best"
             value={best != null ? `${Math.round(best).toLocaleString()} lb` : '—'}
             hint={metricLabel}
@@ -104,31 +106,32 @@ export function LiftProgressPanel({ userId, tick }: Props) {
         <LiftLineChart data={data.map((d) => ({ date: d.date, value: d.value }))} label={metricLabel} />
       </div>
 
-      <div className="kp-surface p-4">
-        <h3 className="mb-3 font-display text-lg tracking-tight">Exercise history</h3>
+      <div className="kp-surface p-4 sm:p-5">
+        <HealthCardHeader eyebrow="Log" title="Exercise history" />
         {data.length === 0 ? (
           <EmptyState
             title="No progress yet"
             description="Log an exercise in a workout to generate a graph."
+            className="mt-3"
           />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[28rem] text-left text-sm">
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full min-w-[28rem] text-sm">
               <thead>
-                <tr className="border-b border-border/60 text-xs text-muted-foreground">
-                  <th className="pb-2 pr-3 font-medium">Date</th>
-                  <th className="pb-2 pr-3 font-medium">Workout</th>
-                  <th className="pb-2 pr-3 font-medium">{metricLabel}</th>
-                  <th className="pb-2 font-medium">Working sets</th>
+                <tr className={healthTableHead}>
+                  <th className="pb-2 pr-3">Date</th>
+                  <th className="pb-2 pr-3">Workout</th>
+                  <th className="pb-2 pr-3">{metricLabel}</th>
+                  <th className="pb-2">Working sets</th>
                 </tr>
               </thead>
               <tbody>
                 {[...data].reverse().map((row) => (
                   <tr key={`${row.session_id}-${row.date}`} className="border-b border-border/40">
-                    <td className="py-2 pr-3">{formatLiftDate(row.date)}</td>
-                    <td className="py-2 pr-3">{row.workoutName}</td>
-                    <td className="py-2 pr-3">{Math.round(row.value).toLocaleString()} lb</td>
-                    <td className="py-2 text-muted-foreground">{row.setSummary}</td>
+                    <td className={healthTableCell}>{formatLiftDate(row.date)}</td>
+                    <td className={healthTableCell}>{row.workoutName}</td>
+                    <td className={healthTableCell}>{Math.round(row.value).toLocaleString()} lb</td>
+                    <td className={`${healthTableCell} text-muted-foreground`}>{row.setSummary}</td>
                   </tr>
                 ))}
               </tbody>
@@ -136,16 +139,6 @@ export function LiftProgressPanel({ userId, tick }: Props) {
           </div>
         )}
       </div>
-    </div>
-  )
-}
-
-function Stat({ label, value, hint }: { label: string; value: string; hint: string }) {
-  return (
-    <div className="rounded-xl border border-border/50 bg-secondary/15 p-3">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="font-display text-xl tracking-tight">{value}</p>
-      <p className="text-[0.7rem] text-muted-foreground">{hint}</p>
     </div>
   )
 }

@@ -446,21 +446,23 @@ export default function CalendarPage() {
       />
 
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-2">
+        <div className="inline-flex gap-0.5 rounded-full bg-secondary/70 p-1">
           {([
             ['day', 'Day'],
             ['week', 'Week'],
             ['month', 'Month'],
           ] as const).map(([v, label]) => (
-            <Button
+            <button
               key={v}
-              size="sm"
-              variant={view === v ? 'default' : 'outline'}
-              className="rounded-full"
+              type="button"
+              className={cn(
+                'h-8 rounded-full px-3 text-xs font-semibold transition',
+                view === v ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
+              )}
               onClick={() => setView(v)}
             >
               {label}
-            </Button>
+            </button>
           ))}
         </div>
         <p className="font-display text-lg tracking-tight sm:text-xl">

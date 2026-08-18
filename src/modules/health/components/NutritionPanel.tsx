@@ -36,6 +36,7 @@ import { cloneIngredients, ingredientFromEstimate, ingredientFromLabel, sumMacro
 import type { MealCategory, MealIngredient, NutritionLog } from '../types'
 import { formatLiftDate } from './lift/LiftLineChart'
 import { MealIngredientPicker } from './MealIngredientPicker'
+import { HealthCardHeader } from './health-ui'
 
 type Props = {
   userId: string
@@ -229,11 +230,11 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
   return (
     <div className="space-y-4">
       {planned ? (
-        <div className="kp-surface flex flex-wrap items-start justify-between gap-3 p-4">
+        <div className="kp-surface flex flex-wrap items-start justify-between gap-3 bg-primary/[0.06] p-4 sm:p-5">
           <div>
-            <p className="text-xs text-muted-foreground">Active diet plan</p>
-            <p className="font-medium">{planned.plan.name}</p>
-            <p className="text-xs text-muted-foreground">
+            <p className="kp-section-label">Active diet plan</p>
+            <p className="mt-1 font-display text-xl tracking-tight">{planned.plan.name}</p>
+            <p className="mt-0.5 text-sm text-muted-foreground">
               {planned.day.name} · {planned.plan.calories.toLocaleString()} kcal target · {formatMacros(planned.plan)}
             </p>
             {planned.day.meals.length ? (
@@ -243,21 +244,19 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
             ) : null}
           </div>
           {planned.day.meals.length ? (
-            <Button size="sm" variant="outline" onClick={logPlannedMeals}>
+            <Button size="sm" variant="outline" className="rounded-full" onClick={logPlannedMeals}>
               Log today’s meals
             </Button>
           ) : null}
         </div>
       ) : null}
 
-      <form onSubmit={save} className="kp-surface min-w-0 space-y-4 overflow-hidden p-4">
-        <div>
-          <p className="text-xs text-muted-foreground">Nutrition</p>
-          <h3 className="font-display text-xl tracking-tight">Log a meal</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Add multiple ingredients, scan a Nutrition Facts label, or snap a meal for an AI estimate.
-          </p>
-        </div>
+      <form onSubmit={save} className="kp-surface min-w-0 space-y-4 overflow-hidden p-4 sm:p-5">
+        <HealthCardHeader
+          eyebrow="Nutrition"
+          title="Log a meal"
+          description="Add ingredients, scan a Nutrition Facts label, or snap a meal for an estimate."
+        />
 
         <div className="flex flex-wrap gap-2">
           <Button

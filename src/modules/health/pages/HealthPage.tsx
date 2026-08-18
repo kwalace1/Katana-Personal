@@ -34,6 +34,7 @@ import { CardioPanel } from '../components/CardioPanel'
 import { LiftTrackingPanel } from '../components/LiftTrackingPanel'
 import { NutritionPanel } from '../components/NutritionPanel'
 import { DietPlansPanel } from '../components/DietPlansPanel'
+import { HealthSegmented } from '../components/health-ui'
 import { VitaminsPanel } from '../components/VitaminsPanel'
 import { SleepPanel } from '../components/SleepPanel'
 import { cn } from '@/lib/utils'
@@ -200,24 +201,17 @@ export default function HealthPage() {
         ) : null}
       </div>
 
-      <div className="mb-3 grid grid-cols-2 gap-2 rounded-2xl bg-secondary/50 p-1">
-        <Button
-          type="button"
-          variant={healthArea === 'fitness' ? 'default' : 'ghost'}
-          className="rounded-xl"
-          onClick={() => setHealthArea('fitness')}
-        >
-          Fitness
-        </Button>
-        <Button
-          type="button"
-          variant={healthArea === 'wellness' ? 'default' : 'ghost'}
-          className="rounded-xl"
-          onClick={() => setHealthArea('wellness')}
-        >
-          Wellness
-        </Button>
-      </div>
+      <HealthSegmented
+        full
+        size="lg"
+        className="mb-4"
+        value={healthArea}
+        onChange={setHealthArea}
+        options={[
+          { id: 'fitness', label: 'Fitness' },
+          { id: 'wellness', label: 'Wellness' },
+        ]}
+      />
 
       <Tabs value={healthTab} onValueChange={setHealthTab}>
         <TabsList fluid className="mb-1 w-full max-w-full">
@@ -354,24 +348,14 @@ export default function HealthPage() {
           <div>
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm font-medium">This week at a glance</p>
-              <div className="flex gap-1">
-                <Button
-                  size="sm"
-                  variant={range === 7 ? 'default' : 'outline'}
-                  className="h-8 rounded-full"
-                  onClick={() => setRange(7)}
-                >
-                  7d
-                </Button>
-                <Button
-                  size="sm"
-                  variant={range === 30 ? 'default' : 'outline'}
-                  className="h-8 rounded-full"
-                  onClick={() => setRange(30)}
-                >
-                  30d
-                </Button>
-              </div>
+              <HealthSegmented
+                value={String(range) as '7' | '30'}
+                onChange={(id) => setRange(Number(id) as 7 | 30)}
+                options={[
+                  { id: '7', label: '7d' },
+                  { id: '30', label: '30d' },
+                ]}
+              />
             </div>
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="kp-surface p-4">
@@ -454,24 +438,16 @@ export default function HealthPage() {
         </TabsContent>
 
         <TabsContent value="nutrition" className="space-y-4">
-          <div className="grid grid-cols-2 gap-2 rounded-2xl bg-secondary/50 p-1">
-            <Button
-              type="button"
-              variant={dietSection === 'meals' ? 'default' : 'ghost'}
-              className="rounded-xl"
-              onClick={() => setDietSection('meals')}
-            >
-              Meals
-            </Button>
-            <Button
-              type="button"
-              variant={dietSection === 'plans' ? 'default' : 'ghost'}
-              className="rounded-xl"
-              onClick={() => setDietSection('plans')}
-            >
-              Plans
-            </Button>
-          </div>
+          <HealthSegmented
+            full
+            size="lg"
+            value={dietSection}
+            onChange={setDietSection}
+            options={[
+              { id: 'meals', label: 'Meals' },
+              { id: 'plans', label: 'Plans' },
+            ]}
+          />
           {dietSection === 'plans' ? (
             <DietPlansPanel userId={userId} tick={tick} refresh={refresh} />
           ) : (

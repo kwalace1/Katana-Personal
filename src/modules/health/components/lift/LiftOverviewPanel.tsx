@@ -7,6 +7,7 @@ import { todayKey } from '@/lib/dates'
 import { formatMealTime } from '../../api'
 import { formatLb, formatSplitExerciseLine, liftApi } from '../../lift-api'
 import { formatLiftDate } from './LiftLineChart'
+import { HealthCardHeader, HealthInner, HealthPill, HealthStat } from '../health-ui'
 import { cn } from '@/lib/utils'
 
 type Props = {
@@ -86,51 +87,24 @@ export function LiftOverviewPanel({ userId, tick, refresh, onGoLift, onGoSplits 
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-muted-foreground">
-          Strength snapshot — open Lift to log a session (autosaves if you leave mid-workout).
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
+          Strength snapshot — log a session anytime. Drafts stay on this device if you leave mid-workout.
         </p>
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="outline" onClick={onGoLift}>
+          <Button size="sm" onClick={onGoLift}>
             Log lift
           </Button>
           <Button size="sm" variant="outline" onClick={onGoSplits}>
             Create split
           </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="text-muted-foreground"
-            onClick={() => {
-              if (!window.confirm('Clear all lift workouts, splits, and weight logs? Cardio, nutrition, and sleep stay.')) {
-                return
-              }
-              liftApi.clearLiftData(userId)
-              refresh()
-              toast.message('Lift data cleared')
-            }}
-          >
-            Clear lift data
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => {
-              if (!window.confirm('Replace lift data with demo workouts and a cut goal?')) return
-              liftApi.loadDemoLiftData(userId)
-              refresh()
-              toast.success('Demo lift data loaded')
-            }}
-          >
-            Load demo
-          </Button>
         </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <MetricCard label="Workouts logged" value={String(sessions.length)} hint="All time" />
-        <MetricCard
+        <HealthStat label="Workouts logged" value={String(sessions.length)} hint="All time" />
+        <HealthStat
           label="Bodyweight"
           value={latestWeight ? `${latestWeight.weight} lb` : '—'}
           hint={
@@ -141,38 +115,42 @@ export function LiftOverviewPanel({ userId, tick, refresh, onGoLift, onGoSplits 
                 : 'No goal set'
           }
         />
-        <MetricCard
+        <HealthStat
           label="Active split"
           value={activeSplit?.name || 'None'}
           hint={activeSplit ? `${activeSplit.days.length} days · ${activeSplit.pattern}` : 'Create a split'}
         />
       </div>
 
-      <div className="kp-surface p-4">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h3 className="font-display text-lg tracking-tight">{monthLabel}</h3>
-          <div className="flex gap-1">
-            <Button size="icon" variant="outline" onClick={() => shiftMonth(-1)} aria-label="Previous month">
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                const t = new Date()
-                setCalendarMonth(t.getMonth())
-                setCalendarYear(t.getFullYear())
-                setSelectedDate(todayKey())
-              }}
-            >
-              Today
-            </Button>
-            <Button size="icon" variant="outline" onClick={() => shiftMonth(1)} aria-label="Next month">
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-        <div className="mb-1 grid grid-cols-7 gap-1 text-center text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">
+      <div className="kp-surface p-4 sm:p-5">
+        <HealthCardHeader
+          eyebrow="Training log"
+          title={monthLabel}
+          actions={
+            <div className="flex gap-1">
+              <Button size="icon" variant="outline" className="h-8 w-8 rounded-full" onClick={() => shiftMonth(-1)} aria-label="Previous month">
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 rounded-full"
+                onClick={() => {
+                  const t = new Date()
+                  setCalendarMonth(t.getMonth())
+                  setCalendarYear(t.getFullYear())
+                  setSelectedDate(todayKey())
+                }}
+              >
+                Today
+              </Button>
+              <Button size="icon" variant="outline" className="h-8 w-8 rounded-full" onClick={() => shiftMonth(1)} aria-label="Next month">
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          }
+        />
+        <div className="mb-1 mt-4 grid grid-cols-7 gap-1 text-center text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
             <div key={d}>{d}</div>
           ))}
@@ -190,29 +168,36 @@ export function LiftOverviewPanel({ userId, tick, refresh, onGoLift, onGoSplits 
                 type="button"
                 onClick={() => setSelectedDate(cell)}
                 className={cn(
-                  'min-h-[4.5rem] rounded-lg border p-1.5 text-left transition',
+                  'flex min-h-[4.5rem] flex-col rounded-xl p-1.5 text-left transition',
                   selected
-                    ? 'border-primary bg-primary/10'
-                    : 'border-border/50 bg-card/40 hover:border-primary/40',
-                  isToday && !selected && 'ring-1 ring-primary/30',
+                    ? 'bg-primary/12 ring-1 ring-primary/30'
+                    : 'bg-secondary/30 hover:bg-secondary/55',
                 )}
               >
-                <p className="text-xs font-semibold">{Number(cell.slice(-2))}</p>
+                <span
+                  className={cn(
+                    'inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold',
+                    selected && 'bg-primary text-primary-foreground',
+                    isToday && !selected && 'text-primary',
+                  )}
+                >
+                  {Number(cell.slice(-2))}
+                </span>
                 {titles.slice(0, 2).map((t) => (
-                  <p key={t} className="truncate text-[0.65rem] text-primary">
+                  <p key={t} className="mt-0.5 truncate text-[0.65rem] text-muted-foreground">
                     {t}
                   </p>
                 ))}
                 {titles.length > 2 ? (
                   <p className="text-[0.65rem] text-muted-foreground">+{titles.length - 2}</p>
                 ) : null}
-                {bw != null ? <p className="text-[0.65rem] text-muted-foreground">{bw} lb</p> : null}
+                {bw != null ? <p className="mt-auto text-[0.65rem] text-muted-foreground">{bw} lb</p> : null}
               </button>
             )
           })}
         </div>
 
-        <div className="mt-4 rounded-xl border border-border/60 bg-secondary/20 p-3">
+        <HealthInner className="mt-4">
           <p className="text-sm font-medium">{formatLiftDate(selectedDate)}</p>
           {dayDetail.sessions.length === 0 && !dayDetail.weight ? (
             <p className="mt-1 text-sm text-muted-foreground">Nothing logged this day.</p>
@@ -246,20 +231,20 @@ export function LiftOverviewPanel({ userId, tick, refresh, onGoLift, onGoSplits 
               ) : null}
             </ul>
           )}
-        </div>
+        </HealthInner>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="kp-surface p-4">
-          <h3 className="font-display text-lg tracking-tight">Recent workouts</h3>
+        <div className="kp-surface p-4 sm:p-5">
+          <HealthCardHeader eyebrow="Recent" title="Workouts" />
           {sessions.length === 0 ? (
             <EmptyState title="No lifts yet" description="Log your first session under Lift." className="mt-3" />
           ) : (
-            <ul className="mt-3 space-y-2">
+            <ul className="mt-4 space-y-2">
               {sessions.slice(0, 4).map((s) => {
                 const groups = liftApi.sessionExerciseGroups(userId, s.id)
                 return (
-                  <li key={s.id} className="rounded-xl border border-border/50 px-3 py-2">
+                  <li key={s.id} className="rounded-2xl bg-secondary/40 px-3.5 py-2.5">
                     <div className="flex items-center justify-between gap-2">
                       <p className="font-medium">{s.title}</p>
                       <p className="text-xs text-muted-foreground">{formatLiftDate(s.date)}</p>
@@ -274,8 +259,14 @@ export function LiftOverviewPanel({ userId, tick, refresh, onGoLift, onGoSplits 
           )}
         </div>
 
-        <div className="kp-surface p-4">
-          <h3 className="font-display text-lg tracking-tight">Active split</h3>
+        <div className="kp-surface p-4 sm:p-5">
+          <HealthCardHeader
+            eyebrow="Routine"
+            title="Active split"
+            actions={
+              activeSplit ? <HealthPill tone="primary">Active</HealthPill> : null
+            }
+          />
           {!activeSplit ? (
             <EmptyState
               title="No active split"
@@ -283,9 +274,9 @@ export function LiftOverviewPanel({ userId, tick, refresh, onGoLift, onGoSplits 
               className="mt-3"
             />
           ) : (
-            <ul className="mt-3 space-y-2">
+            <ul className="mt-4 space-y-2">
               {activeSplit.days.slice(0, 7).map((day, i) => (
-                <li key={`${day.name}-${i}`} className="text-sm">
+                <li key={`${day.name}-${i}`} className="rounded-2xl bg-secondary/40 px-3.5 py-2.5 text-sm">
                   <div className="flex justify-between gap-2">
                     <span className="text-muted-foreground">{day.name}</span>
                     <span className="font-medium">{day.focus || 'Rest'}</span>
@@ -301,16 +292,37 @@ export function LiftOverviewPanel({ userId, tick, refresh, onGoLift, onGoSplits 
           )}
         </div>
       </div>
-    </div>
-  )
-}
 
-function MetricCard({ label, value, hint }: { label: string; value: string; hint: string }) {
-  return (
-    <div className="kp-surface p-4">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="font-display text-2xl tracking-tight">{value}</p>
-      <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          size="sm"
+          variant="ghost"
+          className="text-muted-foreground"
+          onClick={() => {
+            if (!window.confirm('Replace lift data with demo workouts and a cut goal?')) return
+            liftApi.loadDemoLiftData(userId)
+            refresh()
+            toast.success('Demo lift data loaded')
+          }}
+        >
+          Load demo
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="text-muted-foreground"
+          onClick={() => {
+            if (!window.confirm('Clear all lift workouts, splits, and weight logs? Cardio, nutrition, and sleep stay.')) {
+              return
+            }
+            liftApi.clearLiftData(userId)
+            refresh()
+            toast.message('Lift data cleared')
+          }}
+        >
+          Clear lift data
+        </Button>
+      </div>
     </div>
   )
 }
