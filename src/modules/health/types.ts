@@ -38,6 +38,18 @@ export interface WaterLog {
 
 export type MealCategory = 'breakfast' | 'lunch' | 'dinner' | 'snack'
 
+export interface MealIngredient {
+  name: string
+  grams: number
+  calories: number
+  protein: number
+  carbs: number
+  fat: number
+  code?: string
+  brand?: string
+  source?: 'usda' | 'off' | 'label' | 'estimate' | 'manual'
+}
+
 export interface NutritionLog {
   id: string
   user_id: string
@@ -52,6 +64,41 @@ export interface NutritionLog {
   protein?: number
   carbs?: number
   fat?: number
+  ingredients?: MealIngredient[]
+}
+
+export type DietPlanPattern = 'cycle' | 'weekdays'
+
+export interface DietPlanMeal {
+  name: string
+  category: MealCategory
+  calories: number
+  protein: number
+  carbs: number
+  fat: number
+  ingredients: MealIngredient[]
+  notes?: string
+}
+
+export interface DietPlanDay {
+  name: string
+  meals: DietPlanMeal[]
+}
+
+export interface DietPlan {
+  id: string
+  user_id: string
+  name: string
+  pattern: DietPlanPattern
+  days: DietPlanDay[]
+  calories: number
+  protein: number
+  carbs: number
+  fat: number
+  notes: string
+  active: boolean
+  created_at: string
+  updated_at: string
 }
 
 export interface SleepLog {

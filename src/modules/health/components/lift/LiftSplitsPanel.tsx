@@ -1,5 +1,5 @@
 import { FormEvent, useMemo, useState } from 'react'
-import { Lock, Plus, Share2, Trash2 } from 'lucide-react'
+import { Plus, Share2, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -7,7 +7,6 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { liftApi, SPLIT_PRESETS } from '../../lift-api'
 import type { SplitDay, SplitPattern } from '../../types'
 import { cn } from '@/lib/utils'
-import { PlusPaywallSheet, usePlusStatus } from '@/components/PlusPaywall'
 import { WORKOUT_PROGRAMS, type WorkoutProgram } from '../../workout-programs'
 import { ShareAudiencePicker, type ShareAudienceSelection } from '@/components/ShareAudiencePicker'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
@@ -58,8 +57,6 @@ export function LiftSplitsPanel({ userId, tick, refresh }: Props) {
   const [name, setName] = useState('')
   const [pattern, setPattern] = useState<SplitPattern>('cycle')
   const [days, setDays] = useState<SplitDay[]>(cycleDays(4))
-  const [plusOpen, setPlusOpen] = useState(false)
-  const plus = usePlusStatus()
   const { cloudUser } = useCloudAuth()
   const [shareSplit, setShareSplit] = useState<TrainingSplit | null>(null)
   const [selectedFriends, setSelectedFriends] = useState<Record<string, boolean>>({})
@@ -87,10 +84,6 @@ export function LiftSplitsPanel({ userId, tick, refresh }: Props) {
   }
 
   function applyProgram(program: WorkoutProgram) {
-    if (program.premium && !plus) {
-      setPlusOpen(true)
-      return
-    }
     setName(program.name)
     setPattern(program.pattern)
     setDays(
@@ -196,9 +189,6 @@ export function LiftSplitsPanel({ userId, tick, refresh }: Props) {
               >
                 <div className="flex items-start justify-between gap-2">
                   <p className="font-semibold">{program.name}</p>
-                  {program.premium && !plus ? (
-                    <Lock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                  ) : null}
                 </div>
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {program.level} · {program.daysPerWeek} days/week
@@ -400,7 +390,6 @@ export function LiftSplitsPanel({ userId, tick, refresh }: Props) {
           ) : null}
         </DialogContent>
       </Dialog>
-      <PlusPaywallSheet open={plusOpen} onOpenChange={setPlusOpen} feature="programs" />
     </div>
   )
 }

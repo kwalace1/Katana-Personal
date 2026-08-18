@@ -1,5 +1,5 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
-import { ImagePlus, Loader2, ScanText, Search, Trash2, X } from 'lucide-react'
+import { FormEvent, useMemo, useState } from 'react'
+import { ImagePlus, ScanText, Share2, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,18 +9,21 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { MealPhotoEstimateDialog } from '@/components/MealPhotoEstimateDialog'
 import { NutritionLabelScanDialog } from '@/components/NutritionLabelScanDialog'
 import { PlusPaywallSheet, usePlusStatus } from '@/components/PlusPaywall'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { ShareAudiencePicker, type ShareAudienceSelection } from '@/components/ShareAudiencePicker'
+import { useCloudAuth } from '@/contexts/CloudAuthContext'
 import { todayKey } from '@/lib/dates'
 import { canUsePlusFeature } from '@/lib/plus'
 import type { MealEstimate } from '@/lib/food/meal-estimate'
 import type { NutritionLabelEstimate } from '@/lib/food/nutrition-label'
-import {
-  foodSourceLabel,
-  macrosForGrams,
-  searchFoods,
-  type FoodHit,
-} from '@/lib/food/open-food-facts'
 import { computeLocalStreaks } from '@/lib/social/streaks'
 import { buildHealthStreakShareCard, isStreakMilestone, offerShareWin } from '@/lib/social/share-win'
+import { shareSuccessMessage, shareWithAudience } from '@/lib/social/share-with-audience'
 import { cn } from '@/lib/utils'
 import {
   formatMacros,
@@ -29,8 +32,10 @@ import {
   healthApi,
   MEAL_CATEGORIES,
 } from '../api'
-import type { MealCategory } from '../types'
+import { cloneIngredients, ingredientFromEstimate, ingredientFromLabel, sumMacros } from '../meal-ingredients'
+import type { MealCategory, MealIngredient, NutritionLog } from '../types'
 import { formatLiftDate } from './lift/LiftLineChart'
+import { MealIngredientPicker } from './MealIngredientPicker'
 
 type Props = {
   userId: string
@@ -55,6 +60,11 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
     return healthApi.nutritionDayTotals(userId, todayKey())
   }, [userId, tick])
 
+  const planned = useMemo(() => {
+    void tick
+    return healthApi.plannedDietDay(userId, logDate || todayKey())
+  }, [userId, logDate, tick])
+
   const dates = useMemo(() => [...new Set(meals.map((m) => m.date))], [meals])
 
   const [meal, setMeal] = useState('')
@@ -66,143 +76,41 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
   const [carbs, setCarbs] = useState('')
   const [fat, setFat] = useState('')
   const [notes, setNotes] = useState('')
-
-  const [foodQuery, setFoodQuery] = useState('')
-  const [searching, setSearching] = useState(false)
-  const [hits, setHits] = useState<FoodHit[]>([])
-  const [selectedFood, setSelectedFood] = useState<FoodHit | null>(null)
-  const [grams, setGrams] = useState('100')
+  const [ingredients, setIngredients] = useState<MealIngredient[]>([])
   const [scannerOpen, setScannerOpen] = useState(false)
   const [photoOpen, setPhotoOpen] = useState(false)
   const [plusOpen, setPlusOpen] = useState(false)
   const plus = usePlusStatus()
-  const [photoNote, setPhotoNote] = useState<string | null>(null)
-  const searchSeq = useRef(0)
+  const { cloudUser } = useCloudAuth()
+  const [shareMeal, setShareMeal] = useState<NutritionLog | null>(null)
+  const [selectedFriends, setSelectedFriends] = useState<Record<string, boolean>>({})
+  const [selectedCircles, setSelectedCircles] = useState<Record<string, boolean>>({})
+  const [audience, setAudience] = useState<ShareAudienceSelection>({
+    friendIds: [],
+    circles: [],
+    hasAny: false,
+  })
+  const [sharing, setSharing] = useState(false)
 
-  useEffect(() => {
-    const q = foodQuery.trim()
-    if (q.length < 2) {
-      setHits([])
-      setSearching(false)
-      return
-    }
-    const seq = ++searchSeq.current
-    setSearching(true)
-    const t = window.setTimeout(() => {
-      void searchFoods(q)
-        .then((results) => {
-          if (seq !== searchSeq.current) return
-          setHits(results)
-        })
-        .catch((err) => {
-          if (seq !== searchSeq.current) return
-          const msg = err instanceof Error ? err.message : 'Search failed'
-          // Safari often reports network/CORS failures as "Load failed"
-          toast.error(
-            /load failed|failed to fetch|networkerror/i.test(msg)
-              ? 'Food search unavailable — check connection and try again'
-              : msg,
-          )
-          setHits([])
-        })
-        .finally(() => {
-          if (seq === searchSeq.current) setSearching(false)
-        })
-    }, 350)
-    return () => window.clearTimeout(t)
-  }, [foodQuery])
-
-  function applyFood(hit: FoodHit, nextGrams: number) {
-    const macros = macrosForGrams(hit, nextGrams)
-    setSelectedFood(hit)
-    setMeal(hit.brand && !(hit.source === 'usda' || hit.code.startsWith('usda:')) ? `${hit.name} (${hit.brand})` : hit.name)
-    setCalories(String(macros.calories))
-    setProtein(String(macros.protein))
-    setCarbs(String(macros.carbs))
-    setFat(String(macros.fat))
-    setFoodQuery('')
-    setHits([])
-    setPhotoNote(null)
-  }
-
-  function onPickFood(hit: FoodHit) {
-    const g = hit.servingGrams && hit.servingGrams > 0 ? hit.servingGrams : 100
-    setGrams(String(Math.round(g)))
-    applyFood(hit, g)
+  function applyIngredientTotals(next: MealIngredient[]) {
+    setIngredients(next)
+    if (next.length === 0) return
+    const totals = sumMacros(next)
+    setCalories(String(totals.calories))
+    setProtein(String(totals.protein))
+    setCarbs(String(totals.carbs))
+    setFat(String(totals.fat))
+    if (!meal.trim()) setMeal(next.map((item) => item.name).slice(0, 3).join(', '))
   }
 
   function applyNutritionLabel(label: NutritionLabelEstimate) {
-    const servingG = label.servingGrams && label.servingGrams > 0 ? label.servingGrams : 100
-    // Store as per-100g so the grams control still scales correctly
-    const hit: FoodHit = {
-      code: `label:${Date.now()}`,
-      name: label.name,
-      source: 'off',
-      brand: 'Nutrition Facts',
-      servingSizeLabel: label.servingSizeLabel,
-      servingGrams: servingG,
-      per100g: {
-        calories: Math.round((label.calories * 100) / servingG),
-        protein: Math.round((label.protein * 100) / servingG * 10) / 10,
-        carbs: Math.round((label.carbs * 100) / servingG * 10) / 10,
-        fat: Math.round((label.fat * 100) / servingG * 10) / 10,
-      },
-    }
-    setGrams(String(Math.round(servingG)))
-    setSelectedFood(hit)
-    setMeal(label.name)
-    setCalories(String(label.calories))
-    setProtein(String(label.protein))
-    setCarbs(String(label.carbs))
-    setFat(String(label.fat))
-    setFoodQuery('')
-    setHits([])
-    const bits = [
-      'Nutrition Facts label',
-      label.servingSizeLabel ? `serving ${label.servingSizeLabel}` : null,
-      label.confidence ? `confidence ${label.confidence}` : null,
-      label.note || null,
-    ].filter(Boolean)
-    setPhotoNote(bits.join(' · '))
-  }
-
-  function onGramsChange(value: string) {
-    setGrams(value)
-    if (!selectedFood) return
-    const g = Number(value)
-    if (!Number.isFinite(g) || g <= 0) return
-    const macros = macrosForGrams(selectedFood, g)
-    setCalories(String(macros.calories))
-    setProtein(String(macros.protein))
-    setCarbs(String(macros.carbs))
-    setFat(String(macros.fat))
-  }
-
-  function clearFood() {
-    setSelectedFood(null)
-    setGrams('100')
-    setPhotoNote(null)
+    applyIngredientTotals([...ingredients, ingredientFromLabel(label)])
+    if (!meal.trim()) setMeal(label.name)
   }
 
   function applyMealEstimate(estimate: MealEstimate) {
-    setSelectedFood(null)
-    setHits([])
-    setMeal(estimate.name)
-    setCalories(String(estimate.calories))
-    setProtein(String(estimate.protein))
-    setCarbs(String(estimate.carbs))
-    setFat(String(estimate.fat))
-    if (estimate.estimatedGrams && estimate.estimatedGrams > 0) {
-      setGrams(String(estimate.estimatedGrams))
-    } else {
-      setGrams('100')
-    }
-    const bits = [
-      'AI photo estimate',
-      estimate.confidence ? `confidence ${estimate.confidence}` : null,
-      estimate.note || null,
-    ].filter(Boolean)
-    setPhotoNote(bits.join(' · '))
+    applyIngredientTotals([...ingredients, ingredientFromEstimate(estimate)])
+    if (!meal.trim()) setMeal(estimate.name)
     if (estimate.note) {
       setNotes((prev) => (prev.trim() ? prev : estimate.note || ''))
     }
@@ -215,21 +123,23 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
       return
     }
     const wasFirstMealOfDay = !meals.some((m) => m.date === date)
-    const sourceNote = selectedFood?.code
-      ? `${foodSourceLabel(selectedFood)} · ${selectedFood.code}${
-          selectedFood.servingSizeLabel ? ` · serving ${selectedFood.servingSizeLabel}` : ''
-        }`
-      : photoNote || ''
+    const totals = ingredients.length ? sumMacros(ingredients) : {
+      calories: Number(calories) || 0,
+      protein: Number(protein) || 0,
+      carbs: Number(carbs) || 0,
+      fat: Number(fat) || 0,
+    }
     healthApi.addNutrition(userId, {
       meal,
       category,
       date,
       time,
-      calories: Number(calories) || 0,
-      protein: Number(protein) || 0,
-      carbs: Number(carbs) || 0,
-      fat: Number(fat) || 0,
-      notes: [notes.trim(), sourceNote].filter(Boolean).join('\n'),
+      calories: totals.calories,
+      protein: totals.protein,
+      carbs: totals.carbs,
+      fat: totals.fat,
+      notes: notes.trim(),
+      ingredients: cloneIngredients(ingredients),
     })
     toast.success('Meal saved')
     if (wasFirstMealOfDay) {
@@ -249,202 +159,142 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
     setCarbs('')
     setFat('')
     setNotes('')
+    setIngredients([])
     setTime(localTimeHHMM())
-    clearFood()
     refresh()
+  }
+
+  function logPlannedMeals() {
+    if (!planned) return
+    for (const item of planned.day.meals) {
+      if (!item.name.trim() && item.ingredients.length === 0) continue
+      healthApi.addNutrition(userId, {
+        meal: item.name || 'Planned meal',
+        category: item.category,
+        date: logDate || todayKey(),
+        calories: item.calories,
+        protein: item.protein,
+        carbs: item.carbs,
+        fat: item.fat,
+        notes: item.notes || `From ${planned.plan.name}`,
+        ingredients: cloneIngredients(item.ingredients),
+      })
+    }
+    toast.success('Plan meals logged')
+    refresh()
+  }
+
+  async function shareSelectedMeal() {
+    if (!shareMeal || !cloudUser || !audience.hasAny || sharing) return
+    setSharing(true)
+    try {
+      const result = await shareWithAudience({
+        kind: 'meal',
+        title: shareMeal.meal,
+        body: `${Math.round(shareMeal.calories)} kcal · ${formatMacros(shareMeal)}${
+          shareMeal.ingredients?.length ? ` · ${shareMeal.ingredients.length} ingredients` : ''
+        }`,
+        data: {
+          meal: {
+            name: shareMeal.meal,
+            category: shareMeal.category || 'snack',
+            calories: shareMeal.calories,
+            protein: shareMeal.protein || 0,
+            carbs: shareMeal.carbs || 0,
+            fat: shareMeal.fat || 0,
+            notes: shareMeal.notes,
+            ingredients: cloneIngredients(shareMeal.ingredients),
+          },
+        },
+        ownerId: cloudUser.uid,
+        friendIds: audience.friendIds,
+        circles: audience.circles,
+        activityFeed: true,
+      })
+      if (!result.ok) {
+        toast.error(result.error)
+        return
+      }
+      toast.success(shareSuccessMessage(result))
+      setShareMeal(null)
+      setSelectedFriends({})
+      setSelectedCircles({})
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Couldn’t share meal')
+    } finally {
+      setSharing(false)
+    }
   }
 
   return (
     <div className="space-y-4">
+      {planned ? (
+        <div className="kp-surface flex flex-wrap items-start justify-between gap-3 p-4">
+          <div>
+            <p className="text-xs text-muted-foreground">Active diet plan</p>
+            <p className="font-medium">{planned.plan.name}</p>
+            <p className="text-xs text-muted-foreground">
+              {planned.day.name} · {planned.plan.calories.toLocaleString()} kcal target · {formatMacros(planned.plan)}
+            </p>
+            {planned.day.meals.length ? (
+              <p className="mt-1 text-sm text-muted-foreground">
+                {planned.day.meals.map((item) => item.name).filter(Boolean).join(' · ')}
+              </p>
+            ) : null}
+          </div>
+          {planned.day.meals.length ? (
+            <Button size="sm" variant="outline" onClick={logPlannedMeals}>
+              Log today’s meals
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+
       <form onSubmit={save} className="kp-surface min-w-0 space-y-4 overflow-hidden p-4">
         <div>
           <p className="text-xs text-muted-foreground">Nutrition</p>
           <h3 className="font-display text-xl tracking-tight">Log a meal</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Search foods, scan a Nutrition Facts label, or snap a meal for an AI estimate.
+            Add multiple ingredients, scan a Nutrition Facts label, or snap a meal for an AI estimate.
           </p>
         </div>
 
-        <div className="space-y-2">
-          <label className="text-xs font-medium text-muted-foreground" htmlFor="food-search">
-            Find food
-          </label>
-          <div className="flex gap-2">
-            <div className="relative min-w-0 flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                id="food-search"
-                value={foodQuery}
-                onChange={(e) => setFoodQuery(e.target.value)}
-                placeholder="Chicken breast, ground beef, oats…"
-                className="pl-9 pr-9"
-                autoComplete="off"
-              />
-              {searching ? (
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
-                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-hidden />
-                </span>
-              ) : foodQuery ? (
-                <button
-                  type="button"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground hover:bg-secondary"
-                  aria-label="Clear search"
-                  onClick={() => {
-                    setFoodQuery('')
-                    setHits([])
-                  }}
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              ) : null}
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className="h-10 w-10 shrink-0"
-              aria-label="Scan Nutrition Facts label"
-              title={plus ? 'Scan Nutrition Facts label' : 'Scan label · Plus'}
-              onClick={() => {
-                if (!canUsePlusFeature('nutrition_ai')) {
-                  setPlusOpen(true)
-                  return
-                }
-                setScannerOpen(true)
-              }}
-            >
-              <ScanText className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className="h-10 w-10 shrink-0"
-              aria-label="Estimate meal from photo"
-              title={plus ? 'Estimate meal from photo' : 'Meal photo · Plus'}
-              onClick={() => {
-                if (!canUsePlusFeature('nutrition_ai')) {
-                  setPlusOpen(true)
-                  return
-                }
-                setPhotoOpen(true)
-              }}
-            >
-              <ImagePlus className="h-4 w-4" />
-            </Button>
-          </div>
-
-          {hits.length > 0 ? (
-            <ul className="max-h-56 space-y-1 overflow-y-auto rounded-2xl border border-border/60 bg-card/80 p-1.5">
-              {hits.map((hit) => (
-                <li key={`${hit.code}-${hit.name}`}>
-                  <button
-                    type="button"
-                    className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left hover:bg-secondary/80"
-                    onClick={() => onPickFood(hit)}
-                  >
-                    {hit.imageUrl ? (
-                      <img
-                        src={hit.imageUrl}
-                        alt=""
-                        className="h-10 w-10 shrink-0 rounded-lg object-cover bg-secondary"
-                      />
-                    ) : (
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-secondary text-[0.65rem] font-medium text-muted-foreground">
-                        {foodSourceLabel(hit) === 'USDA' ? 'USDA' : 'OFF'}
-                      </span>
-                    )}
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">{hit.name}</span>
-                      <span className="block truncate text-xs text-muted-foreground">
-                        {foodSourceLabel(hit)}
-                        {hit.brand && foodSourceLabel(hit) !== 'USDA' ? ` · ${hit.brand}` : ''}
-                        {` · ${hit.per100g.calories} kcal / 100g`}
-                      </span>
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-
-          {selectedFood ? (
-            <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-primary/20 bg-primary/[0.05] px-3 py-2.5">
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{selectedFood.name}</p>
-                <p className="text-xs text-muted-foreground">
-                  {foodSourceLabel(selectedFood)} · {selectedFood.per100g.calories} kcal / 100g
-                  {selectedFood.servingSizeLabel ? ` · serving ${selectedFood.servingSizeLabel}` : ''}
-                </p>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Input
-                  type="number"
-                  min={1}
-                  step={1}
-                  value={grams}
-                  onChange={(e) => onGramsChange(e.target.value)}
-                  className="h-9 w-[5.5rem]"
-                  aria-label="Grams"
-                />
-                <span className="text-xs text-muted-foreground">g</span>
-                {selectedFood.servingGrams ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="h-9"
-                    onClick={() => onGramsChange(String(Math.round(selectedFood.servingGrams!)))}
-                  >
-                    1 serving
-                  </Button>
-                ) : null}
-                <Button type="button" size="icon" variant="ghost" className="h-9 w-9" onClick={clearFood} aria-label="Clear food">
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          ) : photoNote ? (
-            <div className="flex items-start gap-2 rounded-2xl border border-primary/20 bg-primary/[0.05] px-3 py-2.5">
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium">Photo estimate applied</p>
-                <p className="text-xs text-muted-foreground">{photoNote}</p>
-              </div>
-              <Button
-                type="button"
-                size="icon"
-                variant="ghost"
-                className="h-9 w-9 shrink-0"
-                onClick={() => setPhotoNote(null)}
-                aria-label="Dismiss estimate note"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          ) : null}
-
-          <p className="text-[0.7rem] text-muted-foreground">
-            Generic foods from{' '}
-            <a
-              href="https://fdc.nal.usda.gov"
-              target="_blank"
-              rel="noreferrer"
-              className="underline underline-offset-2 hover:text-foreground"
-            >
-              USDA FoodData Central
-            </a>
-            ; packaged from{' '}
-            <a
-              href="https://world.openfoodfacts.org"
-              target="_blank"
-              rel="noreferrer"
-              className="underline underline-offset-2 hover:text-foreground"
-            >
-              Open Food Facts
-            </a>
-            ; meal photos estimated with AI.
-          </p>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            className="gap-1.5"
+            title={plus ? 'Scan Nutrition Facts label' : 'Scan label · Plus'}
+            onClick={() => {
+              if (!canUsePlusFeature('nutrition_ai')) {
+                setPlusOpen(true)
+                return
+              }
+              setScannerOpen(true)
+            }}
+          >
+            <ScanText className="h-4 w-4" />
+            Scan label
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="gap-1.5"
+            title={plus ? 'Estimate meal from photo' : 'Meal photo · Plus'}
+            onClick={() => {
+              if (!canUsePlusFeature('nutrition_ai')) {
+                setPlusOpen(true)
+                return
+              }
+              setPhotoOpen(true)
+            }}
+          >
+            <ImagePlus className="h-4 w-4" />
+            Photo estimate
+          </Button>
         </div>
+
+        <MealIngredientPicker ingredients={ingredients} onChange={applyIngredientTotals} />
 
         <NutritionLabelScanDialog
           open={scannerOpen}
@@ -490,7 +340,7 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
               placeholder="Calories"
               value={calories}
               onChange={(e) => setCalories(e.target.value)}
-              className={cn(selectedFood && 'border-primary/30')}
+              className={cn(ingredients.length > 0 && 'border-primary/30')}
             />
             <Input
               type="number"
@@ -532,6 +382,11 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
           <p className="text-xs text-muted-foreground">Today</p>
           <p className="font-display text-2xl tracking-tight">
             {Math.round(todayTotals.calories).toLocaleString()} kcal
+            {planned ? (
+              <span className="ml-1 text-lg font-sans font-medium text-muted-foreground">
+                / {planned.plan.calories.toLocaleString()}
+              </span>
+            ) : null}
           </p>
         </div>
         <p className="text-sm font-semibold text-muted-foreground">
@@ -545,7 +400,7 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
         {meals.length === 0 ? (
           <EmptyState
             title="No meals yet"
-            description="Search a food above or log a meal with rough macros."
+            description="Add ingredients above or log a meal with rough macros."
           />
         ) : (
           <div className="space-y-5">
@@ -564,7 +419,7 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
                     {dayMeals.map((entry) => (
                       <li key={entry.id} className="rounded-xl border border-border/50 p-3">
                         <div className="flex items-start justify-between gap-2">
-                          <div>
+                          <div className="min-w-0">
                             <p className="font-medium">{entry.meal}</p>
                             <p className="text-xs text-muted-foreground">
                               {formatMealCategory(entry.category)}
@@ -572,21 +427,44 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
                               {Math.round(Number(entry.calories) || 0).toLocaleString()} kcal ·{' '}
                               {formatMacros(entry)}
                             </p>
+                            {entry.ingredients?.length ? (
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                {entry.ingredients
+                                  .map((item) => `${item.name}${item.grams ? ` (${item.grams}g)` : ''}`)
+                                  .join(' · ')}
+                              </p>
+                            ) : null}
                             {entry.notes ? (
-                              <p className="mt-1 text-sm text-muted-foreground whitespace-pre-wrap">{entry.notes}</p>
+                              <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">{entry.notes}</p>
                             ) : null}
                           </div>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => {
-                              healthApi.removeNutrition(userId, entry.id)
-                              refresh()
-                              toast.message('Meal deleted')
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          <div className="flex shrink-0 gap-1">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              aria-label="Share meal"
+                              onClick={() => {
+                                if (!cloudUser) {
+                                  toast.message('Connect Social in Settings to share a meal')
+                                  return
+                                }
+                                setShareMeal(entry)
+                              }}
+                            >
+                              <Share2 className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => {
+                                healthApi.removeNutrition(userId, entry.id)
+                                refresh()
+                                toast.message('Meal deleted')
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
                       </li>
                     ))}
@@ -597,6 +475,46 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
           </div>
         )}
       </div>
+
+      <Dialog open={Boolean(shareMeal)} onOpenChange={(open) => !open && setShareMeal(null)}>
+        <DialogContent className="max-h-[85vh] max-w-md overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Share {shareMeal?.meal}</DialogTitle>
+          </DialogHeader>
+          {cloudUser ? (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Friends receive the meal with ingredients and macros, and can copy it into their own log.
+              </p>
+              {shareMeal?.ingredients?.length ? (
+                <ul className="space-y-1 rounded-2xl bg-secondary/40 p-3 text-sm">
+                  {shareMeal.ingredients.map((item, index) => (
+                    <li key={`${item.name}-${index}`} className="flex justify-between gap-3">
+                      <span>{item.name}</span>
+                      <span className="text-muted-foreground">
+                        {item.grams ? `${item.grams}g · ` : ''}
+                        {Math.round(item.calories)} kcal
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              <ShareAudiencePicker
+                uid={cloudUser.uid}
+                selectedFriends={selectedFriends}
+                selectedCircles={selectedCircles}
+                onFriendsChange={setSelectedFriends}
+                onCirclesChange={setSelectedCircles}
+                onAudienceChange={setAudience}
+                compact
+              />
+              <Button className="w-full" disabled={!audience.hasAny || sharing} onClick={() => void shareSelectedMeal()}>
+                {sharing ? 'Sharing…' : 'Share meal with ingredients'}
+              </Button>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -66,6 +66,8 @@ export type SharedKind =
   | 'journal'
   | 'training_split'
   | 'lift_session'
+  | 'meal'
+  | 'diet_plan'
 
 export interface SharedItem {
   id: string

@@ -1,6 +1,6 @@
 /** Katana Plus entitlements — local demo unlock until RevenueCat wires in. */
 
-export type PlusFeature = 'llm' | 'challenge' | 'nutrition_ai' | 'programs'
+export type PlusFeature = 'llm' | 'challenge' | 'nutrition_ai' | 'programs' | 'diet_plans'
 
 const PLUS_KEY = 'katana-personal:plus'
 const LLM_USAGE_KEY = 'katana-personal:llm-asks-day'
@@ -91,7 +91,13 @@ export function plusFeatureBlurb(feature: PlusFeature): { title: string; body: s
   if (feature === 'programs') {
     return {
       title: 'Accountability pack · training programs',
-      body: 'Free includes starter programs. Plus unlocks complete intermediate and advanced training templates.',
+      body: 'Starter and complete training templates are free. Plus still unlocks coach depth and meal AI.',
+    }
+  }
+  if (feature === 'diet_plans') {
+    return {
+      title: 'Accountability pack · diet templates',
+      body: 'Free includes starter diet plans. Plus unlocks complete macro templates you can copy and edit.',
     }
   }
   return {

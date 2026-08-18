@@ -33,6 +33,7 @@ import { healthApi, WATER_GOAL_GLASSES } from '../api'
 import { CardioPanel } from '../components/CardioPanel'
 import { LiftTrackingPanel } from '../components/LiftTrackingPanel'
 import { NutritionPanel } from '../components/NutritionPanel'
+import { DietPlansPanel } from '../components/DietPlansPanel'
 import { VitaminsPanel } from '../components/VitaminsPanel'
 import { SleepPanel } from '../components/SleepPanel'
 import { cn } from '@/lib/utils'
@@ -113,6 +114,7 @@ export default function HealthPage() {
   }, [cloudUser, tick, syncStreaksToCloud])
   const [range, setRange] = useState<7 | 30>(7)
   const [logDate, setLogDate] = useState(todayKey())
+  const [dietSection, setDietSection] = useState<'meals' | 'plans'>('meals')
 
   const water = useMemo(() => {
     void tick
@@ -436,7 +438,29 @@ export default function HealthPage() {
         </TabsContent>
 
         <TabsContent value="nutrition" className="space-y-4">
-          <NutritionPanel userId={userId} logDate={logDate} tick={tick} refresh={refresh} />
+          <div className="grid grid-cols-2 gap-2 rounded-2xl bg-secondary/50 p-1">
+            <Button
+              type="button"
+              variant={dietSection === 'meals' ? 'default' : 'ghost'}
+              className="rounded-xl"
+              onClick={() => setDietSection('meals')}
+            >
+              Meals
+            </Button>
+            <Button
+              type="button"
+              variant={dietSection === 'plans' ? 'default' : 'ghost'}
+              className="rounded-xl"
+              onClick={() => setDietSection('plans')}
+            >
+              Plans
+            </Button>
+          </div>
+          {dietSection === 'plans' ? (
+            <DietPlansPanel userId={userId} tick={tick} refresh={refresh} />
+          ) : (
+            <NutritionPanel userId={userId} logDate={logDate} tick={tick} refresh={refresh} />
+          )}
         </TabsContent>
 
         <TabsContent value="vitamins" className="space-y-4">

@@ -133,5 +133,6 @@ export function sharedItemHref(item: SharedItem): string | null {
   if (item.kind === 'journal') return '/journal'
   if (item.kind === 'training_split') return '/health?area=fitness&tab=splits'
   if (item.kind === 'lift_session') return '/health?area=fitness&tab=progress'
+  if (item.kind === 'meal' || item.kind === 'diet_plan') return '/health?area=wellness&tab=nutrition'
   return null
 }

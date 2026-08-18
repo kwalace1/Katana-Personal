@@ -19,6 +19,7 @@ export const WORKSPACE_COLLECTIONS = [
   'workouts',
   'water_logs',
   'nutrition_logs',
+  'diet_plans',
   'sleep_logs',
   /** Soft-delete markers so cloud merge cannot resurrect removed rows. */
   'deletions',

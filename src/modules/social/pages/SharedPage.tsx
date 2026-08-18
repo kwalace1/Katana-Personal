@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { CheckSquare, Dumbbell, LogOut, Trash2, Users } from 'lucide-react'
+import { CheckSquare, Dumbbell, LogOut, Salad, Trash2, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
@@ -22,7 +22,116 @@ import { tasksApi } from '@/modules/tasks/api'
 import type { SharedItem } from '@/lib/social/types'
 import { formatShortDate } from '@/lib/dates'
 import { liftApi } from '@/modules/health/lift-api'
-import type { SplitDay, SplitPattern } from '@/modules/health/types'
+import { healthApi } from '@/modules/health/api'
+import type { DietPlanDay, DietPlanPattern, MealCategory, MealIngredient, SplitDay, SplitPattern } from '@/modules/health/types'
+
+function readNumber(value: unknown): number {
+  return Number(value) || 0
+}
+
+function readIngredients(raw: unknown): MealIngredient[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+    .map((item) => ({
+      name: typeof item.name === 'string' ? item.name : 'Ingredient',
+      grams: readNumber(item.grams),
+      calories: readNumber(item.calories),
+      protein: readNumber(item.protein),
+      carbs: readNumber(item.carbs),
+      fat: readNumber(item.fat),
+      code: typeof item.code === 'string' ? item.code : undefined,
+      brand: typeof item.brand === 'string' ? item.brand : undefined,
+      source:
+        item.source === 'usda' ||
+        item.source === 'off' ||
+        item.source === 'label' ||
+        item.source === 'estimate' ||
+        item.source === 'manual'
+          ? item.source
+          : undefined,
+    }))
+}
+
+function readSharedMeal(item: SharedItem): {
+  name: string
+  category: MealCategory
+  calories: number
+  protein: number
+  carbs: number
+  fat: number
+  notes: string
+  ingredients: MealIngredient[]
+} | null {
+  if (item.kind !== 'meal') return null
+  const raw = item.data?.meal
+  if (!raw || typeof raw !== 'object') return null
+  const meal = raw as Record<string, unknown>
+  const category: MealCategory =
+    meal.category === 'breakfast' || meal.category === 'lunch' || meal.category === 'dinner'
+      ? meal.category
+      : 'snack'
+  return {
+    name: typeof meal.name === 'string' ? meal.name : item.title,
+    category,
+    calories: readNumber(meal.calories),
+    protein: readNumber(meal.protein),
+    carbs: readNumber(meal.carbs),
+    fat: readNumber(meal.fat),
+    notes: typeof meal.notes === 'string' ? meal.notes : '',
+    ingredients: readIngredients(meal.ingredients),
+  }
+}
+
+function readSharedDietPlan(item: SharedItem): {
+  name: string
+  pattern: DietPlanPattern
+  calories: number
+  protein: number
+  carbs: number
+  fat: number
+  notes: string
+  days: DietPlanDay[]
+} | null {
+  if (item.kind !== 'diet_plan') return null
+  const raw = item.data?.diet_plan
+  if (!raw || typeof raw !== 'object') return null
+  const plan = raw as Record<string, unknown>
+  if (typeof plan.name !== 'string' || !Array.isArray(plan.days)) return null
+  const pattern: DietPlanPattern = plan.pattern === 'weekdays' ? 'weekdays' : 'cycle'
+  const days: DietPlanDay[] = plan.days
+    .filter((day): day is Record<string, unknown> => Boolean(day) && typeof day === 'object')
+    .map((day) => ({
+      name: typeof day.name === 'string' ? day.name : 'Day',
+      meals: Array.isArray(day.meals)
+        ? day.meals
+            .filter((meal): meal is Record<string, unknown> => Boolean(meal) && typeof meal === 'object')
+            .map((meal) => ({
+              name: typeof meal.name === 'string' ? meal.name : 'Meal',
+              category:
+                meal.category === 'breakfast' || meal.category === 'lunch' || meal.category === 'dinner'
+                  ? meal.category
+                  : 'snack',
+              calories: readNumber(meal.calories),
+              protein: readNumber(meal.protein),
+              carbs: readNumber(meal.carbs),
+              fat: readNumber(meal.fat),
+              notes: typeof meal.notes === 'string' ? meal.notes : '',
+              ingredients: readIngredients(meal.ingredients),
+            }))
+        : [],
+    }))
+  return {
+    name: plan.name,
+    pattern,
+    calories: readNumber(plan.calories),
+    protein: readNumber(plan.protein),
+    carbs: readNumber(plan.carbs),
+    fat: readNumber(plan.fat),
+    notes: typeof plan.notes === 'string' ? plan.notes : '',
+    days,
+  }
+}
 
 function readSharedSplit(item: SharedItem): {
   name: string
@@ -250,6 +359,60 @@ export default function SharedPage() {
                   </ul>
                 </div>
               ) : null}
+              {readSharedMeal(selected) ? (
+                <div className="rounded-2xl bg-secondary/40 p-3">
+                  <p className="mb-2 text-sm font-medium">Meal with ingredients</p>
+                  <p className="text-xs text-muted-foreground">
+                    {Math.round(readSharedMeal(selected)!.calories)} kcal · P{readSharedMeal(selected)!.protein} C
+                    {readSharedMeal(selected)!.carbs} F{readSharedMeal(selected)!.fat}
+                  </p>
+                  {readSharedMeal(selected)!.ingredients.length ? (
+                    <ul className="mt-2 space-y-1 text-sm">
+                      {readSharedMeal(selected)!.ingredients.map((ingredient, index) => (
+                        <li key={`${ingredient.name}-${index}`} className="flex justify-between gap-3">
+                          <span>{ingredient.name}</span>
+                          <span className="text-muted-foreground">
+                            {ingredient.grams ? `${ingredient.grams}g · ` : ''}
+                            {Math.round(ingredient.calories)} kcal
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              ) : null}
+              {readSharedDietPlan(selected) ? (
+                <div className="rounded-2xl bg-secondary/40 p-3">
+                  <p className="mb-2 text-sm font-medium">Complete diet plan</p>
+                  <p className="text-xs text-muted-foreground">
+                    {readSharedDietPlan(selected)!.calories.toLocaleString()} kcal · P
+                    {readSharedDietPlan(selected)!.protein} C{readSharedDietPlan(selected)!.carbs} F
+                    {readSharedDietPlan(selected)!.fat}
+                  </p>
+                  <ul className="mt-2 space-y-2 text-sm">
+                    {readSharedDietPlan(selected)!.days.map((day, index) => (
+                      <li key={`${day.name}-${index}`}>
+                        <div className="flex justify-between gap-3">
+                          <span className="font-medium">{day.name}</span>
+                          <span className="text-muted-foreground">
+                            {day.meals.length} meal{day.meals.length === 1 ? '' : 's'}
+                          </span>
+                        </div>
+                        {day.meals.length ? (
+                          <p className="text-xs text-muted-foreground">
+                            {day.meals
+                              .map(
+                                (meal) =>
+                                  `${meal.name}${meal.ingredients.length ? ` (${meal.ingredients.length})` : ''}`,
+                              )
+                              .join(' · ')}
+                          </p>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
               <div>
                 <p className="mb-2 text-sm font-medium">People</p>
                 <ul className="space-y-1">
@@ -311,6 +474,57 @@ export default function SharedPage() {
                   >
                     <Dumbbell className="h-3.5 w-3.5" />
                     Import to Fitness
+                  </Button>
+                ) : null}
+                {selected.kind === 'meal' && user && readSharedMeal(selected) ? (
+                  <Button
+                    className="gap-1.5"
+                    onClick={() => {
+                      const meal = readSharedMeal(selected)
+                      if (!meal) return
+                      healthApi.addNutrition(user.id, {
+                        meal: meal.name,
+                        category: meal.category,
+                        calories: meal.calories,
+                        protein: meal.protein,
+                        carbs: meal.carbs,
+                        fat: meal.fat,
+                        notes: meal.notes,
+                        ingredients: meal.ingredients,
+                      })
+                      toast.success('Meal copied into Diet')
+                      setSelected(null)
+                      window.location.href = '/health?area=wellness&tab=nutrition'
+                    }}
+                  >
+                    <Salad className="h-3.5 w-3.5" />
+                    Copy into my meals
+                  </Button>
+                ) : null}
+                {selected.kind === 'diet_plan' && user && readSharedDietPlan(selected) ? (
+                  <Button
+                    className="gap-1.5"
+                    onClick={() => {
+                      const plan = readSharedDietPlan(selected)
+                      if (!plan) return
+                      healthApi.saveDietPlan(user.id, {
+                        name: plan.name,
+                        pattern: plan.pattern,
+                        days: plan.days,
+                        calories: plan.calories,
+                        protein: plan.protein,
+                        carbs: plan.carbs,
+                        fat: plan.fat,
+                        notes: plan.notes,
+                        active: true,
+                      })
+                      toast.success('Diet plan imported and activated')
+                      setSelected(null)
+                      window.location.href = '/health?area=wellness&tab=nutrition'
+                    }}
+                  >
+                    <Salad className="h-3.5 w-3.5" />
+                    Import to Diet
                   </Button>
                 ) : null}
                 {selected.ownerId === cloudUser.uid ? (

@@ -8,6 +8,10 @@ import type {
   NutritionLog,
   SleepLog,
   MealCategory,
+  MealIngredient,
+  DietPlan,
+  DietPlanDay,
+  DietPlanPattern,
   SupplementItem,
   SupplementLog,
   SupplementChecklistRow,
@@ -18,6 +22,7 @@ import type {
 const WORKOUTS = 'workouts'
 const WATER = 'water_logs'
 const NUTRITION = 'nutrition_logs'
+const DIET_PLANS = 'diet_plans'
 const SLEEP = 'sleep_logs'
 const SUPPLEMENT_ITEMS = 'supplement_items'
 const SUPPLEMENT_LOGS = 'supplement_logs'
@@ -337,6 +342,7 @@ export const healthApi = {
       protein?: number
       carbs?: number
       fat?: number
+      ingredients?: MealIngredient[]
     },
   ): NutritionLog {
     const row = localDb.insert(NUTRITION, userId, {
@@ -352,6 +358,7 @@ export const healthApi = {
       protein: Number(input.protein) || 0,
       carbs: Number(input.carbs) || 0,
       fat: Number(input.fat) || 0,
+      ingredients: (input.ingredients || []).map((item) => ({ ...item })),
     })
     notifyCheckIn(
       row.calories > 0
@@ -363,6 +370,103 @@ export const healthApi = {
 
   removeNutrition(userId: string, id: string) {
     return localDb.remove(NUTRITION, userId, id)
+  },
+
+  listDietPlans(userId: string): DietPlan[] {
+    return localDb
+      .list<DietPlan>(DIET_PLANS, userId)
+      .sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name))
+  },
+
+  activeDietPlan(userId: string): DietPlan | null {
+    return healthApi.listDietPlans(userId).find((plan) => plan.active) || null
+  },
+
+  saveDietPlan(
+    userId: string,
+    input: {
+      name: string
+      pattern: DietPlanPattern
+      days: DietPlanDay[]
+      calories: number
+      protein: number
+      carbs: number
+      fat: number
+      notes?: string
+      active?: boolean
+      id?: string
+    },
+  ): DietPlan {
+    const ts = now()
+    const makeActive = input.active !== false
+    if (makeActive) {
+      for (const plan of healthApi.listDietPlans(userId)) {
+        if (plan.active) localDb.update<DietPlan>(DIET_PLANS, userId, plan.id, { active: false, updated_at: ts })
+      }
+    }
+    const payload = {
+      name: input.name.trim(),
+      pattern: input.pattern,
+      days: input.days,
+      calories: Number(input.calories) || 0,
+      protein: Number(input.protein) || 0,
+      carbs: Number(input.carbs) || 0,
+      fat: Number(input.fat) || 0,
+      notes: input.notes || '',
+      active: makeActive,
+      updated_at: ts,
+    }
+    if (input.id) {
+      const updated = localDb.update<DietPlan>(DIET_PLANS, userId, input.id, payload)
+      if (updated) return updated
+    }
+    const existing = healthApi.listDietPlans(userId)
+    const autoActive = makeActive || existing.length === 0
+    if (autoActive) {
+      for (const plan of existing) {
+        if (plan.active) localDb.update<DietPlan>(DIET_PLANS, userId, plan.id, { active: false, updated_at: ts })
+      }
+    }
+    return localDb.insert(DIET_PLANS, userId, {
+      id: createId(),
+      user_id: userId,
+      ...payload,
+      active: autoActive,
+      created_at: ts,
+    })
+  },
+
+  removeDietPlan(userId: string, id: string): boolean {
+    const wasActive = healthApi.listDietPlans(userId).find((plan) => plan.id === id)?.active
+    const ok = localDb.remove(DIET_PLANS, userId, id)
+    if (ok && wasActive) {
+      const next = healthApi.listDietPlans(userId)[0]
+      if (next) healthApi.setActiveDietPlan(userId, next.id)
+    }
+    return ok
+  },
+
+  setActiveDietPlan(userId: string, id: string): void {
+    const ts = now()
+    for (const plan of healthApi.listDietPlans(userId)) {
+      localDb.update<DietPlan>(DIET_PLANS, userId, plan.id, { active: plan.id === id, updated_at: ts })
+    }
+  },
+
+  plannedDietDay(userId: string, date = todayKey()): { plan: DietPlan; day: DietPlanDay; index: number } | null {
+    const active = healthApi.activeDietPlan(userId)
+    if (!active || active.days.length === 0) return null
+    const d = new Date(`${date}T12:00:00`)
+    if (active.pattern === 'weekdays') {
+      const index = d.getDay()
+      const day = active.days[index] || active.days[0]
+      return day ? { plan: active, day, index } : null
+    }
+    const start = new Date(active.created_at)
+    const diff = Math.floor((d.getTime() - start.getTime()) / 86400000)
+    const index = ((diff % active.days.length) + active.days.length) % active.days.length
+    const day = active.days[index]
+    return day ? { plan: active, day, index } : null
   },
 
   listSleep(userId: string): SleepLog[] {

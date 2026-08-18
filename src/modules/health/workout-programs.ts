@@ -83,7 +83,7 @@ export const WORKOUT_PROGRAMS: WorkoutProgram[] = [
     daysPerWeek: 6,
     description: 'A complete six-day strength and hypertrophy rotation.',
     pattern: 'cycle',
-    premium: true,
+    premium: false,
     days: [
       {
         name: 'Push',
@@ -126,7 +126,7 @@ export const WORKOUT_PROGRAMS: WorkoutProgram[] = [
     daysPerWeek: 4,
     description: 'Four focused days balancing heavy compounds and volume work.',
     pattern: 'cycle',
-    premium: true,
+    premium: false,
     days: [
       {
         name: 'Upper Power',
