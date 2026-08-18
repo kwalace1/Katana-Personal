@@ -5,7 +5,7 @@ import { goalsApi } from '@/modules/goals/api'
 import { journalApi } from '@/modules/journal/api'
 import { notesApi } from '@/modules/notes/api'
 import { documentsApi } from '@/modules/documents/api'
-import { formatShortDate, formatTime } from '@/lib/dates'
+import { formatShortDate, formatShortWhen, formatTime } from '@/lib/dates'
 
 export type SearchKind = 'task' | 'note' | 'event' | 'goal' | 'habit' | 'journal' | 'file' | 'nav'
 
@@ -55,7 +55,7 @@ export function searchWorkspace(userId: string, query: string, limit = 24): Sear
         id: `task-${task.id}`,
         kind: 'task',
         title: task.title,
-        subtitle: task.status === 'done' ? 'Done' : task.due_at ? `Due ${formatShortDate(task.due_at)}` : 'Task',
+        subtitle: task.status === 'done' ? 'Done' : task.due_at ? `Due ${formatShortWhen(task.due_at)}` : 'Task',
         to: `/tasks?id=${task.id}`,
       })
     }

@@ -1,4 +1,5 @@
 import { getSupabase } from '@/lib/supabase'
+import { copyToClipboard } from '@/lib/clipboard'
 import {
   DEFAULT_SHARE_PREFS,
   type CloudProfile,
@@ -89,7 +90,8 @@ export async function shareAddMeLink(friendCode: string): Promise<'shared' | 'co
       if (err instanceof DOMException && err.name === 'AbortError') throw err
     }
   }
-  await navigator.clipboard.writeText(url)
+  const ok = await copyToClipboard(url)
+  if (!ok) throw new Error('Couldn’t copy link — check browser permissions')
   return 'copied'
 }
 

@@ -25,7 +25,7 @@ import { ShareWithFriendsButton } from '@/components/ShareWithFriendsButton'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
 import { pageEnterSubtle } from '@/lib/motion-ui'
-import { formatShortDate, todayKey } from '@/lib/dates'
+import { formatShortDate, formatShortWhen, todayKey } from '@/lib/dates'
 import { useLocalRefresh } from '@/hooks/useLocalRefresh'
 import { cn } from '@/lib/utils'
 import { shareSuccessMessage, shareWithAudience } from '@/lib/social/share-with-audience'
@@ -350,7 +350,7 @@ function SortableTask({
               {categoryLabel(task.category)}
             </span>
             · {task.priority === 'high' ? 'Important' : task.priority === 'low' ? 'Whenever' : 'Normal'}
-            {task.due_at ? ` · due ${formatShortDate(task.due_at)}` : ''}
+            {task.due_at ? ` · due ${formatShortWhen(task.due_at)}` : ''}
             {task.completed_at ? ` · done ${formatShortDate(task.completed_at)}` : ''}
             {overdue ? ' · Overdue' : ''}
             {task.recurrence !== 'none'

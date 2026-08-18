@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Ban, Check, Copy, UserPlus, Users, X, Trophy } from 'lucide-react'
 import { toast } from 'sonner'
+import { copyToClipboard } from '@/lib/clipboard'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -229,8 +230,9 @@ export function FriendsPanel({ embedded }: Props) {
                   size="sm"
                   className="gap-1.5"
                   onClick={async () => {
-                    await navigator.clipboard.writeText(getAddMeUrl(cloudProfile.friendCode))
-                    toast.success('Add-me link copied — send it to one person')
+                    const ok = await copyToClipboard(getAddMeUrl(cloudProfile.friendCode))
+                    if (ok) toast.success('Add-me link copied — send it to one person')
+                    else toast.error('Couldn’t copy link — check browser permissions')
                   }}
                 >
                   <Copy className="h-3.5 w-3.5" />
@@ -241,8 +243,9 @@ export function FriendsPanel({ embedded }: Props) {
                   variant="outline"
                   className="gap-1.5"
                   onClick={async () => {
-                    await navigator.clipboard.writeText(cloudProfile.friendCode)
-                    toast.success('Code copied')
+                    const ok = await copyToClipboard(cloudProfile.friendCode)
+                    if (ok) toast.success('Code copied')
+                    else toast.error('Couldn’t copy code — check browser permissions')
                   }}
                 >
                   <Copy className="h-3.5 w-3.5" />
@@ -273,8 +276,9 @@ export function FriendsPanel({ embedded }: Props) {
             variant="outline"
             className="gap-1.5"
             onClick={async () => {
-              await navigator.clipboard.writeText(cloudProfile.friendCode)
-              toast.success('Code copied')
+              const ok = await copyToClipboard(cloudProfile.friendCode)
+              if (ok) toast.success('Code copied')
+              else toast.error('Couldn’t copy code — check browser permissions')
             }}
           >
             <Copy className="h-3.5 w-3.5" />
@@ -285,8 +289,9 @@ export function FriendsPanel({ embedded }: Props) {
             variant="outline"
             className="gap-1.5"
             onClick={async () => {
-              await navigator.clipboard.writeText(getAddMeUrl(cloudProfile.friendCode))
-              toast.success('Add-me link copied')
+              const ok = await copyToClipboard(getAddMeUrl(cloudProfile.friendCode))
+              if (ok) toast.success('Add-me link copied')
+              else toast.error('Couldn’t copy link — check browser permissions')
             }}
           >
             <Copy className="h-3.5 w-3.5" />

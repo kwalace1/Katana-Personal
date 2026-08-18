@@ -293,6 +293,7 @@ export function LiftOverviewPanel({ userId, tick, refresh, onGoLift, onGoSplits 
         </div>
       </div>
 
+      {import.meta.env.DEV ? (
       <div className="flex flex-wrap gap-2">
         <Button
           size="sm"
@@ -323,6 +324,7 @@ export function LiftOverviewPanel({ userId, tick, refresh, onGoLift, onGoSplits 
           Clear lift data
         </Button>
       </div>
+      ) : null}
     </div>
   )
 }

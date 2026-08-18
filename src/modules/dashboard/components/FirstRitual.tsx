@@ -12,7 +12,7 @@ import { springSoft } from '@/lib/motion-ui'
 import { tasksApi } from '@/modules/tasks/api'
 import { habitsApi } from '@/modules/habits/api'
 import { offerEventCreatedShare, offerHabitCheckedInShare, offerTaskCompleteShare, offerTaskCreatedShare } from '@/lib/social/share-win'
-import { formatShortDate, todayKey } from '@/lib/dates'
+import { formatShortWhen, todayKey } from '@/lib/dates'
 import { toast } from 'sonner'
 
 const STEP_KEY = 'katana-personal:ritual-step'
@@ -225,7 +225,7 @@ export function FirstRitual({
                 {nextItem.type === 'task' && (
                   <>
                     Task
-                    {nextItem.item.due_at ? ` · ${formatShortDate(nextItem.item.due_at)}` : ''}
+                    {nextItem.item.due_at ? ` · ${formatShortWhen(nextItem.item.due_at)}` : ''}
                   </>
                 )}
                 {nextItem.type === 'habit' && <>Habit · check in today</>}

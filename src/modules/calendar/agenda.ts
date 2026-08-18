@@ -1,4 +1,4 @@
-import { endOfDay, eachDayOfInterval, isWithinInterval, parseISO, startOfDay, todayKey } from '@/lib/dates'
+import { endOfDay, eachDayOfInterval, hasClockTime, isWithinInterval, parseISO, startOfDay, todayKey } from '@/lib/dates'
 import type { CalendarEvent } from './types'
 import type { Task, Recurrence } from '@/modules/tasks/types'
 import type { Goal } from '@/modules/goals/types'
@@ -41,8 +41,7 @@ export const DEFAULT_AGENDA_FILTER: AgendaFilter = {
 }
 
 function hasTimeComponent(iso: string) {
-  const d = parseISO(iso)
-  return d.getHours() !== 0 || d.getMinutes() !== 0 || d.getSeconds() !== 0
+  return hasClockTime(iso)
 }
 
 function advanceRecurrence(date: Date, recurrence: Recurrence): void {

@@ -38,6 +38,7 @@ import { remindersEnabled, requestReminderPermission } from '@/lib/reminders'
 import { seedDemoWorkspace } from '@/lib/seed-demo'
 import { DEFAULT_SHARE_PREFS, type SharePrefs } from '@/lib/social/types'
 import { getAddMeUrl } from '@/lib/social/friends'
+import { copyToClipboard } from '@/lib/clipboard'
 import {
   mergeWorkspaceBothWays,
   pullWorkspaceFromCloud,
@@ -406,14 +407,14 @@ export default function SettingsPage() {
               className="w-full sm:w-auto"
               onClick={() => {
                 setPlusUnlocked(true)
-                toast.success('Accountability pack unlocked (demo)')
+                toast.success('Accountability pack unlocked')
               }}
             >
-              Unlock Accountability pack (demo)
+              Unlock Accountability pack
             </Button>
-            <p className="text-xs text-muted-foreground">
-              For Shipaton judges and promo codes until RevenueCat is wired.
-            </p>
+                <p className="text-xs text-muted-foreground">
+                  Unlock on this device. Store billing comes later.
+                </p>
           </div>
         )}
       </section>
@@ -449,8 +450,9 @@ export default function SettingsPage() {
                   variant="outline"
                   onClick={async () => {
                     const url = getAddMeUrl(cloudProfile.friendCode)
-                    await navigator.clipboard.writeText(url)
-                    toast.success('Add-me link copied')
+                    const ok = await copyToClipboard(url)
+                    if (ok) toast.success('Add-me link copied')
+                    else toast.error('Couldn’t copy link — check browser permissions')
                   }}
                 >
                   Copy add-me link
@@ -585,7 +587,6 @@ export default function SettingsPage() {
                   You’ll get a confirmation email. Open that link to finish Cloud.
                 </p>
               ) : null}
-              <p className="text-center text-[10px] text-muted-foreground/70">Cloud build 2026-08-07-cloud4</p>
             </form>
           </div>
         )}

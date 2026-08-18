@@ -56,6 +56,7 @@ import { createCircleInvite, inviteFriendToCircle, listOutgoingPendingForCircle 
 import { listFriendProfiles, getCloudProfiles, friendshipRelation, requestFriend, acceptFriend, listFriendships } from '@/lib/social/friends'
 import type { CircleChallengeMetric, CircleGroup, CloudProfile, Friendship, StreakSnapshot } from '@/lib/social/types'
 import { cn } from '@/lib/utils'
+import { copyToClipboard } from '@/lib/clipboard'
 import { CircleSchedule } from '../components/CircleSchedule'
 import { CircleBoardExtras } from '../components/CircleBoardExtras'
 import { CircleManageDialog } from '../components/CircleManageDialog'
@@ -1039,8 +1040,9 @@ export default function CirclesPage() {
                     circle: active,
                     createdBy: cloudUser.uid,
                   })
-                  await navigator.clipboard.writeText(url)
-                  toast.success('Invite link copied')
+                  const ok = await copyToClipboard(url)
+                  if (ok) toast.success('Invite link copied')
+                  else toast.error('Couldn’t copy link — check browser permissions')
                 } catch (err) {
                   toast.error(err instanceof Error ? err.message : 'Couldn’t create invite')
                 }

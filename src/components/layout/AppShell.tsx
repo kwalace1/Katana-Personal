@@ -315,7 +315,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
         <FeedAvatar name={displayName} photoURL={photoURL} size="md" />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold tracking-tight">{displayName}</p>
-          <p className="truncate text-xs text-muted-foreground">
+          <p className="text-xs leading-snug text-muted-foreground">
             {cloudUser
               ? 'Your profile · bio & photo'
               : 'Connect to set up your profile'}

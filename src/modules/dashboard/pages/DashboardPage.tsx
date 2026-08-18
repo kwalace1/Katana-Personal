@@ -16,7 +16,7 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
-import { format, formatTime, formatShortDate, todayKey, addDays } from '@/lib/dates'
+import { format, formatTime, formatShortDate, formatShortWhen, todayKey, addDays } from '@/lib/dates'
 import { pageEnterSubtle, springSoft } from '@/lib/motion-ui'
 import { useLocalRefresh } from '@/hooks/useLocalRefresh'
 import { DayClosedMoment } from '@/components/DayClosedMoment'
@@ -208,7 +208,7 @@ export default function DashboardPage() {
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
   const showEveningClose =
-    onboardingDone && !dayClosed && isSectionVisible(prefs, 'evening_close')
+    onboardingDone && !dayClosed && isSectionVisible(prefs, 'evening_close') && hour >= 17
 
   useEffect(() => {
     const parked = takeDayCloseMoment()
@@ -412,7 +412,7 @@ export default function DashboardPage() {
                       {data.next.type === 'task' && (
                         <>
                           Task
-                          {data.next.item.due_at ? ` · ${formatShortDate(data.next.item.due_at)}` : ''}
+                          {data.next.item.due_at ? ` · ${formatShortWhen(data.next.item.due_at)}` : ''}
                           {data.next.item.priority === 'high' ? ' · Important' : ''}
                         </>
                       )}

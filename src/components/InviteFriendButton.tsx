@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/drawer'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
 import { getAddMeUrl, shareAddMeLink } from '@/lib/social/friends'
+import { copyToClipboard } from '@/lib/clipboard'
 import { cn } from '@/lib/utils'
 
 function preferSheet(): boolean {
@@ -66,11 +67,11 @@ export function InviteFriendButton({
   }
 
   async function copyLink() {
-    try {
-      await navigator.clipboard.writeText(url)
+    const ok = await copyToClipboard(url)
+    if (ok) {
       toast.success('Add-me link copied')
       setSheetOpen(false)
-    } catch {
+    } else {
       toast.error('Couldn’t copy link')
     }
   }

@@ -1,4 +1,5 @@
 import type { FeedCard } from '@/lib/social/feed'
+import { isFirstMinuteActive } from '@/lib/ritual-path'
 import { computeLocalStreaks } from '@/lib/social/streaks'
 import { healthApi } from '@/modules/health/api'
 import { liftApi } from '@/modules/health/lift-api'
@@ -112,6 +113,8 @@ export function offerShareWin(
 ) {
   // Signature day card uses force — never permanently block that clip.
   if (isShareWinNever() && !opts?.force) return
+  // First Minute must stay on Capture → Do this next. Creating a task is not a win yet.
+  if (isFirstMinuteActive() && !opts?.force) return
   if (!opts?.force && !opts?.ignoreCooldown) {
     try {
       const last = Number(localStorage.getItem(LAST_KEY) || '0')

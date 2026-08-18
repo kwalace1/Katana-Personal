@@ -40,6 +40,11 @@ export function readRitualStep(): string | null {
   }
 }
 
+/** True while First Minute still owns Today — share-win sheets must not cover it. */
+export function isFirstMinuteActive() {
+  return Boolean(readRitualStep())
+}
+
 /**
  * Cold-path lock: until onboarding finishes, only Today (+ allowed Ask/Social steps) and Settings.
  */

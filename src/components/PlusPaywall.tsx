@@ -55,15 +55,15 @@ export function PlusPaywallSheet({ open, onOpenChange, feature, onUnlocked }: Pr
             className="min-h-11 w-full"
             onClick={() => {
               setPlusUnlocked(true)
-              toast.success('Accountability pack unlocked (demo)')
+              toast.success('Accountability pack unlocked')
               onOpenChange(false)
               onUnlocked?.()
             }}
           >
-            Unlock Accountability pack (demo)
+            Unlock Accountability pack
           </Button>
           <p className="text-center text-xs text-muted-foreground">
-            Store billing via RevenueCat comes next — demo unlock is for Shipaton judges.
+            Unlock on this device. Store billing comes later.
           </p>
           <Button type="button" variant="outline" className="min-h-11 w-full" onClick={() => onOpenChange(false)}>
             Not now

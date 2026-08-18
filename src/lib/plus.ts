@@ -1,4 +1,4 @@
-/** Katana Plus entitlements — local demo unlock until RevenueCat wires in. */
+/** Katana Plus entitlements — local unlock until store billing is wired. */
 
 export type PlusFeature = 'llm' | 'challenge' | 'nutrition_ai' | 'programs' | 'diet_plans'
 
@@ -16,7 +16,7 @@ export function isPlusUnlocked(): boolean {
   }
 }
 
-/** Shipaton / promo: unlock Plus without a store purchase yet. */
+/** Unlock Plus without a store purchase yet. */
 export function setPlusUnlocked(on: boolean) {
   try {
     if (on) localStorage.setItem(PLUS_KEY, '1')

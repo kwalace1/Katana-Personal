@@ -1,4 +1,4 @@
-import { format, isSameDay, isToday, todayKey } from '@/lib/dates'
+import { format, formatTime, isSameDay, isToday, todayKey } from '@/lib/dates'
 import { cn } from '@/lib/utils'
 import { agendaForDay, type AgendaItem } from '../agenda'
 
@@ -50,6 +50,7 @@ export function CalendarGrid({
         {days.map((day) => {
           const dayItems = agendaForDay(agenda, day)
           const tasks = dayTaskCount(dayItems)
+          const timedTask = dayItems.find((item) => item.kind === 'task' && !item.all_day)
           const selected = isSameDay(day, selectedDay)
           const outside = muteOutsideMonth && day.getMonth() !== viewMonth.getMonth()
           const dots = uniqueDots(dayItems)
@@ -80,7 +81,11 @@ export function CalendarGrid({
               >
                 {format(day, 'd')}
               </span>
-              {tasks > 0 ? (
+              {timedTask && tasks === 1 ? (
+                <span className="mt-1 text-[0.65rem] font-semibold leading-tight text-primary">
+                  {formatTime(timedTask.starts_at)}
+                </span>
+              ) : tasks > 0 ? (
                 <span className="mt-1 text-[0.65rem] font-semibold leading-tight text-primary">
                   {tasks}
                   <span className="hidden sm:inline"> {tasks === 1 ? 'task' : 'tasks'}</span>
