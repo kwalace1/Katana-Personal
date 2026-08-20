@@ -119,7 +119,10 @@ export function NotificationBell() {
                       ? '/circles'
                       : n.kind === 'post_like' ||
                           n.kind === 'post_comment' ||
-                          n.kind === 'post_repost'
+                          n.kind === 'post_repost' ||
+                          n.kind === 'post_mention' ||
+                          n.kind === 'comment_like' ||
+                          n.kind === 'comment_reply'
                         ? '/social'
                         : '/social?tab=friends')
                 navigate(href)

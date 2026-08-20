@@ -23,6 +23,51 @@ export type FeedComment = {
   authorId: string
   text: string
   createdAt: string
+  parentId: string | null
+  likeCount: number
+  likedByMe: boolean
+}
+
+export type NestedFeedComments = {
+  roots: FeedComment[]
+  repliesByParent: Record<string, FeedComment[]>
+}
+
+export function nestFeedComments(comments: FeedComment[]): NestedFeedComments {
+  const byId = new Map(comments.map((c) => [c.id, c]))
+  const repliesByParent: Record<string, FeedComment[]> = {}
+  const roots: FeedComment[] = []
+  for (const comment of comments) {
+    const parent = comment.parentId ? byId.get(comment.parentId) : null
+    const rootId = parent?.parentId ? parent.parentId : comment.parentId
+    if (!rootId || !byId.has(rootId)) {
+      roots.push(comment)
+      continue
+    }
+    if (!repliesByParent[rootId]) repliesByParent[rootId] = []
+    repliesByParent[rootId].push(comment)
+  }
+  return { roots, repliesByParent }
+}
+
+function mapComment(row: {
+  id: string
+  post_id: string
+  author_id: string
+  text: string
+  created_at: string
+  parent_id?: string | null
+}): FeedComment {
+  return {
+    id: row.id,
+    postId: row.post_id,
+    authorId: row.author_id,
+    text: row.text,
+    createdAt: row.created_at,
+    parentId: row.parent_id ?? null,
+    likeCount: 0,
+    likedByMe: false,
+  }
 }
 
 export type RepostSnapshot = {
@@ -126,46 +171,131 @@ export async function togglePostLike(postId: string, userId: string, currentlyLi
   return true
 }
 
-export async function listPostComments(postId: string): Promise<FeedComment[]> {
-  const { data, error } = await getSupabase()
+export async function listPostComments(postId: string, userId?: string): Promise<FeedComment[]> {
+  const supabase = getSupabase()
+  const { data, error } = await supabase
     .from('together_post_comments')
-    .select('id, post_id, author_id, text, created_at')
+    .select('id, post_id, author_id, text, created_at, parent_id')
     .eq('post_id', postId)
     .order('created_at', { ascending: true })
+  if (error) {
+    if (/parent_id|schema cache|column/i.test(error.message)) {
+      const fallback = await supabase
+        .from('together_post_comments')
+        .select('id, post_id, author_id, text, created_at')
+        .eq('post_id', postId)
+        .order('created_at', { ascending: true })
+      if (fallback.error) throw asError(fallback.error)
+      return attachCommentLikes(
+        (fallback.data || []).map((r) => mapComment(r)),
+        userId,
+      )
+    }
+    throw asError(error)
+  }
+  return attachCommentLikes((data || []).map((r) => mapComment(r)), userId)
+}
+
+async function attachCommentLikes(comments: FeedComment[], userId?: string): Promise<FeedComment[]> {
+  if (comments.length === 0) return comments
+  try {
+    const { data, error } = await getSupabase()
+      .from('together_comment_likes')
+      .select('comment_id, user_id')
+      .in(
+        'comment_id',
+        comments.map((c) => c.id),
+      )
+    if (error) throw asError(error)
+    const counts = new Map<string, { likeCount: number; likedByMe: boolean }>()
+    for (const row of data || []) {
+      const cur = counts.get(row.comment_id) || { likeCount: 0, likedByMe: false }
+      cur.likeCount += 1
+      if (userId && row.user_id === userId) cur.likedByMe = true
+      counts.set(row.comment_id, cur)
+    }
+    return comments.map((c) => {
+      const extra = counts.get(c.id)
+      return extra ? { ...c, ...extra } : c
+    })
+  } catch (err) {
+    if (isMissingRelation(err) || /permission denied/i.test(asError(err).message)) return comments
+    throw asError(err)
+  }
+}
+
+export async function toggleCommentLike(commentId: string, userId: string, currentlyLiked: boolean) {
+  const supabase = getSupabase()
+  if (currentlyLiked) {
+    const { error } = await supabase
+      .from('together_comment_likes')
+      .delete()
+      .eq('comment_id', commentId)
+      .eq('user_id', userId)
+    if (error) throw asError(error)
+    return false
+  }
+  const { error } = await supabase.from('together_comment_likes').insert({
+    comment_id: commentId,
+    user_id: userId,
+  })
   if (error) throw asError(error)
-  return (data || []).map((r) => ({
-    id: r.id,
-    postId: r.post_id,
-    authorId: r.author_id,
-    text: r.text,
-    createdAt: r.created_at,
-  }))
+  return true
 }
 
 export async function addPostComment(input: {
   postId: string
   authorId: string
   text: string
+  parentId?: string | null
 }): Promise<FeedComment> {
   const text = input.text.trim()
   if (!text) throw new Error('Write a comment first')
   if (text.length > COMMENT_TEXT_MAX) throw new Error(`Keep comments under ${COMMENT_TEXT_MAX} characters`)
   const id = createId()
   const createdAt = new Date().toISOString()
-  const { error } = await getSupabase().from('together_post_comments').insert({
+  const parentId = input.parentId || null
+  const row = {
     id,
     post_id: input.postId,
     author_id: input.authorId,
     text,
     created_at: createdAt,
-  })
-  if (error) throw asError(error)
+    ...(parentId ? { parent_id: parentId } : {}),
+  }
+  const { error } = await getSupabase().from('together_post_comments').insert(row)
+  if (error) {
+    if (parentId && /parent_id|schema cache|column/i.test(error.message)) {
+      const retry = await getSupabase().from('together_post_comments').insert({
+        id,
+        post_id: input.postId,
+        author_id: input.authorId,
+        text,
+        created_at: createdAt,
+      })
+      if (retry.error) throw asError(retry.error)
+      return {
+        id,
+        postId: input.postId,
+        authorId: input.authorId,
+        text,
+        createdAt,
+        parentId: null,
+        likeCount: 0,
+        likedByMe: false,
+      }
+    }
+    throw asError(error)
+  }
   return {
     id,
     postId: input.postId,
     authorId: input.authorId,
     text,
     createdAt,
+    parentId,
+    likeCount: 0,
+    likedByMe: false,
   }
 }
 

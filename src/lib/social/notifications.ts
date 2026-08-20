@@ -12,6 +12,8 @@ export type NotificationKind =
   | 'post_comment'
   | 'post_repost'
   | 'post_mention'
+  | 'comment_like'
+  | 'comment_reply'
   | 'generic'
 
 export interface AppNotification {
@@ -107,6 +109,34 @@ export async function notifyPostEngagement(input: {
     })
   } catch {
     // Never block the like/comment/repost on notification failure
+  }
+}
+
+/** Notify a comment author about a like or reply (never notifies yourself). */
+export async function notifyCommentEngagement(input: {
+  authorId: string
+  actorId: string
+  actorName: string
+  kind: 'comment_like' | 'comment_reply'
+  postId: string
+  preview?: string
+}): Promise<void> {
+  if (!input.authorId || input.authorId === input.actorId) return
+  const name = input.actorName.trim() || 'Someone'
+  const title =
+    input.kind === 'comment_like' ? `${name} liked your comment` : `${name} replied to your comment`
+  const body = input.preview?.trim() || 'Open Social to see it'
+  try {
+    await createNotification({
+      uid: input.authorId,
+      kind: input.kind,
+      title,
+      body: body.slice(0, 180),
+      href: '/social',
+      meta: { postId: input.postId, actorId: input.actorId },
+    })
+  } catch {
+    // Never block the like/reply on notification failure
   }
 }
 

@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { MapPin, Pause, Play, Square, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -17,7 +17,17 @@ import {
   offerShareWin,
 } from '@/lib/social/share-win'
 import { formatCardioDuration, healthApi } from '../api'
-import type { GeoPoint } from '../types'
+import {
+  CARDIO_ACTIVITIES,
+  cardioElapsedSeconds,
+  discardCardioTrack,
+  finishCardioTrack,
+  pauseCardioTrack,
+  resumeCardioTrack,
+  setCardioTrackKind,
+  startCardioTrack,
+} from '../cardio-track'
+import { useCardioTrack } from '../useCardioTrack'
 import { formatLiftDate } from './lift/LiftLineChart'
 import { CardioMap } from './CardioMap'
 
@@ -28,9 +38,7 @@ type Props = {
   refresh: () => void
 }
 
-const ACTIVITIES = ['Run', 'Walk', 'Ride', 'Row'] as const
-
-type TrackStatus = 'idle' | 'live' | 'paused'
+const ACTIVITIES = CARDIO_ACTIVITIES
 
 export function CardioPanel({ userId, logDate, tick, refresh }: Props) {
   const entries = useMemo(() => {
@@ -46,115 +54,61 @@ export function CardioPanel({ userId, logDate, tick, refresh }: Props) {
   const [calories, setCalories] = useState('')
   const [notes, setNotes] = useState('')
   const [openId, setOpenId] = useState<string | null>(null)
+  const [now, setNow] = useState(() => Date.now())
 
-  const [trackKind, setTrackKind] = useState<(typeof ACTIVITIES)[number]>('Run')
-  const [status, setStatus] = useState<TrackStatus>('idle')
-  const [path, setPath] = useState<GeoPoint[]>([])
-  const [elapsed, setElapsed] = useState(0)
-  const watchRef = useRef<number | null>(null)
-  const startedAt = useRef<number>(0)
-  const pausedMs = useRef(0)
-  const pauseStarted = useRef<number | null>(null)
-
+  const track = useCardioTrack()
+  const status = track.status
+  const trackKind = track.kind
+  const path = track.path
+  const elapsed = cardioElapsedSeconds(track, now)
   const distance = useMemo(() => pathDistanceMeters(path), [path])
   const gpsOk = typeof navigator !== 'undefined' && 'geolocation' in navigator
 
   useEffect(() => {
-    if (status !== 'live') return
-    const id = window.setInterval(() => {
-      setElapsed(Math.floor((Date.now() - startedAt.current - pausedMs.current) / 1000))
-    }, 400)
+    if (status === 'idle') return
+    const id = window.setInterval(() => setNow(Date.now()), 400)
     return () => window.clearInterval(id)
   }, [status])
 
-  useEffect(() => {
-    return () => {
-      if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current)
-    }
-  }, [])
-
-  function startWatch() {
-    if (!gpsOk) {
-      toast.error('This device doesn’t share location')
-      return
-    }
-    if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current)
-    watchRef.current = navigator.geolocation.watchPosition(
-      (pos) => {
-        if (pos.coords.accuracy > 80) return
-        const point: GeoPoint = {
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          t: Date.now(),
-        }
-        setPath((prev) => {
-          const last = prev[prev.length - 1]
-          if (last && Math.abs(last.lat - point.lat) < 1e-6 && Math.abs(last.lng - point.lng) < 1e-6) {
-            return prev
-          }
-          return [...prev, point]
-        })
-      },
-      (err) => {
-        toast.error(err.message || 'Couldn’t get GPS')
-      },
-      { enableHighAccuracy: true, maximumAge: 1000, timeout: 20_000 },
-    )
-  }
-
   function startTrack() {
-    startedAt.current = Date.now()
-    pausedMs.current = 0
-    pauseStarted.current = null
-    setPath([])
-    setElapsed(0)
-    setStatus('live')
-    startWatch()
+    try {
+      startCardioTrack(trackKind)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Couldn’t start tracking')
+    }
   }
 
   function pauseTrack() {
-    if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current)
-    watchRef.current = null
-    pauseStarted.current = Date.now()
-    setStatus('paused')
+    pauseCardioTrack()
   }
 
   function resumeTrack() {
-    if (pauseStarted.current) pausedMs.current += Date.now() - pauseStarted.current
-    pauseStarted.current = null
-    setStatus('live')
-    startWatch()
+    resumeCardioTrack()
   }
 
   function finishTrack() {
-    if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current)
-    watchRef.current = null
-    const secs = Math.max(
-      1,
-      Math.floor((Date.now() - startedAt.current - pausedMs.current) / 1000),
-    )
+    const snapshot = finishCardioTrack()
+    if (!snapshot) return
+    const secs = snapshot.elapsed
     const h = Math.floor(secs / 3600)
     const m = Math.floor((secs % 3600) / 60)
     const s = secs % 60
-    const dist = pathDistanceMeters(path)
+    const dist = pathDistanceMeters(snapshot.path)
     const row = healthApi.addCardio(userId, {
-      activity: trackKind,
+      activity: snapshot.kind,
       date: todayKey(),
       hours: h,
       minutes: m,
       seconds: s,
       notes: dist > 0 ? `${formatDistance(dist)} · ${formatPace(dist, secs)}` : '',
-      path,
+      path: snapshot.path,
       distance_m: dist,
     })
-    setStatus('idle')
-    setPath([])
-    setElapsed(0)
     if (!row) {
       toast.error('Need a few seconds of GPS to save a map')
       return
     }
-    toast.success(`Saved ${trackKind.toLowerCase()} · ${formatDistance(dist)}`)
+    toast.success(`Saved ${snapshot.kind.toLowerCase()} · ${formatDistance(dist)}`)
     burstConfetti()
     refresh()
   }
@@ -227,7 +181,8 @@ export function CardioPanel({ userId, logDate, tick, refresh }: Props) {
           <p className="text-xs text-muted-foreground">Live map</p>
           <h3 className="font-display text-xl tracking-tight">Record a route</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            GPS stays on this device — path, distance, and pace like a run club map.
+            GPS stays on this device. Tracking keeps going if you switch screens — come back here or
+            tap the live bar to finish.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -239,7 +194,7 @@ export function CardioPanel({ userId, logDate, tick, refresh }: Props) {
               variant={trackKind === kind ? 'default' : 'outline'}
               className="rounded-full"
               disabled={status !== 'idle'}
-              onClick={() => setTrackKind(kind)}
+              onClick={() => setCardioTrackKind(kind)}
             >
               {kind}
             </Button>
@@ -287,10 +242,23 @@ export function CardioPanel({ userId, logDate, tick, refresh }: Props) {
             </Button>
           ) : null}
           {status !== 'idle' ? (
-            <Button type="button" variant="outline" className="gap-1.5" onClick={finishTrack}>
-              <Square className="h-4 w-4" />
-              Finish & save
-            </Button>
+            <>
+              <Button type="button" variant="outline" className="gap-1.5" onClick={finishTrack}>
+                <Square className="h-4 w-4" />
+                Finish & save
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className="gap-1.5 text-muted-foreground"
+                onClick={() => {
+                  discardCardioTrack()
+                  toast.message('Route discarded')
+                }}
+              >
+                Discard
+              </Button>
+            </>
           ) : null}
         </div>
         {!gpsOk ? (

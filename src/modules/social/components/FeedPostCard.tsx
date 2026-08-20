@@ -32,11 +32,13 @@ import {
   createRepost,
   deletePostComment,
   listPostComments,
+  nestFeedComments,
+  toggleCommentLike,
   togglePostLike,
   type FeedComment,
   type PostEngagement,
 } from '@/lib/social/feed-engagement'
-import { notifyPostEngagement } from '@/lib/social/notifications'
+import { notifyCommentEngagement, notifyPostEngagement } from '@/lib/social/notifications'
 import {
   assertFeedMedia,
   deleteTogetherPost,
@@ -245,8 +247,10 @@ export function FeedPostCard({
   const [reportNote, setReportNote] = useState('')
   const [comments, setComments] = useState<FeedComment[]>([])
   const [commentDraft, setCommentDraft] = useState('')
+  const [replyTo, setReplyTo] = useState<FeedComment | null>(null)
   const [commentsLoading, setCommentsLoading] = useState(false)
   const [commentBusy, setCommentBusy] = useState(false)
+  const [likingCommentId, setLikingCommentId] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const onNamesRef = useRef(onNames)
   onNamesRef.current = onNames
@@ -360,7 +364,7 @@ export function FeedPostCard({
     let cancelled = false
     setCommentsLoading(true)
     setComments([])
-    void listPostComments(post.id)
+    void listPostComments(post.id, selfUid)
       .then(async (list) => {
         if (cancelled) return
         setComments(list)
@@ -456,9 +460,18 @@ export function FeedPostCard({
     if (commentBusy) return
     setCommentBusy(true)
     try {
-      const c = await addPostComment({ postId: post.id, authorId: selfUid, text: commentDraft })
+      const parent = replyTo
+        ? comments.find((item) => item.id === (replyTo.parentId || replyTo.id)) || replyTo
+        : null
+      const c = await addPostComment({
+        postId: post.id,
+        authorId: selfUid,
+        text: commentDraft,
+        parentId: parent?.id || null,
+      })
       setComments((list) => [...list, c])
       setCommentDraft('')
+      setReplyTo(null)
       onEngagementChange({ ...engagement, commentCount: engagement.commentCount + 1 })
       onNamesRef.current({ [selfUid]: selfName })
       void notifyPostEngagement({
@@ -469,6 +482,16 @@ export function FeedPostCard({
         postId: post.id,
         preview: c.text,
       })
+      if (parent && parent.authorId !== post.authorId) {
+        void notifyCommentEngagement({
+          authorId: parent.authorId,
+          actorId: selfUid,
+          actorName: selfName,
+          kind: 'comment_reply',
+          postId: post.id,
+          preview: c.text,
+        })
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Couldn’t comment')
     } finally {
@@ -476,6 +499,129 @@ export function FeedPostCard({
     }
   }
 
+  async function onCommentLike(comment: FeedComment) {
+    if (likingCommentId) return
+    setLikingCommentId(comment.id)
+    const prev = comment
+    const optimistic: FeedComment = {
+      ...prev,
+      likedByMe: !prev.likedByMe,
+      likeCount: Math.max(0, prev.likeCount + (prev.likedByMe ? -1 : 1)),
+    }
+    setComments((list) => list.map((item) => (item.id === comment.id ? optimistic : item)))
+    try {
+      const liked = await toggleCommentLike(comment.id, selfUid, prev.likedByMe)
+      setComments((list) =>
+        list.map((item) =>
+          item.id === comment.id
+            ? {
+                ...item,
+                likedByMe: liked,
+                likeCount: Math.max(0, prev.likeCount + (liked === prev.likedByMe ? 0 : liked ? 1 : -1)),
+              }
+            : item,
+        ),
+      )
+      if (liked && !prev.likedByMe) {
+        void notifyCommentEngagement({
+          authorId: comment.authorId,
+          actorId: selfUid,
+          actorName: selfName,
+          kind: 'comment_like',
+          postId: post.id,
+          preview: comment.text,
+        })
+      }
+    } catch (err) {
+      setComments((list) => list.map((item) => (item.id === comment.id ? prev : item)))
+      toast.error(
+        err instanceof Error && /does not exist|schema cache/i.test(err.message)
+          ? 'Comment likes need a cloud update — run the latest Supabase migration'
+          : err instanceof Error
+            ? err.message
+            : 'Couldn’t like',
+      )
+    } finally {
+      setLikingCommentId(null)
+    }
+  }
+
+  function displayName(authorId: string) {
+    return authorId === selfUid ? selfName : names[authorId] || 'Friend'
+  }
+
+  function renderComment(c: FeedComment, nested = false) {
+    const name = displayName(c.authorId)
+    return (
+      <div key={c.id} className={cn('flex gap-2.5', nested && 'ml-8')}>
+        <FeedAvatar
+          name={name}
+          photoURL={photos?.[c.authorId]}
+          size="sm"
+          to={profilePath(c.authorId)}
+        />
+        <div className="min-w-0 flex-1">
+          <div className="rounded-2xl bg-secondary/50 px-3 py-2">
+            <div className="flex items-baseline justify-between gap-2">
+              <Link to={profilePath(c.authorId)} className="text-sm font-semibold hover:underline">
+                {name}
+              </Link>
+              <span className="text-[0.65rem] text-muted-foreground">{relativeWhen(c.createdAt)}</span>
+            </div>
+            <p className="mt-0.5 whitespace-pre-wrap text-sm leading-relaxed">{c.text}</p>
+          </div>
+          <div className="mt-1 flex flex-wrap items-center gap-3 px-1">
+            <button
+              type="button"
+              disabled={likingCommentId === c.id}
+              className={cn(
+                'inline-flex items-center gap-1 text-[0.7rem] text-muted-foreground transition hover:text-rose-600',
+                c.likedByMe && 'text-rose-600',
+              )}
+              aria-label={c.likedByMe ? 'Unlike comment' : 'Like comment'}
+              onClick={() => void onCommentLike(c)}
+            >
+              <Heart className={cn('h-3.5 w-3.5', c.likedByMe && 'fill-current')} />
+              {c.likeCount > 0 ? c.likeCount : 'Like'}
+            </button>
+            <button
+              type="button"
+              className="text-[0.7rem] text-muted-foreground hover:text-foreground"
+              onClick={() => setReplyTo(c)}
+            >
+              Reply
+            </button>
+            {c.authorId === selfUid ? (
+              <button
+                type="button"
+                className="text-[0.7rem] text-muted-foreground hover:text-destructive"
+                onClick={() => {
+                  const removeIds = new Set([
+                    c.id,
+                    ...comments.filter((item) => item.parentId === c.id).map((item) => item.id),
+                  ])
+                  void deletePostComment(c.id)
+                    .then(() => {
+                      setComments((list) => list.filter((x) => !removeIds.has(x.id)))
+                      if (replyTo && removeIds.has(replyTo.id)) setReplyTo(null)
+                      onEngagementChange({
+                        ...engagement,
+                        commentCount: Math.max(0, engagement.commentCount - removeIds.size),
+                      })
+                    })
+                    .catch(() => toast.error('Couldn’t delete comment'))
+                }}
+              >
+                Delete
+              </button>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const nestedComments = nestFeedComments(comments)
   const originalAuthorName = post.repost
     ? post.repost.authorId === selfUid
       ? selfName
@@ -662,7 +808,16 @@ export function FeedPostCard({
         </div>
       </div>
 
-      <Sheet open={commentsOpen} onOpenChange={setCommentsOpen}>
+      <Sheet
+        open={commentsOpen}
+        onOpenChange={(open) => {
+          setCommentsOpen(open)
+          if (!open) {
+            setReplyTo(null)
+            setCommentDraft('')
+          }
+        }}
+      >
         <SheetContent
           side="bottom"
           className="max-h-[min(88vh,34rem)] gap-0 rounded-t-[1.5rem] border-border/50 pb-[max(1rem,env(safe-area-inset-bottom))]"
@@ -684,60 +839,39 @@ export function FeedPostCard({
             ) : comments.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">No comments yet — say something.</p>
             ) : (
-              comments.map((c) => {
-                const name = c.authorId === selfUid ? selfName : names[c.authorId] || 'Friend'
-                return (
-                  <div key={c.id} className="flex gap-2.5">
-                    <FeedAvatar
-                      name={name}
-                      photoURL={photos?.[c.authorId]}
-                      size="sm"
-                      to={profilePath(c.authorId)}
-                    />
-                    <div className="min-w-0 flex-1 rounded-2xl bg-secondary/50 px-3 py-2">
-                      <div className="flex items-baseline justify-between gap-2">
-                        <Link to={profilePath(c.authorId)} className="text-sm font-semibold hover:underline">
-                          {name}
-                        </Link>
-                        <span className="text-[0.65rem] text-muted-foreground">{relativeWhen(c.createdAt)}</span>
-                      </div>
-                      <p className="mt-0.5 whitespace-pre-wrap text-sm leading-relaxed">{c.text}</p>
-                      {c.authorId === selfUid ? (
-                        <button
-                          type="button"
-                          className="mt-1 text-[0.7rem] text-muted-foreground hover:text-destructive"
-                          onClick={() => {
-                            void deletePostComment(c.id)
-                              .then(() => {
-                                setComments((list) => list.filter((x) => x.id !== c.id))
-                                onEngagementChange({
-                                  ...engagement,
-                                  commentCount: Math.max(0, engagement.commentCount - 1),
-                                })
-                              })
-                              .catch(() => toast.error('Couldn’t delete comment'))
-                          }}
-                        >
-                          Delete
-                        </button>
-                      ) : null}
-                    </div>
-                  </div>
-                )
-              })
+              nestedComments.roots.map((c) => (
+                <div key={c.id} className="space-y-2">
+                  {renderComment(c)}
+                  {(nestedComments.repliesByParent[c.id] || []).map((reply) =>
+                    renderComment(reply, true),
+                  )}
+                </div>
+              ))
             )}
           </div>
-          <form onSubmit={(e) => void onComment(e)} className="flex gap-2 border-t border-border/40 px-5 py-3">
-            <Textarea
-              value={commentDraft}
-              onChange={(e) => setCommentDraft(e.target.value.slice(0, COMMENT_TEXT_MAX))}
-              placeholder="Write a reply…"
-              rows={2}
-              className="min-h-[2.75rem] resize-none"
-            />
-            <Button type="submit" disabled={commentBusy || !commentDraft.trim()} className="self-end">
-              {commentBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Reply'}
-            </Button>
+          <form onSubmit={(e) => void onComment(e)} className="space-y-2 border-t border-border/40 px-5 py-3">
+            {replyTo ? (
+              <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                <span>
+                  Replying to {displayName(replyTo.authorId)}
+                </span>
+                <button type="button" className="hover:text-foreground" onClick={() => setReplyTo(null)}>
+                  Cancel
+                </button>
+              </div>
+            ) : null}
+            <div className="flex gap-2">
+              <Textarea
+                value={commentDraft}
+                onChange={(e) => setCommentDraft(e.target.value.slice(0, COMMENT_TEXT_MAX))}
+                placeholder={replyTo ? `Reply to ${displayName(replyTo.authorId)}…` : 'Write a comment…'}
+                rows={2}
+                className="min-h-[2.75rem] resize-none"
+              />
+              <Button type="submit" disabled={commentBusy || !commentDraft.trim()} className="self-end">
+                {commentBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : replyTo ? 'Reply' : 'Comment'}
+              </Button>
+            </div>
           </form>
         </SheetContent>
       </Sheet>

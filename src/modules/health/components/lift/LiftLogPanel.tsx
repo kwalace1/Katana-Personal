@@ -7,7 +7,9 @@ import { QuantityInput, QUANTITY } from '@/components/ui/quantity-input'
 import { EmptyState } from '@/components/ui/empty-state'
 import { todayKey } from '@/lib/dates'
 import { burstConfetti } from '@/lib/celebrate'
-import { offerBestLiftShare } from '@/lib/social/share-win'
+import { createTogetherPost } from '@/lib/social/feed'
+import { buildLiftShareCard, offerBestLiftShare } from '@/lib/social/share-win'
+import { DEFAULT_SHARE_PREFS } from '@/lib/social/types'
 import {
   bumpLiftDraftKeyCounter,
   clearLiftDraft,
@@ -86,7 +88,7 @@ function previousTopSetLabel(record: { weight: number; reps: number; date: strin
 }
 
 export function LiftLogPanel({ userId, logDate, tick, refresh, onGoSplits }: Props) {
-  const { cloudUser } = useCloudAuth()
+  const { cloudUser, cloudProfile, saveSharePrefs } = useCloudAuth()
   const names = useMemo(() => {
     void tick
     return liftApi.getLoggedExerciseNames(userId)
@@ -124,6 +126,7 @@ export function LiftLogPanel({ userId, logDate, tick, refresh, onGoSplits }: Pro
     circles: [],
     hasAny: false,
   })
+  const [shareToFeed, setShareToFeed] = useState(true)
   const [sharing, setSharing] = useState(false)
   const skipPersist = useRef(false)
   const latestRef = useRef({ name, date, exercises, fromSplit, editingSessionId })
@@ -335,38 +338,92 @@ export function LiftLogPanel({ userId, logDate, tick, refresh, onGoSplits }: Pro
     onGoSplits?.()
   }
 
+  async function ensureFeedCards(): Promise<boolean> {
+    if (!cloudProfile) return false
+    if (cloudProfile.sharePrefs?.feedCards) return true
+    try {
+      await saveSharePrefs({
+        ...DEFAULT_SHARE_PREFS,
+        ...cloudProfile.sharePrefs,
+        feedCards: true,
+      })
+      return true
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Couldn’t enable Feed cards')
+      return false
+    }
+  }
+
+  function openShareSession(session: LiftSession) {
+    if (!cloudUser) {
+      toast.message('Connect Social in Settings to share workouts')
+      return
+    }
+    setSelectedFriends({})
+    setSelectedCircles({})
+    setShareToFeed(true)
+    setShareSession(session)
+  }
+
   async function shareCompletedWorkout() {
-    if (!shareSession || !cloudUser || !audience.hasAny || sharing) return
+    if (!shareSession || !cloudUser || sharing) return
+    if (!shareToFeed && !audience.hasAny) return
     setSharing(true)
     try {
       const groups = liftApi.sessionExerciseGroups(userId, shareSession.id)
-      const result = await shareWithAudience({
-        kind: 'lift_session',
-        title: shareSession.title,
-        body: `${formatLiftDate(shareSession.date)} · ${groups.reduce((sum, group) => sum + group.sets.length, 0)} sets`,
-        data: {
-          workout: {
-            date: shareSession.date,
-            notes: shareSession.notes,
-            exercises: groups.map((group) => ({
-              name: group.name,
-              sets: group.sets.map((set) => ({ weight: set.weight, reps: set.reps })),
-            })),
-          },
-        },
-        ownerId: cloudUser.uid,
-        friendIds: audience.friendIds,
-        circles: audience.circles,
-        activityFeed: true,
-      })
-      if (!result.ok) {
-        toast.error(result.error)
-        return
+      const setCount = groups.reduce((sum, group) => sum + group.sets.length, 0)
+      const parts: string[] = []
+
+      if (shareToFeed) {
+        const ok = await ensureFeedCards()
+        if (!ok) return
+        const offer = buildLiftShareCard({
+          title: shareSession.title,
+          dateLabel: formatLiftDate(shareSession.date),
+          setCount,
+          exerciseCount: groups.length,
+        })
+        await createTogetherPost({
+          authorId: cloudUser.uid,
+          text: offer.defaultCaption,
+          audience: 'friends',
+          card: offer.card,
+        })
+        parts.push('Posted to Social')
       }
-      toast.success(shareSuccessMessage(result))
+
+      if (audience.hasAny) {
+        const result = await shareWithAudience({
+          kind: 'lift_session',
+          title: shareSession.title,
+          body: `${formatLiftDate(shareSession.date)} · ${setCount} sets`,
+          data: {
+            workout: {
+              date: shareSession.date,
+              notes: shareSession.notes,
+              exercises: groups.map((group) => ({
+                name: group.name,
+                sets: group.sets.map((set) => ({ weight: set.weight, reps: set.reps })),
+              })),
+            },
+          },
+          ownerId: cloudUser.uid,
+          friendIds: audience.friendIds,
+          circles: audience.circles,
+          activityFeed: true,
+        })
+        if (!result.ok) {
+          toast.error(result.error)
+          return
+        }
+        parts.push(shareSuccessMessage(result))
+      }
+
+      toast.success(parts.join(' · '))
       setShareSession(null)
       setSelectedFriends({})
       setSelectedCircles({})
+      setShareToFeed(true)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Couldn’t share workout')
     } finally {
@@ -668,6 +725,18 @@ export function LiftLogPanel({ userId, logDate, tick, refresh, onGoSplits }: Pro
                       {editingSessionId === session.id ? <HealthPill tone="primary">Editing</HealthPill> : null}
                       <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition', open && 'rotate-180')} />
                     </button>
+                    {!creatingSplitFromLifts ? (
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-9 w-9 shrink-0 text-muted-foreground"
+                        aria-label={`Share ${session.title}`}
+                        onClick={() => openShareSession(session)}
+                      >
+                        <Share2 className="h-4 w-4" />
+                      </Button>
+                    ) : null}
                   </div>
                   {open ? (
                     <div className="space-y-3 border-t border-border/40 bg-secondary/20 px-4 pb-4 pt-3">
@@ -688,13 +757,7 @@ export function LiftLogPanel({ userId, logDate, tick, refresh, onGoSplits }: Pro
                           size="sm"
                           variant="outline"
                           className="rounded-full"
-                          onClick={() => {
-                            if (!cloudUser) {
-                              toast.message('Connect Social in Settings to share workouts')
-                              return
-                            }
-                            setShareSession(session)
-                          }}
+                          onClick={() => openShareSession(session)}
                         >
                           <Share2 className="mr-1 h-3.5 w-3.5" />
                           Share
@@ -731,7 +794,7 @@ export function LiftLogPanel({ userId, logDate, tick, refresh, onGoSplits }: Pro
           {cloudUser ? (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Share every exercise, set, rep, and weight from this workout.
+                Post this lift to your Social feed, or send the full workout to circles and friends.
               </p>
               <ShareAudiencePicker
                 uid={cloudUser.uid}
@@ -740,14 +803,23 @@ export function LiftLogPanel({ userId, logDate, tick, refresh, onGoSplits }: Pro
                 onFriendsChange={setSelectedFriends}
                 onCirclesChange={setSelectedCircles}
                 onAudienceChange={setAudience}
+                showSocialFeed
+                socialFeedSelected={shareToFeed}
+                onSocialFeedChange={setShareToFeed}
                 compact
               />
               <Button
                 className="w-full"
-                disabled={!audience.hasAny || sharing}
+                disabled={(!shareToFeed && !audience.hasAny) || sharing}
                 onClick={() => void shareCompletedWorkout()}
               >
-                {sharing ? 'Sharing…' : 'Share complete workout'}
+                {sharing
+                  ? 'Sharing…'
+                  : shareToFeed && !audience.hasAny
+                    ? 'Post to Social feed'
+                    : shareToFeed
+                      ? 'Share to feed & friends'
+                      : 'Share complete workout'}
               </Button>
             </div>
           ) : null}

@@ -161,7 +161,7 @@ export function ShareWinHost() {
               <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border" />
               <SheetTitle className="font-display text-2xl tracking-tight">{offer.headline}</SheetTitle>
               <SheetDescription>
-                Optional — only what you choose goes to friends or a Circle.
+                Optional — post to your Social feed or a Circle.
               </SheetDescription>
             </SheetHeader>
 
@@ -224,7 +224,7 @@ export function ShareWinHost() {
                       }}
                       aria-label="Audience"
                     >
-                      <option value="friends">Friends</option>
+                      <option value="friends">Social feed</option>
                       {circles.map((c) => (
                         <option key={c.id} value={`circle:${c.id}`}>
                           Circle · {c.name}

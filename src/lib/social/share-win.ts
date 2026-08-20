@@ -618,6 +618,8 @@ export function offerBestLiftShare(input: {
         workoutTitle: input.title,
         extraPrCount: prs.length - 1,
       }),
+      550,
+      ACCOMPLISHMENT_SHARE,
     )
     return
   }
@@ -630,18 +632,22 @@ export function offerBestLiftShare(input: {
         streak: liftStreak,
         detail: input.title,
       }),
+      550,
+      ACCOMPLISHMENT_SHARE,
     )
     return
   }
 
-  offerShareWin(
-    buildLiftShareCard({
-      title: input.title,
-      dateLabel: input.dateLabel,
-      setCount: input.setCount,
-      exerciseCount: input.exerciseCount,
-    }),
-  )
+    offerShareWin(
+      buildLiftShareCard({
+        title: input.title,
+        dateLabel: input.dateLabel,
+        setCount: input.setCount,
+        exerciseCount: input.exerciseCount,
+      }),
+      550,
+      ACCOMPLISHMENT_SHARE,
+    )
 }
 
 /** Returns the highest weight-progress band newly crossed (25/50/75/100), or null. */

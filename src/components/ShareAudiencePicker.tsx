@@ -28,6 +28,9 @@ export function ShareAudiencePicker({
   onCirclesChange,
   onAudienceChange,
   compact = false,
+  showSocialFeed = false,
+  socialFeedSelected = false,
+  onSocialFeedChange,
 }: {
   uid: string
   enabled?: boolean
@@ -37,6 +40,10 @@ export function ShareAudiencePicker({
   onCirclesChange: (next: Record<string, boolean>) => void
   onAudienceChange?: (sel: ShareAudienceSelection) => void
   compact?: boolean
+  /** Offer posting a win card to the friends Social feed. */
+  showSocialFeed?: boolean
+  socialFeedSelected?: boolean
+  onSocialFeedChange?: (selected: boolean) => void
 }) {
   const [friends, setFriends] = useState<CloudProfile[]>([])
   const [circles, setCircles] = useState<CircleGroup[]>([])
@@ -85,7 +92,7 @@ export function ShareAudiencePicker({
 
   if (!enabled) return null
 
-  if (!hasTargets) {
+  if (!hasTargets && !showSocialFeed) {
     return (
       <p className="text-sm text-muted-foreground">
         Add friends or invite people to a circle to share while creating.{' '}
@@ -116,6 +123,29 @@ export function ShareAudiencePicker({
       </div>
 
       <div className={`${listMax} space-y-4 overflow-y-auto`}>
+        {showSocialFeed ? (
+          <div>
+            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Social
+            </p>
+            <ul className="space-y-2">
+              <li className="flex items-center gap-3 rounded-xl bg-secondary/50 px-3 py-2">
+                <Checkbox
+                  checked={socialFeedSelected}
+                  onCheckedChange={(v) => onSocialFeedChange?.(Boolean(v))}
+                  id="audience-social-feed"
+                />
+                <label htmlFor="audience-social-feed" className="min-w-0 flex-1 cursor-pointer">
+                  <span className="block text-sm font-medium">Social feed</span>
+                  <span className="text-xs text-muted-foreground">
+                    Everyone in your friends feed
+                  </span>
+                </label>
+              </li>
+            </ul>
+          </div>
+        ) : null}
+
         {filteredCircles.length > 0 ? (
           <div>
             <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
