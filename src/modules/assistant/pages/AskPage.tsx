@@ -1,15 +1,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import {
-  CalendarDays,
-  CheckCircle2,
-  ListTodo,
-  Send,
-  Sparkles,
-  Trash2,
-  Zap,
-} from 'lucide-react'
+import { CheckCircle2, Send, Sparkles, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -43,25 +35,11 @@ import {
   parseAskPersonality,
 } from '../personality'
 
-const CAPABILITY_PILLS = [
-  { icon: ListTodo, label: 'Knows your day' },
-  { icon: Zap, label: 'Can take action' },
-  { icon: CalendarDays, label: 'Remembers the thread' },
-] as const
-
 const STARTER_PROMPTS = [
-  { label: 'What should I work on?', q: 'What should I work on today?' },
-  {
-    label: 'Plan around my calendar',
-    q: 'Help me plan the rest of today around my calendar and open tasks.',
-  },
-  { label: 'Clear my morning', q: 'Clear my morning' },
-  {
-    label: 'How’s my week looking?',
-    q: 'How is my week looking so far — wins and what needs attention?',
-  },
-  { label: 'Close my day', q: 'Close my day' },
-  { label: 'Add something for tomorrow', q: 'Add gym tomorrow 7am' },
+  'What should I work on today?',
+  'Help me plan around my calendar',
+  'How’s my week looking?',
+  'Add gym tomorrow 7am',
 ] as const
 
 export default function AskPage() {
@@ -92,7 +70,11 @@ export default function AskPage() {
   const llmLeft = plus ? null : freeLlmAsksRemaining()
   const modeMeta = ASK_PERSONALITIES.find((p) => p.id === personality) || ASK_PERSONALITIES[0]!
   const emptyChat = messages.filter((m) => m.role === 'you').length === 0
-  const hourSuggestions = useMemo(() => suggestedAsksForHour(), [])
+  const emptyPrompts = useMemo(() => {
+    const hour = suggestedAsksForHour()
+    const merged = [...hour, ...STARTER_PROMPTS]
+    return [...new Set(merged)].slice(0, 6)
+  }, [])
 
   function isCaptureReply(reply: AskReply): boolean {
     return reply.actions.some((a) => a.kind === 'create_task' || a.kind === 'create_event')
@@ -329,7 +311,10 @@ export default function AskPage() {
   }
 
   return (
-    <motion.div {...pageEnterSubtle} className="kp-page relative mx-auto max-w-2xl overflow-hidden">
+    <motion.div
+      {...pageEnterSubtle}
+      className="kp-page relative mx-auto flex h-[calc(100dvh-3.75rem)] max-w-2xl flex-col overflow-hidden !py-4 md:h-[100dvh] md:!py-6 lg:!py-6"
+    >
       <div
         className="pointer-events-none absolute -right-24 -top-16 h-56 w-56 rounded-full bg-primary/15 blur-3xl"
         aria-hidden
@@ -339,11 +324,12 @@ export default function AskPage() {
         aria-hidden
       />
 
-      <div className="relative">
+      <div className="relative flex min-h-0 flex-1 flex-col">
         <PageHeader
+          className="mb-3 shrink-0 sm:mb-4"
           eyebrow="Life-aware AI"
           title="Ask"
-          description="A general assistant that already sees your tasks, calendar, habits, and goals — and can act on them."
+          description="Sees your tasks, calendar, habits, and goals — and can act on them."
           actions={
             <div className="flex flex-wrap items-center gap-2">
               <Button asChild variant="outline" size="sm" className="rounded-full text-xs">
@@ -365,19 +351,7 @@ export default function AskPage() {
           }
         />
 
-        <div className="mb-5 flex flex-wrap gap-2">
-          {CAPABILITY_PILLS.map(({ icon: Icon, label }) => (
-            <span
-              key={label}
-              className="inline-flex items-center gap-1.5 rounded-full border border-border/50 bg-card/70 px-3 py-1 text-[0.7rem] font-medium text-muted-foreground backdrop-blur-sm"
-            >
-              <Icon className="h-3 w-3 text-primary" />
-              {label}
-            </span>
-          ))}
-        </div>
-
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+        <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
           {llmLeft != null ? (
             <p>
               Deeper Ask: {llmLeft}/{FREE_LLM_ASKS_PER_DAY} free today
@@ -402,46 +376,12 @@ export default function AskPage() {
           )}
           <p className="text-muted-foreground/80">{modeMeta.blurb}</p>
         </div>
-        {llmHint ? <p className="mb-3 text-xs text-muted-foreground">{llmHint}</p> : null}
+        {llmHint ? <p className="mb-2 shrink-0 text-xs text-muted-foreground">{llmHint}</p> : null}
 
-        {emptyChat ? (
-          <div className="mb-5 space-y-3">
-            <p className="kp-section-label">Try asking</p>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {STARTER_PROMPTS.map((prompt) => (
-                <button
-                  key={prompt.q}
-                  type="button"
-                  disabled={pending}
-                  onClick={() => void ask(prompt.q)}
-                  className="rounded-2xl border border-border/50 bg-card/60 px-4 py-3 text-left text-sm leading-snug text-foreground transition hover:border-primary/30 hover:bg-card/90 disabled:opacity-50"
-                >
-                  {prompt.label}
-                </button>
-              ))}
-            </div>
-            <div className="flex flex-wrap gap-2 pt-1">
-              {hourSuggestions.map((prompt) => (
-                <Button
-                  key={prompt}
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  disabled={pending}
-                  className="rounded-full border border-border/40 bg-background/70"
-                  onClick={() => void ask(prompt)}
-                >
-                  {prompt}
-                </Button>
-              ))}
-            </div>
-          </div>
-        ) : null}
-
-        <div className="relative overflow-hidden rounded-[1.75rem] border border-border/50 bg-gradient-to-b from-card/95 via-background/85 to-card/60 shadow-[0_20px_50px_-28px_hsl(200_25%_10%/0.35)]">
-          <div className="flex items-center gap-3 border-b border-border/40 px-4 py-3.5 sm:px-5">
-            <span className="relative flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/15 text-primary">
-              <Sparkles className="h-[1.125rem] w-[1.125rem]" />
+        <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.75rem] border border-border/50 bg-gradient-to-b from-card/95 via-background/85 to-card/60 shadow-[0_20px_50px_-28px_hsl(200_25%_10%/0.35)]">
+          <div className="flex shrink-0 items-center gap-3 border-b border-border/40 px-4 py-3 sm:px-5">
+            <span className="relative flex h-9 w-9 items-center justify-center rounded-2xl bg-primary/15 text-primary">
+              <Sparkles className="h-4 w-4" />
               {pending ? (
                 <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 animate-pulse rounded-full bg-primary ring-2 ring-background" />
               ) : null}
@@ -462,7 +402,7 @@ export default function AskPage() {
           </div>
 
           <div
-            className="max-h-[min(58vh,34rem)] min-h-[16rem] space-y-4 overflow-y-auto px-4 py-5 sm:px-5"
+            className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-5"
             role="log"
             aria-live="polite"
             aria-relevant="additions"
@@ -529,19 +469,37 @@ export default function AskPage() {
                 </div>
               )
             })}
+
+            {emptyChat ? (
+              <div className="flex flex-wrap gap-2 pt-1">
+                {emptyPrompts.map((prompt) => (
+                  <Button
+                    key={prompt}
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    disabled={pending}
+                    className="rounded-full border border-border/40 bg-background/70"
+                    onClick={() => void ask(prompt)}
+                  >
+                    {prompt}
+                  </Button>
+                ))}
+              </div>
+            ) : null}
             <div ref={bottomRef} />
           </div>
 
           <form
             onSubmit={onSubmit}
-            className="border-t border-border/40 bg-background/75 p-3 backdrop-blur-sm sm:p-4"
+            className="shrink-0 border-t border-border/40 bg-background/75 p-3 backdrop-blur-sm sm:p-3.5"
           >
             <div className="flex gap-2">
               <Textarea
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 placeholder={coachPlaceholder(personality)}
-                className="min-h-[3.5rem] flex-1 resize-none border-border/50 bg-card/85"
+                className="min-h-[3rem] flex-1 resize-none border-border/50 bg-card/85"
                 rows={2}
                 disabled={pending}
                 onKeyDown={(e) => {
@@ -554,16 +512,13 @@ export default function AskPage() {
               <Button
                 type="submit"
                 size="icon"
-                className="h-[3.5rem] w-[3.5rem] shrink-0 self-end rounded-2xl"
+                className="h-[3rem] w-[3rem] shrink-0 self-end rounded-2xl"
                 aria-label="Send"
                 disabled={pending || !draft.trim()}
               >
                 <Send className="h-4 w-4" />
               </Button>
             </div>
-            <p className="mt-2 text-[0.7rem] text-muted-foreground/80">
-              Ask anything — or say “add Call Mom Friday 3pm” and I’ll draft the action.
-            </p>
           </form>
         </div>
       </div>
