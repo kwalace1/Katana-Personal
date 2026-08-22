@@ -424,7 +424,7 @@ type OrChunk = {
   }[]
 }
 
-function validateBody(body: AskLlmRequest): AskLlmResult | null {
+function validateBody(body: AskLlmRequest): Extract<AskLlmResult, { ok: false }> | null {
   if (!body.snapshot || typeof body.snapshot !== 'object') {
     return { ok: false, status: 400, error: 'Missing life snapshot.' }
   }
