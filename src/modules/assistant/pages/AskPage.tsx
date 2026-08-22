@@ -1,7 +1,15 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Send, Sparkles, Trash2 } from 'lucide-react'
+import {
+  CalendarDays,
+  CheckCircle2,
+  ListTodo,
+  Send,
+  Sparkles,
+  Trash2,
+  Zap,
+} from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -35,6 +43,27 @@ import {
   parseAskPersonality,
 } from '../personality'
 
+const CAPABILITY_PILLS = [
+  { icon: ListTodo, label: 'Knows your day' },
+  { icon: Zap, label: 'Can take action' },
+  { icon: CalendarDays, label: 'Remembers the thread' },
+] as const
+
+const STARTER_PROMPTS = [
+  { label: 'What should I work on?', q: 'What should I work on today?' },
+  {
+    label: 'Plan around my calendar',
+    q: 'Help me plan the rest of today around my calendar and open tasks.',
+  },
+  { label: 'Clear my morning', q: 'Clear my morning' },
+  {
+    label: 'How’s my week looking?',
+    q: 'How is my week looking so far — wins and what needs attention?',
+  },
+  { label: 'Close my day', q: 'Close my day' },
+  { label: 'Add something for tomorrow', q: 'Add gym tomorrow 7am' },
+] as const
+
 export default function AskPage() {
   const { user, profile } = useAuth()
   const userId = user!.id
@@ -48,6 +77,7 @@ export default function AskPage() {
   const [draft, setDraft] = useState('')
   const [spent, setSpent] = useState<Record<string, true>>({})
   const [pending, setPending] = useState(false)
+  const [statusLabel, setStatusLabel] = useState<string | null>(null)
   const [streamingId, setStreamingId] = useState<string | null>(null)
   const [plusOpen, setPlusOpen] = useState(false)
   const [llmHint, setLlmHint] = useState<string | null>(null)
@@ -62,6 +92,7 @@ export default function AskPage() {
   const llmLeft = plus ? null : freeLlmAsksRemaining()
   const modeMeta = ASK_PERSONALITIES.find((p) => p.id === personality) || ASK_PERSONALITIES[0]!
   const emptyChat = messages.filter((m) => m.role === 'you').length === 0
+  const hourSuggestions = useMemo(() => suggestedAsksForHour(), [])
 
   function isCaptureReply(reply: AskReply): boolean {
     return reply.actions.some((a) => a.kind === 'create_task' || a.kind === 'create_event')
@@ -85,7 +116,7 @@ export default function AskPage() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages.length, pending, tick])
+  }, [messages.length, pending, tick, statusLabel])
 
   async function finalizeReply(question: string, reply: AskReply, prior: AskMessage[]) {
     const lastKatana = [...prior].reverse().find((m) => m.role === 'katana')
@@ -104,7 +135,12 @@ export default function AskPage() {
         text: `${reply.text}\n\n—\nYou’ve used today’s ${FREE_LLM_ASKS_PER_DAY} free deeper Ask replies. Action chips still work; the Accountability pack unlocks unlimited depth.`,
         actions: [
           ...reply.actions.slice(0, 3),
-          { id: createId(), label: 'Accountability pack', kind: 'open_route', route: '/settings#plus' },
+          {
+            id: createId(),
+            label: 'Accountability pack',
+            kind: 'open_route',
+            route: '/settings#plus',
+          },
         ],
       })
       setPlusOpen(true)
@@ -114,6 +150,7 @@ export default function AskPage() {
 
     setPending(true)
     setLlmHint(null)
+    setStatusLabel('Thinking…')
     const placeholder = askApi.append(userId, {
       role: 'katana',
       text: '',
@@ -140,12 +177,14 @@ export default function AskPage() {
         history,
         handlers: {
           onStatus: (label) => {
+            setStatusLabel(label)
             if (!acc) {
               askApi.update(userId, placeholder.id, { text: label })
               refresh()
             }
           },
           onDelta: (delta) => {
+            setStatusLabel(null)
             if (!acc) acc = delta
             else acc += delta
             askApi.update(userId, placeholder.id, { text: acc })
@@ -174,6 +213,7 @@ export default function AskPage() {
       }
     } finally {
       setStreamingId(null)
+      setStatusLabel(null)
       setPending(false)
       refresh()
     }
@@ -187,10 +227,7 @@ export default function AskPage() {
     setDraft('')
     refresh()
     const reply = answerQuestionWithActions(userId, trimmed, name, personality)
-    await finalizeReply(trimmed, reply, [
-      ...prior,
-      { id: 'temp', user_id: userId, role: 'you', text: trimmed, actions: [], created_at: new Date().toISOString() },
-    ])
+    await finalizeReply(trimmed, reply, prior)
   }
 
   function onSubmit(e: FormEvent) {
@@ -278,6 +315,19 @@ export default function AskPage() {
     }
   }
 
+  function clearChat() {
+    askApi.clear(userId)
+    setSpent({})
+    seededQ.current = false
+    const opening = answerQuestionWithActions(userId, 'briefing', name, personality)
+    askApi.append(userId, {
+      role: 'katana',
+      text: opening.text,
+      actions: opening.actions,
+    })
+    refresh()
+  }
+
   return (
     <motion.div {...pageEnterSubtle} className="kp-page relative mx-auto max-w-2xl overflow-hidden">
       <div
@@ -291,9 +341,9 @@ export default function AskPage() {
 
       <div className="relative">
         <PageHeader
-          eyebrow="Coach"
+          eyebrow="Life-aware AI"
           title="Ask"
-          description="General AI that already knows your day — ask anything, or tap a chip to act."
+          description="A general assistant that already sees your tasks, calendar, habits, and goals — and can act on them."
           actions={
             <div className="flex flex-wrap items-center gap-2">
               <Button asChild variant="outline" size="sm" className="rounded-full text-xs">
@@ -305,18 +355,7 @@ export default function AskPage() {
                   size="sm"
                   className="gap-1.5"
                   disabled={pending}
-                  onClick={() => {
-                    askApi.clear(userId)
-                    setSpent({})
-                    seededQ.current = false
-                    const opening = answerQuestionWithActions(userId, 'briefing', name, personality)
-                    askApi.append(userId, {
-                      role: 'katana',
-                      text: opening.text,
-                      actions: opening.actions,
-                    })
-                    refresh()
-                  }}
+                  onClick={clearChat}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                   Clear
@@ -326,10 +365,22 @@ export default function AskPage() {
           }
         />
 
+        <div className="mb-5 flex flex-wrap gap-2">
+          {CAPABILITY_PILLS.map(({ icon: Icon, label }) => (
+            <span
+              key={label}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border/50 bg-card/70 px-3 py-1 text-[0.7rem] font-medium text-muted-foreground backdrop-blur-sm"
+            >
+              <Icon className="h-3 w-3 text-primary" />
+              {label}
+            </span>
+          ))}
+        </div>
+
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
           {llmLeft != null ? (
             <p>
-              Deeper Ask: {llmLeft}/{FREE_LLM_ASKS_PER_DAY} free
+              Deeper Ask: {llmLeft}/{FREE_LLM_ASKS_PER_DAY} free today
               {llmLeft === 0 ? (
                 <>
                   {' · '}
@@ -346,7 +397,7 @@ export default function AskPage() {
           ) : (
             <p className="inline-flex items-center gap-1.5 text-primary">
               <Sparkles className="h-3.5 w-3.5" />
-              Accountability pack on
+              Accountability pack · unlimited depth
             </p>
           )}
           <p className="text-muted-foreground/80">{modeMeta.blurb}</p>
@@ -354,103 +405,143 @@ export default function AskPage() {
         {llmHint ? <p className="mb-3 text-xs text-muted-foreground">{llmHint}</p> : null}
 
         {emptyChat ? (
-          <div className="mb-4 flex flex-wrap gap-2">
-            {suggestedAsksForHour().map((prompt) => (
-              <Button
-                key={prompt}
-                type="button"
-                size="sm"
-                variant="secondary"
-                disabled={pending}
-                className="rounded-full border border-border/40 bg-background/70"
-                onClick={() => void ask(prompt)}
-              >
-                {prompt}
-              </Button>
-            ))}
+          <div className="mb-5 space-y-3">
+            <p className="kp-section-label">Try asking</p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {STARTER_PROMPTS.map((prompt) => (
+                <button
+                  key={prompt.q}
+                  type="button"
+                  disabled={pending}
+                  onClick={() => void ask(prompt.q)}
+                  className="rounded-2xl border border-border/50 bg-card/60 px-4 py-3 text-left text-sm leading-snug text-foreground transition hover:border-primary/30 hover:bg-card/90 disabled:opacity-50"
+                >
+                  {prompt.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2 pt-1">
+              {hourSuggestions.map((prompt) => (
+                <Button
+                  key={prompt}
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  disabled={pending}
+                  className="rounded-full border border-border/40 bg-background/70"
+                  onClick={() => void ask(prompt)}
+                >
+                  {prompt}
+                </Button>
+              ))}
+            </div>
           </div>
         ) : null}
 
-        <div className="relative overflow-hidden rounded-[1.75rem] border border-border/50 bg-gradient-to-b from-card/90 via-background/80 to-card/50 shadow-[0_20px_50px_-28px_hsl(200_25%_10%/0.35)]">
-          <div className="flex items-center gap-2 border-b border-border/40 px-4 py-3 sm:px-5">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-primary">
-              <Sparkles className="h-4 w-4" />
+        <div className="relative overflow-hidden rounded-[1.75rem] border border-border/50 bg-gradient-to-b from-card/95 via-background/85 to-card/60 shadow-[0_20px_50px_-28px_hsl(200_25%_10%/0.35)]">
+          <div className="flex items-center gap-3 border-b border-border/40 px-4 py-3.5 sm:px-5">
+            <span className="relative flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/15 text-primary">
+              <Sparkles className="h-[1.125rem] w-[1.125rem]" />
+              {pending ? (
+                <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 animate-pulse rounded-full bg-primary ring-2 ring-background" />
+              ) : null}
             </span>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold tracking-tight">Katana</p>
+              <p className="truncate text-sm font-semibold tracking-tight">Katana Ask</p>
               <p className="truncate text-[0.7rem] text-muted-foreground">
-                {pending ? coachThinkingLabel(personality) : `${modeMeta.label} · life-aware AI`}
+                {pending
+                  ? statusLabel || coachThinkingLabel(personality)
+                  : `${modeMeta.label} · sees your life data`}
               </p>
             </div>
+            {pending ? (
+              <span className="hidden rounded-full bg-primary/10 px-2.5 py-1 text-[0.65rem] font-medium text-primary sm:inline">
+                Working
+              </span>
+            ) : null}
           </div>
 
           <div
-            className="max-h-[min(54vh,30rem)] space-y-3 overflow-y-auto px-4 py-4 sm:px-5"
+            className="max-h-[min(58vh,34rem)] min-h-[16rem] space-y-4 overflow-y-auto px-4 py-5 sm:px-5"
             role="log"
             aria-live="polite"
             aria-relevant="additions"
           >
-            {messages.map((m) => (
-              <div
-                key={m.id}
-                className={cn('flex', m.role === 'you' ? 'justify-end' : 'justify-start')}
-              >
+            {messages.map((m) => {
+              const isStreaming = m.id === streamingId
+              const showStatusOnly = isStreaming && !m.text
+              return (
                 <div
-                  className={cn(
-                    'max-w-[90%] px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap',
-                    m.role === 'you'
-                      ? 'rounded-2xl rounded-br-md bg-primary text-primary-foreground shadow-sm'
-                      : 'rounded-2xl rounded-bl-md border border-border/50 bg-background/85 text-foreground',
-                  )}
+                  key={m.id}
+                  className={cn('flex gap-2.5', m.role === 'you' ? 'justify-end' : 'justify-start')}
                 >
-                  {m.text || (m.id === streamingId ? coachThinkingLabel(personality) : '')}
-                  {m.id === streamingId && m.text ? (
-                    <span className="ml-0.5 inline-block h-3 w-1.5 animate-pulse rounded-sm bg-primary/70 align-middle" />
+                  {m.role === 'katana' ? (
+                    <span className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-primary/12 text-primary">
+                      <Sparkles className="h-3.5 w-3.5" />
+                    </span>
                   ) : null}
-                  {m.role === 'katana' && m.actions.length > 0 ? (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {m.actions.map((action) => {
-                        const key = `${m.id}:${action.id}`
-                        const used = Boolean(spent[key])
-                        return (
-                          <Button
-                            key={action.id}
-                            type="button"
-                            size="sm"
-                            variant={m.role === 'katana' ? 'secondary' : 'secondary'}
-                            disabled={used || pending}
-                            className="min-h-10 rounded-full px-3.5 text-xs"
-                            onClick={() => onAction(action, m)}
-                          >
-                            {used ? 'Done' : action.label}
-                          </Button>
-                        )
-                      })}
-                    </div>
-                  ) : null}
+                  <div
+                    className={cn(
+                      'max-w-[min(92%,28rem)] px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap',
+                      m.role === 'you'
+                        ? 'rounded-2xl rounded-br-md bg-primary text-primary-foreground shadow-sm'
+                        : 'rounded-2xl rounded-bl-md border border-border/50 bg-background/90 text-foreground shadow-[0_1px_0_hsl(200_20%_10%/0.04)]',
+                    )}
+                  >
+                    {m.role === 'katana' && m.viaLlm && !isStreaming ? (
+                      <p className="mb-2 inline-flex items-center gap-1 text-[0.65rem] font-medium uppercase tracking-[0.12em] text-primary/80">
+                        <CheckCircle2 className="h-3 w-3" />
+                        Deeper reply
+                      </p>
+                    ) : null}
+                    {showStatusOnly ? (
+                      <span className="text-muted-foreground">
+                        {statusLabel || coachThinkingLabel(personality)}
+                      </span>
+                    ) : (
+                      m.text
+                    )}
+                    {isStreaming && m.text ? (
+                      <span className="ml-0.5 inline-block h-3 w-1.5 animate-pulse rounded-sm bg-primary/70 align-middle" />
+                    ) : null}
+                    {m.role === 'katana' && m.actions.length > 0 && !isStreaming ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {m.actions.map((action) => {
+                          const key = `${m.id}:${action.id}`
+                          const used = Boolean(spent[key])
+                          return (
+                            <Button
+                              key={action.id}
+                              type="button"
+                              size="sm"
+                              variant="secondary"
+                              disabled={used || pending}
+                              className="min-h-10 rounded-full px-3.5 text-xs"
+                              onClick={() => onAction(action, m)}
+                            >
+                              {used ? 'Done' : action.label}
+                            </Button>
+                          )
+                        })}
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
-              </div>
-            ))}
-            {pending ? (
-              <div className="flex justify-start">
-                <div className="rounded-2xl rounded-bl-md border border-border/50 bg-background/85 px-4 py-3 text-sm text-muted-foreground">
-                  {coachThinkingLabel(personality)}
-                </div>
-              </div>
-            ) : null}
+              )
+            })}
             <div ref={bottomRef} />
           </div>
 
           <form
             onSubmit={onSubmit}
-            className="border-t border-border/40 bg-background/70 p-3 backdrop-blur-sm sm:p-4"
+            className="border-t border-border/40 bg-background/75 p-3 backdrop-blur-sm sm:p-4"
           >
             <div className="flex gap-2">
               <Textarea
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 placeholder={coachPlaceholder(personality)}
-                className="min-h-[3.25rem] flex-1 resize-none border-border/50 bg-card/80"
+                className="min-h-[3.5rem] flex-1 resize-none border-border/50 bg-card/85"
                 rows={2}
                 disabled={pending}
                 onKeyDown={(e) => {
@@ -463,13 +554,16 @@ export default function AskPage() {
               <Button
                 type="submit"
                 size="icon"
-                className="h-[3.25rem] w-[3.25rem] shrink-0 self-end rounded-2xl"
+                className="h-[3.5rem] w-[3.5rem] shrink-0 self-end rounded-2xl"
                 aria-label="Send"
                 disabled={pending || !draft.trim()}
               >
                 <Send className="h-4 w-4" />
               </Button>
             </div>
+            <p className="mt-2 text-[0.7rem] text-muted-foreground/80">
+              Ask anything — or say “add Call Mom Friday 3pm” and I’ll draft the action.
+            </p>
           </form>
         </div>
       </div>
