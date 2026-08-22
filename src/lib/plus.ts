@@ -79,7 +79,7 @@ export function plusFeatureBlurb(feature: PlusFeature): { title: string; body: s
   if (feature === 'llm') {
     return {
       title: 'Accountability pack · deeper Ask',
-      body: `Free keeps action chips forever. Plus unlocks unlimited coach depth after ${FREE_LLM_ASKS_PER_DAY} open-ended replies/day.`,
+      body: `Free keeps action chips forever. Plus unlocks unlimited Ask depth (streaming, memory, tools) after ${FREE_LLM_ASKS_PER_DAY} open-ended replies/day.`,
     }
   }
   if (feature === 'challenge') {

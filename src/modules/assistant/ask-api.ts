@@ -36,6 +36,8 @@ export interface AskMessage {
   text: string
   actions: AskAction[]
   created_at: string
+  /** True when this reply came from the deeper LLM agent (memory / streaming). */
+  viaLlm?: boolean
 }
 
 function now() {
@@ -46,6 +48,7 @@ function normalize(msg: AskMessage): AskMessage {
   return {
     ...msg,
     actions: Array.isArray(msg.actions) ? msg.actions : [],
+    viaLlm: Boolean(msg.viaLlm),
   }
 }
 
@@ -59,7 +62,7 @@ export const askApi = {
 
   append(
     userId: string,
-    input: { role: AskRole; text: string; actions?: AskAction[] },
+    input: { role: AskRole; text: string; actions?: AskAction[]; viaLlm?: boolean },
   ): AskMessage {
     return normalize(
       localDb.insert(MESSAGES, userId, {
@@ -68,9 +71,19 @@ export const askApi = {
         role: input.role,
         text: input.text,
         actions: input.actions || [],
+        viaLlm: Boolean(input.viaLlm),
         created_at: now(),
       }),
     )
+  },
+
+  update(
+    userId: string,
+    messageId: string,
+    patch: Partial<Pick<AskMessage, 'text' | 'actions' | 'viaLlm'>>,
+  ): AskMessage | null {
+    const updated = localDb.update<AskMessage>(MESSAGES, userId, messageId, patch)
+    return updated ? normalize(updated) : null
   },
 
   /** Remove a spent action chip from a message. */

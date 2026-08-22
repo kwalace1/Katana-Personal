@@ -32,6 +32,8 @@ export interface LifeSnapshot {
   behindGoals: Goal[]
   journalToday: boolean
   journalMood: string | null
+  /** Recent journal excerpts for deeper Ask context */
+  recentJournal: { date: string; mood: string | null; excerpt: string }[]
   waterGlasses: number
   recentWorkouts: number
   recentLifts: number
@@ -56,6 +58,15 @@ export function buildSnapshot(userId: string, displayName = 'there'): LifeSnapsh
   const behindGoals = activeGoals.filter((g) => g.progress / Math.max(g.target, 1) < 0.4)
   const journal = journalApi.forDate(userId, todayKey())
   const weekStart = todayKey(addDays(today, -7))
+  const recentJournal = journalApi
+    .list(userId)
+    .slice(0, 5)
+    .map((e) => ({
+      date: e.date,
+      mood: e.mood ?? null,
+      excerpt: (e.body || '').replace(/\s+/g, ' ').trim().slice(0, 180),
+    }))
+    .filter((e) => e.excerpt.length > 0)
 
   return {
     name: displayName,
@@ -71,6 +82,7 @@ export function buildSnapshot(userId: string, displayName = 'there'): LifeSnapsh
     behindGoals,
     journalToday: Boolean(journal),
     journalMood: journal?.mood ?? null,
+    recentJournal,
     waterGlasses: healthApi.getWater(userId).glasses,
     recentWorkouts: healthApi
       .listWorkouts(userId)

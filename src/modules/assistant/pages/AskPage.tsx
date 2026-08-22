@@ -23,7 +23,7 @@ import {
   suggestedAsksForHour,
   type AskReply,
 } from '../engine'
-import { resolveWithLlm } from '../llm'
+import { resolveAskAgent, historyToAskMessages } from '../llm'
 import { askApi, type AskAction, type AskMessage } from '../ask-api'
 import { createId } from '@/lib/id'
 import { toast } from 'sonner'
@@ -48,6 +48,7 @@ export default function AskPage() {
   const [draft, setDraft] = useState('')
   const [spent, setSpent] = useState<Record<string, true>>({})
   const [pending, setPending] = useState(false)
+  const [streamingId, setStreamingId] = useState<string | null>(null)
   const [plusOpen, setPlusOpen] = useState(false)
   const [llmHint, setLlmHint] = useState<string | null>(null)
   const seededQ = useRef(false)
@@ -61,6 +62,10 @@ export default function AskPage() {
   const llmLeft = plus ? null : freeLlmAsksRemaining()
   const modeMeta = ASK_PERSONALITIES.find((p) => p.id === personality) || ASK_PERSONALITIES[0]!
   const emptyChat = messages.filter((m) => m.role === 'you').length === 0
+
+  function isCaptureReply(reply: AskReply): boolean {
+    return reply.actions.some((a) => a.kind === 'create_task' || a.kind === 'create_event')
+  }
 
   useEffect(() => {
     if (messages.length === 0) {
@@ -80,61 +85,112 @@ export default function AskPage() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages.length, pending])
+  }, [messages.length, pending, tick])
 
-  async function finalizeReply(question: string, reply: AskReply) {
-    if (reply.useLlm) {
-      if (!canUseLlmAsk()) {
-        askApi.append(userId, {
-          role: 'katana',
-          text: `${reply.text}\n\n—\nYou’ve used today’s ${FREE_LLM_ASKS_PER_DAY} free deeper coach replies. Action chips still work; the Accountability pack unlocks unlimited depth.`,
-          actions: [
-            ...reply.actions.slice(0, 3),
-            { id: createId(), label: 'Accountability pack', kind: 'open_route', route: '/settings#plus' },
-          ],
-        })
-        setPlusOpen(true)
-        refresh()
-        return
-      }
-      setPending(true)
-      setLlmHint(null)
-      try {
-        const snap = buildSnapshot(userId, name)
-        const resolved = await resolveWithLlm(question, snap, reply, personality)
-        const usedLlm = resolved.text !== reply.text
-        if (usedLlm) {
-          consumeLlmAsk()
-          setLlmHint(null)
-        } else {
-          setLlmHint(
-            'Deeper coach needs the Ask API key configured — showing a rules briefing instead (still useful).',
-          )
-        }
-        askApi.append(userId, {
-          role: 'katana',
-          text: usedLlm
-            ? resolved.text
-            : `${resolved.text}\n\n—\nDeeper Ask isn’t available right now (no model key). This is a rules briefing — chips still act.`,
-          actions: resolved.actions,
-        })
-      } finally {
-        setPending(false)
-      }
-    } else {
+  async function finalizeReply(question: string, reply: AskReply, prior: AskMessage[]) {
+    const lastKatana = [...prior].reverse().find((m) => m.role === 'katana')
+    const continueLlm = Boolean(lastKatana?.viaLlm) && !isCaptureReply(reply)
+    const useLlm = Boolean(reply.useLlm || continueLlm)
+
+    if (!useLlm) {
       askApi.append(userId, { role: 'katana', text: reply.text, actions: reply.actions })
+      refresh()
+      return
     }
+
+    if (!canUseLlmAsk()) {
+      askApi.append(userId, {
+        role: 'katana',
+        text: `${reply.text}\n\n—\nYou’ve used today’s ${FREE_LLM_ASKS_PER_DAY} free deeper Ask replies. Action chips still work; the Accountability pack unlocks unlimited depth.`,
+        actions: [
+          ...reply.actions.slice(0, 3),
+          { id: createId(), label: 'Accountability pack', kind: 'open_route', route: '/settings#plus' },
+        ],
+      })
+      setPlusOpen(true)
+      refresh()
+      return
+    }
+
+    setPending(true)
+    setLlmHint(null)
+    const placeholder = askApi.append(userId, {
+      role: 'katana',
+      text: '',
+      actions: [],
+      viaLlm: true,
+    })
+    setStreamingId(placeholder.id)
     refresh()
+
+    let acc = ''
+    try {
+      const snap = buildSnapshot(userId, name)
+      const history = historyToAskMessages(
+        prior
+          .filter((m) => m.id !== placeholder.id)
+          .map((m) => ({
+            role: m.role === 'you' ? ('you' as const) : ('katana' as const),
+            text: m.text,
+          })),
+      )
+
+      const resolved = await resolveAskAgent(userId, question, snap, reply, {
+        personality,
+        history,
+        handlers: {
+          onStatus: (label) => {
+            if (!acc) {
+              askApi.update(userId, placeholder.id, { text: label })
+              refresh()
+            }
+          },
+          onDelta: (delta) => {
+            if (!acc) acc = delta
+            else acc += delta
+            askApi.update(userId, placeholder.id, { text: acc })
+            refresh()
+          },
+        },
+      })
+
+      if (resolved.usedLlm) {
+        consumeLlmAsk()
+        setLlmHint(null)
+        askApi.update(userId, placeholder.id, {
+          text: resolved.text,
+          actions: resolved.actions,
+          viaLlm: true,
+        })
+      } else {
+        setLlmHint(
+          'Deeper Ask needs the Ask API key configured — showing a rules briefing instead (still useful).',
+        )
+        askApi.update(userId, placeholder.id, {
+          text: `${resolved.text}\n\n—\nDeeper Ask isn’t available right now (no model key). This is a rules briefing — chips still act.`,
+          actions: resolved.actions,
+          viaLlm: false,
+        })
+      }
+    } finally {
+      setStreamingId(null)
+      setPending(false)
+      refresh()
+    }
   }
 
   async function ask(text: string) {
     const trimmed = text.trim()
     if (!trimmed || pending) return
+    const prior = askApi.list(userId)
     askApi.append(userId, { role: 'you', text: trimmed })
     setDraft('')
     refresh()
     const reply = answerQuestionWithActions(userId, trimmed, name, personality)
-    await finalizeReply(trimmed, reply)
+    await finalizeReply(trimmed, reply, [
+      ...prior,
+      { id: 'temp', user_id: userId, role: 'you', text: trimmed, actions: [], created_at: new Date().toISOString() },
+    ])
   }
 
   function onSubmit(e: FormEvent) {
@@ -237,7 +293,7 @@ export default function AskPage() {
         <PageHeader
           eyebrow="Coach"
           title="Ask"
-          description="Your day, one next step — tap a chip to act."
+          description="General AI that already knows your day — ask anything, or tap a chip to act."
           actions={
             <div className="flex flex-wrap items-center gap-2">
               <Button asChild variant="outline" size="sm" className="rounded-full text-xs">
@@ -273,7 +329,7 @@ export default function AskPage() {
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
           {llmLeft != null ? (
             <p>
-              Deeper coach: {llmLeft}/{FREE_LLM_ASKS_PER_DAY} free
+              Deeper Ask: {llmLeft}/{FREE_LLM_ASKS_PER_DAY} free
               {llmLeft === 0 ? (
                 <>
                   {' · '}
@@ -322,7 +378,9 @@ export default function AskPage() {
             </span>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold tracking-tight">Katana</p>
-              <p className="truncate text-[0.7rem] text-muted-foreground">{modeMeta.label} coach</p>
+              <p className="truncate text-[0.7rem] text-muted-foreground">
+                {pending ? coachThinkingLabel(personality) : `${modeMeta.label} · life-aware AI`}
+              </p>
             </div>
           </div>
 
@@ -345,7 +403,10 @@ export default function AskPage() {
                       : 'rounded-2xl rounded-bl-md border border-border/50 bg-background/85 text-foreground',
                   )}
                 >
-                  {m.text}
+                  {m.text || (m.id === streamingId ? coachThinkingLabel(personality) : '')}
+                  {m.id === streamingId && m.text ? (
+                    <span className="ml-0.5 inline-block h-3 w-1.5 animate-pulse rounded-sm bg-primary/70 align-middle" />
+                  ) : null}
                   {m.role === 'katana' && m.actions.length > 0 ? (
                     <div className="mt-3 flex flex-wrap gap-2">
                       {m.actions.map((action) => {

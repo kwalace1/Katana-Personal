@@ -48,6 +48,33 @@ export function geminiAskDevPlugin(): Plugin {
           response.headers.forEach((value, key) => {
             res.setHeader(key, value)
           })
+
+          // Pipe SSE / streaming bodies without buffering the whole response.
+          if (response.body) {
+            const reader = response.body.getReader()
+            try {
+              while (true) {
+                const { done, value } = await reader.read()
+                if (done) break
+                if (value) res.write(Buffer.from(value))
+              }
+              res.end()
+            } catch (err) {
+              if (!res.headersSent) {
+                res.statusCode = 500
+                res.setHeader('Content-Type', 'application/json')
+                res.end(
+                  JSON.stringify({
+                    error: err instanceof Error ? err.message : 'Stream pipe failed',
+                  }),
+                )
+              } else {
+                res.end()
+              }
+            }
+            return
+          }
+
           const buf = Buffer.from(await response.arrayBuffer())
           res.end(buf)
         } catch (err) {
