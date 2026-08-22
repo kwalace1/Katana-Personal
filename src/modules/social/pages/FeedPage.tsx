@@ -30,6 +30,7 @@ import { resolveProfilePhotoUrl } from '@/lib/social/friends'
 import { offerFeelingShare } from '@/lib/social/share-win'
 import type { CircleGroup } from '@/lib/social/types'
 import { FeedPostCard } from '@/modules/social/components/FeedPostCard'
+import { FeedComposer } from '@/modules/social/components/FeedComposer'
 import { FriendsPanel } from '@/modules/social/components/FriendsPanel'
 import { useSharedSocialInbox } from '@/contexts/SocialInboxContext'
 import { cn } from '@/lib/utils'
@@ -334,7 +335,7 @@ export default function FeedPage() {
                   : 'Wins shared with your Circles — pick one to focus, or see all.'
                 : tab === 'mine'
                   ? 'Your shared wins.'
-                  : 'Friends feed · newest first. Wins only — no random posts.'}
+                  : 'Friends feed · newest first. Share a win or a photo.'}
             </p>
             {tab === 'circles' && sortedCircles.length > 0 ? (
               <div className="mt-3 space-y-2">
@@ -423,6 +424,10 @@ export default function FeedPage() {
               </div>
             ) : null}
           </div>
+
+          {tab === 'feed' || tab === 'circles' ? (
+            <FeedComposer selfUid={cloudUser.uid} circles={circles} />
+          ) : null}
 
           {listLoading ? (
             <div className="flex justify-center py-16">

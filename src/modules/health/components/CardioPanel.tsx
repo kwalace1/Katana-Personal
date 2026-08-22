@@ -181,8 +181,8 @@ export function CardioPanel({ userId, logDate, tick, refresh }: Props) {
           <p className="text-xs text-muted-foreground">Live map</p>
           <h3 className="font-display text-xl tracking-tight">Record a route</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            GPS stays on this device. Tracking keeps going if you switch screens — come back here or
-            tap the live bar to finish.
+            GPS stays on this device. Keep Katana in the background (lock the phone is fine) — we’ll
+            keep dropping points. Don’t swipe the app away. Tap the live bar to finish.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

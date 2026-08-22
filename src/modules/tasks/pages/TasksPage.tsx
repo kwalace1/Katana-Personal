@@ -420,13 +420,18 @@ export default function TasksPage() {
     const f = params.get('filter')
     return f === 'overdue' || f === 'done' || f === 'all' || f === 'open' ? f : 'open'
   })
-  const [listId, setListId] = useState<string | 'all'>('all')
+  const [listId, setListId] = useState<string | 'all'>(() => {
+    const id = params.get('list')
+    return id && id !== 'all' ? id : 'all'
+  })
   const [newListName, setNewListName] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(params.get('id'))
 
   useEffect(() => {
     const id = params.get('id')
     if (id) setSelectedId(id)
+    const list = params.get('list')
+    if (list) setListId(list)
     const f = params.get('filter')
     if (f === 'overdue' || f === 'done' || f === 'all' || f === 'open') setFilter(f)
   }, [params])
@@ -494,9 +499,10 @@ export default function TasksPage() {
   }
 
   const overdue = tasks.filter((t) => t.status !== 'done' && t.due_at && t.due_at.slice(0, 10) < todayKey())
+  const selectedList = listId === 'all' ? null : lists.find((l) => l.id === listId) || null
+  const listed = listId === 'all' ? tasks : tasksApi.tasksOnList(userId, listId)
 
-  const visible = tasks.filter((t) => {
-    if (listId !== 'all' && t.list_id !== listId) return false
+  const visible = listed.filter((t) => {
     if (filter === 'open') return t.status !== 'done'
     if (filter === 'done') return t.status === 'done'
     if (filter === 'overdue') return t.status !== 'done' && !!t.due_at && t.due_at.slice(0, 10) < todayKey()
@@ -530,16 +536,49 @@ export default function TasksPage() {
           All lists
         </Button>
         {lists.map((list) => (
-          <Button
-            key={list.id}
-            size="sm"
-            variant={listId === list.id ? 'default' : 'outline'}
-            className="rounded-full gap-1.5"
-            onClick={() => setListId(list.id)}
-          >
-            <span className="h-2 w-2 rounded-full" style={{ background: list.color }} />
-            {list.name}
-          </Button>
+          <div key={list.id} className="flex items-center">
+            <Button
+              size="sm"
+              variant={listId === list.id ? 'default' : 'outline'}
+              className="rounded-full gap-1.5 pr-1"
+              onClick={() => {
+                setListId(list.id)
+                setFilter('all')
+              }}
+            >
+              <span className="h-2 w-2 rounded-full" style={{ background: list.color }} />
+              {list.name}
+              <span className="text-[0.65rem] opacity-70">{tasksApi.tasksOnList(userId, list.id).length}</span>
+            </Button>
+            {lists.length > 1 ? (
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8 text-muted-foreground"
+                aria-label={`Remove ${list.name}`}
+                onClick={() => {
+                  if (
+                    !window.confirm(
+                      `Remove “${list.name}”? Tasks on this list move to another list.`,
+                    )
+                  ) {
+                    return
+                  }
+                  const ok = tasksApi.deleteList(userId, list.id)
+                  if (!ok) {
+                    toast.error('Keep at least one list')
+                    return
+                  }
+                  if (listId === list.id) setListId('all')
+                  toast.message(`Removed ${list.name}`)
+                  refresh()
+                }}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            ) : null}
+          </div>
         ))}
         <form
           className="flex gap-1"
@@ -549,6 +588,7 @@ export default function TasksPage() {
             const list = tasksApi.createList(userId, newListName)
             setNewListName('')
             setListId(list.id)
+            setFilter('all')
             refresh()
           }}
         >
@@ -747,8 +787,12 @@ export default function TasksPage() {
       <div>
         {visible.length === 0 ? (
           <EmptyState
-            title="Nothing here"
-            description="Add a task above — or ask Katana what to work on."
+            title={selectedList ? `Nothing in ${selectedList.name}` : 'Nothing here'}
+            description={
+              selectedList
+                ? 'Add a task above — it will land on this list.'
+                : 'Add a task above — or ask Katana what to work on.'
+            }
             action={
               <div className="flex flex-wrap justify-center gap-2">
                 <Button asChild variant="outline">

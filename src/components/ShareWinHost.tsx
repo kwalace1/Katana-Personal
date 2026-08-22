@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { FeedCardView } from '@/components/FeedCardView'
+import { FeedMediaAttach } from '@/components/FeedMediaAttach'
 import { Button } from '@/components/ui/button'
 import {
   Sheet,
@@ -18,9 +19,11 @@ import {
   dismissShareWin,
   getPendingShareWin,
   parkShareWinForConnect,
+  resolveLiftShareOffer,
   resumeParkedShareWin,
   setShareWinNever,
   subscribeShareWin,
+  type LiftShareChoice,
   type ShareWinOffer,
 } from '@/lib/social/share-win'
 import { DEFAULT_SHARE_PREFS } from '@/lib/social/types'
@@ -47,6 +50,9 @@ export function ShareWinHost() {
   const [circleProfiles, setCircleProfiles] = useState<CloudProfile[]>([])
   const [mentions, setMentions] = useState<MentionCandidate[]>([])
   const [posting, setPosting] = useState(false)
+  const [files, setFiles] = useState<File[]>([])
+  const [liftChoice, setLiftChoice] = useState<LiftShareChoice>('workout')
+  const [liftPicks, setLiftPicks] = useState<string[]>([])
   const resumedRef = useRef(false)
 
   const feedCardsOn = Boolean(cloudProfile?.sharePrefs?.feedCards)
@@ -66,6 +72,9 @@ export function ShareWinHost() {
     setCaption(offer.defaultCaption)
     setAudience('friends')
     setMentions([])
+    setFiles([])
+    setLiftChoice(offer.liftShare?.pr ? 'pr' : 'workout')
+    setLiftPicks(offer.liftShare?.exercises.map((lift) => lift.name) || [])
   }, [offer])
 
   useEffect(() => {
@@ -114,13 +123,17 @@ export function ShareWinHost() {
     try {
       const ok = await ensureFeedCards()
       if (!ok) return
+      const resolved = offer.liftShare
+        ? resolveLiftShareOffer(offer.liftShare, liftChoice, liftPicks)
+        : offer
       await createTogetherPost({
         authorId: cloudUser.uid,
         text: caption,
         audience,
         circleId: audience === 'circle' ? circleId : null,
-        card: offer.card,
+        card: resolved.card,
         mentions,
+        files,
       })
       toast.success('Posted to Social')
       close()
@@ -134,6 +147,8 @@ export function ShareWinHost() {
 
   const open = Boolean(offer)
   const needsCloud = !cloudEnabled || !cloudUser
+  const resolvedOffer =
+    offer?.liftShare ? resolveLiftShareOffer(offer.liftShare, liftChoice, liftPicks) : offer
   const mentionCandidates: MentionCandidate[] =
     audience === 'circle'
       ? (circles.find((circle) => circle.id === circleId)?.memberIds || [])
@@ -144,6 +159,13 @@ export function ShareWinHost() {
           })
       : friends.map((friend) => ({ uid: friend.uid, name: friend.displayName }))
 
+  function applyLiftChoice(next: LiftShareChoice) {
+    if (!offer?.liftShare) return
+    setLiftChoice(next)
+    const resolved = resolveLiftShareOffer(offer.liftShare, next, liftPicks)
+    setCaption(resolved.defaultCaption)
+  }
+
   return (
     <Sheet
       open={open}
@@ -153,13 +175,15 @@ export function ShareWinHost() {
     >
       <SheetContent
         side="bottom"
-        className="max-h-[min(92vh,40rem)] gap-0 rounded-t-[1.5rem] border-border/50 pb-[max(1rem,env(safe-area-inset-bottom))]"
+        className="max-h-[min(92vh,46rem)] gap-0 rounded-t-[1.5rem] border-border/50 pb-[max(1rem,env(safe-area-inset-bottom))]"
       >
         {offer ? (
           <>
             <SheetHeader className="border-b border-border/40 px-5 pb-4 pt-2 text-left">
               <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border" />
-              <SheetTitle className="font-display text-2xl tracking-tight">{offer.headline}</SheetTitle>
+              <SheetTitle className="font-display text-2xl tracking-tight">
+                {resolvedOffer?.headline || offer.headline}
+              </SheetTitle>
               <SheetDescription>
                 Optional — post to your Social feed or a Circle.
               </SheetDescription>
@@ -167,7 +191,76 @@ export function ShareWinHost() {
 
             <form onSubmit={(e) => void onPost(e)} className="flex min-h-0 flex-1 flex-col">
               <div className="space-y-4 overflow-y-auto px-5 py-4">
-                <FeedCardView card={offer.card} variant="hero" />
+                <FeedCardView card={resolvedOffer?.card || offer.card} variant="hero" />
+
+                {offer.liftShare ? (
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">What to post</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={liftChoice === 'workout' ? 'default' : 'outline'}
+                        className="rounded-full"
+                        onClick={() => applyLiftChoice('workout')}
+                      >
+                        Full workout
+                      </Button>
+                      {offer.liftShare.pr ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={liftChoice === 'pr' ? 'default' : 'outline'}
+                          className="rounded-full"
+                          onClick={() => applyLiftChoice('pr')}
+                        >
+                          PR only
+                        </Button>
+                      ) : null}
+                      {offer.liftShare.exercises.length > 0 ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={liftChoice === 'exercises' ? 'default' : 'outline'}
+                          className="rounded-full"
+                          onClick={() => applyLiftChoice('exercises')}
+                        >
+                          Pick exercises
+                        </Button>
+                      ) : null}
+                    </div>
+                    {liftChoice === 'exercises' ? (
+                      <ul className="space-y-1.5 rounded-xl border border-border/60 bg-secondary/30 p-3">
+                        {offer.liftShare.exercises.map((lift) => {
+                          const on = liftPicks.includes(lift.name)
+                          return (
+                            <li key={lift.name}>
+                              <label className="flex items-center gap-2 text-sm">
+                                <input
+                                  type="checkbox"
+                                  checked={on}
+                                  onChange={() => {
+                                    const next = on
+                                      ? liftPicks.filter((name) => name !== lift.name)
+                                      : [...liftPicks, lift.name]
+                                    setLiftPicks(next)
+                                    if (offer.liftShare) {
+                                      setCaption(
+                                        resolveLiftShareOffer(offer.liftShare, 'exercises', next)
+                                          .defaultCaption,
+                                      )
+                                    }
+                                  }}
+                                />
+                                <span>{lift.name}</span>
+                              </label>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    ) : null}
+                  </div>
+                ) : null}
 
                 {needsCloud ? (
                   <div className="rounded-2xl border border-border/60 bg-secondary/40 px-4 py-3 text-sm">
@@ -207,6 +300,8 @@ export function ShareWinHost() {
                       placeholder="Add a caption… type @ to mention someone"
                       className="min-h-[88px] resize-none"
                     />
+
+                    <FeedMediaAttach files={files} onChange={setFiles} disabled={posting} />
 
                     <select
                       className="min-h-11 w-full rounded-xl border border-border/70 bg-card px-3 text-sm"

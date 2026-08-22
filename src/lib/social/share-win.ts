@@ -1,4 +1,5 @@
-import type { FeedCard } from '@/lib/social/feed'
+import type { FeedCard, FeedCardLift } from '@/lib/social/feed'
+import { summarizeFeedCardLifts } from '@/lib/social/feed'
 import { isFirstMinuteActive } from '@/lib/ritual-path'
 import { computeLocalStreaks } from '@/lib/social/streaks'
 import { healthApi } from '@/modules/health/api'
@@ -14,11 +15,28 @@ const COOLDOWN_MS = 40 * 60 * 1000
 const STREAK_MILESTONES = new Set([3, 7, 14, 21, 30, 60, 90, 100, 365])
 const WEIGHT_BANDS = [25, 50, 75, 100] as const
 
+export type LiftShareChoice = 'workout' | 'pr' | 'exercises'
+
+export type LiftSharePr = {
+  exerciseName: string
+  weight: number
+  reps: number
+  previousBest: number
+  extraPrCount?: number
+}
+
 export type ShareWinOffer = {
   card: FeedCard
   defaultCaption: string
   /** Sheet title — e.g. “Share this lift?” */
   headline: string
+  /** When set, the share sheet can post the full workout, PRs, or chosen exercises. */
+  liftShare?: {
+    title: string
+    dateLabel: string
+    exercises: FeedCardLift[]
+    pr?: LiftSharePr
+  }
 }
 
 type Listener = (offer: ShareWinOffer | null) => void
@@ -170,14 +188,23 @@ export function buildDayCloseShareCard(input: {
   }
 }
 
+export function liftsFromSession(userId: string, sessionId: string): FeedCardLift[] {
+  return liftApi.sessionExerciseGroups(userId, sessionId).map((group) => ({
+    name: group.name,
+    sets: group.sets.map((set) => ({ weight: set.weight, reps: set.reps })),
+  }))
+}
+
 export function buildLiftShareCard(input: {
   title: string
   dateLabel: string
   setCount: number
   exerciseCount: number
+  lifts?: FeedCardLift[]
 }): ShareWinOffer {
-  const sets = input.setCount
-  const exercises = input.exerciseCount
+  const lifts = input.lifts?.filter((lift) => lift.name.trim()) || []
+  const sets = input.setCount || lifts.reduce((n, lift) => n + (lift.sets?.length || 0), 0)
+  const exercises = input.exerciseCount || lifts.length
   return {
     headline: 'Share this lift?',
     defaultCaption: `Just finished ${input.title}.`,
@@ -190,6 +217,7 @@ export function buildLiftShareCard(input: {
         exercises > 0
           ? `${exercises} exercise${exercises === 1 ? '' : 's'} · ${sets} set${sets === 1 ? '' : 's'}`
           : `${sets} set${sets === 1 ? '' : 's'}`,
+      lifts,
     },
   }
 }
@@ -201,12 +229,17 @@ export function buildLiftPrShareCard(input: {
   previousBest: number
   workoutTitle?: string
   extraPrCount?: number
+  lifts?: FeedCardLift[]
 }): ShareWinOffer {
   const delta = Math.round((input.weight - input.previousBest) * 10) / 10
   const extra =
     input.extraPrCount && input.extraPrCount > 0
       ? ` · +${input.extraPrCount} more PR${input.extraPrCount === 1 ? '' : 's'}`
       : ''
+  const lifts =
+    input.lifts && input.lifts.length > 0
+      ? input.lifts
+      : [{ name: input.exerciseName, sets: [{ weight: input.weight, reps: input.reps }] }]
   return {
     headline: 'Share your PR?',
     defaultCaption: `New PR on ${input.exerciseName} — ${input.weight} lb.`,
@@ -216,8 +249,64 @@ export function buildLiftPrShareCard(input: {
       title: input.exerciseName,
       subtitle: input.workoutTitle || 'Personal record',
       stats: `${input.weight} lb × ${input.reps}${delta > 0 ? ` · +${delta} lb` : ''}${extra}`,
+      lifts,
     },
   }
+}
+
+export function buildLiftExercisesShareCard(input: {
+  title: string
+  dateLabel: string
+  exercises: FeedCardLift[]
+}): ShareWinOffer {
+  const lifts = input.exercises.filter((lift) => lift.name.trim())
+  const stats = summarizeFeedCardLifts(lifts) || 'Selected lifts'
+  const names = lifts.map((lift) => lift.name).join(', ')
+  return {
+    headline: 'Share these lifts?',
+    defaultCaption: lifts.length === 1 ? `Logged ${names}.` : `Logged ${lifts.length} lifts from ${input.title}.`,
+    card: {
+      kind: 'workout',
+      badge: lifts.length === 1 ? 'Lift' : 'Lifts',
+      title: lifts.length === 1 ? lifts[0]!.name : input.title,
+      subtitle: input.dateLabel,
+      stats,
+      lifts,
+    },
+  }
+}
+
+export function resolveLiftShareOffer(
+  liftShare: NonNullable<ShareWinOffer['liftShare']>,
+  choice: LiftShareChoice,
+  selectedNames: string[],
+): ShareWinOffer {
+  if (choice === 'pr' && liftShare.pr) {
+    const prLifts = liftShare.exercises.filter(
+      (lift) => lift.name.toLowerCase() === liftShare.pr!.exerciseName.toLowerCase(),
+    )
+    return buildLiftPrShareCard({
+      ...liftShare.pr,
+      workoutTitle: liftShare.title,
+      lifts: prLifts.length > 0 ? prLifts : undefined,
+    })
+  }
+  if (choice === 'exercises') {
+    const selected = new Set(selectedNames.map((name) => name.toLowerCase()))
+    const exercises = liftShare.exercises.filter((lift) => selected.has(lift.name.toLowerCase()))
+    return buildLiftExercisesShareCard({
+      title: liftShare.title,
+      dateLabel: liftShare.dateLabel,
+      exercises: exercises.length > 0 ? exercises : liftShare.exercises,
+    })
+  }
+  return buildLiftShareCard({
+    title: liftShare.title,
+    dateLabel: liftShare.dateLabel,
+    setCount: liftShare.exercises.reduce((n, lift) => n + (lift.sets?.length || 0), 0),
+    exerciseCount: liftShare.exercises.length,
+    lifts: liftShare.exercises,
+  })
 }
 
 export function buildHabitStreakShareCard(input: {
@@ -597,7 +686,7 @@ function takeGoalProgressBand(goalId: string, percent: number): number | null {
   }
 }
 
-/** After logging a lift session, pick the best share: PR > streak > workout done. */
+/** After logging a lift session, offer the workout — PRs are optional, not the only choice. */
 export function offerBestLiftShare(input: {
   userId: string
   sessionId: string
@@ -606,48 +695,59 @@ export function offerBestLiftShare(input: {
   setCount: number
   exerciseCount: number
 }) {
+  const exercises = liftsFromSession(input.userId, input.sessionId)
   const prs = liftApi.findTopWeightPrsForSession(input.userId, input.sessionId)
-  if (prs.length > 0) {
-    const top = prs[0]!
-    offerShareWin(
-      buildLiftPrShareCard({
-        exerciseName: top.exerciseName,
-        weight: top.weight,
-        reps: top.reps,
-        previousBest: top.previousBest,
-        workoutTitle: input.title,
+  const pr = prs[0]
+    ? {
+        exerciseName: prs[0].exerciseName,
+        weight: prs[0].weight,
+        reps: prs[0].reps,
+        previousBest: prs[0].previousBest,
         extraPrCount: prs.length - 1,
-      }),
-      550,
-      ACCOMPLISHMENT_SHARE,
-    )
-    return
+      }
+    : undefined
+  const liftShare = {
+    title: input.title,
+    dateLabel: input.dateLabel,
+    exercises,
+    pr,
   }
-
-  const { liftStreak } = computeLocalStreaks(input.userId)
-  if (isStreakMilestone(liftStreak)) {
-    offerShareWin(
-      buildHealthStreakShareCard({
-        kind: 'lift',
-        streak: liftStreak,
-        detail: input.title,
-      }),
-      550,
-      ACCOMPLISHMENT_SHARE,
-    )
-    return
-  }
-
-    offerShareWin(
-      buildLiftShareCard({
+  const base = pr
+    ? buildLiftPrShareCard({ ...pr, workoutTitle: input.title, lifts: exercises })
+    : buildLiftShareCard({
         title: input.title,
         dateLabel: input.dateLabel,
         setCount: input.setCount,
         exerciseCount: input.exerciseCount,
-      }),
+        lifts: exercises,
+      })
+
+  const { liftStreak } = computeLocalStreaks(input.userId)
+  if (!pr && isStreakMilestone(liftStreak)) {
+    offerShareWin(
+      {
+        ...buildHealthStreakShareCard({
+          kind: 'lift',
+          streak: liftStreak,
+          detail: input.title,
+        }),
+        liftShare,
+      },
       550,
       ACCOMPLISHMENT_SHARE,
     )
+    return
+  }
+
+  offerShareWin(
+    {
+      ...base,
+      headline: 'Share this lift?',
+      liftShare,
+    },
+    550,
+    ACCOMPLISHMENT_SHARE,
+  )
 }
 
 /** Returns the highest weight-progress band newly crossed (25/50/75/100), or null. */

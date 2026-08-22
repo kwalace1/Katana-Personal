@@ -19,6 +19,7 @@ function normalizeTask(task: Task): Task {
     ...task,
     sort_order: typeof task.sort_order === 'number' ? task.sort_order : 0,
     goal_id: task.goal_id ?? null,
+    habit_id: task.habit_id ?? null,
     notes: task.notes ?? '',
     category: known ? legacy : 'personal',
     completed_at: task.completed_at ?? null,
@@ -92,17 +93,20 @@ export const tasksApi = {
       category?: string
       list_id?: string | null
       goal_id?: string | null
+      habit_id?: string | null
       sort_order?: number
     },
   ): Task {
     const ts = now()
     const existing = tasksApi.listTasks(userId).filter((t) => t.status !== 'done')
     const maxOrder = existing.reduce((m, t) => Math.max(m, t.sort_order), 0)
+    const lists = tasksApi.listLists(userId)
+    const fallbackList = lists[0]?.id ?? null
     return normalizeTask(
       localDb.insert(TASKS, userId, {
         id: createId(),
         user_id: userId,
-        list_id: input.list_id ?? null,
+        list_id: input.list_id || fallbackList,
         title: input.title.trim(),
         notes: input.notes || '',
         priority: input.priority || 'medium',
@@ -113,6 +117,7 @@ export const tasksApi = {
         category: input.category || 'personal',
         sort_order: input.sort_order ?? maxOrder + 1,
         goal_id: input.goal_id ?? null,
+        habit_id: input.habit_id ?? null,
         created_at: ts,
         updated_at: ts,
       }),
@@ -160,6 +165,7 @@ export const tasksApi = {
         category: task.category,
         list_id: task.list_id,
         goal_id: task.goal_id,
+        habit_id: task.habit_id,
       })
     }
     return updated
@@ -194,5 +200,20 @@ export const tasksApi = {
 
   forGoal(userId: string, goalId: string): Task[] {
     return tasksApi.listTasks(userId).filter((t) => t.goal_id === goalId)
+  },
+
+  forHabit(userId: string, habitId: string): Task[] {
+    return tasksApi.listTasks(userId).filter((t) => t.habit_id === habitId)
+  },
+
+  /** Tasks on a list, including unassigned rows that belong to the default list. */
+  resolvedListId(userId: string, listId: string | null | undefined): string | null {
+    const lists = tasksApi.listLists(userId)
+    if (listId && lists.some((list) => list.id === listId)) return listId
+    return lists[0]?.id ?? null
+  },
+
+  tasksOnList(userId: string, listId: string): Task[] {
+    return tasksApi.listTasks(userId).filter((task) => tasksApi.resolvedListId(userId, task.list_id) === listId)
   },
 }

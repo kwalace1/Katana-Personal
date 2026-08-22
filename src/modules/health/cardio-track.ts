@@ -17,6 +17,18 @@ export type CardioTrackState = {
 
 const STORAGE_KEY = 'katana-personal:cardio-track'
 const MAX_POINTS = 8000
+const PING_MS = 4_000
+const NOTIFY_TAG = 'katana-cardio-live'
+const CARDIO_HREF = '/health?tab=workouts&area=fitness'
+
+/** Foreground GPS is tighter; the phone-in-pocket background fix needs more slack. */
+export function cardioGpsAccuracyLimit(hidden: boolean) {
+  return hidden ? 200 : 80
+}
+
+export function cardioShouldKeepPoint(accuracy: number, hidden: boolean) {
+  return Number.isFinite(accuracy) && accuracy > 0 && accuracy <= cardioGpsAccuracyLimit(hidden)
+}
 
 const idleState = (): CardioTrackState => ({
   status: 'idle',
@@ -35,6 +47,9 @@ let watchId: number | null = null
 let wakeLock: { release: () => Promise<void> } | null = null
 let booted = false
 let visibilityBound = false
+let pingTimer: ReturnType<typeof setInterval> | null = null
+let keepaliveAudio: HTMLAudioElement | null = null
+let keepaliveUrl: string | null = null
 
 export function cardioElapsedSeconds(input: CardioTrackState, now = Date.now()): number {
   if (input.status === 'idle' || !input.startedAt) return 0
@@ -153,13 +168,17 @@ function appendPoint(point: GeoPoint) {
   emit({ ...state, path: [...state.path.slice(-(MAX_POINTS - 1)), point] })
 }
 
+function pageHidden() {
+  return typeof document !== 'undefined' && document.visibilityState === 'hidden'
+}
+
 function startWatch() {
   if (!gpsOk()) return
   clearWatch()
   watchId = navigator.geolocation.watchPosition(
     (pos) => {
       if (state.status !== 'live') return
-      if (pos.coords.accuracy > 80) return
+      if (!cardioShouldKeepPoint(pos.coords.accuracy, pageHidden())) return
       appendPoint({
         lat: pos.coords.latitude,
         lng: pos.coords.longitude,
@@ -169,7 +188,7 @@ function startWatch() {
     () => {
       // Keep the session alive if a single GPS sample fails.
     },
-    { enableHighAccuracy: true, maximumAge: 1000, timeout: 20_000 },
+    { enableHighAccuracy: true, maximumAge: 0, timeout: 30_000 },
   )
 }
 
@@ -177,7 +196,8 @@ function pingCurrentPosition() {
   if (!gpsOk() || state.status !== 'live') return
   navigator.geolocation.getCurrentPosition(
     (pos) => {
-      if (state.status !== 'live' || pos.coords.accuracy > 120) return
+      if (state.status !== 'live') return
+      if (!cardioShouldKeepPoint(pos.coords.accuracy, pageHidden())) return
       appendPoint({
         lat: pos.coords.latitude,
         lng: pos.coords.longitude,
@@ -185,8 +205,151 @@ function pingCurrentPosition() {
       })
     },
     () => undefined,
-    { enableHighAccuracy: true, maximumAge: 0, timeout: 12_000 },
+    { enableHighAccuracy: true, maximumAge: 0, timeout: 20_000 },
   )
+}
+
+function startPingLoop() {
+  stopPingLoop()
+  pingTimer = setInterval(pingCurrentPosition, PING_MS)
+}
+
+function stopPingLoop() {
+  if (pingTimer != null) {
+    clearInterval(pingTimer)
+    pingTimer = null
+  }
+}
+
+function silentWavUrl() {
+  const sampleRate = 8_000
+  const seconds = 2
+  const samples = sampleRate * seconds
+  const bytes = 44 + samples * 2
+  const buffer = new ArrayBuffer(bytes)
+  const view = new DataView(buffer)
+  const write = (offset: number, text: string) => {
+    for (let i = 0; i < text.length; i++) view.setUint8(offset + i, text.charCodeAt(i))
+  }
+  write(0, 'RIFF')
+  view.setUint32(4, bytes - 8, true)
+  write(8, 'WAVE')
+  write(12, 'fmt ')
+  view.setUint32(16, 16, true)
+  view.setUint16(20, 1, true)
+  view.setUint16(22, 1, true)
+  view.setUint32(24, sampleRate, true)
+  view.setUint32(28, sampleRate * 2, true)
+  view.setUint16(32, 2, true)
+  view.setUint16(34, 16, true)
+  write(36, 'data')
+  view.setUint32(40, samples * 2, true)
+  // Near-silent tone so iOS/Android do not treat playback as muted and suspend the tab.
+  for (let i = 0; i < samples; i++) {
+    const sample = Math.round(Math.sin((2 * Math.PI * 180 * i) / sampleRate) * 24)
+    view.setInt16(44 + i * 2, sample, true)
+  }
+  return URL.createObjectURL(new Blob([buffer], { type: 'audio/wav' }))
+}
+
+async function startKeepalive(kind: CardioTrackKind) {
+  if (typeof window === 'undefined' || typeof Audio === 'undefined') return
+  try {
+    if (!keepaliveAudio) {
+      keepaliveUrl = silentWavUrl()
+      keepaliveAudio = new Audio(keepaliveUrl)
+      keepaliveAudio.loop = true
+      keepaliveAudio.preload = 'auto'
+    }
+    keepaliveAudio.volume = 0.02
+    await keepaliveAudio.play()
+  } catch {
+    // Autoplay blocked — tracking still continues while the page is visible.
+  }
+  try {
+    const media = navigator as Navigator & {
+      mediaSession?: {
+        metadata: MediaMetadata | null
+        playbackState: MediaSessionPlaybackState
+        setActionHandler: (action: MediaSessionAction, handler: (() => void) | null) => void
+      }
+    }
+    if (!media.mediaSession || typeof MediaMetadata === 'undefined') return
+    media.mediaSession.metadata = new MediaMetadata({
+      title: `${kind} in progress`,
+      artist: 'Katana is tracking your route',
+      album: 'Cardio',
+    })
+    media.mediaSession.playbackState = 'playing'
+    media.mediaSession.setActionHandler('pause', () => pauseCardioTrack())
+    media.mediaSession.setActionHandler('play', () => resumeCardioTrack())
+    media.mediaSession.setActionHandler('stop', () => discardCardioTrack())
+  } catch {
+    // Media Session is optional.
+  }
+}
+
+function stopKeepalive() {
+  try {
+    keepaliveAudio?.pause()
+    if (keepaliveAudio) keepaliveAudio.currentTime = 0
+  } catch {
+    // ignore
+  }
+  try {
+    const media = navigator as Navigator & { mediaSession?: { playbackState: MediaSessionPlaybackState } }
+    if (media.mediaSession) media.mediaSession.playbackState = 'none'
+  } catch {
+    // ignore
+  }
+}
+
+async function showTrackingNotification(kind: CardioTrackKind) {
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
+  try {
+    const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.ready.catch(() => null) : null
+    const opts: NotificationOptions = {
+      body: 'Location stays on while you leave the app. Don’t swipe Katana away.',
+      tag: NOTIFY_TAG,
+      silent: true,
+      icon: '/icons/katana-192.png',
+      data: { href: CARDIO_HREF },
+    }
+    if (reg?.showNotification) {
+      await reg.showNotification(`${kind} tracking`, opts)
+      return
+    }
+    new Notification(`${kind} tracking`, opts)
+  } catch {
+    // Notifications are optional.
+  }
+}
+
+async function hideTrackingNotification() {
+  try {
+    const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.ready.catch(() => null) : null
+    const notes = await reg?.getNotifications?.({ tag: NOTIFY_TAG })
+    notes?.forEach((n) => n.close())
+  } catch {
+    // ignore
+  }
+}
+
+async function armLiveSession() {
+  startWatch()
+  pingCurrentPosition()
+  startPingLoop()
+  void requestWakeLock()
+  void startKeepalive(state.kind)
+  void showTrackingNotification(state.kind)
+}
+
+function disarmLiveSession() {
+  clearWatch()
+  stopPingLoop()
+  stopKeepalive()
+  void releaseWakeLock()
+  void hideTrackingNotification()
 }
 
 function bindVisibility() {
@@ -194,17 +357,23 @@ function bindVisibility() {
   visibilityBound = true
   document.addEventListener('visibilitychange', () => {
     if (state.status === 'idle') return
+    persist()
     if (document.visibilityState === 'hidden') {
-      persist()
+      if (state.status === 'live') pingCurrentPosition()
       return
     }
     if (state.status === 'live') {
-      startWatch()
-      pingCurrentPosition()
-      void requestWakeLock()
+      void armLiveSession()
     }
   })
   window.addEventListener('pagehide', persist)
+  window.addEventListener('freeze', persist as EventListener)
+  window.addEventListener('pageshow', () => {
+    if (state.status === 'live') void armLiveSession()
+  })
+  window.addEventListener('focus', () => {
+    if (state.status === 'live') pingCurrentPosition()
+  })
 }
 
 export function bootCardioTrack() {
@@ -215,9 +384,7 @@ export function bootCardioTrack() {
   if (!saved) return
   state = saved
   if (saved.status === 'live') {
-    startWatch()
-    pingCurrentPosition()
-    void requestWakeLock()
+    void armLiveSession()
   }
   for (const fn of listeners) fn(state)
 }
@@ -232,7 +399,6 @@ export function startCardioTrack(kind?: CardioTrackKind) {
   if (!gpsOk()) {
     throw new Error('This device doesn’t share location')
   }
-  clearWatch()
   emit({
     status: 'live',
     kind: kind || state.kind,
@@ -241,15 +407,15 @@ export function startCardioTrack(kind?: CardioTrackKind) {
     pausedMs: 0,
     pauseStarted: null,
   })
-  startWatch()
-  pingCurrentPosition()
-  void requestWakeLock()
+  if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+    void Notification.requestPermission().catch(() => undefined)
+  }
+  void armLiveSession()
 }
 
 export function pauseCardioTrack() {
   if (state.status !== 'live') return
-  clearWatch()
-  void releaseWakeLock()
+  disarmLiveSession()
   emit({
     ...state,
     status: 'paused',
@@ -266,9 +432,7 @@ export function resumeCardioTrack() {
     pausedMs: state.pausedMs + extra,
     pauseStarted: null,
   })
-  startWatch()
-  pingCurrentPosition()
-  void requestWakeLock()
+  void armLiveSession()
 }
 
 /** Stop GPS and return the finished session. Does not save a workout. */
@@ -280,15 +444,13 @@ export function finishCardioTrack(): {
   if (state.status === 'idle') return null
   const elapsed = Math.max(1, cardioElapsedSeconds(state))
   const snapshot = { kind: state.kind, path: state.path, elapsed }
-  clearWatch()
-  void releaseWakeLock()
+  disarmLiveSession()
   emit(idleState())
   return snapshot
 }
 
 export function discardCardioTrack() {
   if (state.status === 'idle') return
-  clearWatch()
-  void releaseWakeLock()
+  disarmLiveSession()
   emit(idleState())
 }

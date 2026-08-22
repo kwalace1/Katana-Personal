@@ -27,6 +27,16 @@ export interface FeedMedia {
   durationMs?: number
 }
 
+export interface FeedCardLiftSet {
+  weight: number
+  reps: number
+}
+
+export interface FeedCardLift {
+  name: string
+  sets: FeedCardLiftSet[]
+}
+
 export interface FeedCard {
   kind: FeedCardKind
   title: string
@@ -36,6 +46,22 @@ export interface FeedCard {
   badge?: string
   /** Optional journal line — used on day cards. */
   quote?: string
+  /** Logged exercises for workout cards — shown when the card is expanded. */
+  lifts?: FeedCardLift[]
+}
+
+export function formatFeedCardLiftLine(lift: FeedCardLift): string {
+  const sets = (lift.sets || [])
+    .filter((s) => Number(s.reps) > 0 || Number(s.weight) > 0)
+    .map((s) => `${s.weight} lb × ${s.reps}`)
+  return sets.length > 0 ? `${lift.name}: ${sets.join(' · ')}` : lift.name
+}
+
+export function summarizeFeedCardLifts(lifts: FeedCardLift[] | undefined): string {
+  const rows = (lifts || []).filter((l) => l.name.trim())
+  if (rows.length === 0) return ''
+  const sets = rows.reduce((n, l) => n + (l.sets?.length || 0), 0)
+  return `${rows.length} exercise${rows.length === 1 ? '' : 's'} · ${sets} set${sets === 1 ? '' : 's'}`
 }
 
 export interface FeedMention {
@@ -232,9 +258,9 @@ export async function createTogetherPost(input: {
   const text = input.text.trim()
   if (text.length > FEED_TEXT_MAX) throw new Error(`Keep it under ${FEED_TEXT_MAX} characters.`)
   const files = input.files || []
-  // Friends Social is wins-only: share a win card (or repost). Circles can still post freeform.
-  if (input.audience === 'friends' && !input.card && !input.repost) {
-    throw new Error('Social is for wins — share from Today, habits, health, or day close.')
+  // Friends Social is wins-first: a win card, a repost, or a photo/video.
+  if (input.audience === 'friends' && !input.card && !input.repost && files.length === 0) {
+    throw new Error('Social is for wins — share a win, or add a photo.')
   }
   if (!text && files.length === 0 && !input.card && !input.repost) {
     throw new Error('Write something, add media, or attach a card.')

@@ -382,6 +382,10 @@ export function LiftLogPanel({ userId, logDate, tick, refresh, onGoSplits }: Pro
           dateLabel: formatLiftDate(shareSession.date),
           setCount,
           exerciseCount: groups.length,
+          lifts: groups.map((group) => ({
+            name: group.name,
+            sets: group.sets.map((set) => ({ weight: set.weight, reps: set.reps })),
+          })),
         })
         await createTogetherPost({
           authorId: cloudUser.uid,

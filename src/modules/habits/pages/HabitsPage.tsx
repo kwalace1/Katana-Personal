@@ -13,6 +13,7 @@ import { todayKey } from '@/lib/dates'
 import { useLocalRefresh } from '@/hooks/useLocalRefresh'
 import { cn } from '@/lib/utils'
 import { habitsApi } from '../api'
+import { tasksApi } from '@/modules/tasks/api'
 import { ShareWithFriendsButton } from '@/components/ShareWithFriendsButton'
 import { offerHabitCheckedInShare } from '@/lib/social/share-win'
 import {
@@ -157,6 +158,7 @@ export default function HabitsPage() {
   const [onceDate, setOnceDate] = useState(todayKey())
   const [filter, setFilter] = useState<'all' | 'due'>('due')
   const [selectedId, setSelectedId] = useState<string | null>(params.get('id'))
+  const [habitTaskTitle, setHabitTaskTitle] = useState('')
 
   useEffect(() => {
     const id = params.get('id')
@@ -244,6 +246,7 @@ export default function HabitsPage() {
               const streak = habitsApi.streak(userId, habit.id)
               const scheduleLabel = habitsApi.scheduleLabel(habit)
               const expanded = selectedId === habit.id
+              const linkedTasks = tasksApi.forHabit(userId, habit.id)
               return (
                 <li
                   key={habit.id}
@@ -381,6 +384,84 @@ export default function HabitsPage() {
                                 refresh()
                               }}
                             />
+                          </div>
+                          <div className="space-y-2">
+                            <p className="text-xs font-medium text-muted-foreground">Associated tasks</p>
+                            {linkedTasks.length === 0 ? (
+                              <p className="text-xs text-muted-foreground">
+                                No tasks on this habit yet. Add one below.
+                              </p>
+                            ) : (
+                              <ul className="space-y-1.5">
+                                {linkedTasks.map((task) => (
+                                  <li
+                                    key={task.id}
+                                    className="flex items-center gap-2 rounded-xl bg-secondary/40 px-2.5 py-2"
+                                  >
+                                    <CompleteToggle
+                                      done={task.status === 'done'}
+                                      openLabel="To do"
+                                      doneLabel="Done"
+                                      onToggle={() => {
+                                        if (task.status === 'done') {
+                                          tasksApi.updateTask(userId, task.id, {
+                                            status: 'todo',
+                                            completed_at: null,
+                                          })
+                                        } else {
+                                          tasksApi.completeTask(userId, task.id)
+                                        }
+                                        refresh()
+                                      }}
+                                    />
+                                    <Link
+                                      to={`/tasks?id=${task.id}`}
+                                      className={cn(
+                                        'min-w-0 flex-1 text-sm font-medium hover:underline',
+                                        task.status === 'done' && 'text-muted-foreground line-through',
+                                      )}
+                                    >
+                                      {task.title}
+                                    </Link>
+                                    <Button
+                                      type="button"
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-8 w-8"
+                                      aria-label={`Remove ${task.title}`}
+                                      onClick={() => {
+                                        tasksApi.updateTask(userId, task.id, { habit_id: null })
+                                        refresh()
+                                      }}
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                            <form
+                              className="flex gap-2"
+                              onSubmit={(e) => {
+                                e.preventDefault()
+                                if (!habitTaskTitle.trim()) return
+                                tasksApi.createTask(userId, {
+                                  title: habitTaskTitle,
+                                  habit_id: habit.id,
+                                })
+                                setHabitTaskTitle('')
+                                refresh()
+                              }}
+                            >
+                              <Input
+                                placeholder="Add a task for this habit…"
+                                value={habitTaskTitle}
+                                onChange={(e) => setHabitTaskTitle(e.target.value)}
+                              />
+                              <Button type="submit" size="icon" aria-label="Add task">
+                                <Plus className="h-4 w-4" />
+                              </Button>
+                            </form>
                           </div>
                         </div>
                       </motion.div>

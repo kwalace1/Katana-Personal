@@ -26,6 +26,7 @@ export interface Task {
   category: string
   sort_order: number
   goal_id: string | null
+  habit_id: string | null
   created_at: string
   updated_at: string
 }

@@ -1,5 +1,6 @@
-import { BookOpen, CalendarDays, CheckSquare, Dumbbell, Flame, Moon, Target } from 'lucide-react'
-import type { FeedCard } from '@/lib/social/feed'
+import { useState } from 'react'
+import { BookOpen, CalendarDays, CheckSquare, ChevronDown, Dumbbell, Flame, Moon, Target } from 'lucide-react'
+import { formatFeedCardLiftLine, type FeedCard } from '@/lib/social/feed'
 import { cn } from '@/lib/utils'
 
 const KIND_META = {
@@ -31,7 +32,7 @@ const KIND_META = {
     Icon: CheckSquare,
     label: 'Task',
     wash: 'from-[hsl(210_38%_24%)] via-[hsl(195_36%_28%)] to-[hsl(172_34%_22%)]',
-    glow: 'bg-[radial-gradient(ellipse_at_25%_0%,hsl(190_55%_70%/0.3),transparent_55%)]',
+    glow: 'bg-[radial-gradient(ellipse_at_25%_0%,hsl(190_55%_70%/0.3),transparent_50%)]',
   },
   event: {
     Icon: CalendarDays,
@@ -61,12 +62,14 @@ export function FeedCardView({
   variant?: 'feed' | 'hero'
   className?: string
 }) {
-  const meta = KIND_META[card.kind]
+  const meta = KIND_META[card.kind] || KIND_META.workout
   const Icon = meta.Icon
   const badge = card.badge || meta.label
   const hero = variant === 'hero'
   const isDay = card.kind === 'day'
   const showQuote = Boolean(card.quote?.trim()) && (isDay || card.kind === 'journal')
+  const lifts = (card.lifts || []).filter((lift) => lift.name.trim())
+  const [open, setOpen] = useState(lifts.length > 0)
 
   return (
     <div
@@ -140,6 +143,33 @@ export function FeedCardView({
           >
             {card.stats}
           </p>
+        ) : null}
+
+        {lifts.length > 0 ? (
+          <div className="mt-3">
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-[0.7rem] font-semibold uppercase tracking-wide text-white/95"
+              aria-expanded={open}
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                setOpen((v) => !v)
+              }}
+            >
+              {open ? 'Hide lifts' : 'Show lifts'}
+              <ChevronDown className={cn('h-3.5 w-3.5 transition', open && 'rotate-180')} />
+            </button>
+            {open ? (
+              <ul className="mt-2 space-y-1.5 border-t border-white/15 pt-2">
+                {lifts.map((lift, index) => (
+                  <li key={`${lift.name}-${index}`} className={cn('text-white/90', hero ? 'text-sm' : 'text-xs')}>
+                    {formatFeedCardLiftLine(lift)}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
         ) : null}
 
         {showQuote ? (
