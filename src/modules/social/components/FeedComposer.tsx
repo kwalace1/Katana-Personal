@@ -1,7 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { Loader2, Send } from 'lucide-react'
 import { toast } from 'sonner'
-import { FeedMediaAttach } from '@/components/FeedMediaAttach'
 import { Button } from '@/components/ui/button'
 import { createTogetherPost, FEED_TEXT_MAX, type FeedAudience } from '@/lib/social/feed'
 import { listFriendProfiles } from '@/lib/social/friends'
@@ -18,7 +17,6 @@ export function FeedComposer({
   onPosted?: () => void
 }) {
   const [text, setText] = useState('')
-  const [files, setFiles] = useState<File[]>([])
   const [mentions, setMentions] = useState<MentionCandidate[]>([])
   const [audience, setAudience] = useState<FeedAudience>('friends')
   const [circleId, setCircleId] = useState(circles[0]?.id || '')
@@ -52,8 +50,8 @@ export function FeedComposer({
   async function onPost(e: FormEvent) {
     e.preventDefault()
     if (posting) return
-    if (!text.trim() && files.length === 0) {
-      toast.error('Write something or add a photo.')
+    if (!text.trim()) {
+      toast.error('Write something to share.')
       return
     }
     setPosting(true)
@@ -63,10 +61,9 @@ export function FeedComposer({
         text,
         audience,
         circleId: audience === 'circle' ? circleId : null,
-        files,
         mentions,
         card:
-          audience === 'friends' && files.length === 0
+          audience === 'friends'
             ? {
                 kind: 'journal',
                 badge: 'Update',
@@ -76,7 +73,6 @@ export function FeedComposer({
             : null,
       })
       setText('')
-      setFiles([])
       setMentions([])
       toast.success('Posted to Social')
       onPosted?.()
@@ -97,10 +93,12 @@ export function FeedComposer({
         onMentionsChange={setMentions}
         maxLength={FEED_TEXT_MAX}
         rows={3}
-        placeholder="Share a win, a photo, or how you’re feeling…"
+        placeholder="Share how you’re feeling or a quick note…"
         className="min-h-[4.5rem] resize-none"
       />
-      <FeedMediaAttach files={files} onChange={setFiles} disabled={posting} />
+      <p className="text-xs text-muted-foreground">
+        Photos come with wins — finish something in Today or Health, then add media when you share.
+      </p>
       <div className="flex flex-wrap items-center gap-2">
         <select
           className="min-h-10 flex-1 rounded-xl border border-border/70 bg-card px-3 text-sm"
@@ -125,7 +123,7 @@ export function FeedComposer({
             </option>
           ))}
         </select>
-        <Button type="submit" disabled={posting || (!text.trim() && files.length === 0)}>
+        <Button type="submit" disabled={posting || !text.trim()}>
           {posting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="mr-1.5 h-4 w-4" />}
           Post
         </Button>

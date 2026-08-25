@@ -335,7 +335,7 @@ export default function FeedPage() {
                   : 'Wins shared with your Circles — pick one to focus, or see all.'
                 : tab === 'mine'
                   ? 'Your shared wins.'
-                  : 'Friends feed · newest first. Share a win or a photo.'}
+                  : 'Friends feed · newest first. Share a win — photos come with the celebration.'}
             </p>
             {tab === 'circles' && sortedCircles.length > 0 ? (
               <div className="mt-3 space-y-2">

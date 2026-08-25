@@ -884,7 +884,10 @@ export function FeedPostCard({
           <SheetHeader className="border-b border-border/40 px-5 pb-3 pt-2 text-left">
             <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border" />
             <SheetTitle className="text-lg">Edit post</SheetTitle>
-            <SheetDescription>Update the caption or media. Win cards stay as-is.</SheetDescription>
+            <SheetDescription>
+              Update the caption
+              {post.card ? ' or media' : ''}. Win cards stay as-is.
+            </SheetDescription>
           </SheetHeader>
           <form onSubmit={(e) => void onSaveEdit(e)} className="space-y-3 overflow-y-auto px-5 py-4">
             <Textarea
@@ -955,12 +958,17 @@ export function FeedPostCard({
               type="button"
               variant="outline"
               size="sm"
-              disabled={mediaSlotsLeft <= 0 || busy}
+              disabled={!post.card || mediaSlotsLeft <= 0 || busy}
               onClick={() => fileRef.current?.click()}
             >
               <ImagePlus className="mr-1.5 h-3.5 w-3.5" />
-              Add media
+              {post.card ? 'Add media' : 'Media with wins only'}
             </Button>
+            {!post.card ? (
+              <p className="text-[0.7rem] text-muted-foreground">
+                Photos attach when you share an accomplishment — not on free-form posts.
+              </p>
+            ) : null}
 
             {post.card ? (
               <div className="opacity-80">

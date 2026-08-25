@@ -4,7 +4,6 @@ import { toast } from 'sonner'
 import { Droplets, Dumbbell, MessageSquare, Minus, Plus, Send, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { FeedMediaAttach } from '@/components/FeedMediaAttach'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
 import { useLocalRefresh } from '@/hooks/useLocalRefresh'
@@ -75,7 +74,6 @@ export function CircleBoardExtras({
   const [posts, setPosts] = useState<CirclePost[]>([])
   const [draft, setDraft] = useState('')
   const [mentions, setMentions] = useState<MentionCandidate[]>([])
-  const [files, setFiles] = useState<File[]>([])
   const [posting, setPosting] = useState(false)
 
   const water = useMemo(() => {
@@ -148,7 +146,7 @@ export function CircleBoardExtras({
 
   async function onPost(e: FormEvent) {
     e.preventDefault()
-    if ((!draft.trim() && files.length === 0) || posting) return
+    if (!draft.trim() || posting) return
     setPosting(true)
     try {
       const message = draft.trim()
@@ -159,7 +157,6 @@ export function CircleBoardExtras({
         audience: 'circle',
         circleId,
         mentions,
-        files,
       })
       try {
         await createCirclePost({
@@ -172,7 +169,6 @@ export function CircleBoardExtras({
       }
       setDraft('')
       setMentions([])
-      setFiles([])
       toast.success('Posted to the circle')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Couldn’t post')
@@ -345,14 +341,13 @@ export function CircleBoardExtras({
             rows={2}
             className="min-h-11 resize-none"
           />
-          <Button type="submit" size="icon" disabled={(!draft.trim() && files.length === 0) || posting} aria-label="Post">
+          <Button type="submit" size="icon" disabled={!draft.trim() || posting} aria-label="Post">
             <Send className="h-4 w-4" />
           </Button>
           </div>
-          <FeedMediaAttach files={files} onChange={setFiles} disabled={posting} />
         </form>
         <p className="mb-4 text-xs text-muted-foreground">
-          Posts also appear on Social. Add photos here or on the feed.
+          Posts also appear on Social. Add photos when you share a win from Today or Health.
         </p>
       </section>
 

@@ -301,7 +301,12 @@ export function ShareWinHost() {
                       className="min-h-[88px] resize-none"
                     />
 
-                    <FeedMediaAttach files={files} onChange={setFiles} disabled={posting} />
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-medium text-muted-foreground">
+                        Add a photo of this win (optional)
+                      </p>
+                      <FeedMediaAttach files={files} onChange={setFiles} disabled={posting} />
+                    </div>
 
                     <select
                       className="min-h-11 w-full rounded-xl border border-border/70 bg-card px-3 text-sm"

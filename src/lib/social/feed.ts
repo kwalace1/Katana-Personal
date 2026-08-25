@@ -258,12 +258,16 @@ export async function createTogetherPost(input: {
   const text = input.text.trim()
   if (text.length > FEED_TEXT_MAX) throw new Error(`Keep it under ${FEED_TEXT_MAX} characters.`)
   const files = input.files || []
-  // Friends Social is wins-first: a win card, a repost, or a photo/video.
-  if (input.audience === 'friends' && !input.card && !input.repost && files.length === 0) {
-    throw new Error('Social is for wins — share a win, or add a photo.')
+  // Photos/videos only ride along with a win card (or repost) — not free-form gallery posts.
+  if (files.length > 0 && !input.card && !input.repost) {
+    throw new Error('Photos go with a win — finish something, then add media when you share.')
+  }
+  // Friends Social is wins-first: a win card or a repost.
+  if (input.audience === 'friends' && !input.card && !input.repost) {
+    throw new Error('Social is for wins — finish something, then share the card.')
   }
   if (!text && files.length === 0 && !input.card && !input.repost) {
-    throw new Error('Write something, add media, or attach a card.')
+    throw new Error('Write something or attach a win card.')
   }
   if (files.length > 4) throw new Error('Up to 4 media files per post.')
 
@@ -379,13 +383,17 @@ export async function updateTogetherPost(input: {
   if (!existingRow) throw new Error('Post not found.')
   const existing = mapPost(existingRow as PostRow)
 
+  if (newFiles.length > 0 && !existing.card && !existing.repost) {
+    throw new Error('Photos go with a win — add media when you share an accomplishment.')
+  }
+
   if (
     !text &&
     input.keepMedia.length + newFiles.length === 0 &&
     !existing.card &&
     !existing.repost
   ) {
-    throw new Error('Write something or keep/add media.')
+    throw new Error('Write something or keep media.')
   }
 
   const uploaded: FeedMedia[] = []
