@@ -2,22 +2,48 @@ import { useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { maybeSendDailyNudge, tickTimedReminders } from '@/lib/reminders'
 
-/** Soft daily nudge + timed habit/event reminders while the app is open. */
+/** Habit + event reminders: catch up on open, then keep ticking while the PWA is alive. */
 export function ReminderHost() {
   const { user, profile } = useAuth()
 
   useEffect(() => {
     if (!user) return
     const prefs = profile?.preferences
+    let cancelled = false
+
     const run = () => {
-      maybeSendDailyNudge(user.id, prefs)
-      tickTimedReminders(user.id, prefs)
+      if (cancelled) return
+      void maybeSendDailyNudge(user.id, prefs)
+      void tickTimedReminders(user.id, prefs)
     }
-    const initial = window.setTimeout(run, 1800)
-    const interval = window.setInterval(run, 30_000)
+
+    run()
+    const interval = window.setInterval(run, 20_000)
+    if ('serviceWorker' in navigator) {
+      void navigator.serviceWorker.ready.then(() => {
+        if (!cancelled) run()
+      })
+    }
+
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') run()
+    }
+    const onShow = () => run()
+
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('pageshow', onShow)
+    window.addEventListener('focus', onShow)
+    window.addEventListener('online', onShow)
+    document.addEventListener('resume', onShow)
+
     return () => {
-      window.clearTimeout(initial)
+      cancelled = true
       window.clearInterval(interval)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('pageshow', onShow)
+      window.removeEventListener('focus', onShow)
+      window.removeEventListener('online', onShow)
+      document.removeEventListener('resume', onShow)
     }
   }, [user, profile?.preferences])
 

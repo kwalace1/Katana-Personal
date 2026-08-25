@@ -9,9 +9,15 @@ function now() {
   return new Date().toISOString()
 }
 
+/** Keep inner spaces; blank / whitespace-only titles become Untitled. */
+export function noteTitleFromInput(title: string | undefined | null): string {
+  return (title ?? '').trim() || 'Untitled'
+}
+
 function normalizeNote(note: Note): Note {
   return {
     ...note,
+    title: noteTitleFromInput(note.title),
     pinned: Boolean(note.pinned),
     tags: Array.isArray(note.tags) ? note.tags : [],
     folder_id: note.folder_id ?? null,
@@ -77,7 +83,7 @@ export const notesApi = {
         id: createId(),
         user_id: userId,
         folder_id: input.folder_id ?? null,
-        title: input.title?.trim() || 'Untitled',
+        title: noteTitleFromInput(input.title),
         body: input.body || '',
         tags: input.tags || [],
         pinned: input.pinned ?? false,
@@ -88,7 +94,9 @@ export const notesApi = {
   },
 
   updateNote(userId: string, id: string, patch: Partial<Note>): Note | null {
-    const updated = localDb.update<Note>(NOTES, userId, id, { ...patch, updated_at: now() })
+    const next = { ...patch, updated_at: now() }
+    if (typeof patch.title === 'string') next.title = noteTitleFromInput(patch.title)
+    const updated = localDb.update<Note>(NOTES, userId, id, next)
     return updated ? normalizeNote(updated) : null
   },
 

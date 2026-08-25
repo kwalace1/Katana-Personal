@@ -34,7 +34,8 @@ import {
   ASK_PERSONALITIES,
   parseAskPersonality,
 } from '@/modules/assistant/personality'
-import { remindersEnabled, requestReminderPermission } from '@/lib/reminders'
+import { remindersEnabled, requestReminderPermission, sendTestReminderPing } from '@/lib/reminders'
+import { isStandalonePwa } from '@/lib/web-notify'
 import { seedDemoWorkspace } from '@/lib/seed-demo'
 import { DEFAULT_SHARE_PREFS, type SharePrefs } from '@/lib/social/types'
 import { getAddMeUrl } from '@/lib/social/friends'
@@ -705,12 +706,32 @@ export default function SettingsPage() {
           <div>
             <h2 className="font-semibold">Gentle reminders</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Soft nudges for habits and events while Katana is open in this tab — not background push
-              when the app is closed.
+              Habits can ping several times a day until you check in. On iPhone, add Katana to your
+              Home Screen first, then turn this on from that icon — Safari tabs cannot reliably alert.
             </p>
           </div>
           <Switch checked={gentle} onCheckedChange={(v) => void onToggleReminders(v)} />
         </div>
+        <p className="text-xs text-muted-foreground">
+          {isStandalonePwa()
+            ? 'Home Screen app detected. Open it a few times a day and leave it in Recents so catch-up pings can land.'
+            : 'This browser session is not the Home Screen app. iPhone alerts only work from the bookmark you added with Share → Add to Home Screen.'}
+        </p>
+        <Button
+          variant="outline"
+          className="min-h-11"
+          onClick={async () => {
+            try {
+              const ok = await sendTestReminderPing()
+              if (ok) toast.success('Test ping sent — check the notification shade')
+              else toast.message('Allow notifications, then try again from the Home Screen app')
+            } catch (err) {
+              toast.error(err instanceof Error ? err.message : 'Couldn’t send a test ping')
+            }
+          }}
+        >
+          Send a test ping
+        </Button>
       </section>
 
       <section className="kp-surface mb-4 space-y-3 p-5">

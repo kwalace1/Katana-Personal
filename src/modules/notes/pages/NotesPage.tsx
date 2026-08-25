@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Eye, FolderPlus, Pin, Plus, Search, Trash2 } from 'lucide-react'
+import { Eye, FolderPlus, Pin, Plus, Save, Search, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,9 +14,206 @@ import { formatShortDate } from '@/lib/dates'
 import { useLocalRefresh } from '@/hooks/useLocalRefresh'
 import { renderSimpleMarkdown } from '@/lib/simple-markdown'
 import { cn } from '@/lib/utils'
-import { notesApi } from '../api'
+import { noteTitleFromInput, notesApi } from '../api'
 import { ShareWithFriendsButton } from '@/components/ShareWithFriendsButton'
-import type { Note } from '../types'
+import type { Note, NoteFolder } from '../types'
+
+function parseTagInput(value: string): string[] {
+  return value
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean)
+}
+
+function NoteEditor({
+  note,
+  folders,
+  userId,
+  onSaved,
+  onDeleted,
+}: {
+  note: Note
+  folders: NoteFolder[]
+  userId: string
+  onSaved: (folderId: string | null) => void
+  onDeleted: () => void
+}) {
+  const [title, setTitle] = useState(note.title)
+  const [body, setBody] = useState(note.body)
+  const [tagInput, setTagInput] = useState(note.tags.join(', '))
+  const [folderId, setFolderId] = useState(note.folder_id || '')
+  const [preview, setPreview] = useState(false)
+  const [dirty, setDirty] = useState(false)
+  const draftRef = useRef({ title, body, tagInput, folderId, dirty, noteId: note.id })
+  draftRef.current = { title, body, tagInput, folderId, dirty, noteId: note.id }
+  const onSavedRef = useRef(onSaved)
+  onSavedRef.current = onSaved
+
+  useEffect(() => {
+    setTitle(note.title === 'Untitled' ? '' : note.title)
+    setBody(note.body)
+    setTagInput(note.tags.join(', '))
+    setFolderId(note.folder_id || '')
+    setDirty(false)
+    setPreview(false)
+  }, [note.id])
+
+  function persist(source = draftRef.current, opts?: { silent?: boolean }) {
+    const nextTitle = noteTitleFromInput(source.title)
+    const nextFolder = source.folderId || null
+    notesApi.updateNote(userId, source.noteId, {
+      title: nextTitle,
+      body: source.body,
+      tags: parseTagInput(source.tagInput),
+      folder_id: nextFolder,
+    })
+    if (source.noteId === note.id) {
+      setDirty(false)
+      setTitle(nextTitle === 'Untitled' ? '' : nextTitle)
+    }
+    onSavedRef.current(nextFolder)
+    if (!opts?.silent) toast.success('Note saved')
+  }
+
+  useEffect(() => {
+    if (!dirty) return
+    const timer = window.setTimeout(() => persist(draftRef.current, { silent: true }), 2500)
+    return () => window.clearTimeout(timer)
+  }, [dirty, title, body, tagInput, folderId])
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault()
+        persist(draftRef.current)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [userId])
+
+  useEffect(() => {
+    return () => {
+      const latest = draftRef.current
+      if (latest.dirty) persist(latest, { silent: true })
+    }
+  }, [note.id, userId])
+
+  return (
+    <div className="kp-surface space-y-3 p-5">
+      <Input
+        value={title}
+        placeholder="Note title"
+        autoComplete="off"
+        autoCorrect="on"
+        spellCheck
+        aria-label="Note title"
+        onChange={(e) => {
+          setTitle(e.target.value)
+          setDirty(true)
+        }}
+        className="h-auto min-h-11 w-full border-0 bg-transparent px-0 text-xl font-semibold shadow-none focus-visible:ring-0"
+      />
+      <div className="flex flex-wrap items-center justify-end gap-1">
+          <ShareWithFriendsButton
+            kind="note"
+            title={noteTitleFromInput(title)}
+            body={body}
+            data={{ tags: parseTagInput(tagInput), localNoteId: note.id }}
+            label="Share"
+          />
+          <Button
+            size="icon"
+            variant={preview ? 'secondary' : 'ghost'}
+            aria-label="Toggle preview"
+            onClick={() => setPreview((v) => !v)}
+          >
+            <Eye className="h-4 w-4" />
+          </Button>
+          <Button
+            size="icon"
+            variant={note.pinned ? 'secondary' : 'ghost'}
+            aria-label="Pin note"
+            onClick={() => {
+              notesApi.updateNote(userId, note.id, { pinned: !note.pinned })
+              onSaved(folderId || null)
+            }}
+          >
+            <Pin className="h-4 w-4" />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={() => {
+              notesApi.deleteNote(userId, note.id)
+              onDeleted()
+            }}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <label className="flex min-w-0 flex-1 items-center gap-2">
+          <span className="shrink-0 text-xs font-medium text-muted-foreground">Category</span>
+          <select
+            className="h-10 min-w-0 flex-1 rounded-xl border border-input bg-background px-3 text-sm"
+            value={folderId}
+            onChange={(e) => {
+              setFolderId(e.target.value)
+              setDirty(true)
+            }}
+          >
+            <option value="">Unfiled</option>
+            {folders.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <Input
+          placeholder="Labels (comma separated)"
+          value={tagInput}
+          onChange={(e) => {
+            setTagInput(e.target.value)
+            setDirty(true)
+          }}
+          className="flex-1"
+        />
+        <Button
+          className="min-h-11 gap-2 sm:min-w-[7.5rem]"
+          disabled={!dirty}
+          onClick={() => persist()}
+        >
+          <Save className="h-4 w-4" />
+          {dirty ? 'Save' : 'Saved'}
+        </Button>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {dirty ? 'Unsaved changes · Save keeps the title, category, and body together.' : 'Saved'}
+        {preview ? ' · preview' : ' · # headings, **bold**, - lists'}
+      </p>
+
+      {preview ? (
+        <div
+          className="prose-sm min-h-[360px] rounded-xl bg-secondary/40 p-4 text-sm leading-relaxed"
+          dangerouslySetInnerHTML={{ __html: renderSimpleMarkdown(body || '_Nothing yet_') }}
+        />
+      ) : (
+        <Textarea
+          className="min-h-[360px] resize-y"
+          placeholder="Start writing…"
+          value={body}
+          onChange={(e) => {
+            setBody(e.target.value)
+            setDirty(true)
+          }}
+        />
+      )}
+    </div>
+  )
+}
 
 export default function NotesPage() {
   const { user } = useAuth()
@@ -27,7 +225,6 @@ export default function NotesPage() {
   const [folderId, setFolderId] = useState<string | 'all' | 'none'>('all')
   const [tagFilter, setTagFilter] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(params.get('id'))
-  const [preview, setPreview] = useState(false)
   const [newFolder, setNewFolder] = useState('')
 
   const folders = useMemo(() => {
@@ -61,7 +258,7 @@ export default function NotesPage() {
 
   function createNote() {
     const note = notesApi.createNote(userId, {
-      title: 'New note',
+      title: 'Untitled',
       body: '',
       folder_id: folderId !== 'all' && folderId !== 'none' ? folderId : null,
     })
@@ -74,7 +271,7 @@ export default function NotesPage() {
     <motion.div {...pageEnterSubtle} className="kp-page">
       <PageHeader
         title="Notes"
-        description="A quiet place for thoughts."
+        description="Write freely — including spaces in the title — then save into a category."
         eyebrow="Life"
         actions={
           <Button className="gap-2" onClick={createNote}>
@@ -113,8 +310,8 @@ export default function NotesPage() {
             refresh()
           }}
         >
-          <Input className="h-8 w-28" placeholder="Folder" value={newFolder} onChange={(e) => setNewFolder(e.target.value)} />
-          <Button type="submit" size="sm" variant="ghost" aria-label="Add folder">
+          <Input className="h-8 w-28" placeholder="Category" value={newFolder} onChange={(e) => setNewFolder(e.target.value)} />
+          <Button type="submit" size="sm" variant="ghost" aria-label="Add category">
             <FolderPlus className="h-4 w-4" />
           </Button>
         </form>
@@ -147,7 +344,7 @@ export default function NotesPage() {
       {notes.length === 0 ? (
         <EmptyState
           title="No notes yet"
-          description="Capture from Today with a quick thought, or start a note here. Saves as you type."
+          description="Capture from Today with a quick thought, or start a note here. Use Save when you’re ready."
           action={
             <div className="flex flex-wrap justify-center gap-2">
               <Button onClick={createNote}>Start writing</Button>
@@ -159,7 +356,7 @@ export default function NotesPage() {
         />
       ) : (
         <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
-          <ul className="kp-surface max-h-[70vh] space-y-1 overflow-auto p-2">
+          <ul className="kp-surface max-h-[32vh] space-y-1 overflow-auto p-2 lg:max-h-[70vh]">
             {notes.map((note) => (
               <li key={note.id}>
                 <button
@@ -191,114 +388,23 @@ export default function NotesPage() {
           </ul>
 
           {selected ? (
-            <div className="kp-surface space-y-3 p-5">
-              <div className="flex items-start justify-between gap-2">
-                <Input
-                  value={selected.title}
-                  onChange={(e) => {
-                    notesApi.updateNote(userId, selected.id, { title: e.target.value })
-                    refresh()
-                  }}
-                  className="border-0 bg-transparent px-0 text-xl font-semibold shadow-none focus-visible:ring-0"
-                />
-                <div className="flex shrink-0 items-center gap-1">
-                  <ShareWithFriendsButton
-                    kind="note"
-                    title={selected.title}
-                    body={selected.body}
-                    data={{ tags: selected.tags, localNoteId: selected.id }}
-                    label="Share"
-                  />
-                  <Button
-                    size="icon"
-                    variant={preview ? 'secondary' : 'ghost'}
-                    aria-label="Toggle preview"
-                    onClick={() => setPreview((v) => !v)}
-                  >
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant={selected.pinned ? 'secondary' : 'ghost'}
-                    aria-label="Pin note"
-                    onClick={() => {
-                      notesApi.updateNote(userId, selected.id, { pinned: !selected.pinned })
-                      refresh()
-                    }}
-                  >
-                    <Pin className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => {
-                      notesApi.deleteNote(userId, selected.id)
-                      setSelectedId(null)
-                      setParams({})
-                      refresh()
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Input
-                  placeholder="Labels (comma separated)"
-                  value={selected.tags.join(', ')}
-                  onChange={(e) => {
-                    const tags = e.target.value
-                      .split(',')
-                      .map((t) => t.trim())
-                      .filter(Boolean)
-                    notesApi.updateNote(userId, selected.id, { tags })
-                    refresh()
-                  }}
-                  className="flex-1"
-                />
-                <select
-                  className="h-10 rounded-xl border border-input bg-background px-3 text-sm"
-                  value={selected.folder_id || ''}
-                  onChange={(e) => {
-                    notesApi.updateNote(userId, selected.id, {
-                      folder_id: e.target.value || null,
-                    })
-                    refresh()
-                  }}
-                >
-                  <option value="">No folder</option>
-                  {folders.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {preview ? (
-                <div>
-                  <p className="mb-2 text-xs font-medium text-muted-foreground">Preview · saved as you type</p>
-                  <div
-                    className="prose-sm min-h-[360px] rounded-xl bg-secondary/40 p-4 text-sm leading-relaxed"
-                    dangerouslySetInnerHTML={{ __html: renderSimpleMarkdown(selected.body || '_Nothing yet_') }}
-                  />
-                </div>
-              ) : (
-                <div>
-                  <p className="mb-2 text-xs font-medium text-muted-foreground">
-                    Editing · saved as you type · # headings, **bold**, - lists
-                  </p>
-                  <Textarea
-                    className="min-h-[360px] resize-y"
-                    placeholder="Start writing…"
-                    value={selected.body}
-                    onChange={(e) => {
-                      notesApi.updateNote(userId, selected.id, { body: e.target.value })
-                      refresh()
-                    }}
-                  />
-                </div>
-              )}
-            </div>
+            <NoteEditor
+              key={selected.id}
+              note={selected}
+              folders={folders}
+              userId={userId}
+              onSaved={(savedFolder) => {
+                if (savedFolder && folderId !== 'all' && folderId !== 'none' && folderId !== savedFolder) {
+                  setFolderId(savedFolder)
+                }
+                refresh()
+              }}
+              onDeleted={() => {
+                setSelectedId(null)
+                setParams({})
+                refresh()
+              }}
+            />
           ) : null}
         </div>
       )}

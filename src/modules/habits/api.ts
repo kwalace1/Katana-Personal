@@ -4,6 +4,8 @@ import { todayKey, addDays } from '@/lib/dates'
 import { notifyCheckIn } from '@/lib/social/streak-sync'
 import {
   formatHabitSchedule,
+  normalizeReminderTimes,
+  reminderTimesOf,
   resolveHabitDays,
   type Habit,
   type HabitLog,
@@ -18,13 +20,27 @@ function now() {
   return new Date().toISOString()
 }
 
+function reminderPatch(input: {
+  reminder_time?: string | null
+  reminder_times?: string[]
+}): { reminder_time: string | null; reminder_times: string[] } {
+  const times = normalizeReminderTimes([...(input.reminder_times || []), input.reminder_time])
+  return {
+    reminder_time: times[0] ?? null,
+    reminder_times: times,
+  }
+}
+
 function normalizeHabit(habit: Habit): Habit {
+  const times = reminderTimesOf(habit)
   return {
     ...habit,
     schedule: habit.schedule || 'daily',
     custom_days: Array.isArray(habit.custom_days) ? (habit.custom_days as Weekday[]) : [],
     once_date: habit.once_date ?? null,
-    reminder_time: habit.reminder_time ?? null,
+    reminder_time: times[0] ?? null,
+    reminder_times: times,
+    nudge_until_done: habit.nudge_until_done !== false,
   }
 }
 
@@ -72,10 +88,13 @@ export const habitsApi = {
       custom_days?: Weekday[]
       once_date?: string | null
       reminder_time?: string | null
+      reminder_times?: string[]
+      nudge_until_done?: boolean
     },
   ): Habit {
     const ts = now()
     const schedule = input.schedule || 'daily'
+    const reminders = reminderPatch(input)
     return normalizeHabit(
       localDb.insert(HABITS, userId, {
         id: createId(),
@@ -84,7 +103,9 @@ export const habitsApi = {
         schedule,
         custom_days: schedule === 'custom' ? (input.custom_days || []) : [],
         once_date: schedule === 'once' ? input.once_date || todayKey() : null,
-        reminder_time: input.reminder_time ?? null,
+        reminder_time: reminders.reminder_time,
+        reminder_times: reminders.reminder_times,
+        nudge_until_done: input.nudge_until_done !== false,
         created_at: ts,
         updated_at: ts,
       }),
@@ -92,7 +113,17 @@ export const habitsApi = {
   },
 
   update(userId: string, id: string, patch: Partial<Habit>): Habit | null {
-    const updated = localDb.update<Habit>(HABITS, userId, id, { ...patch, updated_at: now() })
+    const next: Partial<Habit> = { ...patch, updated_at: now() }
+    if (patch.reminder_time !== undefined || patch.reminder_times !== undefined) {
+      const current = habitsApi.get(userId, id)
+      const reminders = reminderPatch({
+        reminder_time: patch.reminder_time !== undefined ? patch.reminder_time : current?.reminder_time,
+        reminder_times: patch.reminder_times !== undefined ? patch.reminder_times : current?.reminder_times,
+      })
+      next.reminder_time = reminders.reminder_time
+      next.reminder_times = reminders.reminder_times
+    }
+    const updated = localDb.update<Habit>(HABITS, userId, id, next)
     return updated ? normalizeHabit(updated) : null
   },
 

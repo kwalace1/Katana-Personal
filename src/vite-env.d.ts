@@ -7,6 +7,7 @@ interface ImportMetaEnv {
   readonly VITE_DEV_EMAIL?: string
   readonly VITE_DEV_PASSWORD?: string
   readonly VITE_DEV_FULL_NAME?: string
+  readonly VITE_VAPID_PUBLIC_KEY?: string
 }
 
 interface ImportMeta {

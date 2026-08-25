@@ -2,6 +2,8 @@ import { todayKey, formatTime } from '@/lib/dates'
 import { tasksApi } from '@/modules/tasks/api'
 import { habitsApi } from '@/modules/habits/api'
 import { calendarApi } from '@/modules/calendar/api'
+import { parseReminderClock, resolveHabitReminderTimes, type Habit } from '@/modules/habits/types'
+import { canShowLocalNotification, showLocalNotification } from '@/lib/web-notify'
 
 const LAST_NUDGE_KEY = 'katana-personal:last-nudge-day'
 const FIRED_KEY = 'katana-personal:fired-reminders'
@@ -19,15 +21,14 @@ export async function requestReminderPermission(): Promise<boolean> {
 }
 
 function canNotify(): boolean {
-  return typeof Notification !== 'undefined' && Notification.permission === 'granted'
+  return canShowLocalNotification()
 }
 
-function alreadyNudgedToday(): boolean {
-  return localStorage.getItem(LAST_NUDGE_KEY) === todayKey()
-}
-
-function markNudged() {
-  localStorage.setItem(LAST_NUDGE_KEY, todayKey())
+function nudgeWaveForHour(hour: number): 'morning' | 'afternoon' | 'evening' | null {
+  if (hour >= 8 && hour < 13) return 'morning'
+  if (hour >= 13 && hour < 18) return 'afternoon'
+  if (hour >= 18) return 'evening'
+  return null
 }
 
 function readFired(): Set<string> {
@@ -36,33 +37,76 @@ function readFired(): Set<string> {
     if (!raw) return new Set()
     const parsed = JSON.parse(raw) as string[]
     const today = todayKey()
-    // Drop old keys
-    return new Set(parsed.filter((k) => k.startsWith(today) || k.includes(today)))
+    return new Set(parsed.filter((k) => k.startsWith(`${today}:`)))
   } catch {
     return new Set()
   }
 }
 
-function markFired(id: string) {
+function markFired(ids: string | string[]) {
   const set = readFired()
-  set.add(id)
+  for (const id of Array.isArray(ids) ? ids : [ids]) set.add(id)
   const today = todayKey()
-  const kept = [...set].filter((k) => k.includes(today)).slice(-80)
+  const kept = [...set].filter((k) => k.startsWith(`${today}:`)).slice(-200)
   localStorage.setItem(FIRED_KEY, JSON.stringify(kept))
 }
 
-function notify(title: string, body: string, tag: string) {
-  try {
-    new Notification(title, { body, tag, silent: false })
-  } catch {
-    // blocked
-  }
+function alreadyNudgedWave(wave: string): boolean {
+  return localStorage.getItem(LAST_NUDGE_KEY) === `${todayKey()}:${wave}`
 }
 
-/** Soft once-a-day nudge based on what’s still open. */
-export function maybeSendDailyNudge(userId: string, preferences?: Record<string, unknown> | null) {
-  if (!remindersEnabled(preferences) || !canNotify() || alreadyNudgedToday()) return
+function markNudgedWave(wave: string) {
+  localStorage.setItem(LAST_NUDGE_KEY, `${todayKey()}:${wave}`)
+}
 
+export type HabitReminderSlot = {
+  habit: Habit
+  time: string
+  fireAt: Date
+  key: string
+}
+
+export function habitReminderSlotsForDay(
+  habit: Habit,
+  day: Date = new Date(),
+): HabitReminderSlot[] {
+  const dayKey = todayKey(day)
+  return resolveHabitReminderTimes(habit).map((time) => {
+    const clock = parseReminderClock(time)!
+    const fireAt = new Date(day)
+    fireAt.setHours(clock.hh, clock.mm, 0, 0)
+    return {
+      habit,
+      time,
+      fireAt,
+      key: `${dayKey}:habit:${habit.id}:${time}`,
+    }
+  })
+}
+
+/** Slots that should notify now: time has arrived, habit still open, not yet fired. */
+export function dueHabitReminderSlots(
+  userId: string,
+  now: Date = new Date(),
+  fired: Set<string> = readFired(),
+): HabitReminderSlot[] {
+  const due: HabitReminderSlot[] = []
+  for (const habit of habitsApi.dueToday(userId)) {
+    if (habitsApi.isDoneToday(userId, habit.id)) continue
+    for (const slot of habitReminderSlotsForDay(habit, now)) {
+      if (now.getTime() < slot.fireAt.getTime()) continue
+      if (fired.has(slot.key)) continue
+      due.push(slot)
+    }
+  }
+  return due
+}
+
+async function notify(title: string, body: string, tag: string, href = '/') {
+  await showLocalNotification(title, body, tag, href)
+}
+
+function digestBody(userId: string): string | null {
   const openHabits = habitsApi.dueToday(userId).filter((h) => !habitsApi.isDoneToday(userId, h.id))
   const dueTasks = tasksApi.todayTasks(userId)
   const overdue = tasksApi.overdue(userId)
@@ -93,19 +137,58 @@ export function maybeSendDailyNudge(userId: string, preferences?: Record<string,
         : `${events.length} things on your calendar today`,
     )
   }
+  if (bits.length === 0) return null
+  return bits.join(' · ')
+}
 
-  if (bits.length === 0) return
+/** Morning / afternoon / evening digest while anything is still open. */
+export async function maybeSendDailyNudge(userId: string, preferences?: Record<string, unknown> | null) {
+  if (!remindersEnabled(preferences) || !canNotify()) return
 
-  const body = bits.join(' · ')
-  notify('Katana', body.charAt(0).toUpperCase() + body.slice(1), 'katana-daily-nudge')
-  markNudged()
+  const wave = nudgeWaveForHour(new Date().getHours())
+  if (!wave || alreadyNudgedWave(wave)) return
+
+  const body = digestBody(userId)
+  if (!body) return
+
+  await notify('Katana', body.charAt(0).toUpperCase() + body.slice(1), `katana-daily-nudge-${wave}`, '/dashboard')
+  markNudgedWave(wave)
+}
+
+async function fireHabitSlots(slots: HabitReminderSlot[]) {
+  if (slots.length === 0) return
+
+  const FRESH_MS = 20 * 60_000
+  const now = Date.now()
+  const fresh = slots.filter((s) => now - s.fireAt.getTime() <= FRESH_MS)
+  const stale = slots.filter((s) => now - s.fireAt.getTime() > FRESH_MS)
+
+  for (const slot of fresh) {
+    const streak = habitsApi.streak(slot.habit.user_id, slot.habit.id)
+    const body =
+      streak > 0
+        ? `Time for ${slot.habit.title} — protect your ${streak}-day streak`
+        : `Time for ${slot.habit.title}`
+    await notify('Habit', body, slot.key, `/habits?id=${slot.habit.id}`)
+  }
+
+  if (stale.length > 0) {
+    const names = [...new Set(stale.map((s) => s.habit.title))]
+    const body =
+      names.length === 1
+        ? `Still open: ${names[0]}`
+        : `Still open: ${names.slice(0, 3).join(', ')}${names.length > 3 ? '…' : ''}`
+    await notify('Habits', body, stale[0]!.key, '/habits')
+  }
+
+  markFired(slots.map((s) => s.key))
 }
 
 /**
  * Fire timed reminders for events (reminder_minutes before start)
- * and habits (reminder_time HH:mm). Idempotent per day via localStorage.
+ * and habits (every reminder slot). Catch-up on open — no 2-minute miss window.
  */
-export function tickTimedReminders(userId: string, preferences?: Record<string, unknown> | null) {
+export async function tickTimedReminders(userId: string, preferences?: Record<string, unknown> | null) {
   if (!remindersEnabled(preferences) || !canNotify()) return
 
   const now = new Date()
@@ -118,30 +201,22 @@ export function tickTimedReminders(userId: string, preferences?: Record<string, 
     if (start.getTime() < now.getTime()) continue
     const fireAt = new Date(start.getTime() - event.reminder_minutes * 60_000)
     if (now.getTime() < fireAt.getTime()) continue
-    // Only fire within 2 minutes of the fire window to avoid spam on late open
-    if (now.getTime() - fireAt.getTime() > 120_000) continue
     const key = `${day}:event:${event.id}`
     if (fired.has(key)) continue
-    notify('Upcoming', `${event.title} at ${formatTime(event.starts_at)}`, key)
+    await notify('Upcoming', `${event.title} at ${formatTime(event.starts_at)}`, key, '/calendar')
     markFired(key)
   }
 
-  for (const habit of habitsApi.dueToday(userId)) {
-    if (!habit.reminder_time || habitsApi.isDoneToday(userId, habit.id)) continue
-    const [hh, mm] = habit.reminder_time.split(':').map(Number)
-    if (Number.isNaN(hh)) continue
-    const fireAt = new Date()
-    fireAt.setHours(hh, mm || 0, 0, 0)
-    if (now.getTime() < fireAt.getTime()) continue
-    if (now.getTime() - fireAt.getTime() > 120_000) continue
-    const key = `${day}:habit:${habit.id}`
-    if (fired.has(key)) continue
-    const streak = habitsApi.streak(userId, habit.id)
-    const body =
-      streak > 0
-        ? `Time for ${habit.title} — protect your ${streak}-day streak`
-        : `Time for ${habit.title}`
-    notify('Habit', body, key)
-    markFired(key)
-  }
+  await fireHabitSlots(dueHabitReminderSlots(userId, now, fired))
+}
+
+export async function sendTestReminderPing(): Promise<boolean> {
+  const ok = await requestReminderPermission()
+  if (!ok) return false
+  return showLocalNotification(
+    'Katana',
+    'Reminders are on. Habit pings will land here through the day.',
+    'katana-test-ping',
+    '/habits',
+  )
 }

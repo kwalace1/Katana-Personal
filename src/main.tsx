@@ -60,7 +60,7 @@ class ErrorBoundary extends React.Component<
   }
 }
 
-const APP_BUILD = '2026-08-18-health-ui'
+const APP_BUILD = '2026-08-25-notes-habits-reminders'
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {

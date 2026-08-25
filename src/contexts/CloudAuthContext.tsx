@@ -25,6 +25,7 @@ import { publishActivity, publishStreaks } from '@/lib/social/streaks'
 import { registerActivityPing, registerStreakSync } from '@/lib/social/streak-sync'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from 'sonner'
+import { urlBase64ToUint8Array } from '@/lib/web-notify'
 
 interface CloudAuthContextType {
   cloudEnabled: boolean
@@ -302,8 +303,27 @@ export function CloudAuthProvider({ children }: { children: React.ReactNode }) {
     }
     const permission = await Notification.requestPermission()
     if (permission !== 'granted') return false
-    // Token delivery deferred — store a placeholder so Settings can confirm opt-in.
-    const token = `web-opt-in:${cloudUser.uid}:${Date.now()}`
+
+    let token = `web-opt-in:${cloudUser.uid}:${Date.now()}`
+    try {
+      if ('serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.ready
+        const vapid = (import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined)?.trim()
+        if (vapid && 'pushManager' in reg) {
+          const existing = await reg.pushManager.getSubscription()
+          const sub =
+            existing ||
+            (await reg.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: urlBase64ToUint8Array(vapid) as BufferSource,
+            }))
+          token = JSON.stringify(sub.toJSON())
+        }
+      }
+    } catch {
+      // Local notifications still work from the home-screen app without a push subscription.
+    }
+
     const { error } = await getSupabase().from('push_tokens').upsert({
       uid: cloudUser.uid,
       token,

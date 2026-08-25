@@ -1,5 +1,5 @@
 /* Katana Personal — offline icons only; never pin HTML so deploys show up */
-const CACHE = 'katana-shell-v8'
+const CACHE = 'katana-shell-v9'
 const SHELL = ['/manifest.webmanifest', '/icons/katana-192.png', '/icons/katana-512.png']
 
 function shouldBypassCache(url) {
@@ -31,7 +31,22 @@ self.addEventListener('activate', (event) => {
 })
 
 self.addEventListener('message', (event) => {
-  if (event.data === 'SKIP_WAITING') self.skipWaiting()
+  const data = event.data
+  if (data === 'SKIP_WAITING') {
+    self.skipWaiting()
+    return
+  }
+  if (data && data.type === 'SHOW_NOTIFICATION') {
+    event.waitUntil(
+      self.registration.showNotification(data.title || 'Katana', {
+        body: data.body || '',
+        tag: data.tag || 'katana',
+        renotify: true,
+        icon: '/icons/katana-192.png',
+        data: { href: data.href || '/' },
+      }),
+    )
+  }
 })
 
 self.addEventListener('fetch', (event) => {
@@ -80,20 +95,30 @@ self.addEventListener('fetch', (event) => {
 })
 
 self.addEventListener('push', (event) => {
-  if (!event.data) return
-  let payload
-  try {
-    payload = event.data.json()
-  } catch {
-    return
+  let title = 'Katana'
+  let body = 'Something needs a look.'
+  let href = '/'
+  if (event.data) {
+    try {
+      const payload = event.data.json()
+      title = payload.notification?.title || payload.data?.title || payload.title || title
+      body = payload.notification?.body || payload.data?.body || payload.body || body
+      href = payload.data?.href || payload.href || href
+    } catch {
+      try {
+        body = event.data.text()
+      } catch {
+        // keep defaults
+      }
+    }
   }
-  const title = payload.notification?.title || payload.data?.title || 'Katana'
-  const body = payload.notification?.body || payload.data?.body || ''
   event.waitUntil(
     self.registration.showNotification(title, {
       body,
-      data: { href: payload.data?.href || '/' },
+      tag: 'katana-push',
+      renotify: true,
       icon: '/icons/katana-192.png',
+      data: { href },
     }),
   )
 })
@@ -101,5 +126,23 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
   const href = event.notification.data?.href || '/'
-  event.waitUntil(clients.openWindow(href))
+  event.waitUntil(
+    (async () => {
+      const all = await clients.matchAll({ type: 'window', includeUncontrolled: true })
+      for (const client of all) {
+        if ('focus' in client) {
+          await client.focus()
+          if (href && 'navigate' in client) {
+            try {
+              await client.navigate(href)
+            } catch {
+              // older iOS PWA clients may not support navigate
+            }
+          }
+          return
+        }
+      }
+      await clients.openWindow(href)
+    })(),
+  )
 })

@@ -1,12 +1,13 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronDown, Plus, Trash2 } from 'lucide-react'
+import { ChevronDown, Plus, Trash2, X } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { EmptyState } from '@/components/ui/empty-state'
 import { CompleteToggle } from '@/components/CompleteToggle'
+import { Switch } from '@/components/ui/switch'
 import { useAuth } from '@/contexts/AuthContext'
 import { pageEnterSubtle } from '@/lib/motion-ui'
 import { todayKey } from '@/lib/dates'
@@ -19,10 +20,19 @@ import { offerHabitCheckedInShare } from '@/lib/social/share-win'
 import {
   WEEKDAY_OPTIONS,
   formatHabitSchedule,
-  type Habit,
+  formatReminderClock,
+  normalizeReminderTimes,
+  parseReminderClock,
+  reminderTimesOf,
   type HabitSchedule,
   type Weekday,
 } from '../types'
+
+const REMINDER_PRESETS: { label: string; time: string }[] = [
+  { label: 'Morning', time: '08:00' },
+  { label: 'Midday', time: '13:00' },
+  { label: 'Evening', time: '18:00' },
+]
 
 const SCHEDULE_CHIPS: { id: HabitSchedule; label: string }[] = [
   { id: 'daily', label: 'Every day' },
@@ -31,6 +41,102 @@ const SCHEDULE_CHIPS: { id: HabitSchedule; label: string }[] = [
   { id: 'custom', label: 'Custom days' },
   { id: 'once', label: 'One time' },
 ]
+
+function ReminderTimesPicker({
+  times,
+  nudgeUntilDone,
+  onTimes,
+  onNudge,
+}: {
+  times: string[]
+  nudgeUntilDone: boolean
+  onTimes: (times: string[]) => void
+  onNudge: (value: boolean) => void
+}) {
+  const [draft, setDraft] = useState('')
+
+  function addTime(raw: string) {
+    const parsed = parseReminderClock(raw)
+    if (!parsed) return
+    onTimes(normalizeReminderTimes([...times, formatReminderClock(parsed.hh, parsed.mm)]))
+    setDraft('')
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs font-medium text-muted-foreground">Reminders through the day</p>
+      {times.length === 0 ? (
+        <p className="text-xs text-muted-foreground">No pings yet. Add a time, or tap a preset.</p>
+      ) : (
+        <div className="flex flex-wrap gap-1.5">
+          {times.map((time) => (
+            <span
+              key={time}
+              className="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-sm"
+            >
+              {time}
+              <button
+                type="button"
+                className="rounded-full p-0.5 text-muted-foreground hover:text-foreground"
+                aria-label={`Remove ${time} reminder`}
+                onClick={() => onTimes(times.filter((t) => t !== time))}
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="flex flex-wrap gap-2">
+        {REMINDER_PRESETS.map((preset) => {
+          const on = times.includes(preset.time)
+          return (
+            <Button
+              key={preset.time}
+              type="button"
+              size="sm"
+              variant={on ? 'default' : 'outline'}
+              className="rounded-full"
+              onClick={() => {
+                if (on) onTimes(times.filter((t) => t !== preset.time))
+                else onTimes(normalizeReminderTimes([...times, preset.time]))
+              }}
+            >
+              {preset.label}
+            </Button>
+          )
+        })}
+      </div>
+      <form
+        className="flex gap-2"
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (draft) addTime(draft)
+        }}
+      >
+        <Input
+          type="time"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          className="max-w-[9rem]"
+          aria-label="Add reminder time"
+        />
+        <Button type="submit" size="sm" variant="outline" disabled={!draft}>
+          Add time
+        </Button>
+      </form>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium">Keep reminding until I check in</p>
+          <p className="text-xs text-muted-foreground">
+            Extra pings every few hours after the first reminder, stopping once this habit is done.
+          </p>
+        </div>
+        <Switch checked={nudgeUntilDone} onCheckedChange={onNudge} disabled={times.length === 0} />
+      </div>
+    </div>
+  )
+}
 
 function SchedulePicker({
   schedule,
@@ -191,7 +297,7 @@ export default function HabitsPage() {
     <motion.div {...pageEnterSubtle} className="kp-page">
       <PageHeader
         title="Habits"
-        description="Pick the days that fit — every day, custom weekdays, or one time."
+        description="Pick the days that fit — and as many reminder times as you want."
         eyebrow="Life"
       />
 
@@ -372,19 +478,21 @@ export default function HabitsPage() {
                               refresh()
                             }}
                           />
-                          <div>
-                            <p className="mb-1 text-xs text-muted-foreground">Reminder time</p>
-                            <Input
-                              type="time"
-                              value={habit.reminder_time || ''}
-                              onChange={(e) => {
-                                habitsApi.update(userId, habit.id, {
-                                  reminder_time: e.target.value || null,
-                                })
-                                refresh()
-                              }}
-                            />
-                          </div>
+                          <ReminderTimesPicker
+                            times={reminderTimesOf(habit)}
+                            nudgeUntilDone={habit.nudge_until_done !== false}
+                            onTimes={(times) => {
+                              habitsApi.update(userId, habit.id, {
+                                reminder_times: times,
+                                reminder_time: times[0] ?? null,
+                              })
+                              refresh()
+                            }}
+                            onNudge={(value) => {
+                              habitsApi.update(userId, habit.id, { nudge_until_done: value })
+                              refresh()
+                            }}
+                          />
                           <div className="space-y-2">
                             <p className="text-xs font-medium text-muted-foreground">Associated tasks</p>
                             {linkedTasks.length === 0 ? (

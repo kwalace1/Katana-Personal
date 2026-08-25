@@ -3,6 +3,7 @@ import type { CalendarEvent } from './types'
 import type { Task, Recurrence } from '@/modules/tasks/types'
 import type { Goal } from '@/modules/goals/types'
 import type { Habit } from '@/modules/habits/types'
+import { reminderTimesOf } from '@/modules/habits/types'
 import type { CircleEvent } from '@/lib/social/types'
 import { categoryColor, categoryLabel, circleCategoryColor } from './categories'
 
@@ -208,8 +209,9 @@ export function habitsToAgendaInRange(
       if (!habitDueOnDay(habit, day)) continue
       let start = startOfDay(day)
       let allDay = true
-      if (habit.reminder_time && /^\d{1,2}:\d{2}$/.test(habit.reminder_time)) {
-        const [hh, mm] = habit.reminder_time.split(':').map(Number)
+      const firstReminder = reminderTimesOf(habit)[0]
+      if (firstReminder) {
+        const [hh, mm] = firstReminder.split(':').map(Number)
         start = new Date(day)
         start.setHours(hh, mm, 0, 0)
         allDay = false
