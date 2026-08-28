@@ -5,8 +5,8 @@ X-style feed for **friends** and **circles**. Circles rank first in a continuous
 ## What you can post
 
 - Text (up to 500 characters)
-- Photos (jpeg/png/webp/gif, ≤5 MB each, up to 4 media)
-- Short videos (mp4/webm, ≤25 MB)
+- Photos (jpeg/png/webp/gif, compressed to ~120 KB thumbs / ~450 KB display, ≤5 MB raw pick)
+- Short videos (mp4/webm, ≤15 s, ≤6 MB — poster shown until play)
 - Optional **cards**: goal / habit / workout summaries (requires Settings → **Feed cards**)
 - **Reposts** of posts you can see (shared to your friends)
 

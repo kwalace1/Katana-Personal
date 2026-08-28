@@ -1,4 +1,6 @@
 import { getSupabase } from '@/lib/supabase'
+import { signAvatarUrl } from '@/lib/social/feed-media-storage'
+import { fileToAvatarJpeg } from '@/lib/social/image-compress'
 import { copyToClipboard } from '@/lib/clipboard'
 import {
   DEFAULT_SHARE_PREFS,
@@ -169,33 +171,34 @@ export async function updateCloudProfile(
   if (error) throw error
 }
 
-/** Upload a square-ish avatar into the together bucket; stores the object path on the profile. */
+/** Upload a small avatar into the together bucket; stores the object path on the profile. */
 export async function uploadProfilePhoto(uid: string, file: File): Promise<string> {
   if (!file.type.startsWith('image/')) throw new Error('Choose a photo')
   if (file.size > 5 * 1024 * 1024) throw new Error('Photos must be under 5 MB')
-  const ext = file.type.includes('png') ? 'png' : file.type.includes('webp') ? 'webp' : 'jpg'
-  const objectPath = `${uid}/profile/avatar.${ext}`
+  const compressed = await fileToAvatarJpeg(file, 256, 80 * 1024)
+  const objectPath = `${uid}/profile/avatar.jpg`
   const supabase = getSupabase()
-  const { error: upErr } = await supabase.storage.from('together').upload(objectPath, file, {
-    contentType: file.type,
+  const { error: upErr } = await supabase.storage.from('together').upload(objectPath, compressed, {
+    contentType: compressed.type,
     upsert: true,
+    cacheControl: '31536000',
   })
   if (upErr) throw upErr
   await updateCloudProfile(uid, { photoURL: objectPath })
   return objectPath
 }
 
-/** Resolve a stored photo path (or absolute URL) to a displayable URL. */
+/** Resolve a stored photo path (or absolute URL) to a small displayable URL. */
 export async function resolveProfilePhotoUrl(photo: string | null | undefined): Promise<string | null> {
   if (!photo) return null
   if (/^https?:\/\//i.test(photo)) return photo
   const path = photo.replace(/^together\//, '')
-  const { data, error } = await getSupabase().storage.from('together').createSignedUrl(path, 60 * 60 * 24 * 7)
-  if (error || !data?.signedUrl) {
-    console.warn('resolveProfilePhotoUrl failed', path, error?.message)
+  const url = await signAvatarUrl(path)
+  if (!url) {
+    console.warn('resolveProfilePhotoUrl failed', path)
     return null
   }
-  return data.signedUrl
+  return url
 }
 
 export async function findUidByFriendCode(code: string): Promise<string | null> {

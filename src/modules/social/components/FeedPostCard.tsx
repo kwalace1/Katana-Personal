@@ -56,6 +56,7 @@ import {
 } from '@/lib/social/feed-moderation'
 import { blockUser } from '@/lib/social/friends'
 import { cn } from '@/lib/utils'
+import { FeedMediaBlock, FeedMediaEditPreview } from '@/modules/social/components/FeedMediaBlock'
 import { FeedAvatar, profilePath, relativeWhen } from './feed-ui'
 
 type Props = {
@@ -74,52 +75,6 @@ type Props = {
   names: Record<string, string>
   photos?: Record<string, string | null>
   onNames: (extra: Record<string, string>) => void
-}
-
-function MediaBlock({ media, compact }: { media: RankedPost['media']; compact?: boolean }) {
-  if (!media?.length) return null
-  return (
-    <div
-      className={cn(
-        'relative mt-2 overflow-hidden rounded-2xl border border-border/50',
-        media.length === 1 ? 'grid grid-cols-1' : 'grid grid-cols-2 gap-px bg-border/40',
-      )}
-    >
-      {media.map((m) =>
-        m.type === 'video' ? (
-          <video
-            key={m.path}
-            src={m.url}
-            controls
-            playsInline
-            className={cn(
-              'w-full bg-black object-contain',
-              media.length === 1
-                ? compact
-                  ? 'max-h-64'
-                  : 'max-h-[min(70vh,28rem)]'
-                : 'aspect-square object-cover',
-            )}
-          />
-        ) : (
-          <img
-            key={m.path}
-            src={m.url}
-            alt=""
-            className={cn(
-              'w-full bg-secondary object-cover',
-              media.length === 1
-                ? compact
-                  ? 'max-h-64'
-                  : 'max-h-[min(70vh,28rem)]'
-                : 'aspect-square',
-            )}
-            draggable={false}
-          />
-        ),
-      )}
-    </div>
-  )
 }
 
 function MentionedPostText({
@@ -753,7 +708,7 @@ export function FeedPostCard({
                 {post.repost.text ? (
                   <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed">{post.repost.text}</p>
                 ) : null}
-                <MediaBlock media={post.repost.media} compact />
+                <FeedMediaBlock media={post.repost.media} compact />
                 {post.repost.card ? (
                   <div className="mt-2">
                     <FeedCardView card={post.repost.card} />
@@ -762,7 +717,7 @@ export function FeedPostCard({
               </div>
             ) : null}
 
-            {!post.repost ? <MediaBlock media={post.media} /> : null}
+            {!post.repost ? <FeedMediaBlock media={post.media} /> : null}
             {!post.repost && post.card ? (
               <div className="mt-2">
                 <FeedCardView card={post.card} />
@@ -908,11 +863,7 @@ export function FeedPostCard({
                     key={m.path}
                     className="relative h-20 w-20 overflow-hidden rounded-xl border border-border/50 bg-secondary/40"
                   >
-                    {m.type === 'video' ? (
-                      <video src={m.url} className="h-full w-full object-cover" muted playsInline />
-                    ) : (
-                      <img src={m.url} alt="" className="h-full w-full object-cover" />
-                    )}
+                    <FeedMediaEditPreview item={m} />
                     <button
                       type="button"
                       className="absolute right-1 top-1 rounded-full bg-background/90 p-0.5 text-muted-foreground hover:text-destructive"

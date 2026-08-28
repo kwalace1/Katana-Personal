@@ -43,6 +43,8 @@ export function FeedAvatar({
     <img
       src={photoURL}
       alt=""
+      loading="lazy"
+      decoding="async"
       className={cn(
         'shrink-0 rounded-full object-cover bg-secondary',
         sizeCls,

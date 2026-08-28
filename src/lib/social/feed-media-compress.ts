@@ -1,94 +1,42 @@
 import {
+  FEED_IMAGE_DISPLAY_MAX_BYTES,
   FEED_IMAGE_MAX_BYTES,
+  FEED_IMAGE_THUMB_MAX_BYTES,
   FEED_VIDEO_MAX_BYTES,
   FEED_VIDEO_MAX_MS,
   FEED_VIDEO_MAX_SECONDS,
+  FEED_VIDEO_POSTER_MAX_BYTES,
   mediaTypeFromFile,
   readVideoDurationMs,
   type FeedMediaType,
 } from '@/lib/social/feed'
+import {
+  fileToJpegUnderMax,
+  videoFileToPosterJpeg,
+} from '@/lib/social/image-compress'
 
 export type PreparedFeedMedia = {
+  /** Compressed display / full file (loaded only on tap or play). */
   file: File
+  /** Feed timeline thumbnail — images only. */
+  thumbFile?: File
+  /** Still frame — videos only; shown until play. */
+  posterFile?: File
   type: FeedMediaType
   durationMs?: number
   compressed: boolean
 }
 
-const IMAGE_MAX_EDGE = 2048
-const IMAGE_EDGE_STEPS = [2048, 1600, 1280, 1024, 800]
-const VIDEO_MAX_EDGE = 1280
+const IMAGE_DISPLAY_MAX_EDGE = 1280
+const IMAGE_THUMB_MAX_EDGE = 640
+const VIDEO_MAX_EDGE = 960
+const VIDEO_POSTER_MAX_EDGE = 640
 
 /** Re-export for callers that only need the type helper after compress. */
 export { mediaTypeFromFile }
 
 function baseName(file: File) {
   return file.name.replace(/\.[^.]+$/, '') || 'media'
-}
-
-async function canvasToJpegFile(
-  canvas: HTMLCanvasElement,
-  name: string,
-  quality: number,
-): Promise<File> {
-  const blob = await new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob(
-      (b) => (b ? resolve(b) : reject(new Error('Couldn’t encode photo.'))),
-      'image/jpeg',
-      quality,
-    )
-  })
-  return new File([blob], `${name}.jpg`, { type: 'image/jpeg', lastModified: Date.now() })
-}
-
-async function compressFeedImage(file: File, maxBytes: number): Promise<{ file: File; compressed: boolean }> {
-  if (file.size <= maxBytes) {
-    return { file, compressed: false }
-  }
-
-  let bitmap: ImageBitmap
-  try {
-    bitmap = await createImageBitmap(file)
-  } catch {
-    if (file.size <= maxBytes) return { file, compressed: false }
-    throw new Error('Couldn’t read that photo. Try a JPEG or PNG.')
-  }
-
-  const name = baseName(file)
-  let best: File | null = null
-
-  try {
-    for (const maxEdge of IMAGE_EDGE_STEPS) {
-      const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height, 1))
-      const w = Math.max(1, Math.round(bitmap.width * scale))
-      const h = Math.max(1, Math.round(bitmap.height * scale))
-      const canvas = document.createElement('canvas')
-      canvas.width = w
-      canvas.height = h
-      const ctx = canvas.getContext('2d')
-      if (!ctx) throw new Error('Canvas unavailable')
-      ctx.drawImage(bitmap, 0, 0, w, h)
-
-      for (const quality of [0.85, 0.72, 0.6, 0.48]) {
-        const out = await canvasToJpegFile(canvas, name, quality)
-        if (!best || out.size < best.size) best = out
-        if (out.size <= maxBytes) {
-          const compressed = out.size < file.size || out.type !== file.type || out.name !== file.name
-          return { file: out, compressed }
-        }
-      }
-    }
-  } finally {
-    bitmap.close()
-  }
-
-  if (best && best.size <= maxBytes) return { file: best, compressed: true }
-  if (best && file.size > maxBytes && best.size < file.size) {
-    // Still over — but better; caller will reject if still too large
-    return { file: best, compressed: true }
-  }
-  if (file.size <= maxBytes) return { file, compressed: false }
-  throw new Error('Couldn’t compress that photo under 5 MB. Try a smaller image.')
 }
 
 function pickRecorderMime(): string {
@@ -144,9 +92,8 @@ async function compressFeedVideo(
   maxBytes: number,
   durationMs: number,
 ): Promise<{ file: File; compressed: boolean }> {
-  if (file.size <= maxBytes) return { file, compressed: false }
-
   if (typeof MediaRecorder === 'undefined') {
+    if (file.size <= maxBytes) return { file, compressed: false }
     throw new Error(
       `Videos must be under ${Math.round(maxBytes / (1024 * 1024))} MB (yours is larger, and this browser can’t compress).`,
     )
@@ -154,6 +101,7 @@ async function compressFeedVideo(
 
   const mime = pickRecorderMime()
   if (!mime) {
+    if (file.size <= maxBytes) return { file, compressed: false }
     throw new Error(
       `Videos must be under ${Math.round(maxBytes / (1024 * 1024))} MB. Try a shorter clip or a different browser.`,
     )
@@ -161,16 +109,16 @@ async function compressFeedVideo(
 
   const durationSec = Math.max(0.5, durationMs / 1000)
   const bitrates = [
-    Math.floor((maxBytes * 8 * 0.8) / durationSec),
-    Math.floor((maxBytes * 8 * 0.55) / durationSec),
-    Math.floor((maxBytes * 8 * 0.35) / durationSec),
-  ].map((b) => Math.min(Math.max(b, 250_000), 3_500_000))
+    Math.floor((maxBytes * 8 * 0.75) / durationSec),
+    Math.floor((maxBytes * 8 * 0.5) / durationSec),
+    Math.floor((maxBytes * 8 * 0.32) / durationSec),
+  ].map((b) => Math.min(Math.max(b, 200_000), 2_500_000))
 
   const url = URL.createObjectURL(file)
   const video = document.createElement('video')
   video.muted = true
   video.playsInline = true
-  video.preload = 'auto'
+  video.preload = 'metadata'
   video.src = url
 
   try {
@@ -194,7 +142,7 @@ async function compressFeedVideo(
 
     for (const videoBitsPerSecond of bitrates) {
       const chunks: Blob[] = []
-      const canvasStream = canvas.captureStream(30)
+      const canvasStream = canvas.captureStream(24)
       const tracks: MediaStreamTrack[] = [...canvasStream.getVideoTracks()]
 
       const nativeCapture =
@@ -258,12 +206,15 @@ async function compressFeedVideo(
         type: blob.type || mime.split(';')[0],
         lastModified: Date.now(),
       })
-      if (out.size <= maxBytes) return { file: out, compressed: true }
+      if (out.size <= maxBytes) {
+        return { file: out, compressed: out.size < file.size || out.type !== file.type }
+      }
 
       video.currentTime = 0
       await waitForEvent(video, 'seeked', 10_000).catch(() => undefined)
     }
 
+    if (file.size <= maxBytes) return { file, compressed: false }
     throw new Error(
       `Couldn’t compress that video under ${Math.round(maxBytes / (1024 * 1024))} MB. Try a shorter or lower-resolution clip.`,
     )
@@ -275,18 +226,31 @@ async function compressFeedVideo(
 }
 
 /**
- * Accept any reasonable photo/short video, compress to feed limits, then validate.
- * Videos longer than FEED_VIDEO_MAX_SECONDS are still rejected.
+ * Compress photos/videos for upload. Always produces a small timeline thumb/poster
+ * so the feed never pulls full originals unless the user asks.
  */
 export async function prepareFeedMedia(file: File): Promise<PreparedFeedMedia> {
   const type = mediaTypeFromFile(file)
+  const name = baseName(file)
 
   if (type === 'image') {
-    const { file: out, compressed } = await compressFeedImage(file, FEED_IMAGE_MAX_BYTES)
-    if (out.size > FEED_IMAGE_MAX_BYTES) {
-      throw new Error('Couldn’t compress that photo under 5 MB. Try a smaller image.')
+    const display = await fileToJpegUnderMax(
+      file,
+      name,
+      IMAGE_DISPLAY_MAX_EDGE,
+      FEED_IMAGE_DISPLAY_MAX_BYTES,
+    )
+    const thumb = await fileToJpegUnderMax(
+      file,
+      `${name}_thumb`,
+      IMAGE_THUMB_MAX_EDGE,
+      FEED_IMAGE_THUMB_MAX_BYTES,
+    )
+    if (display.size > FEED_IMAGE_MAX_BYTES) {
+      throw new Error('Couldn’t compress that photo enough. Try a smaller image.')
     }
-    return { file: out, type, compressed }
+    const compressed = display.size < file.size || thumb.size < file.size
+    return { file: display, thumbFile: thumb, type, compressed }
   }
 
   const durationMs = await readVideoDurationMs(file)
@@ -304,7 +268,13 @@ export async function prepareFeedMedia(file: File): Promise<PreparedFeedMedia> {
     )
   }
 
-  // Re-read duration from compressed output when possible; fall back to original
+  const posterFile = await videoFileToPosterJpeg(
+    out,
+    name,
+    VIDEO_POSTER_MAX_EDGE,
+    FEED_VIDEO_POSTER_MAX_BYTES,
+  )
+
   let outDuration = durationMs
   try {
     outDuration = await readVideoDurationMs(out)
@@ -312,5 +282,5 @@ export async function prepareFeedMedia(file: File): Promise<PreparedFeedMedia> {
     // keep original
   }
 
-  return { file: out, type, durationMs: outDuration, compressed }
+  return { file: out, posterFile, type, durationMs: outDuration, compressed }
 }

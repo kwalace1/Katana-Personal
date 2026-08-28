@@ -1,15 +1,28 @@
 import { getSupabase } from '@/lib/supabase'
 import { createId } from '@/lib/id'
 import { listMyCircles } from '@/lib/social/circles'
+import {
+  feedMediaStoragePaths,
+  signFeedMediaTimeline,
+  uploadTogetherFile,
+} from '@/lib/social/feed-media-storage'
 import { listFriendProfiles, getCloudProfile, getCloudProfiles, resolveProfilePhotoUrl, type Unsubscribe } from '@/lib/social/friends'
 import { createNotification } from '@/lib/social/notifications'
 
 export const FEED_TEXT_MAX = 500
+/** Hard reject — uploads are compressed well below this. */
 export const FEED_IMAGE_MAX_BYTES = 5 * 1024 * 1024
-/** Keep clips short so free-tier storage lasts longer. */
-export const FEED_VIDEO_MAX_SECONDS = 20
+/** Target size for stored display image (full view on tap). */
+export const FEED_IMAGE_DISPLAY_MAX_BYTES = 450 * 1024
+/** Target size for feed timeline thumbnails. */
+export const FEED_IMAGE_THUMB_MAX_BYTES = 120 * 1024
+/** Keep clips short — limits Storage + egress. */
+export const FEED_VIDEO_MAX_SECONDS = 15
 export const FEED_VIDEO_MAX_MS = FEED_VIDEO_MAX_SECONDS * 1000
-export const FEED_VIDEO_MAX_BYTES = 12 * 1024 * 1024
+export const FEED_VIDEO_MAX_BYTES = 6 * 1024 * 1024
+export const FEED_VIDEO_POSTER_MAX_BYTES = 100 * 1024
+/** Default feed page — smaller pages = less media per open. */
+export const FEED_PAGE_SIZE = 15
 export const CIRCLE_BOOST_MS = 12 * 60 * 60 * 1000 // kept for older clients; main Feed is chronological now
 
 export type FeedAudience = 'friends' | 'circle'
@@ -19,8 +32,14 @@ export type FeedCardKind = 'goal' | 'habit' | 'workout' | 'day' | 'task' | 'even
 
 export interface FeedMedia {
   type: FeedMediaType
+  /** Full display file — signed only on tap / play. */
   path: string
+  /** Small JPEG for feed timeline (images). */
+  thumbPath?: string
+  /** Still frame for feed timeline (videos). */
+  posterPath?: string
   contentType: string
+  /** Timeline thumb/poster URL after hydrate — not the full file. */
   url?: string
   width?: number
   height?: number
@@ -202,31 +221,38 @@ export async function uploadFeedMedia(input: {
   postId: string
   file: File
 }): Promise<FeedMedia> {
-  // Compress first so large camera rolls still upload under free-tier limits
   const { prepareFeedMedia } = await import('@/lib/social/feed-media-compress')
   const prepared = await prepareFeedMedia(input.file)
   const file = prepared.file
   const type = prepared.type
   const durationMs = prepared.durationMs
+  const stamp = Date.now()
   const safeName = file.name.replace(/[^\w.\-]+/g, '_').slice(0, 80) || `${type}`
-  const objectPath = storageObjectPath(input.authorId, input.postId, `${Date.now()}_${safeName}`)
-  const supabase = getSupabase()
-  const { error } = await supabase.storage.from('together').upload(objectPath, file, {
-    contentType: file.type,
-    upsert: false,
-  })
-  if (error) throw error
-  const { data: signed, error: signErr } = await supabase.storage
-    .from('together')
-    .createSignedUrl(objectPath, 60 * 60 * 24 * 7)
-  if (signErr) throw signErr
-  return {
+  const objectPath = storageObjectPath(input.authorId, input.postId, `${stamp}_${safeName}`)
+  await uploadTogetherFile(objectPath, file, file.type)
+
+  let thumbPath: string | undefined
+  let posterPath: string | undefined
+
+  if (prepared.thumbFile) {
+    thumbPath = storageObjectPath(input.authorId, input.postId, `${stamp}_thumb.jpg`)
+    await uploadTogetherFile(thumbPath, prepared.thumbFile, prepared.thumbFile.type)
+  }
+  if (prepared.posterFile) {
+    posterPath = storageObjectPath(input.authorId, input.postId, `${stamp}_poster.jpg`)
+    await uploadTogetherFile(posterPath, prepared.posterFile, prepared.posterFile.type)
+  }
+
+  const media: FeedMedia = {
     type,
     path: objectPath,
     contentType: file.type,
-    url: signed.signedUrl,
+    ...(thumbPath ? { thumbPath } : {}),
+    ...(posterPath ? { posterPath } : {}),
     ...(durationMs != null ? { durationMs } : {}),
   }
+  const url = await signFeedMediaTimeline(media)
+  return url ? { ...media, url } : media
 }
 
 async function resolveViewerIds(input: {
@@ -298,14 +324,7 @@ export async function createTogetherPost(input: {
     audience: input.audience,
     circle_id: input.audience === 'circle' ? input.circleId || null : null,
     viewer_ids: viewerIds,
-    media: media.map(({ type, path, contentType, width, height, durationMs }) => ({
-      type,
-      path,
-      contentType,
-      ...(width != null ? { width } : {}),
-      ...(height != null ? { height } : {}),
-      ...(durationMs != null ? { durationMs } : {}),
-    })),
+    media: serializeMedia(media),
     card: input.card || null,
     repost: input.repost || null,
     mentions,
@@ -347,10 +366,12 @@ export async function deleteTogetherPost(id: string): Promise<void> {
 }
 
 function serializeMedia(media: FeedMedia[]) {
-  return media.map(({ type, path, contentType, width, height, durationMs }) => ({
+  return media.map(({ type, path, thumbPath, posterPath, contentType, width, height, durationMs }) => ({
     type,
     path,
     contentType,
+    ...(thumbPath ? { thumbPath } : {}),
+    ...(posterPath ? { posterPath } : {}),
     ...(width != null ? { width } : {}),
     ...(height != null ? { height } : {}),
     ...(durationMs != null ? { durationMs } : {}),
@@ -407,8 +428,10 @@ export async function updateTogetherPost(input: {
   const mentions = existing.mentions.filter((mention) =>
     text.toLowerCase().includes(`@${mention.name.toLowerCase()}`),
   )
-  const keptPaths = new Set(media.map((m) => m.path))
-  const removedPaths = existing.media.map((m) => m.path).filter((p) => !keptPaths.has(p))
+  const keptPaths = new Set(media.flatMap((m) => feedMediaStoragePaths(m)))
+  const removedPaths = existing.media
+    .flatMap((m) => feedMediaStoragePaths(m))
+    .filter((p) => !keptPaths.has(p))
 
   const { data, error } = await supabase
     .from('together_posts')
@@ -492,17 +515,13 @@ export function filterFeedByAudience(
   return posts.filter((p) => p.audience === audience)
 }
 
+/** Sign thumb/poster URLs only — full files load on tap or play. */
 async function hydrateMediaUrls(posts: TogetherPost[]): Promise<TogetherPost[]> {
-  const supabase = getSupabase()
   const signOne = async (m: FeedMedia): Promise<FeedMedia> => {
     if (m.url) return m
     try {
-      const path = m.path.replace(/^together\//, '')
-      const { data, error } = await supabase.storage
-        .from('together')
-        .createSignedUrl(path, 60 * 60 * 24 * 7)
-      if (error || !data?.signedUrl) return m
-      return { ...m, url: data.signedUrl }
+      const url = await signFeedMediaTimeline(m)
+      return url ? { ...m, url } : m
     } catch {
       return m
     }
@@ -535,16 +554,19 @@ async function queryFeed(viewerUid: string, pageSize: number, beforeCreatedAt?: 
   return (data || []).map((d) => mapPost(d as PostRow))
 }
 
+const FEED_REFRESH_DEBOUNCE_MS = 1500
+
 export function subscribeTogetherFeed(
   viewerUid: string,
   onChange: (posts: RankedPost[]) => void,
   onError?: (err: Error) => void,
-  pageSize = 40,
+  pageSize = FEED_PAGE_SIZE,
 ): Unsubscribe {
   const supabase = getSupabase()
   let cancelled = false
+  let refreshTimer: ReturnType<typeof setTimeout> | null = null
 
-  const refresh = () => {
+  const runRefresh = () => {
     void queryFeed(viewerUid, pageSize)
       .then(async (raw) => {
         const hydrated = await hydrateMediaUrls(raw)
@@ -553,17 +575,26 @@ export function subscribeTogetherFeed(
       .catch((err) => onError?.(err instanceof Error ? err : new Error(String(err))))
   }
 
-  refresh()
+  const scheduleRefresh = () => {
+    if (refreshTimer) clearTimeout(refreshTimer)
+    refreshTimer = setTimeout(() => {
+      refreshTimer = null
+      runRefresh()
+    }, FEED_REFRESH_DEBOUNCE_MS)
+  }
+
+  runRefresh()
 
   const topic = `together_feed:${viewerUid}:${crypto.randomUUID?.() || String(Date.now())}`
   try {
     const channel = supabase
       .channel(topic)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'together_posts' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'together_posts' }, scheduleRefresh)
       .subscribe()
 
     return () => {
       cancelled = true
+      if (refreshTimer) clearTimeout(refreshTimer)
       void supabase.removeChannel(channel)
     }
   } catch (err) {
@@ -578,7 +609,7 @@ export function subscribeTogetherFeed(
 export async function loadOlderTogetherPosts(
   viewerUid: string,
   beforeCreatedAt: string,
-  pageSize = 30,
+  pageSize = FEED_PAGE_SIZE,
 ): Promise<RankedPost[]> {
   const raw = await queryFeed(viewerUid, pageSize, beforeCreatedAt)
   const hydrated = await hydrateMediaUrls(raw)
@@ -589,7 +620,7 @@ export async function loadOlderTogetherPosts(
 export async function listPostsByAuthor(
   viewerUid: string,
   authorId: string,
-  pageSize = 50,
+  pageSize = 20,
 ): Promise<RankedPost[]> {
   const { data, error } = await getSupabase()
     .from('together_posts')
