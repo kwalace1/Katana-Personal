@@ -1,5 +1,5 @@
-import type { ExternalCalendarEvent } from '../../src/lib/integrations/types'
-import { filterEventsInWindow, parseIcsEvents } from '../../src/lib/integrations/ics-parse'
+import type { ExternalCalendarEvent } from './shared/types'
+import { filterEventsInWindow, parseIcsEvents } from './shared/ics-parse'
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || ''
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || ''

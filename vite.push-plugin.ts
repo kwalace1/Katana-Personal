@@ -7,22 +7,27 @@ import {
 } from './api/push/push-core'
 import { handleBillingCheckoutRequest } from './api/billing/checkout-core'
 
-const PUSH_PATHS = new Map([
-  ['/api/push/send', handlePushSendRequest],
-  ['/api/push/schedule', handlePushScheduleRequest],
-  ['/api/push/cron', handlePushCronRequest],
-  ['/api/billing/checkout', handleBillingCheckoutRequest],
+const PUSH_API_PATHS = new Set([
+  '/api/push/send',
+  '/api/push/schedule',
+  '/api/push/cron',
 ])
 
-/** Local push API routes during `vite` dev. */
+/** Local push + billing API routes during `vite` dev. */
 export function pushDevPlugin(): Plugin {
   return {
     name: 'katana-push-dev',
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
         const path = req.url?.split('?')[0]
-        const handler = path ? PUSH_PATHS.get(path) : undefined
-        if (!handler) {
+        if (!path) {
+          next()
+          return
+        }
+
+        const isPush = PUSH_API_PATHS.has(path)
+        const isBilling = path === '/api/billing/checkout'
+        if (!isPush && !isBilling) {
           next()
           return
         }
@@ -56,14 +61,20 @@ export function pushDevPlugin(): Plugin {
             cronSecret: env.CRON_SECRET || '',
           }
 
-          const response =
-            path === '/api/billing/checkout'
-              ? await handleBillingCheckoutRequest(request, {
-                  stripeSecretKey: env.STRIPE_SECRET_KEY || '',
-                  stripePriceId: env.STRIPE_PRICE_ID || '',
-                  appUrl: 'http://localhost:3001',
-                })
-              : await handler(request, pushEnv)
+          let response: Response
+          if (isBilling) {
+            response = await handleBillingCheckoutRequest(request, {
+              stripeSecretKey: env.STRIPE_SECRET_KEY || '',
+              stripePriceId: env.STRIPE_PRICE_ID || '',
+              appUrl: 'http://localhost:3001',
+            })
+          } else if (path === '/api/push/send') {
+            response = await handlePushSendRequest(request, pushEnv)
+          } else if (path === '/api/push/schedule') {
+            response = await handlePushScheduleRequest(request, pushEnv)
+          } else {
+            response = await handlePushCronRequest(request, pushEnv)
+          }
 
           res.statusCode = response.status
           response.headers.forEach((value, key) => res.setHeader(key, value))

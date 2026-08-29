@@ -44,6 +44,8 @@ scripts/migrate-firebase-to-supabase/firebase-users.json
 # Typescript
 *.tsbuildinfo
 next-env.d.ts
+api/**/*.js
+api/**/*.d.ts
 
 # IDE
 .vscode/

@@ -1,4 +1,4 @@
-import { handleGoogleSyncRequest } from './google-oauth-core'
+import { handleGoogleSyncRequest } from '../google-oauth-core'
 
 export const config = { runtime: 'edge' }
 

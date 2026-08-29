@@ -1,4 +1,4 @@
-import { handleGoogleOAuthRequest } from './google-oauth-core'
+import { handleGoogleOAuthRequest } from '../google-oauth-core'
 
 export const config = { runtime: 'edge' }
 

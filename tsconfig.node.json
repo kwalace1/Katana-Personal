@@ -6,7 +6,14 @@
     "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true
   },
-  "include": ["vite.config.ts", "vite.gemini-plugin.ts", "api/**/*.ts"]
+  "include": [
+    "vite.config.ts",
+    "vite.gemini-plugin.ts",
+    "vite.food-plugin.ts",
+    "vite.integrations-plugin.ts",
+    "vite.push-plugin.ts",
+    "api/**/*.ts"
+  ]
 }
 
 
