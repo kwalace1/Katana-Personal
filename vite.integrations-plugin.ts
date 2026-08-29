@@ -5,11 +5,21 @@ import {
   handleGoogleSyncRequest,
   handleIcsFetchRequest,
 } from './api/integrations/google-oauth-core'
+import {
+  handleFitbitOAuthRequest,
+  handleFitbitSyncRequest,
+  handleStravaOAuthRequest,
+  handleStravaSyncRequest,
+} from './api/integrations/health-oauth-core'
 
 const INTEGRATION_PATHS = new Set([
   '/api/integrations/google',
   '/api/integrations/google/sync',
   '/api/integrations/ics',
+  '/api/integrations/fitbit',
+  '/api/integrations/fitbit/sync',
+  '/api/integrations/strava',
+  '/api/integrations/strava/sync',
 ])
 
 /** Local integration API routes during `vite` dev. */
@@ -28,6 +38,12 @@ export function integrationsDevPlugin(): Plugin {
         const googleEnv = {
           clientId: env.GOOGLE_CLIENT_ID || env.VITE_GOOGLE_CLIENT_ID || '',
           clientSecret: env.GOOGLE_CLIENT_SECRET || '',
+        }
+        const healthEnv = {
+          fitbitClientId: env.FITBIT_CLIENT_ID || env.VITE_FITBIT_CLIENT_ID || '',
+          fitbitClientSecret: env.FITBIT_CLIENT_SECRET || '',
+          stravaClientId: env.STRAVA_CLIENT_ID || env.VITE_STRAVA_CLIENT_ID || '',
+          stravaClientSecret: env.STRAVA_CLIENT_SECRET || '',
         }
 
         try {
@@ -48,12 +64,22 @@ export function integrationsDevPlugin(): Plugin {
             body: req.method === 'GET' || req.method === 'HEAD' ? undefined : body,
           })
 
-          const response =
-            path === '/api/integrations/google/sync'
-              ? await handleGoogleSyncRequest(request, googleEnv)
-              : path === '/api/integrations/ics'
-                ? await handleIcsFetchRequest(request)
-                : await handleGoogleOAuthRequest(request, googleEnv)
+          let response: Response
+          if (path === '/api/integrations/google/sync') {
+            response = await handleGoogleSyncRequest(request, googleEnv)
+          } else if (path === '/api/integrations/ics') {
+            response = await handleIcsFetchRequest(request)
+          } else if (path === '/api/integrations/fitbit/sync') {
+            response = await handleFitbitSyncRequest(request, healthEnv)
+          } else if (path === '/api/integrations/fitbit') {
+            response = await handleFitbitOAuthRequest(request, healthEnv)
+          } else if (path === '/api/integrations/strava/sync') {
+            response = await handleStravaSyncRequest(request, healthEnv)
+          } else if (path === '/api/integrations/strava') {
+            response = await handleStravaOAuthRequest(request, healthEnv)
+          } else {
+            response = await handleGoogleOAuthRequest(request, googleEnv)
+          }
 
           res.statusCode = response.status
           response.headers.forEach((value, key) => res.setHeader(key, value))

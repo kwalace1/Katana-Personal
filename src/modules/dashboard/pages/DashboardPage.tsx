@@ -491,11 +491,48 @@ export default function DashboardPage() {
                             <ArrowRight className="h-4 w-4" />
                           </Button>
                         ) : null}
-                        <Button asChild variant={data.next.habitId ? 'outline' : 'default'} className="gap-2">
+                        {data.next.actions
+                          .filter((a) => a.kind === 'schedule_workout')
+                          .map((action) => (
+                            <Button
+                              key={action.id}
+                              className="gap-2"
+                              variant={data.next!.habitId ? 'outline' : 'default'}
+                              onClick={() => {
+                                const result = runAskAction(userId, action)
+                                if (result) {
+                                  toast.success(result)
+                                  refresh()
+                                }
+                              }}
+                            >
+                              {action.label}
+                              <ArrowRight className="h-4 w-4" />
+                            </Button>
+                          ))}
+                        <Button asChild variant="outline" className="gap-2">
                           <Link to="/health">
                             Log workout
                             <ArrowRight className="h-4 w-4" />
                           </Link>
+                        </Button>
+                      </>
+                    ) : null}
+                    {data.next.kind === 'recovery' ? (
+                      <>
+                        <Button asChild className="gap-2">
+                          <Link
+                            to="/health"
+                            onClick={() => {
+                              logCompleted('recovery')
+                            }}
+                          >
+                            Log sleep
+                            <ArrowRight className="h-4 w-4" />
+                          </Link>
+                        </Button>
+                        <Button asChild variant="outline" className="gap-2">
+                          <Link to="/journal">Open journal</Link>
                         </Button>
                       </>
                     ) : null}

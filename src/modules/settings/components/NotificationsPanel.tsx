@@ -19,9 +19,15 @@ type Props = {
   preferences?: Record<string, unknown> | null
   cloudSignedIn: boolean
   onUpdatePreferences: (patch: Record<string, unknown>) => void
+  enablePushNotifications?: () => Promise<boolean>
 }
 
-export function NotificationsPanel({ preferences, cloudSignedIn, onUpdatePreferences }: Props) {
+export function NotificationsPanel({
+  preferences,
+  cloudSignedIn,
+  onUpdatePreferences,
+  enablePushNotifications,
+}: Props) {
   const [plusWallOpen, setPlusWallOpen] = useState(false)
   const gentle = remindersEnabled(preferences)
   const orchPush = orchestrationPushEnabled(preferences)
@@ -53,6 +59,13 @@ export function NotificationsPanel({ preferences, cloudSignedIn, onUpdatePrefere
       if (!ok) {
         toast.message('Allow notifications first')
         return
+      }
+      if (cloudSignedIn && enablePushNotifications) {
+        try {
+          await enablePushNotifications()
+        } catch {
+          // Local reminders still work; server push needs subscription.
+        }
       }
     }
     onUpdatePreferences({ orchestration_push: next })

@@ -17,6 +17,9 @@ import type { Habit } from '@/modules/habits/types'
 import type { Goal } from '@/modules/goals/types'
 import type { AskAction } from './ask-api'
 import { tryOrchestrationIntent } from './engine-orchestration'
+import { goalsBehindPace, goalPaceStatus } from '@/lib/orchestration/goal-pace'
+import { pickWorkoutSlot } from '@/lib/orchestration/schedule-workout'
+import { resolveWorkoutPlan } from '@/lib/orchestration/workout-plan'
 import { flavorBriefingText, type AskPersonality } from './personality'
 
 export interface LifeSnapshot {
@@ -56,7 +59,7 @@ export function buildSnapshot(userId: string, displayName = 'there'): LifeSnapsh
   const openTasks = tasksApi.listTasks(userId).filter((t) => t.status !== 'done')
   const habitsDue = habitsApi.dueToday(userId)
   const activeGoals = goalsApi.active(userId, 20)
-  const behindGoals = activeGoals.filter((g) => g.progress / Math.max(g.target, 1) < 0.4)
+  const behindGoals = goalsBehindPace(activeGoals, today)
   const journal = journalApi.forDate(userId, todayKey())
   const weekStart = todayKey(addDays(today, -7))
   const recentJournal = journalApi
@@ -1040,6 +1043,42 @@ export function runAskAction(userId: string, action: AskAction): string {
       reminder_minutes: 30,
     })
     return `Scheduled “${action.title}”.`
+  }
+  if (action.kind === 'schedule_workout') {
+    const habits = habitsApi.list(userId)
+    const snap = buildSnapshot(userId)
+    const plan = resolveWorkoutPlan(snap, habits)
+    const label = action.title || plan.label || 'Workout'
+    const moveTomorrow =
+      action.body === 'tomorrow' ||
+      (typeof action.dueAt === 'string' && action.dueAt.includes('tomorrow'))
+    const slot = pickWorkoutSlot(snap.todayEvents, label, new Date(), {
+      preferTomorrowMorning: moveTomorrow,
+    })
+    calendarApi.create(userId, {
+      title: slot.label,
+      notes: 'Scheduled from Ask — movement block',
+      starts_at: action.startsAt || slot.startsAt,
+      ends_at: action.endsAt || slot.endsAt,
+      all_day: false,
+      location: '',
+      recurrence: 'none',
+      reminder_minutes: 15,
+    })
+    return moveTomorrow
+      ? `Moved workout to tomorrow morning — blocked on your calendar.`
+      : `Scheduled “${slot.label}” on your calendar.`
+  }
+  if (action.kind === 'adjust_goal' && action.goalId) {
+    const goal = goalsApi.get(userId, action.goalId)
+    if (!goal) return 'Goal not found.'
+    const pace = goalPaceStatus(goal)
+    const bump = Math.max(5, Math.round(goal.target * 0.05))
+    const next = Math.min(goal.target, goal.progress + bump)
+    goalsApi.update(userId, goal.id, { progress: next })
+    return pace.behind
+      ? `Caught up on “${goal.title}” (+${bump} progress). Keep one small step each week.`
+      : `Updated “${goal.title}” progress.`
   }
   if (action.kind === 'park_tasks') {
     const tomorrow = addDays(new Date(), 1)

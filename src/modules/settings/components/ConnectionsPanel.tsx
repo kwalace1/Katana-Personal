@@ -1,5 +1,5 @@
 import { FormEvent, useMemo, useState } from 'react'
-import { Calendar, Link2, RefreshCw, Unplug } from 'lucide-react'
+import { Activity, Calendar, HeartPulse, Link2, RefreshCw, Unplug } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -14,6 +14,14 @@ import {
   syncGoogleCalendar,
 } from '@/lib/integrations/google-calendar'
 import { connectAndSyncIcsCalendar, syncIcsCalendar } from '@/lib/integrations/ics-calendar'
+import {
+  connectAndSyncFitbit,
+  connectAndSyncStrava,
+  fitbitConfigured,
+  stravaConfigured,
+  syncFitbit,
+  syncStrava,
+} from '@/lib/integrations/health-providers'
 import {
   disconnectProvider,
   listConnections,
@@ -43,15 +51,17 @@ export function ConnectionsPanel({ userId, tick = 0 }: Props) {
   const [icsUrl, setIcsUrl] = useState('')
   const [plusWallOpen, setPlusWallOpen] = useState(false)
   const googleReady = googleCalendarConfigured()
+  const fitbitReady = fitbitConfigured()
+  const stravaReady = stravaConfigured()
 
   const connections = useMemo(() => listConnections(userId), [userId, tick, busy])
 
-  async function run(label: string, fn: () => Promise<number>) {
+  async function run(label: string, fn: () => Promise<number>, unit = 'events') {
     setBusy(label)
     try {
       const count = await fn()
       broadcastLocalRefresh()
-      toast.success(count > 0 ? `Synced ${count} events` : 'Calendar is up to date')
+      toast.success(count > 0 ? `Synced ${count} ${unit}` : 'Up to date')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Sync failed')
     } finally {
@@ -78,10 +88,28 @@ export function ConnectionsPanel({ userId, tick = 0 }: Props) {
     setIcsUrl('')
   }
 
+  async function onConnectFitbit() {
+    if (!canUsePlusFeature('integrations')) {
+      setPlusWallOpen(true)
+      return
+    }
+    await run('fitbit-connect', () => connectAndSyncFitbit(userId), 'records')
+  }
+
+  async function onConnectStrava() {
+    if (!canUsePlusFeature('integrations')) {
+      setPlusWallOpen(true)
+      return
+    }
+    await run('strava-connect', () => connectAndSyncStrava(userId), 'records')
+  }
+
   function onDisconnect(conn: IntegrationConnection) {
     if (conn.provider === 'google_calendar') {
       removeImportedBySource(userId, 'google')
       disconnectProvider(userId, 'google_calendar')
+    } else if (conn.provider === 'fitbit' || conn.provider === 'strava') {
+      disconnectProvider(userId, conn.provider)
     } else {
       removeImportedBySource(userId, 'ics')
       removeConnection(userId, conn.id)
@@ -178,6 +206,78 @@ export function ConnectionsPanel({ userId, tick = 0 }: Props) {
             />
           ))}
       </form>
+
+      <div className="kp-surface space-y-3 p-4">
+        <div className="flex items-start gap-3">
+          <HeartPulse className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+          <div className="min-w-0 flex-1">
+            <h3 className="font-display text-lg tracking-tight">Fitbit</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Read sleep and activity into Health — powers recovery-aware Today and Ask. Plus feature.
+            </p>
+            {!fitbitReady ? (
+              <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
+                Not configured — add <code className="text-xs">FITBIT_CLIENT_ID</code> + secret, redeploy.
+              </p>
+            ) : null}
+          </div>
+        </div>
+
+        {connections
+          .filter((c) => c.provider === 'fitbit')
+          .map((conn) => (
+            <ConnectionRow
+              key={conn.id}
+              conn={conn}
+              detail="Sleep + activity on device"
+              busy={busy}
+              onSync={() => run(`sync-${conn.id}`, () => syncFitbit(userId))}
+              onDisconnect={() => onDisconnect(conn)}
+            />
+          ))}
+
+        {!connections.some((c) => c.provider === 'fitbit') ? (
+          <Button type="button" disabled={!fitbitReady || busy != null} onClick={() => void onConnectFitbit()}>
+            {busy === 'fitbit-connect' ? 'Connecting…' : 'Connect Fitbit'}
+          </Button>
+        ) : null}
+      </div>
+
+      <div className="kp-surface space-y-3 p-4">
+        <div className="flex items-start gap-3">
+          <Activity className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+          <div className="min-w-0 flex-1">
+            <h3 className="font-display text-lg tracking-tight">Strava</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Import recent runs and rides into workouts — read-only. Plus feature.
+            </p>
+            {!stravaReady ? (
+              <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
+                Not configured — add <code className="text-xs">STRAVA_CLIENT_ID</code> + secret, redeploy.
+              </p>
+            ) : null}
+          </div>
+        </div>
+
+        {connections
+          .filter((c) => c.provider === 'strava')
+          .map((conn) => (
+            <ConnectionRow
+              key={conn.id}
+              conn={conn}
+              detail="Activities on device"
+              busy={busy}
+              onSync={() => run(`sync-${conn.id}`, () => syncStrava(userId))}
+              onDisconnect={() => onDisconnect(conn)}
+            />
+          ))}
+
+        {!connections.some((c) => c.provider === 'strava') ? (
+          <Button type="button" disabled={!stravaReady || busy != null} onClick={() => void onConnectStrava()}>
+            {busy === 'strava-connect' ? 'Connecting…' : 'Connect Strava'}
+          </Button>
+        ) : null}
+      </div>
 
       <PlusPaywallSheet open={plusWallOpen} onOpenChange={setPlusWallOpen} feature="integrations" />
     </div>

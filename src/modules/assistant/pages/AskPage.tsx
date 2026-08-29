@@ -25,7 +25,7 @@ import {
 } from '../engine'
 import { resolveAskAgent, historyToAskMessages } from '../llm'
 import { askApi, type AskAction, type AskMessage } from '../ask-api'
-import { logFeedback, computeWeights } from '@/lib/orchestration/feedback'
+import { logFeedback, computeWeights, askActionFeedbackKind } from '@/lib/orchestration/feedback'
 import { createId } from '@/lib/id'
 import { toast } from 'sonner'
 import {
@@ -231,14 +231,20 @@ export default function AskPage() {
       toast.success(result)
       askApi.consumeAction(userId, message.id, action.id)
       setSpent((s) => ({ ...s, [key]: true }))
-      logFeedback(userId, 'ask_action_taken', 'ask', () => {
-        updatePreferences({
-          orchestration_weights: {
-            ...computeWeights(userId),
-            updated_at: new Date().toISOString(),
-          },
-        })
-      })
+      logFeedback(
+        userId,
+        'ask_action_taken',
+        'ask',
+        () => {
+          updatePreferences({
+            orchestration_weights: {
+              ...computeWeights(userId),
+              updated_at: new Date().toISOString(),
+            },
+          })
+        },
+        { actionKind: askActionFeedbackKind(action), hour: new Date().getHours() },
+      )
 
       if (action.kind === 'complete_task' || action.kind === 'toggle_habit') {
         burstConfetti()

@@ -1,5 +1,5 @@
 import { createId } from '@/lib/id'
-import type { GoogleCalendarTokens, IntegrationConnection, IntegrationProvider } from './types'
+import type { GoogleCalendarTokens, IntegrationConnection, IntegrationProvider, OAuthTokens } from './types'
 
 const KEY_PREFIX = 'katana-personal:integrations'
 
@@ -102,4 +102,24 @@ export function disconnectProvider(userId: string, provider: IntegrationProvider
     userId,
     listConnections(userId).filter((c) => c.provider !== provider),
   )
+}
+
+export function connectOAuthProvider(
+  userId: string,
+  provider: Extract<IntegrationProvider, 'fitbit' | 'strava'>,
+  tokens: OAuthTokens,
+  label: string,
+): IntegrationConnection {
+  const existing = getConnectionByProvider(userId, provider)
+  const connection: IntegrationConnection = {
+    id: existing?.id ?? createId(),
+    provider,
+    label,
+    status: 'connected',
+    lastSyncAt: existing?.lastSyncAt ?? null,
+    lastError: null,
+    config: { oauthTokens: tokens },
+  }
+  upsertConnection(userId, connection)
+  return connection
 }

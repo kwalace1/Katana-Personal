@@ -10,7 +10,11 @@ import { eventStartingWithin, findCalendarGap } from './calendar-gaps'
 import { shouldDeprioritize, type PreferenceWeights, DEFAULT_WEIGHTS } from './feedback'
 import { isWorkoutBehind, resolveWorkoutPlan, type WorkoutPlan } from './workout-plan'
 
-export type NextStepKind = 'task' | 'event' | 'habit' | 'workout' | 'goal' | 'wind_down'
+import { goalPaceStatus } from './goal-pace'
+import { recoveryReason, type SleepSignals } from './sleep-signals'
+import { pickWorkoutSlot, scheduleWorkoutAction, WORKOUT_BLOCK_MIN } from './schedule-workout'
+
+export type NextStepKind = 'task' | 'event' | 'habit' | 'workout' | 'goal' | 'wind_down' | 'recovery'
 
 export interface NextStep {
   kind: NextStepKind
@@ -37,9 +41,10 @@ export interface PickNextStepInput {
   dayClosed?: boolean
   now?: Date
   preferenceWeights?: PreferenceWeights
+  sleep?: SleepSignals
 }
 
-const WORKOUT_ESTIMATE_MIN = 55
+const WORKOUT_ESTIMATE_MIN = WORKOUT_BLOCK_MIN
 const MIN_GAP_FOR_WORKOUT = 45
 
 function taskActions(task: Task): AskAction[] {
@@ -76,8 +81,10 @@ function habitActions(habit: Habit): AskAction[] {
   ]
 }
 
-function workoutActions(plan: WorkoutPlan): AskAction[] {
+function workoutActions(plan: WorkoutPlan, events: CalendarEvent[], now: Date): AskAction[] {
+  const slot = pickWorkoutSlot(events, plan.label, now)
   const actions: AskAction[] = [
+    scheduleWorkoutAction(slot, `Schedule “${plan.label}”`),
     { id: createId(), label: 'Log a workout', kind: 'open_route', route: '/health' },
   ]
   if (plan.habitId) {
@@ -91,8 +98,9 @@ function workoutActions(plan: WorkoutPlan): AskAction[] {
   return actions
 }
 
-function goalActions(goal: Goal): AskAction[] {
-  return [
+function goalActions(goal: Goal, now: Date): AskAction[] {
+  const pace = goalPaceStatus(goal, now)
+  const actions: AskAction[] = [
     {
       id: createId(),
       label: `Open “${goal.title}”`,
@@ -100,6 +108,16 @@ function goalActions(goal: Goal): AskAction[] {
       route: `/goals?id=${goal.id}`,
     },
   ]
+  if (pace.behind) {
+    actions.unshift({
+      id: createId(),
+      label: 'Catch-up check-in',
+      kind: 'adjust_goal',
+      goalId: goal.id,
+      title: goal.title,
+    })
+  }
+  return actions
 }
 
 function buildWorkoutReason(plan: WorkoutPlan, gapMinutes: number, nextEvent: CalendarEvent | null): string {
@@ -133,7 +151,7 @@ function pickBehindGoal(snap: LifeSnapshot, now: Date): Goal | null {
 export function pickNextStep(input: PickNextStepInput): NextStep | null {
   const now = input.now ?? new Date()
   const hour = now.getHours()
-  const { snap, overdue, openHabits, atRiskHabits, workoutPlan, workedOutToday, dayClosed } = input
+  const { snap, overdue, openHabits, atRiskHabits, workoutPlan, workedOutToday, dayClosed, sleep } = input
   const weights = input.preferenceWeights ?? DEFAULT_WEIGHTS
   const gap = findCalendarGap(snap.todayEvents, now)
 
@@ -162,7 +180,27 @@ export function pickNextStep(input: PickNextStepInput): NextStep | null {
   }
 
   if (
+    sleep?.veryShortSleep &&
+    hour < 14 &&
+    !workedOutToday &&
+    !shouldDeprioritize('recovery', weights, { soft: true })
+  ) {
+    return {
+      kind: 'recovery',
+      title: 'Recovery first',
+      reason: recoveryReason(sleep),
+      meta: 'Sleep · Take it easier',
+      actions: [
+        { id: createId(), label: 'Log sleep', kind: 'open_route', route: '/health' },
+        { id: createId(), label: 'Open journal', kind: 'open_route', route: '/journal' },
+      ],
+    }
+  }
+
+  const workoutSleepOk = !sleep?.veryShortSleep && !(sleep?.shortSleep && hour < 11)
+  if (
     workoutPlan.enabled &&
+    workoutSleepOk &&
     !workedOutToday &&
     isWorkoutBehind(workoutPlan, now) &&
     gap.minutes >= MIN_GAP_FOR_WORKOUT &&
@@ -171,10 +209,12 @@ export function pickNextStep(input: PickNextStepInput): NextStep | null {
     return {
       kind: 'workout',
       title: workoutPlan.label,
-      reason: buildWorkoutReason(workoutPlan, gap.minutes, gap.nextEvent),
+      reason: sleep?.shortSleep
+        ? `${buildWorkoutReason(workoutPlan, gap.minutes, gap.nextEvent)} Sleep was light (${sleep.lastNightHours}h) — consider a shorter session.`
+        : buildWorkoutReason(workoutPlan, gap.minutes, gap.nextEvent),
       meta: 'Movement · On pace for the week',
       estimatedMinutes: WORKOUT_ESTIMATE_MIN,
-      actions: workoutActions(workoutPlan),
+      actions: workoutActions(workoutPlan, snap.todayEvents, now),
       habitId: workoutPlan.habitId,
     }
   }
@@ -208,16 +248,19 @@ export function pickNextStep(input: PickNextStepInput): NextStep | null {
 
   const behindGoal = pickBehindGoal(snap, now)
   if (behindGoal && !shouldDeprioritize('goal', weights, { soft: true })) {
-    const pct = Math.round((behindGoal.progress / Math.max(behindGoal.target, 1)) * 100)
+    const pace = goalPaceStatus(behindGoal, now)
     const dateBit = behindGoal.target_date
       ? ` Target: ${formatShortDate(behindGoal.target_date)}.`
       : ''
+    const paceBit = pace.behind
+      ? ` Expected ~${Math.round(pace.expectedPct)}% by now — you’re at ${Math.round(pace.actualPct)}%.`
+      : ` You're at ${Math.round(pace.actualPct)}%.`
     return {
       kind: 'goal',
       title: behindGoal.title,
-      reason: `You're at ${pct}% — a small step today keeps this goal reachable.${dateBit}`,
-      meta: 'Goal · Needs attention',
-      actions: goalActions(behindGoal),
+      reason: `${paceBit} One small step today keeps this goal reachable.${dateBit}`,
+      meta: pace.behind ? 'Goal · Behind pace' : 'Goal · Needs attention',
+      actions: goalActions(behindGoal, now),
       goalId: behindGoal.id,
     }
   }

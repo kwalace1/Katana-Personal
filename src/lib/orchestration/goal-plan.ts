@@ -4,6 +4,7 @@ import type { LifeSnapshot } from '@/modules/assistant/engine'
 import type { AskAction } from '@/modules/assistant/ask-api'
 import type { AskReply } from '@/modules/assistant/engine'
 import { habitsApi } from '@/modules/habits/api'
+import { goalPaceStatus } from './goal-pace'
 import { isWorkoutHabit } from './workout-plan'
 
 export interface ParsedGoalIntent {
@@ -122,7 +123,15 @@ export function buildGoalPlanReply(userId: string, snap: LifeSnapshot, q: string
 
   const lines: string[] = []
   if (existing) {
-    lines.push(`You already have “${existing.title}.” I'll keep nudging you on pace${dateLine || '.'}`)
+    const pace = goalPaceStatus(existing)
+    if (pace.behind) {
+      lines.push(
+        `“${existing.title}” is behind pace (${Math.round(pace.actualPct)}% vs ~${Math.round(pace.expectedPct)}% expected). I'll adjust the plan${dateLine || '.'}`,
+      )
+      lines.push('One catch-up step this week — schedule movement and log an honest check-in.')
+    } else {
+      lines.push(`You already have “${existing.title}.” I'll keep nudging you on pace${dateLine || '.'}`)
+    }
   } else {
     lines.push(`Here's a plan around your actual life for “${intent.title}”${dateLine}:`)
     if (intent.category === 'fitness') {
@@ -141,6 +150,14 @@ export function buildGoalPlanReply(userId: string, snap: LifeSnapshot, q: string
       kind: 'create_goal',
       title: intent.title,
       dueAt: intent.targetDate,
+    })
+  } else if (goalPaceStatus(existing).behind) {
+    actions.push({
+      id: createId(),
+      label: 'Catch-up check-in',
+      kind: 'adjust_goal',
+      goalId: existing.id,
+      title: existing.title,
     })
   }
 

@@ -1,15 +1,27 @@
 import type { NextStepKind } from './next-step'
 
+import type { AskAction } from '@/modules/assistant/ask-api'
+
 export type FeedbackEventType =
   | 'next_step_shown'
   | 'next_step_completed'
   | 'next_step_dismissed'
   | 'ask_action_taken'
 
+export type AskActionKind =
+  | 'schedule_workout'
+  | 'adjust_goal'
+  | 'create_event'
+  | 'toggle_habit'
+  | 'complete_task'
+  | 'other'
+
 export interface FeedbackEvent {
   id: string
   type: FeedbackEventType
   kind: NextStepKind | 'ask'
+  actionKind?: AskActionKind
+  hour?: number
   at: string
 }
 
@@ -19,6 +31,7 @@ export interface PreferenceWeights {
   habit: number
   workout: number
   goal: number
+  recovery: number
 }
 
 const KEY_PREFIX = 'katana-personal:orchestration-feedback'
@@ -31,6 +44,7 @@ export const DEFAULT_WEIGHTS: PreferenceWeights = {
   habit: 1,
   workout: 1,
   goal: 1,
+  recovery: 1,
 }
 
 function storageKey(userId: string) {
@@ -54,17 +68,29 @@ function writeEvents(userId: string, events: FeedbackEvent[]) {
 
 let rollupTimer: ReturnType<typeof setTimeout> | null = null
 
+export function askActionFeedbackKind(action: AskAction): AskActionKind {
+  if (action.kind === 'schedule_workout') return 'schedule_workout'
+  if (action.kind === 'adjust_goal') return 'adjust_goal'
+  if (action.kind === 'create_event') return 'create_event'
+  if (action.kind === 'toggle_habit') return 'toggle_habit'
+  if (action.kind === 'complete_task') return 'complete_task'
+  return 'other'
+}
+
 export function logFeedback(
   userId: string,
   type: FeedbackEventType,
   kind: FeedbackEvent['kind'],
   onRollUp?: (weights: PreferenceWeights) => void,
+  meta?: { actionKind?: AskActionKind; hour?: number },
 ) {
   const events = readEvents(userId)
   events.push({
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     type,
     kind,
+    actionKind: meta?.actionKind,
+    hour: meta?.hour ?? new Date().getHours(),
     at: new Date().toISOString(),
   })
   writeEvents(userId, events)
@@ -84,7 +110,7 @@ export function recentEvents(userId: string, days = ROLLUP_DAYS): FeedbackEvent[
 
 export function computeWeights(userId: string): PreferenceWeights {
   const events = recentEvents(userId)
-  const kinds = ['task', 'event', 'habit', 'workout', 'goal'] as const
+  const kinds = ['task', 'event', 'habit', 'workout', 'goal', 'recovery'] as const
   const shown: Record<string, number> = {}
   const completed: Record<string, number> = {}
   const dismissed: Record<string, number> = {}
@@ -133,7 +159,32 @@ export function parsePreferenceWeights(preferences?: Record<string, unknown>): P
     habit: num('habit'),
     workout: num('workout'),
     goal: num('goal'),
+    recovery: num('recovery'),
   }
+}
+
+export function preferredWorkoutHour(userId: string): number | null {
+  const events = recentEvents(userId).filter(
+    (e) =>
+      e.type === 'ask_action_taken' &&
+      e.actionKind === 'schedule_workout' &&
+      typeof e.hour === 'number',
+  )
+  if (events.length < 2) return null
+  const counts = new Map<number, number>()
+  for (const e of events) {
+    const h = e.hour!
+    counts.set(h, (counts.get(h) ?? 0) + 1)
+  }
+  let best: number | null = null
+  let bestCount = 0
+  for (const [h, c] of counts) {
+    if (c > bestCount) {
+      best = h
+      bestCount = c
+    }
+  }
+  return best
 }
 
 export function shouldDeprioritize(

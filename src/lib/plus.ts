@@ -45,7 +45,7 @@ export const PLUS_FEATURE_MATRIX: PlusTierRow[] = [
     feature: 'integrations',
     label: 'Advanced integrations',
     free: 'Apple Calendar (.ics URL)',
-    plus: 'Google Calendar + Fitbit (when live)',
+    plus: 'Google Calendar · Fitbit · Strava',
   },
   {
     feature: 'orchestration_push',
@@ -144,7 +144,7 @@ export function plusFeatureBlurb(feature: PlusFeature): { title: string; body: s
   if (feature === 'integrations') {
     return {
       title: 'Accountability pack · integrations',
-      body: 'Subscribe calendars with .ics for free. Plus adds Google Calendar and future Fitbit sync.',
+      body: 'Subscribe calendars with .ics for free. Plus adds Google Calendar, Fitbit sleep/activity, and Strava workouts.',
     }
   }
   if (feature === 'orchestration_push') {

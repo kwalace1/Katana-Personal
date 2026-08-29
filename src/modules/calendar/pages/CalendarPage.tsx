@@ -53,6 +53,7 @@ import {
   type AgendaItem,
 } from '../agenda'
 import { CalendarGrid, DayWeekStrip, dayTaskCount } from '../components/CalendarGrid'
+import { IntegrationStatusStrip } from '@/modules/settings/components/IntegrationStatusStrip'
 
 type View = 'day' | 'week' | 'month'
 type AddKind = 'event' | 'task' | 'goal'
@@ -789,6 +790,8 @@ export default function CalendarPage() {
             </aside>
           ) : null}
         </div>
+
+      <IntegrationStatusStrip userId={userId} tick={tick} />
 
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent>

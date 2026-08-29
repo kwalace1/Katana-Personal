@@ -1,6 +1,7 @@
 import { listConnections } from './store'
 import { syncGoogleCalendar } from './google-calendar'
 import { syncIcsCalendar } from './ics-calendar'
+import { syncFitbit, syncStrava } from './health-providers'
 
 const STALE_MS = 15 * 60_000
 
@@ -18,6 +19,10 @@ export async function syncIntegrationsIfStale(userId: string): Promise<{ synced:
         synced += await syncGoogleCalendar(userId)
       } else if (conn.provider === 'ics_calendar') {
         synced += await syncIcsCalendar(userId, conn.id)
+      } else if (conn.provider === 'fitbit') {
+        synced += await syncFitbit(userId)
+      } else if (conn.provider === 'strava') {
+        synced += await syncStrava(userId)
       }
     } catch (err) {
       errors.push(err instanceof Error ? err.message : 'Sync failed')
@@ -39,6 +44,10 @@ export async function syncAllIntegrations(userId: string): Promise<{ synced: num
         synced += await syncGoogleCalendar(userId)
       } else if (conn.provider === 'ics_calendar') {
         synced += await syncIcsCalendar(userId, conn.id)
+      } else if (conn.provider === 'fitbit') {
+        synced += await syncFitbit(userId)
+      } else if (conn.provider === 'strava') {
+        synced += await syncStrava(userId)
       }
     } catch (err) {
       errors.push(err instanceof Error ? err.message : 'Sync failed')

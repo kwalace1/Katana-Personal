@@ -5,6 +5,7 @@ import { healthApi } from '@/modules/health/api'
 import { liftApi } from '@/modules/health/lift-api'
 import { tasksApi } from '@/modules/tasks/api'
 import { parsePreferenceWeights } from './feedback'
+import { readSleepSignals } from './sleep-signals'
 import { pickNextStep, resolveWorkoutPlan, type PickNextStepInput } from './next-step'
 
 export function buildPickNextStepInput(
@@ -34,6 +35,7 @@ export function buildPickNextStepInput(
     dayClosed: options?.dayClosed,
     now: options?.now,
     preferenceWeights: parsePreferenceWeights(options?.preferences),
+    sleep: readSleepSignals(userId, options?.now),
   }
 }
 

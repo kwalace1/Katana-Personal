@@ -396,7 +396,7 @@ export default function SettingsPage() {
           <div className="rounded-2xl border border-primary/25 bg-primary/[0.06] px-4 py-3">
             <p className="text-sm font-medium text-primary">Accountability pack is on</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Deeper Ask · Google Calendar · orchestration push · challenges · meal AI.
+              Deeper Ask · Google Calendar · Fitbit · Strava · orchestration push · challenges · meal AI.
             </p>
             <Button
               type="button"
@@ -746,6 +746,7 @@ export default function SettingsPage() {
         preferences={profile?.preferences}
         cloudSignedIn={Boolean(cloudUser)}
         onUpdatePreferences={updatePreferences}
+        enablePushNotifications={enablePushNotifications}
       />
 
       <section className="kp-surface mb-4 space-y-3 p-5">

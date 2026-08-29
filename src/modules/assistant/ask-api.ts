@@ -20,8 +20,11 @@ export interface AskAction {
     | 'close_day'
     | 'create_goal'
     | 'create_habit'
+    | 'schedule_workout'
+    | 'adjust_goal'
   taskId?: string
   habitId?: string
+  goalId?: string
   route?: string
   title?: string
   dueAt?: string | null

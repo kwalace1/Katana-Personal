@@ -1,12 +1,14 @@
-export type IntegrationProvider = 'google_calendar' | 'ics_calendar'
+export type IntegrationProvider = 'google_calendar' | 'ics_calendar' | 'fitbit' | 'strava'
 
 export type IntegrationStatus = 'connected' | 'error' | 'disconnected'
 
-export interface GoogleCalendarTokens {
+export interface OAuthTokens {
   access_token: string
   refresh_token: string
   expiry_date: number
 }
+
+export type GoogleCalendarTokens = OAuthTokens
 
 export interface IntegrationConnection {
   id: string
@@ -19,6 +21,7 @@ export interface IntegrationConnection {
     calendarId?: string
     icsUrl?: string
     googleTokens?: GoogleCalendarTokens
+    oauthTokens?: OAuthTokens
   }
 }
 

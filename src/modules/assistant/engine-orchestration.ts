@@ -1,9 +1,12 @@
 import { formatShortDate, formatTime } from '@/lib/dates'
 import { createId } from '@/lib/id'
 import { buildGoalPlanReply, isGoalPlanQuestion } from '@/lib/orchestration/goal-plan'
+import { buildGoalAdjustmentReply, goalPaceStatus } from '@/lib/orchestration/goal-pace'
 import { findCalendarGap } from '@/lib/orchestration/calendar-gaps'
 import { buildPickNextStepInput } from '@/lib/orchestration/build-input'
 import { pickNextStep, resolveWorkoutPlan, isWorkoutBehind } from '@/lib/orchestration/next-step'
+import { pickWorkoutSlot, scheduleWorkoutAction } from '@/lib/orchestration/schedule-workout'
+import { readSleepSignals } from '@/lib/orchestration/sleep-signals'
 import type { LifeSnapshot } from './engine'
 import type { AskReply } from './engine'
 import type { AskAction } from './ask-api'
@@ -95,7 +98,8 @@ export function answerWorkoutOrchestrated(
   const habits = habitsApi.list(userId)
   const plan = resolveWorkoutPlan(snap, habits, preferences)
   const gap = findCalendarGap(snap.todayEvents)
-  const moveIntent = q.includes('move') || q.includes('reschedule') || q.includes('shift')
+  const sleep = readSleepSignals(userId)
+  const moveIntent = q.includes('move') || q.includes('reschedule') || q.includes('shift') || q.includes('tomorrow')
 
   if (!plan.enabled) {
     return {
@@ -125,11 +129,23 @@ export function answerWorkoutOrchestrated(
   } else {
     const last = busyBlocks[busyBlocks.length - 1]
     text = moveIntent
-      ? `Today’s tight. After ${last.title} (${formatTime(last.ends_at || last.starts_at)}), see if a short session works — or try tomorrow morning.`
-      : `I’d wait until after ${last.title} (${formatTime(last.ends_at || last.starts_at)}), then take a short session when the day opens up.`
+      ? `Today’s tight. After ${last?.title ?? 'your last block'}, try tomorrow morning — I can block it on your calendar.`
+      : `I’d wait until after ${last?.title ?? 'your last block'}, then take a short session when the day opens up.`
   }
 
+  if (sleep.shortSleep && !moveIntent) {
+    text += ` Sleep was ${sleep.lastNightHours}h — a lighter session or tomorrow may be smarter.`
+  }
+
+  const slot = pickWorkoutSlot(snap.todayEvents, plan.label, new Date(), {
+    preferTomorrowMorning: moveIntent,
+  })
+
   const actions: AskAction[] = [
+    scheduleWorkoutAction(
+      slot,
+      moveIntent ? 'Move workout to tomorrow morning' : `Schedule “${plan.label}” now`,
+    ),
     { id: createId(), label: 'Log a workout', kind: 'open_route', route: '/health' },
     { id: createId(), label: 'Open calendar', kind: 'open_route', route: '/calendar' },
   ]
@@ -164,18 +180,30 @@ export function answerGoalTrack(snap: LifeSnapshot, q: string): AskReply {
   }
 
   const pct = Math.round((goal.progress / Math.max(goal.target, 1)) * 100)
-  const behind = snap.behindGoals.some((g) => g.id === goal.id)
+  const pace = goalPaceStatus(goal)
+  const behind = pace.behind
   const dateLine = goal.target_date
     ? ` Target: ${formatShortDate(goal.target_date)}.`
     : ''
 
   const text = behind
-    ? `“${goal.title}” is at ${pct}% — behind pace.${dateLine} One small step today keeps it reachable.`
+    ? `“${goal.title}” is at ${pct}% — expected ~${Math.round(pace.expectedPct)}% by now.${dateLine} One small step today keeps it reachable.`
     : `“${goal.title}” is at ${pct}% — on pace.${dateLine} Keep the rhythm going.`
 
   return {
     text,
     actions: [
+      ...(behind
+        ? [
+            {
+              id: createId(),
+              label: 'Catch-up check-in',
+              kind: 'adjust_goal' as const,
+              goalId: goal.id,
+              title: goal.title,
+            },
+          ]
+        : []),
       {
         id: createId(),
         label: `Open “${goal.title}”`,
@@ -228,6 +256,9 @@ export function tryOrchestrationIntent(
     const plan = buildGoalPlanReply(userId, snap, q)
     if (plan) return plan
   }
+
+  const adjust = buildGoalAdjustmentReply(snap, q)
+  if (adjust) return adjust
 
   if (
     q.includes('what matters') ||
