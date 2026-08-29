@@ -17,6 +17,8 @@ function normalizeEvent(event: CalendarEvent): CalendarEvent {
     color: event.color ?? null,
     notes: event.notes ?? '',
     location: event.location ?? '',
+    source: event.source ?? 'local',
+    external_id: event.external_id ?? null,
   }
 }
 
@@ -32,10 +34,12 @@ export const calendarApi = {
     userId: string,
     input: Omit<
       CalendarEvent,
-      'id' | 'user_id' | 'created_at' | 'updated_at' | 'category' | 'color'
+      'id' | 'user_id' | 'created_at' | 'updated_at' | 'category' | 'color' | 'source' | 'external_id'
     > & {
       category?: EventCategory
       color?: string | null
+      source?: CalendarEvent['source']
+      external_id?: string | null
     },
   ): CalendarEvent {
     const ts = now()
@@ -45,6 +49,8 @@ export const calendarApi = {
       ...input,
       category: input.category || 'personal',
       color: input.color ?? null,
+      source: input.source ?? 'local',
+      external_id: input.external_id ?? null,
       created_at: ts,
       updated_at: ts,
     })

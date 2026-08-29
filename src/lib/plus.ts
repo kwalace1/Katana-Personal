@@ -1,12 +1,65 @@
-/** Katana Plus entitlements — local unlock until store billing is wired. */
+/** Katana Plus entitlements — local unlock or Stripe web checkout. */
 
-export type PlusFeature = 'llm' | 'challenge' | 'nutrition_ai' | 'programs' | 'diet_plans'
+export type PlusFeature =
+  | 'llm'
+  | 'challenge'
+  | 'nutrition_ai'
+  | 'programs'
+  | 'diet_plans'
+  | 'integrations'
+  | 'orchestration_push'
 
 const PLUS_KEY = 'katana-personal:plus'
 const LLM_USAGE_KEY = 'katana-personal:llm-asks-day'
 
 /** Free tier open-ended Ask depth before Plus. */
 export const FREE_LLM_ASKS_PER_DAY = 3
+
+export type PlusTierRow = {
+  feature: PlusFeature
+  label: string
+  free: string
+  plus: string
+}
+
+export const PLUS_FEATURE_MATRIX: PlusTierRow[] = [
+  {
+    feature: 'llm',
+    label: 'Ask coach depth',
+    free: `${FREE_LLM_ASKS_PER_DAY} open-ended LLM replies/day`,
+    plus: 'Unlimited streaming Ask with memory & tools',
+  },
+  {
+    feature: 'challenge',
+    label: 'Circle challenges',
+    free: 'Boards & streaks',
+    plus: '7-day group challenges',
+  },
+  {
+    feature: 'nutrition_ai',
+    label: 'Meal & label AI',
+    free: 'Manual logging',
+    plus: 'Photo/label estimates for honest fuel',
+  },
+  {
+    feature: 'integrations',
+    label: 'Advanced integrations',
+    free: 'Apple Calendar (.ics URL)',
+    plus: 'Google Calendar + Fitbit (when live)',
+  },
+  {
+    feature: 'orchestration_push',
+    label: 'Proactive nudges',
+    free: 'Gentle habit pings while app is open',
+    plus: 'Orchestration push — workout windows & focus',
+  },
+  {
+    feature: 'diet_plans',
+    label: 'Diet templates',
+    free: 'Starter plans',
+    plus: 'Complete macro templates',
+  },
+]
 
 export function isPlusUnlocked(): boolean {
   try {
@@ -86,6 +139,18 @@ export function plusFeatureBlurb(feature: PlusFeature): { title: string; body: s
     return {
       title: 'Accountability pack · challenges',
       body: 'Circle boards stay free. Plus starts 7-day challenges that keep the group honest.',
+    }
+  }
+  if (feature === 'integrations') {
+    return {
+      title: 'Accountability pack · integrations',
+      body: 'Subscribe calendars with .ics for free. Plus adds Google Calendar and future Fitbit sync.',
+    }
+  }
+  if (feature === 'orchestration_push') {
+    return {
+      title: 'Accountability pack · proactive nudges',
+      body: 'Free gentle reminders work while Katana is open. Plus sends orchestration nudges — workout windows, focus — even when the app is closed (Home Screen PWA + permission).',
     }
   }
   if (feature === 'programs') {

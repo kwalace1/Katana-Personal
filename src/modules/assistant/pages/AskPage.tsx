@@ -25,6 +25,7 @@ import {
 } from '../engine'
 import { resolveAskAgent, historyToAskMessages } from '../llm'
 import { askApi, type AskAction, type AskMessage } from '../ask-api'
+import { logFeedback, computeWeights } from '@/lib/orchestration/feedback'
 import { createId } from '@/lib/id'
 import { toast } from 'sonner'
 import {
@@ -43,7 +44,7 @@ const STARTER_PROMPTS = [
 ] as const
 
 export default function AskPage() {
-  const { user, profile } = useAuth()
+  const { user, profile, updatePreferences } = useAuth()
   const userId = user!.id
   const name = profile?.display_name || 'there'
   const personality = parseAskPersonality(profile?.preferences)
@@ -82,7 +83,7 @@ export default function AskPage() {
 
   useEffect(() => {
     if (messages.length === 0) {
-      const opening = answerQuestionWithActions(userId, 'briefing', name, personality)
+      const opening = answerQuestionWithActions(userId, 'briefing', name, personality, profile?.preferences)
       askApi.append(userId, { role: 'katana', text: opening.text, actions: opening.actions })
       refresh()
     }
@@ -208,7 +209,7 @@ export default function AskPage() {
     askApi.append(userId, { role: 'you', text: trimmed })
     setDraft('')
     refresh()
-    const reply = answerQuestionWithActions(userId, trimmed, name, personality)
+    const reply = answerQuestionWithActions(userId, trimmed, name, personality, profile?.preferences)
     await finalizeReply(trimmed, reply, prior)
   }
 
@@ -230,6 +231,14 @@ export default function AskPage() {
       toast.success(result)
       askApi.consumeAction(userId, message.id, action.id)
       setSpent((s) => ({ ...s, [key]: true }))
+      logFeedback(userId, 'ask_action_taken', 'ask', () => {
+        updatePreferences({
+          orchestration_weights: {
+            ...computeWeights(userId),
+            updated_at: new Date().toISOString(),
+          },
+        })
+      })
 
       if (action.kind === 'complete_task' || action.kind === 'toggle_habit') {
         burstConfetti()
@@ -301,7 +310,7 @@ export default function AskPage() {
     askApi.clear(userId)
     setSpent({})
     seededQ.current = false
-    const opening = answerQuestionWithActions(userId, 'briefing', name, personality)
+    const opening = answerQuestionWithActions(userId, 'briefing', name, personality, profile?.preferences)
     askApi.append(userId, {
       role: 'katana',
       text: opening.text,

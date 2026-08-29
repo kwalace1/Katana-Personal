@@ -6,10 +6,12 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { EmptyState } from '@/components/ui/empty-state'
 import { burstConfetti } from '@/lib/celebrate'
+import { useAuth } from '@/contexts/AuthContext'
 import { computeLocalStreaks } from '@/lib/social/streaks'
 import { buildHealthStreakShareCard, isStreakMilestone, offerShareWin } from '@/lib/social/share-win'
 import { healthApi } from '../api'
-import { hoursBetweenTimes, parseSleepImportFile } from '../sleep-import'
+import { parseHealthExportFile } from '../health-import'
+import { hoursBetweenTimes } from '../sleep-import'
 import type { SleepLog } from '../types'
 
 type Props = {
@@ -33,10 +35,20 @@ export function SleepPanel({
   targetWake,
   onSaveSchedule,
 }: Props) {
+  const { updatePreferences, profile } = useAuth()
+
   const sleep = useMemo(() => {
     void tick
     return healthApi.listSleep(userId)
   }, [userId, tick])
+
+  const lastImportAt =
+    typeof profile?.preferences?.lastHealthImportAt === 'string'
+      ? profile.preferences.lastHealthImportAt
+      : null
+  const importStale = lastImportAt
+    ? Date.now() - new Date(lastImportAt).getTime() > 7 * 86400000
+    : sleep.length > 0
 
   const fileRef = useRef<HTMLInputElement>(null)
   const [bedtime, setBedtime] = useState(targetBedtime || '22:30')
@@ -92,12 +104,22 @@ export function SleepPanel({
     setImporting(true)
     try {
       const text = await file.text()
-      const nights = parseSleepImportFile(file.name, text)
-      const added = healthApi.importSleepNights(userId, nights)
-      if (added === 0) {
-        toast.message(nights.length ? 'Those nights are already logged' : 'No sleep records in that file')
+      const { sleepNights, workouts } = parseHealthExportFile(file.name, text)
+      const sleepAdded = healthApi.importSleepNights(userId, sleepNights)
+      const workoutAdded = healthApi.importWorkouts(userId, workouts)
+      const total = sleepAdded + workoutAdded
+      if (total === 0) {
+        toast.message(
+          sleepNights.length || workouts.length
+            ? 'Those records are already logged'
+            : 'No sleep or workout records in that file',
+        )
       } else {
-        toast.success(`Imported ${added} night${added === 1 ? '' : 's'}`)
+        updatePreferences({ lastHealthImportAt: new Date().toISOString() })
+        const bits = []
+        if (sleepAdded) bits.push(`${sleepAdded} night${sleepAdded === 1 ? '' : 's'}`)
+        if (workoutAdded) bits.push(`${workoutAdded} workout${workoutAdded === 1 ? '' : 's'}`)
+        toast.success(`Imported ${bits.join(' and ')}`)
         refresh()
       }
     } catch (err) {
@@ -118,8 +140,14 @@ export function SleepPanel({
             <h3 className="font-display text-lg tracking-tight">Bring sleep in from your watch</h3>
             <p className="mt-1 text-sm text-muted-foreground">
               Browsers can’t live-sync Health or Fitbit. Export from Apple Health (export.xml) or a Fitbit
-              sleep CSV, then import here — or log bedtime and wake below.
+              sleep CSV — sleep and workouts import together — or log bedtime and wake below.
             </p>
+            {lastImportAt ? (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Last imported {formatImportWhen(lastImportAt)}.
+                {importStale ? ' A fresh export keeps orchestration accurate — re-import when you can.' : ''}
+              </p>
+            ) : null}
             <input
               ref={fileRef}
               type="file"
@@ -251,4 +279,12 @@ function weekAgoKey() {
   d.setDate(d.getDate() - 6)
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+function formatImportWhen(iso: string) {
+  try {
+    return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso))
+  } catch {
+    return iso
+  }
 }

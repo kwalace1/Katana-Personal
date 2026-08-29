@@ -534,6 +534,32 @@ export const healthApi = {
     return added
   },
 
+  importWorkouts(
+    userId: string,
+    rows: { date: string; activity: string; duration_minutes: number; notes?: string }[],
+  ): number {
+    const have = new Set(
+      healthApi
+        .listWorkouts(userId)
+        .map((w) => `${w.date}:${w.activity.toLowerCase()}:${w.duration_minutes}`),
+    )
+    let added = 0
+    for (const row of rows) {
+      const key = `${row.date}:${row.activity.toLowerCase()}:${row.duration_minutes}`
+      if (have.has(key) || row.duration_minutes <= 0) continue
+      healthApi.addWorkout(userId, {
+        activity: row.activity,
+        duration_minutes: row.duration_minutes,
+        date: row.date,
+        notes: row.notes || 'Imported from Apple Health',
+        silent: true,
+      })
+      have.add(key)
+      added += 1
+    }
+    return added
+  },
+
   removeSleep(userId: string, id: string) {
     return localDb.remove(SLEEP, userId, id)
   },

@@ -28,3 +28,9 @@ Soft-launch direction: deepen the calm daily OS and Together accountability, mak
 - Web/PWA only for now
 - Reminders while Katana is open — not background push
 - Apple Sign In optional (off unless `VITE_SUPABASE_APPLE_AUTH=true`)
+
+## After soft launch
+
+Full gap-closure plan vs the team PDF vision: **[PDF_VISION_ROADMAP.md](./PDF_VISION_ROADMAP.md)**
+
+Phases: finish soft-launch QA → cross-domain One Next Step + Ask orchestration → integrations → privacy/learning → push/native/billing.

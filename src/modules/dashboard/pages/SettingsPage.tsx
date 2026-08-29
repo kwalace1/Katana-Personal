@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { HueWheel } from '@/components/HueWheel'
 import { usePlusStatus } from '@/components/PlusPaywall'
+import { startPlusCheckout } from '@/lib/billing/stripe-client'
 import {
   FREE_LLM_ASKS_PER_DAY,
   freeLlmAsksRemaining,
@@ -34,8 +35,10 @@ import {
   ASK_PERSONALITIES,
   parseAskPersonality,
 } from '@/modules/assistant/personality'
-import { remindersEnabled, requestReminderPermission, sendTestReminderPing } from '@/lib/reminders'
-import { isStandalonePwa } from '@/lib/web-notify'
+import { ConnectionsPanel } from '@/modules/settings/components/ConnectionsPanel'
+import { NotificationsPanel } from '@/modules/settings/components/NotificationsPanel'
+import { PlusFeatureMatrix } from '@/modules/settings/components/PlusFeatureMatrix'
+import { PrivacyDataPanel } from '@/modules/settings/components/PrivacyDataPanel'
 import { seedDemoWorkspace } from '@/lib/seed-demo'
 import { DEFAULT_SHARE_PREFS, type SharePrefs } from '@/lib/social/types'
 import { getAddMeUrl } from '@/lib/social/friends'
@@ -46,7 +49,7 @@ import {
   subscribeWorkspaceSyncStatus,
   syncWorkspaceNow,
 } from '@/lib/workspace-sync'
-import { broadcastLocalRefresh } from '@/hooks/useLocalRefresh'
+import { useLocalRefresh, broadcastLocalRefresh } from '@/hooks/useLocalRefresh'
 
 const SHARE_TOGGLES: { key: keyof SharePrefs; label: string; hint: string }[] = [
   { key: 'activityFeed', label: 'Activity pings', hint: 'Check-ins & shares show on Circles timelines' },
@@ -86,10 +89,10 @@ export default function SettingsPage() {
   const plusSectionRef = useRef<HTMLElement>(null)
   const askCoachSectionRef = useRef<HTMLElement>(null)
   const plus = usePlusStatus()
+  const { tick } = useLocalRefresh()
   const llmLeft = plus ? null : freeLlmAsksRemaining()
   const [name, setName] = useState(profile?.display_name || '')
   const [busy, setBusy] = useState(false)
-  const gentle = remindersEnabled(profile?.preferences)
   const askPersonality = parseAskPersonality(profile?.preferences)
 
   const [cloudMode, setCloudMode] = useState<'signin' | 'signup'>('signup')
@@ -142,6 +145,17 @@ export default function SettingsPage() {
     }
     if (window.location.hash === '#ask-coach') {
       window.setTimeout(() => askCoachSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
+    }
+    if (window.location.hash === '#connections') {
+      window.setTimeout(() => document.getElementById('connections')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
+    }
+    if (window.location.hash === '#privacy') {
+      window.setTimeout(() => document.getElementById('privacy')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
+    }
+    if (searchParams.get('checkout') === 'success') {
+      setPlusUnlocked(true)
+      toast.success('Welcome to Katana Plus')
+      window.history.replaceState({}, '', '/settings#plus')
     }
   }, [searchParams])
 
@@ -203,22 +217,6 @@ export default function SettingsPage() {
       setBusy(false)
       if (fileRef.current) fileRef.current.value = ''
     }
-  }
-
-  async function onToggleReminders(next: boolean) {
-    if (next) {
-      const ok = await requestReminderPermission()
-      if (!ok) {
-        toast.message('Reminders need permission from your device')
-        updatePreferences({ gentle_reminders: false })
-        return
-      }
-      updatePreferences({ gentle_reminders: true })
-      toast.success('Gentle reminders on')
-      return
-    }
-    updatePreferences({ gentle_reminders: false })
-    toast.message('Reminders off')
   }
 
   async function onCloudAuth(e: FormEvent) {
@@ -322,6 +320,33 @@ export default function SettingsPage() {
         </div>
       </section>
 
+      <section id="connections" className="kp-surface mb-4 scroll-mt-24 space-y-4 p-5">
+        <div>
+          <h2 className="font-semibold">Connections</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Link external calendars so Today and Ask see your real schedule. Data stays on this device.
+          </p>
+        </div>
+        {user ? <ConnectionsPanel userId={user.id} tick={tick} /> : null}
+      </section>
+
+      <section id="privacy" className="kp-surface mb-4 scroll-mt-24 space-y-4 p-5">
+        <div>
+          <h2 className="font-semibold">Privacy & data</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            What stays on this device, what can leave, and why — in plain language.
+          </p>
+        </div>
+        {user ? (
+          <PrivacyDataPanel
+            userId={user.id}
+            cloudEnabled={cloudEnabled}
+            cloudSignedIn={Boolean(cloudUser)}
+            sharePrefs={prefs}
+          />
+        ) : null}
+      </section>
+
       <section
         ref={askCoachSectionRef}
         id="ask-coach"
@@ -371,7 +396,7 @@ export default function SettingsPage() {
           <div className="rounded-2xl border border-primary/25 bg-primary/[0.06] px-4 py-3">
             <p className="text-sm font-medium text-primary">Accountability pack is on</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Deeper Ask coach · Circle challenges · meal & label AI. Store billing comes next.
+              Deeper Ask · Google Calendar · orchestration push · challenges · meal AI.
             </p>
             <Button
               type="button"
@@ -388,34 +413,50 @@ export default function SettingsPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            <ul className="space-y-1.5 text-sm text-muted-foreground">
-              <li>
-                <span className="font-medium text-foreground">Free:</span> private day loop, Ask
-                actions, Friends, Social, Circles boards, day / win cards you choose to share
-              </li>
-              <li>
-                <span className="font-medium text-foreground">Plus:</span> deeper Ask coach (beyond{' '}
-                {FREE_LLM_ASKS_PER_DAY}/day), Circle challenges, meal & label AI
-              </li>
-            </ul>
+            <PlusFeatureMatrix />
             {llmLeft != null ? (
               <p className="text-xs text-muted-foreground">
                 Deeper Ask left today: {llmLeft}/{FREE_LLM_ASKS_PER_DAY}
               </p>
             ) : null}
-            <Button
-              type="button"
-              className="w-full sm:w-auto"
-              onClick={() => {
-                setPlusUnlocked(true)
-                toast.success('Accountability pack unlocked')
-              }}
-            >
-              Unlock Accountability pack
-            </Button>
-                <p className="text-xs text-muted-foreground">
-                  Unlock on this device. Store billing comes later.
-                </p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                className="min-h-11"
+                onClick={() => {
+                  setPlusUnlocked(true)
+                  toast.success('Accountability pack unlocked')
+                }}
+              >
+                Unlock demo Plus
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-11"
+                onClick={async () => {
+                  const result = await startPlusCheckout({
+                    email: cloudProfile?.email || undefined,
+                    uid: cloudUser?.uid,
+                  })
+                  if (result.url) {
+                    window.location.href = result.url
+                    return
+                  }
+                  if (result.demo) {
+                    toast.message('Stripe not configured — use demo unlock or set STRIPE_SECRET_KEY')
+                    return
+                  }
+                  toast.error(result.error || 'Checkout unavailable')
+                }}
+              >
+                Subscribe with Stripe
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Demo unlock is local-only. Stripe checkout works when server keys are set; App Store billing
+              ships with the native app.
+            </p>
           </div>
         )}
       </section>
@@ -701,38 +742,11 @@ export default function SettingsPage() {
         </section>
       ) : null}
 
-      <section className="kp-surface mb-4 space-y-3 p-5">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h2 className="font-semibold">Gentle reminders</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Habits can ping several times a day until you check in. On iPhone, add Katana to your
-              Home Screen first, then turn this on from that icon — Safari tabs cannot reliably alert.
-            </p>
-          </div>
-          <Switch checked={gentle} onCheckedChange={(v) => void onToggleReminders(v)} />
-        </div>
-        <p className="text-xs text-muted-foreground">
-          {isStandalonePwa()
-            ? 'Home Screen app detected. Open it a few times a day and leave it in Recents so catch-up pings can land.'
-            : 'This browser session is not the Home Screen app. iPhone alerts only work from the bookmark you added with Share → Add to Home Screen.'}
-        </p>
-        <Button
-          variant="outline"
-          className="min-h-11"
-          onClick={async () => {
-            try {
-              const ok = await sendTestReminderPing()
-              if (ok) toast.success('Test ping sent — check the notification shade')
-              else toast.message('Allow notifications, then try again from the Home Screen app')
-            } catch (err) {
-              toast.error(err instanceof Error ? err.message : 'Couldn’t send a test ping')
-            }
-          }}
-        >
-          Send a test ping
-        </Button>
-      </section>
+      <NotificationsPanel
+        preferences={profile?.preferences}
+        cloudSignedIn={Boolean(cloudUser)}
+        onUpdatePreferences={updatePreferences}
+      />
 
       <section className="kp-surface mb-4 space-y-3 p-5">
         <h2 className="font-semibold">Install on your phone</h2>

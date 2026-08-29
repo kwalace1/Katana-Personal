@@ -3,14 +3,20 @@ import { tasksApi } from '@/modules/tasks/api'
 import { habitsApi } from '@/modules/habits/api'
 import { calendarApi } from '@/modules/calendar/api'
 import { parseReminderClock, resolveHabitReminderTimes, type Habit } from '@/modules/habits/types'
+import { buildOrchestrationNudge } from '@/lib/notifications/orchestration-nudge'
+import {
+  canNotifyNow,
+  orchestrationPushEnabled,
+  remindersEnabled,
+} from '@/lib/notifications/preferences'
+import { canUsePlusFeature } from '@/lib/plus'
 import { canShowLocalNotification, showLocalNotification } from '@/lib/web-notify'
 
 const LAST_NUDGE_KEY = 'katana-personal:last-nudge-day'
 const FIRED_KEY = 'katana-personal:fired-reminders'
+const ORCH_NUDGE_KEY = 'katana-personal:last-orch-nudge'
 
-export function remindersEnabled(preferences?: Record<string, unknown> | null): boolean {
-  return preferences?.gentle_reminders === true
-}
+export { remindersEnabled }
 
 export async function requestReminderPermission(): Promise<boolean> {
   if (typeof Notification === 'undefined') return false
@@ -141,9 +147,43 @@ function digestBody(userId: string): string | null {
   return bits.join(' · ')
 }
 
+function alreadyOrchestrationNudged(now: Date): boolean {
+  return localStorage.getItem(ORCH_NUDGE_KEY) === now.toISOString().slice(0, 10)
+}
+
+function markOrchestrationNudged(now: Date) {
+  localStorage.setItem(ORCH_NUDGE_KEY, now.toISOString().slice(0, 10))
+}
+
+/** Proactive orchestration nudge — workout gap, focus task, etc. Plus + opt-in. */
+export async function maybeSendOrchestrationNudge(
+  userId: string,
+  preferences?: Record<string, unknown> | null,
+  displayName?: string,
+  dayClosed?: boolean,
+) {
+  if (!orchestrationPushEnabled(preferences) || !canUsePlusFeature('orchestration_push')) return
+  if (!remindersEnabled(preferences) || !canNotify() || !canNotifyNow(preferences)) return
+  if (dayClosed) return
+
+  const now = new Date()
+  if (alreadyOrchestrationNudged(now)) return
+
+  const nudge = buildOrchestrationNudge(userId, {
+    displayName,
+    preferences: preferences ?? undefined,
+    dayClosed,
+    now,
+  })
+  if (!nudge || nudge.kind === 'event') return
+
+  await notify(nudge.title, nudge.body, nudge.tag, nudge.href)
+  markOrchestrationNudged(now)
+}
+
 /** Morning / afternoon / evening digest while anything is still open. */
 export async function maybeSendDailyNudge(userId: string, preferences?: Record<string, unknown> | null) {
-  if (!remindersEnabled(preferences) || !canNotify()) return
+  if (!remindersEnabled(preferences) || !canNotify() || !canNotifyNow(preferences)) return
 
   const wave = nudgeWaveForHour(new Date().getHours())
   if (!wave || alreadyNudgedWave(wave)) return
@@ -189,7 +229,7 @@ async function fireHabitSlots(slots: HabitReminderSlot[]) {
  * and habits (every reminder slot). Catch-up on open — no 2-minute miss window.
  */
 export async function tickTimedReminders(userId: string, preferences?: Record<string, unknown> | null) {
-  if (!remindersEnabled(preferences) || !canNotify()) return
+  if (!remindersEnabled(preferences) || !canNotify() || !canNotifyNow(preferences)) return
 
   const now = new Date()
   const fired = readFired()

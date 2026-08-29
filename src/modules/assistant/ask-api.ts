@@ -18,6 +18,8 @@ export interface AskAction {
     | 'park_tasks'
     | 'upsert_journal'
     | 'close_day'
+    | 'create_goal'
+    | 'create_habit'
   taskId?: string
   habitId?: string
   route?: string

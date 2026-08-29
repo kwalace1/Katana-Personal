@@ -86,7 +86,28 @@ export function seedDemoWorkspace(userId: string): { seeded: boolean; reason?: s
   })
   habitsApi.create(userId, { title: 'Water (6 glasses)', schedule: 'daily', reminder_time: '18:00' })
   habitsApi.create(userId, { title: 'Evening walk', schedule: 'daily', reminder_time: '19:00' })
+  habitsApi.create(userId, { title: 'Gym', schedule: 'daily', reminder_time: '17:00' })
   habitsApi.toggleToday(userId, stretch.id)
+
+  const w1 = addDays(new Date(), -2)
+  const w2 = addDays(new Date(), -4)
+  healthApi.addWorkout(userId, { activity: 'Strength', date: w1.toISOString().slice(0, 10), duration_minutes: 50 })
+  healthApi.addWorkout(userId, { activity: 'Cardio', date: w2.toISOString().slice(0, 10), duration_minutes: 40 })
+
+  const evening = new Date()
+  evening.setHours(19, 30, 0, 0)
+  const eveningEnd = new Date(evening)
+  eveningEnd.setHours(20, 30, 0, 0)
+  calendarApi.create(userId, {
+    title: 'Dinner plans',
+    notes: 'Evening anchor for orchestration demo.',
+    starts_at: evening.toISOString(),
+    ends_at: eveningEnd.toISOString(),
+    all_day: false,
+    location: '',
+    recurrence: 'none',
+    reminder_minutes: 30,
+  })
 
   goalsApi.create(userId, {
     title: 'Protect deep work 3× this week',

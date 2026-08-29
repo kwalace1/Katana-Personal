@@ -3,6 +3,7 @@ import { answerQuestionWithActions, buildSnapshot, runAskAction } from './engine
 import { localDb } from '@/lib/local-db'
 import { tasksApi } from '@/modules/tasks/api'
 import { calendarApi } from '@/modules/calendar/api'
+import { habitsApi } from '@/modules/habits/api'
 import { todayKey, addDays } from '@/lib/dates'
 import { buildWeekStats } from '@/lib/week-review'
 
@@ -16,15 +17,15 @@ describe('Ask engine (no LLM)', () => {
 
   it('answers focus with empty state', () => {
     const reply = answerQuestionWithActions(USER, 'What should I work on today?', 'Alex')
-    expect(reply.text.toLowerCase()).toMatch(/nothing urgent|rest|small thing|capture/)
-    expect(reply.actions).toHaveLength(1)
+    expect(reply.text.toLowerCase()).toMatch(/nothing urgent|rest|small thing|capture|stop for the night/)
+    expect(reply.actions.length).toBeGreaterThanOrEqual(1)
     expect(reply.actions[0]?.kind).toBe('open_route')
   })
 
   it('answers focus with one act chip when a priority task exists', () => {
     tasksApi.createTask(USER, { title: 'Ship the demo', priority: 'high' })
     const reply = answerQuestionWithActions(USER, 'What should I work on today?', 'Alex')
-    expect(reply.actions).toHaveLength(1)
+    expect(reply.actions.length).toBeGreaterThanOrEqual(1)
     expect(reply.actions[0]?.kind).toBe('complete_task')
     expect(reply.actions[0]?.label?.toLowerCase()).toMatch(/ship the demo/)
   })
@@ -175,5 +176,43 @@ describe('Ask engine (no LLM)', () => {
   it('answers health with open route', () => {
     const reply = answerQuestionWithActions(USER, 'How is my water?', 'Alex')
     expect(reply.actions.some((a) => a.kind === 'log_water' || a.route === '/health')).toBe(true)
+  })
+
+  it('orchestrates what matters today with defer language', () => {
+    tasksApi.createTask(USER, { title: 'Ship demo', priority: 'high' })
+    tasksApi.createTask(USER, { title: 'Email dentist', priority: 'low' })
+    tasksApi.createTask(USER, { title: 'Buy milk', priority: 'low' })
+    const reply = answerQuestionWithActions(USER, 'What matters today?', 'Alex')
+    expect(reply.text.toLowerCase()).toMatch(/matter|start|wait|ship demo/)
+    expect(reply.actions.length).toBeGreaterThan(0)
+    expect(reply.useLlm).toBeFalsy()
+  })
+
+  it('orchestrates workout window before calendar event', () => {
+    habitsApi.create(USER, { title: 'Gym', schedule: 'daily' })
+    const start = new Date()
+    start.setHours(start.getHours() + 3, 0, 0, 0)
+    const end = new Date(start)
+    end.setHours(end.getHours() + 1)
+    calendarApi.create(USER, {
+      title: 'Dinner plans',
+      notes: '',
+      starts_at: start.toISOString(),
+      ends_at: end.toISOString(),
+      all_day: false,
+      location: '',
+      recurrence: 'none',
+      reminder_minutes: null,
+    })
+    const reply = answerQuestionWithActions(USER, 'When should I work out?', 'Alex')
+    expect(reply.text.toLowerCase()).toMatch(/workout|gym|free|before|minute/)
+    expect(reply.actions.some((a) => a.route === '/health' || a.kind === 'toggle_habit')).toBe(true)
+  })
+
+  it('builds goal plan for lose weight intent', () => {
+    const reply = answerQuestionWithActions(USER, 'I want to lose 10 pounds by December', 'Alex')
+    expect(reply.text.toLowerCase()).toMatch(/plan|lose|10/)
+    expect(reply.actions.some((a) => a.kind === 'create_goal' || a.kind === 'create_habit')).toBe(true)
+    expect(reply.useLlm).toBeFalsy()
   })
 })

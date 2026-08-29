@@ -16,6 +16,7 @@ import type { CalendarEvent } from '@/modules/calendar/types'
 import type { Habit } from '@/modules/habits/types'
 import type { Goal } from '@/modules/goals/types'
 import type { AskAction } from './ask-api'
+import { tryOrchestrationIntent } from './engine-orchestration'
 import { flavorBriefingText, type AskPersonality } from './personality'
 
 export interface LifeSnapshot {
@@ -265,30 +266,6 @@ function answerFocus(snap: LifeSnapshot): AskReply {
         route: '/dashboard',
       },
     ],
-  }
-}
-
-function answerWorkout(snap: LifeSnapshot): AskReply {
-  const busyBlocks = snap.todayEvents.filter((e) => !e.all_day)
-  let text: string
-  if (busyBlocks.length === 0) {
-    text =
-      snap.recentWorkouts === 0
-        ? 'Your day looks open. A short workout this morning or late afternoon would fit well — especially since you haven’t logged one this week.'
-        : 'Your day looks open. Morning or late afternoon would both work. You’ve already moved a bit this week, so keep it light if you want.'
-  } else {
-    const first = busyBlocks[0]
-    const startHour = new Date(first.starts_at).getHours()
-    if (startHour >= 12) {
-      text = `You’re free before ${first.title} (${formatTime(first.starts_at)}). That’s a good window to work out.`
-    } else {
-      const last = busyBlocks[busyBlocks.length - 1]
-      text = `I’d wait until after ${last.title} (${formatTime(last.ends_at || last.starts_at)}), then take a short session when the day opens up.`
-    }
-  }
-  return {
-    text,
-    actions: [{ id: createId(), label: 'Log a workout', kind: 'open_route', route: '/health' }],
   }
 }
 
@@ -896,28 +873,6 @@ const INTENTS: Intent[] = [
     answer: answerJournal,
   },
   {
-    test: (q) =>
-      q.includes('work out') || q.includes('workout') || q.includes('exercise') || q.includes('gym'),
-    answer: answerWorkout,
-  },
-  {
-    test: (q) =>
-      q.includes('work on') ||
-      q.includes('focus') ||
-      q.includes('priorit') ||
-      q.includes('should i do') ||
-      q.includes('what next') ||
-      q.includes('what’s next') ||
-      q.includes("what's next") ||
-      q.includes('whats next') ||
-      q.includes('to do') ||
-      q.includes('todo') ||
-      q.includes('get done') ||
-      q.includes('most important') ||
-      (q.includes('today') && (q.includes('what') || q.includes('should') || q.includes('do'))),
-    answer: answerFocus,
-  },
-  {
     test: (q) => q.includes('week') || q.includes('summar') || q.includes('review'),
     answer: answerWeek,
   },
@@ -1002,6 +957,7 @@ export function answerQuestionWithActions(
   question: string,
   displayName?: string,
   personality: AskPersonality = 'supportive',
+  preferences?: Record<string, unknown>,
 ): AskReply {
   const snap = buildSnapshot(userId, displayName)
   const q = question.trim().toLowerCase()
@@ -1015,6 +971,9 @@ export function answerQuestionWithActions(
 
   const created = tryParseCreate(question.trim())
   if (created) return created
+
+  const orchestrated = tryOrchestrationIntent(userId, snap, q, displayName, preferences)
+  if (orchestrated) return orchestrated
 
   for (const intent of INTENTS) {
     if (intent.test(q)) return intent.answer(snap, q)
@@ -1050,6 +1009,24 @@ export function runAskAction(userId: string, action: AskAction): string {
       due_at: action.dueAt ?? null,
     })
     return `Added “${task.title}”.`
+  }
+  if (action.kind === 'create_goal' && action.title) {
+    const goal = goalsApi.create(userId, {
+      title: action.title,
+      target: 100,
+      progress: 0,
+      horizon: 'quarterly',
+      target_date: action.dueAt ?? null,
+    })
+    return `Added goal “${goal.title}”.`
+  }
+  if (action.kind === 'create_habit' && action.title) {
+    const habit = habitsApi.create(userId, {
+      title: action.title,
+      schedule: 'daily',
+      reminder_time: '18:00',
+    })
+    return `Added habit “${habit.title}”.`
   }
   if (action.kind === 'create_event' && action.title && action.startsAt && action.endsAt) {
     calendarApi.create(userId, {

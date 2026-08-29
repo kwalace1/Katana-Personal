@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
@@ -55,34 +55,16 @@ import { TodayRecentFeed } from '@/modules/dashboard/components/TodayRecentFeed'
 import { toast } from 'sonner'
 import { listFriendships } from '@/lib/social/friends'
 import { listMyCircles } from '@/lib/social/circles'
-import type { Task } from '@/modules/tasks/types'
-import type { CalendarEvent } from '@/modules/calendar/types'
-import type { Habit } from '@/modules/habits/types'
+import { buildPickNextStepInput } from '@/lib/orchestration/build-input'
+import {
+  logFeedback,
+  logNextStepDismissedIfNeeded,
+  nextStepTrackingId,
+  computeWeights,
+} from '@/lib/orchestration/feedback'
+import { pickNextStep, type NextStepKind } from '@/lib/orchestration/next-step'
 
 const CLOSE_KEY = 'katana-personal:day-close'
-
-type NextAction =
-  | { type: 'task'; item: Task }
-  | { type: 'event'; item: CalendarEvent }
-  | { type: 'habit'; item: Habit }
-
-function pickNextAction(
-  overdue: Task[],
-  priority: Task[],
-  todayEvents: CalendarEvent[],
-  openHabits: Habit[],
-): NextAction | null {
-  if (overdue[0]) return { type: 'task', item: overdue[0] }
-  const now = Date.now()
-  const soon = todayEvents.find((e) => new Date(e.starts_at).getTime() >= now - 5 * 60_000)
-  if (soon && new Date(soon.starts_at).getTime() - now < 90 * 60_000) {
-    return { type: 'event', item: soon }
-  }
-  if (priority[0]) return { type: 'task', item: priority[0] }
-  if (openHabits[0]) return { type: 'habit', item: openHabits[0] }
-  if (soon) return { type: 'event', item: soon }
-  return null
-}
 
 function closedToday(): boolean {
   return localStorage.getItem(CLOSE_KEY) === todayKey()
@@ -109,6 +91,18 @@ export default function DashboardPage() {
     summary: null,
   })
   const prefs = profile?.preferences
+  const lastNextRef = useRef<{ kind: NextStepKind; id: string } | null>(null)
+
+  function persistWeights() {
+    const weights = computeWeights(userId)
+    updatePreferences({
+      orchestration_weights: { ...weights, updated_at: new Date().toISOString() },
+    })
+  }
+
+  function logCompleted(kind: NextStepKind) {
+    logFeedback(userId, 'next_step_completed', kind, persistWeights)
+  }
 
   function cheerTogether() {
     if (!cloudEnabled || !cloudUser) return
@@ -183,8 +177,14 @@ export default function DashboardPage() {
       const streak = habitsApi.streak(userId, h.id)
       return streak >= 3 && !habitsApi.isDoneToday(userId, h.id)
     })
-    const next = pickNextAction(overdue, priority, todayEvents, openHabits)
-    const alsoTasks = priority.filter((t) => !(next?.type === 'task' && next.item.id === t.id)).slice(0, 5)
+    const next = pickNextStep(
+      buildPickNextStepInput(userId, snap, {
+        preferences: prefs,
+        dayClosed: dayClosed,
+      }),
+    )
+    const nextTaskId = next?.kind === 'task' ? next.taskId : undefined
+    const alsoTasks = priority.filter((t) => t.id !== nextTaskId).slice(0, 5)
 
     return {
       snap,
@@ -203,7 +203,16 @@ export default function DashboardPage() {
       alsoTasks,
       unfinishedToday: tasksApi.todayTasks(userId),
     }
-  }, [userId, tick, profile?.display_name])
+  }, [userId, tick, profile?.display_name, prefs, dayClosed])
+
+  useEffect(() => {
+    if (!onboardingDone || !data.next) return
+    const id = nextStepTrackingId(data.next)
+    const current = { kind: data.next.kind, id }
+    logNextStepDismissedIfNeeded(userId, lastNextRef.current, current, persistWeights)
+    logFeedback(userId, 'next_step_shown', data.next.kind, persistWeights)
+    lastNextRef.current = current
+  }, [data.next?.kind, data.next?.title, data.next?.taskId, data.next?.habitId, userId, onboardingDone])
 
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
@@ -403,41 +412,23 @@ export default function DashboardPage() {
               {data.next ? (
                 <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
-                    <h2 className="font-display text-xl tracking-tight sm:text-2xl">
-                      {data.next.type === 'task' && data.next.item.title}
-                      {data.next.type === 'event' && data.next.item.title}
-                      {data.next.type === 'habit' && data.next.item.title}
-                    </h2>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {data.next.type === 'task' && (
-                        <>
-                          Task
-                          {data.next.item.due_at ? ` · ${formatShortWhen(data.next.item.due_at)}` : ''}
-                          {data.next.item.priority === 'high' ? ' · Important' : ''}
-                        </>
-                      )}
-                      {data.next.type === 'event' && (
-                        <>
-                          Event · {formatShortDate(data.next.item.starts_at)}
-                          {!data.next.item.all_day
-                            ? ` · ${formatTime(data.next.item.starts_at)}`
-                            : ' · All day'}
-                        </>
-                      )}
-                      {data.next.type === 'habit' && (
-                        <>Habit · {habitsApi.streak(userId, data.next.item.id)} day streak</>
-                      )}
-                    </p>
+                    <h2 className="font-display text-xl tracking-tight sm:text-2xl">{data.next.title}</h2>
+                    <p className="mt-1 text-sm text-foreground/85">{data.next.reason}</p>
+                    {data.next.meta ? (
+                      <p className="mt-1 text-xs text-muted-foreground">{data.next.meta}</p>
+                    ) : null}
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {data.next.type === 'task' && (
+                    {data.next.kind === 'task' && data.next.taskId ? (
                       <>
                         <Button
                           className="gap-2"
                           onClick={() => {
-                            const task = data.next!.item
+                            const task = tasksApi.getTask(userId, data.next!.taskId!)
+                            if (!task) return
                             tasksApi.completeTask(userId, task.id)
                             offerTaskCompleteShare(task.title)
+                            logCompleted('task')
                             toast.success('Done')
                             refresh()
                           }}
@@ -446,27 +437,32 @@ export default function DashboardPage() {
                           <ArrowRight className="h-4 w-4" />
                         </Button>
                         <Button asChild variant="outline">
-                          <Link to={`/tasks?id=${data.next.item.id}`}>Open</Link>
+                          <Link to={`/tasks?id=${data.next.taskId}`}>Open</Link>
                         </Button>
                       </>
-                    )}
-                    {data.next.type === 'event' && (
+                    ) : null}
+                    {data.next.kind === 'event' && data.next.eventId ? (
                       <Button asChild className="gap-2">
                         <Link
-                          to={`/calendar?date=${data.next.item.starts_at.slice(0, 10)}&id=${data.next.item.id}`}
+                          to={`/calendar?date=${
+                            data.todayEvents.find((e) => e.id === data.next!.eventId)?.starts_at.slice(0, 10) ??
+                            todayKey()
+                          }&id=${data.next.eventId}`}
                         >
                           Open event
                           <ArrowRight className="h-4 w-4" />
                         </Link>
                       </Button>
-                    )}
-                    {data.next.type === 'habit' && (
+                    ) : null}
+                    {data.next.kind === 'habit' && data.next.habitId ? (
                       <Button
                         className="gap-2"
                         onClick={() => {
-                          const habit = data.next!.item
+                          const habit = habitsApi.get(userId, data.next!.habitId!)
+                          if (!habit) return
                           habitsApi.toggleToday(userId, habit.id)
                           offerHabitCheckedInShare(habit.title, habitsApi.streak(userId, habit.id))
+                          logCompleted('habit')
                           toast.success('Checked in')
                           cheerTogether()
                           refresh()
@@ -475,7 +471,53 @@ export default function DashboardPage() {
                         Check in
                         <ArrowRight className="h-4 w-4" />
                       </Button>
-                    )}
+                    ) : null}
+                    {data.next.kind === 'workout' ? (
+                      <>
+                        {data.next.habitId ? (
+                          <Button
+                            className="gap-2"
+                            onClick={() => {
+                              const habit = habitsApi.get(userId, data.next!.habitId!)
+                              if (!habit) return
+                              habitsApi.toggleToday(userId, habit.id)
+                              logCompleted('workout')
+                              toast.success('Checked in')
+                              cheerTogether()
+                              refresh()
+                            }}
+                          >
+                            Check in
+                            <ArrowRight className="h-4 w-4" />
+                          </Button>
+                        ) : null}
+                        <Button asChild variant={data.next.habitId ? 'outline' : 'default'} className="gap-2">
+                          <Link to="/health">
+                            Log workout
+                            <ArrowRight className="h-4 w-4" />
+                          </Link>
+                        </Button>
+                      </>
+                    ) : null}
+                    {data.next.kind === 'goal' && data.next.goalId ? (
+                      <Button asChild className="gap-2">
+                        <Link to={`/goals?id=${data.next.goalId}`}>
+                          Open goal
+                          <ArrowRight className="h-4 w-4" />
+                        </Link>
+                      </Button>
+                    ) : null}
+                    {data.next.kind === 'wind_down' ? (
+                      <>
+                        <Button className="gap-2" onClick={parkUnfinished}>
+                          Close day
+                          <Moon className="h-4 w-4" />
+                        </Button>
+                        <Button asChild variant="outline">
+                          <Link to="/journal">Journal</Link>
+                        </Button>
+                      </>
+                    ) : null}
                   </div>
                 </div>
               ) : (
@@ -535,7 +577,7 @@ export default function DashboardPage() {
                       </div>
                     ))}
                     {data.openHabits
-                      .filter((h) => !(data.next?.type === 'habit' && data.next.item.id === h.id))
+                      .filter((h) => h.id !== data.next?.habitId)
                       .map((habit) => (
                         <div
                           key={habit.id}
@@ -560,7 +602,7 @@ export default function DashboardPage() {
                         </div>
                       ))}
                     {data.todayEvents
-                      .filter((e) => !(data.next?.type === 'event' && data.next.item.id === e.id))
+                      .filter((e) => e.id !== data.next?.eventId)
                       .map((event) => (
                         <Link
                           key={event.id}

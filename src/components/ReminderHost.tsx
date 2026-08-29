@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
-import { maybeSendDailyNudge, tickTimedReminders } from '@/lib/reminders'
+import { maybeSendDailyNudge, maybeSendOrchestrationNudge, tickTimedReminders } from '@/lib/reminders'
 
 /** Habit + event reminders: catch up on open, then keep ticking while the PWA is alive. */
 export function ReminderHost() {
@@ -15,6 +15,12 @@ export function ReminderHost() {
       if (cancelled) return
       void maybeSendDailyNudge(user.id, prefs)
       void tickTimedReminders(user.id, prefs)
+      void maybeSendOrchestrationNudge(
+        user.id,
+        prefs,
+        profile?.display_name,
+        prefs?.day_closed_on === new Date().toISOString().slice(0, 10),
+      )
     }
 
     run()
@@ -45,7 +51,7 @@ export function ReminderHost() {
       window.removeEventListener('online', onShow)
       document.removeEventListener('resume', onShow)
     }
-  }, [user, profile?.preferences])
+  }, [user, profile?.preferences, profile?.display_name])
 
   return <div className="sr-only" aria-live="polite" id="katana-reminders" />
 }

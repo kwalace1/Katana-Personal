@@ -36,6 +36,8 @@ import { NotificationBell, useNotificationToasts } from '@/components/Notificati
 import { BackupNudge } from '@/components/BackupNudge'
 import { PwaInstallNudge } from '@/components/PwaInstallNudge'
 import { WorkspaceSyncHost } from '@/components/WorkspaceSyncHost'
+import { IntegrationSyncHost } from '@/components/IntegrationSyncHost'
+import { PushScheduleHost } from '@/components/PushScheduleHost'
 import { CardioTrackHost } from '@/components/CardioTrackHost'
 import { ShareWinHost } from '@/components/ShareWinHost'
 import { SocialInboxProvider, useSharedSocialInbox } from '@/contexts/SocialInboxContext'
@@ -406,6 +408,8 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
           <BackupNudge />
           <PwaInstallNudge />
           <WorkspaceSyncHost />
+          <IntegrationSyncHost />
+          <PushScheduleHost />
           <ShareWinHost />
           <CardioTrackHost />
         </main>
