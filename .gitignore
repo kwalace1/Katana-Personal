@@ -46,6 +46,12 @@ scripts/migrate-firebase-to-supabase/firebase-users.json
 next-env.d.ts
 api/**/*.js
 api/**/*.d.ts
+vite.config.js
+vite.config.d.ts
+vite.*-plugin.js
+vite.*-plugin.d.ts
+src/**/*.js
+src/**/*.d.ts
 
 # IDE
 .vscode/
