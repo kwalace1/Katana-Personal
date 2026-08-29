@@ -40,7 +40,7 @@ export function InviteFriendButton({
   if (!cloudEnabled || !cloudUser || !cloudProfile?.friendCode) {
     return (
       <Button asChild size={size} variant={!cloudEnabled ? 'outline' : variant} className={cn('min-h-11 gap-1.5', className)}>
-        <Link to="/settings#cloud">
+        <Link to="/settings/together">
           <Users className="h-4 w-4" />
           Connect to invite
         </Link>

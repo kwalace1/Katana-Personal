@@ -118,7 +118,7 @@ export function PrivacyDataPanel({
         )}
         <p className="mt-2 text-xs text-muted-foreground">
           Manage connections in{' '}
-          <Link to="/settings#connections" className="text-primary underline-offset-2 hover:underline">
+          <Link to="/settings/connections" className="text-primary underline-offset-2 hover:underline">
             Settings → Connections
           </Link>
           .
@@ -149,7 +149,7 @@ export function PrivacyDataPanel({
           </Button>
         ) : (
           <Button asChild variant="outline" size="sm" className="mt-3">
-            <Link to="/settings#device-copy">Save a copy</Link>
+            <Link to="/settings/backup">Save a copy</Link>
           </Button>
         )}
       </section>

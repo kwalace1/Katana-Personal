@@ -192,7 +192,7 @@ export default function FeedProfilePage() {
           description="Profiles live on Together cloud."
           action={
             <Button asChild>
-              <Link to="/settings#cloud">Connect</Link>
+              <Link to="/settings/together">Connect</Link>
             </Button>
           }
         />

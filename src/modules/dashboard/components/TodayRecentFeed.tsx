@@ -65,7 +65,7 @@ export function TodayRecentFeed() {
             Connect to see friends’ wins here — still optional.
           </p>
           <Button asChild size="sm">
-            <Link to="/settings#cloud">Connect</Link>
+            <Link to="/settings/together">Connect</Link>
           </Button>
         </div>
       ) : loading ? (

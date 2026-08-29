@@ -122,7 +122,7 @@ export default function AskPage() {
             id: createId(),
             label: 'Accountability pack',
             kind: 'open_route',
-            route: '/settings#plus',
+            route: '/settings/plus',
           },
         ],
       })
@@ -348,7 +348,7 @@ export default function AskPage() {
           actions={
             <div className="flex flex-wrap items-center gap-2">
               <Button asChild variant="outline" size="sm" className="rounded-full text-xs">
-                <Link to="/settings#ask-coach">Voice · {modeMeta.label}</Link>
+                <Link to="/settings/ask">Voice · {modeMeta.label}</Link>
               </Button>
               {messages.length > 1 ? (
                 <Button

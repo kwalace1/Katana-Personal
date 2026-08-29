@@ -89,7 +89,7 @@ export default function App() {
       <Route path="/feed/u/:uid" element={<FeedProfileRedirect />} />
       <Route path="/circles" element={<Protected><CirclesPage /></Protected>} />
       <Route path="/shared" element={<Protected><SharedPage /></Protected>} />
-      <Route path="/settings" element={<Protected><SettingsPage /></Protected>} />
+      <Route path="/settings/*" element={<Protected><SettingsPage /></Protected>} />
 
       <Route path="*" element={<RootRedirect />} />
     </Routes>

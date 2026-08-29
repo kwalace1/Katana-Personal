@@ -34,7 +34,7 @@ export function IntegrationStatusStrip({ userId, tick = 0 }: Props) {
           <Link2 className="h-4 w-4 shrink-0" />
           <span>Integrations on this device</span>
         </div>
-        <Link to="/settings#connections" className="text-xs font-medium text-primary hover:underline">
+        <Link to="/settings/connections" className="text-xs font-medium text-primary hover:underline">
           Manage
         </Link>
       </div>

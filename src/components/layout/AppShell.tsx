@@ -209,7 +209,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   useKeepInputVisible()
 
   const displayName = cloudProfile?.displayName || profile?.display_name || 'You'
-  const profileTo = cloudUser ? profilePath(cloudUser.uid) : '/settings#cloud'
+  const profileTo = cloudUser ? profilePath(cloudUser.uid) : '/settings/together'
 
   useEffect(() => {
     if (!cloudProfile?.photoURL) {

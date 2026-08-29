@@ -82,7 +82,7 @@ export function TogetherSetup({
       </ol>
       {highlight === 'friends' && !cloudConnected ? (
         <Button asChild size="sm" className="mt-3 min-h-11">
-          <Link to="/settings#cloud">Connect cloud to invite</Link>
+          <Link to="/settings/together">Connect cloud to invite</Link>
         </Button>
       ) : null}
     </div>

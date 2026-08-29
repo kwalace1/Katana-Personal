@@ -274,7 +274,7 @@ export function ShareWinHost() {
                       size="sm"
                       onClick={() => {
                         parkShareWinForConnect()
-                        navigate('/settings#cloud')
+                        navigate('/settings/together')
                       }}
                     >
                       Connect cloud

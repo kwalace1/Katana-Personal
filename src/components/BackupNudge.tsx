@@ -63,7 +63,7 @@ export function BackupNudge() {
           ) : null}
           <div className="mt-3 flex flex-wrap gap-2">
             <Button asChild size="sm" className="min-h-11">
-              <Link to="/settings#device-copy">Save a copy</Link>
+              <Link to="/settings/backup">Save a copy</Link>
             </Button>
             <Button size="sm" variant="outline" className="min-h-11" onClick={() => setHow((v) => !v)}>
               {how ? 'Hide steps' : 'How it works'}

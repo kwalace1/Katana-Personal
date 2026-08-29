@@ -308,7 +308,7 @@ export default function FeedPage() {
             description="Friends and Circles stay opt-in. Private life stays on this device."
             action={
               <Button asChild>
-                <Link to="/settings#cloud">Connect</Link>
+                <Link to="/settings/together">Connect</Link>
               </Button>
             }
           />
