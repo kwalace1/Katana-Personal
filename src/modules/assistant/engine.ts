@@ -21,6 +21,7 @@ import { goalsBehindPace, goalPaceStatus } from '@/lib/orchestration/goal-pace'
 import { pickWorkoutSlot } from '@/lib/orchestration/schedule-workout'
 import { resolveWorkoutPlan } from '@/lib/orchestration/workout-plan'
 import { flavorBriefingText, type AskPersonality } from './personality'
+import { enrichReplyWithShareMore, shouldSkipShareMoreNudge } from './share-more'
 
 export interface LifeSnapshot {
   name: string
@@ -966,28 +967,38 @@ export function answerQuestionWithActions(
   const q = question.trim().toLowerCase()
 
   if (!q || q === 'briefing') {
-    return {
+    const reply = {
       text: flavorBriefingText(personality, buildDailyBriefing(snap), snap.name),
       actions: briefingActions(snap),
     }
+    return enrichReplyWithShareMore(userId, reply, snap, personality)
   }
 
   const created = tryParseCreate(question.trim())
   if (created) return created
 
   const orchestrated = tryOrchestrationIntent(userId, snap, q, displayName, preferences)
-  if (orchestrated) return orchestrated
+  if (orchestrated) {
+    if (shouldSkipShareMoreNudge(q)) return orchestrated
+    return enrichReplyWithShareMore(userId, orchestrated, snap, personality)
+  }
 
   for (const intent of INTENTS) {
-    if (intent.test(q)) return intent.answer(snap, q)
+    if (intent.test(q)) {
+      const reply = intent.answer(snap, q)
+      if (shouldSkipShareMoreNudge(q)) return reply
+      return enrichReplyWithShareMore(userId, reply, snap, personality)
+    }
   }
 
   const fallback = answerDefault(snap)
-  return {
+  const reply = {
     ...fallback,
     text: flavorBriefingText(personality, fallback.text, snap.name),
     useLlm: true,
   }
+  if (shouldSkipShareMoreNudge(q)) return reply
+  return enrichReplyWithShareMore(userId, reply, snap, personality)
 }
 
 export function runAskAction(userId: string, action: AskAction): string {

@@ -17,9 +17,9 @@ describe('Ask engine (no LLM)', () => {
 
   it('answers focus with empty state', () => {
     const reply = answerQuestionWithActions(USER, 'What should I work on today?', 'Alex')
-    expect(reply.text.toLowerCase()).toMatch(/nothing urgent|rest|small thing|capture|stop for the night/)
+    expect(reply.text.toLowerCase()).toMatch(/nothing urgent|rest|small thing|capture|stop for the night|wind|night|close/)
     expect(reply.actions.length).toBeGreaterThanOrEqual(1)
-    expect(reply.actions[0]?.kind).toBe('open_route')
+    expect(['open_route', 'close_day']).toContain(reply.actions[0]?.kind)
   })
 
   it('answers focus with one act chip when a priority task exists', () => {

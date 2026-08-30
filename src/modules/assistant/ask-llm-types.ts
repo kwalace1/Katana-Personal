@@ -45,6 +45,9 @@ export type CompactLifeSnapshot = {
   todayEvents?: CompactEvent[]
   upcomingEvents?: CompactEvent[]
   recentJournal?: CompactJournal[]
+  /** Sparse-context signal for LLM */
+  contextGapLabels?: string[]
+  richnessScore?: number
 }
 
 export type AskToolCall = {

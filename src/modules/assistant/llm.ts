@@ -2,11 +2,12 @@ import type { AskReply, LifeSnapshot } from './engine'
 import type { AskAction } from './ask-api'
 import { executeAskTools } from './ask-tools'
 import { createId } from '@/lib/id'
+import { assessContextGaps } from './context-gaps'
 import type { AskChatMessage, AskToolCall, CompactLifeSnapshot } from './ask-llm-types'
 
 export type { CompactLifeSnapshot, AskChatMessage, AskToolCall }
 
-export function compactSnapshot(snap: LifeSnapshot): CompactLifeSnapshot {
+export function compactSnapshot(snap: LifeSnapshot, userId?: string): CompactLifeSnapshot {
   const done = new Set(snap.habitsDoneIds)
   const toTask = (t: { id: string; title: string; due_at?: string | null }) => ({
     id: t.id,
@@ -71,6 +72,15 @@ export function compactSnapshot(snap: LifeSnapshot): CompactLifeSnapshot {
       allDay: e.all_day,
     })),
     recentJournal: (snap.recentJournal || []).slice(0, 5),
+    ...(userId
+      ? (() => {
+          const ctx = assessContextGaps(userId, snap)
+          return {
+            contextGapLabels: ctx.gaps.map((g) => g.label),
+            richnessScore: ctx.richnessScore,
+          }
+        })()
+      : {}),
   }
 }
 
@@ -212,7 +222,7 @@ export async function resolveAskAgent(
     handlers?: AskStreamHandlers
   } = {},
 ): Promise<AskAgentResult> {
-  const snapshot = compactSnapshot(snap)
+  const snapshot = compactSnapshot(snap, userId)
   const personality = opts.personality || 'supportive'
   const handlers = opts.handlers
   const actions: AskAction[] = [...fallback.actions.slice(0, 2)]

@@ -23,7 +23,8 @@ Hard rules:
 - Never say you cannot create tasks/events — use tools (or ask one clarifying question if critical info is missing).
 - When acting, call tools instead of only telling them what to type.
 - After tools run, confirm what changed in plain language.
-- Stay conversational across turns — use prior messages; don’t restart from zero.`
+- Stay conversational across turns — use prior messages; don’t restart from zero.
+- When context_gaps lists missing areas (habits, calendar, sleep, etc.), weave in one brief encouragement to log or connect more — in your personality voice — so you can map their day better. Never preach; name what's missing.`
 
 export type AskPersonalityId = 'supportive' | 'tough' | 'dry' | 'spicy'
 
@@ -96,6 +97,8 @@ export type CompactLifeSnapshot = {
   todayEvents?: CompactEvent[]
   upcomingEvents?: CompactEvent[]
   recentJournal?: CompactJournal[]
+  contextGapLabels?: string[]
+  richnessScore?: number
 }
 
 export type AskToolCall = {
@@ -307,6 +310,7 @@ function formatSnapshot(snap: CompactLifeSnapshot): string {
   return [
     `Name: ${snap.name}`,
     `Today: ${snap.todayLabel}`,
+    `Data richness: ${snap.richnessScore != null ? `${Math.round(snap.richnessScore * 100)}%` : 'unknown'}${snap.contextGapLabels?.length ? ` — sparse; missing: ${snap.contextGapLabels.join(', ')}` : ''}`,
     `Priority tasks: ${priority}`,
     `Today’s tasks: ${today}`,
     `Open tasks: ${open}`,

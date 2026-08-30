@@ -140,6 +140,43 @@ export function coachPlaceholder(mode: AskPersonality): string {
   }
 }
 
+/** When Katana lacks life data — personality-aware nudge to share more. */
+export function coachShareMoreNudge(
+  mode: AskPersonality,
+  name: string,
+  gaps: { label: string; reason: string }[],
+): string {
+  if (gaps.length === 0) return ''
+  const missing = gaps
+    .slice(0, 3)
+    .map((g) => g.label.toLowerCase())
+    .join(', ')
+  const lead =
+    gaps.length >= 4
+      ? 'I’m mostly flying blind'
+      : gaps.length >= 2
+        ? 'I don’t have much to work with'
+        : 'I’m light on context'
+
+  switch (mode) {
+    case 'tough':
+      return `${lead}, ${name} — no ${missing}. Share more in Katana or I can’t map your day. Log it, connect it, or tell me here.`
+    case 'dry':
+      return `${lead}. ${missing} would help. The more you put in Katana, the less I have to pretend I’m psychic.`
+    case 'spicy':
+      return `${lead} — fascinating strategy. No ${missing}, though. Connect a calendar, log sleep, add a habit… communicate with me so I can actually orchestrate your day.`
+    case 'supportive':
+    default:
+      return `${lead} — I’m missing ${missing}. The more you share (habits, calendar, sleep, journal), the better I can map your day and suggest what’s next.`
+  }
+}
+
+/** LLM instruction when context is sparse. */
+export function shareMoreLlmHint(gapLabels: string[]): string {
+  if (gapLabels.length === 0) return ''
+  return `\n\nContext note: The user's Katana data is sparse (missing: ${gapLabels.join(', ')}). In your personality voice, include one short sentence encouraging them to log or connect more — habits, calendar, sleep, journal, or integrations — so you can orchestrate their day better. Do not scold; be specific about what's missing.`
+}
+
 /** Swap the stock greeting line in a rules briefing for personality. */
 export function flavorBriefingText(mode: AskPersonality, text: string, name: string): string {
   const hour = new Date().getHours()
