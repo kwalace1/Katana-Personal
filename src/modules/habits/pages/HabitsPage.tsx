@@ -1,10 +1,11 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronDown, Plus, Trash2, X } from 'lucide-react'
+import { ChevronDown, FolderPlus, Plus, Trash2, X } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { EmptyState } from '@/components/ui/empty-state'
 import { CompleteToggle } from '@/components/CompleteToggle'
 import { Switch } from '@/components/ui/switch'
@@ -26,6 +27,7 @@ import {
   reminderTimesOf,
   type HabitSchedule,
   type Weekday,
+  type HabitFolder,
 } from '../types'
 
 const REMINDER_PRESETS: { label: string; time: string }[] = [
@@ -256,6 +258,11 @@ export default function HabitsPage() {
     return habitsApi.list(userId)
   }, [userId, tick])
 
+  const folders = useMemo(() => {
+    void tick
+    return habitsApi.listFolders(userId)
+  }, [userId, tick])
+
   const dueIds = useMemo(() => new Set(habitsApi.dueToday(userId).map((h) => h.id)), [userId, tick])
 
   const [title, setTitle] = useState('')
@@ -263,6 +270,8 @@ export default function HabitsPage() {
   const [customDays, setCustomDays] = useState<Weekday[]>([1, 2, 3, 4, 5])
   const [onceDate, setOnceDate] = useState(todayKey())
   const [filter, setFilter] = useState<'all' | 'due'>('due')
+  const [folderId, setFolderId] = useState<string | 'all' | 'none'>('all')
+  const [newFolderName, setNewFolderName] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(params.get('id'))
   const [habitTaskTitle, setHabitTaskTitle] = useState('')
 
@@ -281,6 +290,7 @@ export default function HabitsPage() {
       schedule,
       custom_days: customDays,
       once_date: onceDate,
+      folder_id: folderId !== 'all' && folderId !== 'none' ? folderId : null,
     })
     setTitle('')
     setSchedule('daily')
@@ -291,7 +301,12 @@ export default function HabitsPage() {
     refresh()
   }
 
-  const visible = habits.filter((h) => (filter === 'due' ? dueIds.has(h.id) : true))
+  const visible = habits.filter((h) => {
+    if (filter === 'due' && !dueIds.has(h.id)) return false
+    if (folderId === 'none') return !h.folder_id
+    if (folderId !== 'all') return h.folder_id === folderId
+    return true
+  })
 
   return (
     <motion.div {...pageEnterSubtle} className="kp-page">
@@ -300,6 +315,82 @@ export default function HabitsPage() {
         description="Pick the days that fit — and as many reminder times as you want."
         eyebrow="Life"
       />
+
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <Button
+          size="sm"
+          variant={folderId === 'all' ? 'default' : 'outline'}
+          className="rounded-full"
+          onClick={() => setFolderId('all')}
+        >
+          All folders
+        </Button>
+        <Button
+          size="sm"
+          variant={folderId === 'none' ? 'default' : 'outline'}
+          className="rounded-full"
+          onClick={() => setFolderId('none')}
+        >
+          Unfiled
+        </Button>
+        {folders.map((folder: HabitFolder) => (
+          <div key={folder.id} className="flex items-center">
+            <Button
+              size="sm"
+              variant={folderId === folder.id ? 'default' : 'outline'}
+              className="rounded-full gap-1.5 pr-1"
+              onClick={() => setFolderId(folder.id)}
+            >
+              {folder.name}
+              <span className="text-[0.65rem] opacity-70">
+                {habitsApi.habitsInFolder(userId, folder.id).length}
+              </span>
+            </Button>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="h-8 w-8 text-muted-foreground"
+              aria-label={`Remove ${folder.name}`}
+              onClick={() => {
+                if (
+                  !window.confirm(
+                    `Remove “${folder.name}”? Habits in this folder become unfiled.`,
+                  )
+                ) {
+                  return
+                }
+                habitsApi.deleteFolder(userId, folder.id)
+                if (folderId === folder.id) setFolderId('all')
+                refresh()
+              }}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        ))}
+        <form
+          className="flex gap-1"
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (!newFolderName.trim()) return
+            const folder = habitsApi.createFolder(userId, newFolderName)
+            setNewFolderName('')
+            setFolderId(folder.id)
+            refresh()
+          }}
+        >
+          <Input
+            className="h-8 w-28"
+            placeholder="New folder"
+            value={newFolderName}
+            onChange={(e) => setNewFolderName(e.target.value)}
+          />
+          <Button type="submit" size="sm" variant="ghost" aria-label="Add folder">
+            <FolderPlus className="h-4 w-4" />
+          </Button>
+        </form>
+      </div>
 
       <form onSubmit={onCreate} className="kp-surface mb-6 space-y-3 p-4 sm:p-5">
         <div className="flex gap-2">
@@ -449,6 +540,30 @@ export default function HabitsPage() {
                               refresh()
                             }}
                           />
+                          <div className="space-y-1.5">
+                            <p className="text-xs font-medium text-muted-foreground">Folder</p>
+                            <Select
+                              value={habit.folder_id || 'none'}
+                              onValueChange={(v) => {
+                                habitsApi.update(userId, habit.id, {
+                                  folder_id: v === 'none' ? null : v,
+                                })
+                                refresh()
+                              }}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Folder" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">Unfiled</SelectItem>
+                                {folders.map((folder) => (
+                                  <SelectItem key={folder.id} value={folder.id}>
+                                    {folder.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
                           <SchedulePicker
                             schedule={habit.schedule}
                             customDays={habit.custom_days?.length ? habit.custom_days : [1, 2, 3, 4, 5]}

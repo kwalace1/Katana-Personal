@@ -155,7 +155,7 @@ function TaskEditFields({
           </Select>
         </div>
         <div className="space-y-1.5">
-          <p className="text-xs font-medium text-muted-foreground">List</p>
+          <p className="text-xs font-medium text-muted-foreground">Folder</p>
           <Select
             value={task.list_id || lists[0]?.id || ''}
             onValueChange={(v) => {
@@ -164,7 +164,7 @@ function TaskEditFields({
             }}
           >
             <SelectTrigger>
-              <SelectValue placeholder="List" />
+              <SelectValue placeholder="Folder" />
             </SelectTrigger>
             <SelectContent>
               {lists.map((l) => (
@@ -424,6 +424,7 @@ export default function TasksPage() {
     const id = params.get('list')
     return id && id !== 'all' ? id : 'all'
   })
+  const [createFolderId, setCreateFolderId] = useState<string>('')
   const [newListName, setNewListName] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(params.get('id'))
 
@@ -436,6 +437,15 @@ export default function TasksPage() {
     if (f === 'overdue' || f === 'done' || f === 'all' || f === 'open') setFilter(f)
   }, [params])
 
+  useEffect(() => {
+    if (createFolderId && lists.some((l) => l.id === createFolderId)) return
+    if (listId !== 'all' && lists.some((l) => l.id === listId)) {
+      setCreateFolderId(listId)
+      return
+    }
+    if (lists[0]?.id) setCreateFolderId(lists[0].id)
+  }, [lists, listId, createFolderId])
+
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
   async function onCreate(e: FormEvent) {
@@ -445,7 +455,7 @@ export default function TasksPage() {
       toast.error('Set a due date if you want to share this to a circle calendar')
       return
     }
-    const targetList = listId === 'all' ? lists[0]?.id : listId
+    const targetList = createFolderId || lists[0]?.id
     const dueIso = dueAt ? new Date(dueAt).toISOString() : null
     const task = tasksApi.createTask(userId, {
       title,
@@ -533,7 +543,7 @@ export default function TasksPage() {
           className="rounded-full"
           onClick={() => setListId('all')}
         >
-          All lists
+          All folders
         </Button>
         {lists.map((list) => (
           <div key={list.id} className="flex items-center">
@@ -543,6 +553,7 @@ export default function TasksPage() {
               className="rounded-full gap-1.5 pr-1"
               onClick={() => {
                 setListId(list.id)
+                setCreateFolderId(list.id)
                 setFilter('all')
               }}
             >
@@ -560,14 +571,14 @@ export default function TasksPage() {
                 onClick={() => {
                   if (
                     !window.confirm(
-                      `Remove “${list.name}”? Tasks on this list move to another list.`,
+                      `Remove “${list.name}”? Tasks in this folder move to another folder.`,
                     )
                   ) {
                     return
                   }
                   const ok = tasksApi.deleteList(userId, list.id)
                   if (!ok) {
-                    toast.error('Keep at least one list')
+                    toast.error('Keep at least one folder')
                     return
                   }
                   if (listId === list.id) setListId('all')
@@ -588,17 +599,18 @@ export default function TasksPage() {
             const list = tasksApi.createList(userId, newListName)
             setNewListName('')
             setListId(list.id)
+            setCreateFolderId(list.id)
             setFilter('all')
             refresh()
           }}
         >
           <Input
             className="h-8 w-28"
-            placeholder="New list"
+            placeholder="New folder"
             value={newListName}
             onChange={(e) => setNewListName(e.target.value)}
           />
-          <Button type="submit" size="sm" variant="ghost" aria-label="Add list">
+          <Button type="submit" size="sm" variant="ghost" aria-label="Add folder">
             <Plus className="h-4 w-4" />
           </Button>
         </form>
@@ -685,6 +697,24 @@ export default function TasksPage() {
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5 sm:col-span-2">
+            <p className="text-xs font-medium text-muted-foreground">Folder</p>
+            <Select value={createFolderId} onValueChange={setCreateFolderId}>
+              <SelectTrigger className="min-h-11">
+                <SelectValue placeholder="Choose folder" />
+              </SelectTrigger>
+              <SelectContent>
+                {lists.map((l) => (
+                  <SelectItem key={l.id} value={l.id}>
+                    <span className="flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ background: l.color }} />
+                      {l.name}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="space-y-1.5">
             <p className="text-xs font-medium text-muted-foreground">Priority</p>
             <Select value={priority} onValueChange={(v) => setPriority(v as TaskPriority)}>

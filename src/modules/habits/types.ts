@@ -3,9 +3,18 @@ export type HabitSchedule = 'daily' | 'weekdays' | 'weekends' | 'custom' | 'once
 /** JS Date#getDay(): 0 = Sunday … 6 = Saturday */
 export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6
 
+export interface HabitFolder {
+  id: string
+  user_id: string
+  name: string
+  created_at: string
+  updated_at: string
+}
+
 export interface Habit {
   id: string
   user_id: string
+  folder_id: string | null
   title: string
   schedule: HabitSchedule
   /** Used when schedule is `custom` — which weekdays repeat. */

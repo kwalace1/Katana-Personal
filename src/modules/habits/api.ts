@@ -8,12 +8,14 @@ import {
   reminderTimesOf,
   resolveHabitDays,
   type Habit,
+  type HabitFolder,
   type HabitLog,
   type HabitSchedule,
   type Weekday,
 } from './types'
 
 const HABITS = 'habits'
+const FOLDERS = 'habit_folders'
 const LOGS = 'habit_logs'
 
 function now() {
@@ -35,6 +37,7 @@ function normalizeHabit(habit: Habit): Habit {
   const times = reminderTimesOf(habit)
   return {
     ...habit,
+    folder_id: habit.folder_id ?? null,
     schedule: habit.schedule || 'daily',
     custom_days: Array.isArray(habit.custom_days) ? (habit.custom_days as Weekday[]) : [],
     once_date: habit.once_date ?? null,
@@ -47,6 +50,36 @@ function normalizeHabit(habit: Habit): Habit {
 export const habitsApi = {
   list(userId: string): Habit[] {
     return localDb.list<Habit>(HABITS, userId).map(normalizeHabit)
+  },
+
+  listFolders(userId: string): HabitFolder[] {
+    return localDb.list<HabitFolder>(FOLDERS, userId).sort((a, b) => a.name.localeCompare(b.name))
+  },
+
+  createFolder(userId: string, name: string): HabitFolder {
+    const ts = now()
+    return localDb.insert(FOLDERS, userId, {
+      id: createId(),
+      user_id: userId,
+      name: name.trim() || 'Folder',
+      created_at: ts,
+      updated_at: ts,
+    })
+  },
+
+  updateFolder(userId: string, id: string, patch: Partial<Pick<HabitFolder, 'name'>>): HabitFolder | null {
+    return localDb.update<HabitFolder>(FOLDERS, userId, id, { ...patch, updated_at: now() })
+  },
+
+  deleteFolder(userId: string, id: string): boolean {
+    for (const habit of habitsApi.list(userId).filter((h) => h.folder_id === id)) {
+      habitsApi.update(userId, habit.id, { folder_id: null })
+    }
+    return localDb.remove(FOLDERS, userId, id)
+  },
+
+  habitsInFolder(userId: string, folderId: string): Habit[] {
+    return habitsApi.list(userId).filter((h) => h.folder_id === folderId)
   },
 
   get(userId: string, id: string): Habit | null {
@@ -84,6 +117,7 @@ export const habitsApi = {
     userId: string,
     input: {
       title: string
+      folder_id?: string | null
       schedule?: HabitSchedule
       custom_days?: Weekday[]
       once_date?: string | null
@@ -99,6 +133,7 @@ export const habitsApi = {
       localDb.insert(HABITS, userId, {
         id: createId(),
         user_id: userId,
+        folder_id: input.folder_id ?? null,
         title: input.title.trim(),
         schedule,
         custom_days: schedule === 'custom' ? (input.custom_days || []) : [],

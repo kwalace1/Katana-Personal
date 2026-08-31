@@ -192,6 +192,8 @@ export function FeedPostCard({
   const [busy, setBusy] = useState(false)
   const [liking, setLiking] = useState(false)
   const [reposting, setReposting] = useState(false)
+  const [repostOpen, setRepostOpen] = useState(false)
+  const [repostCaption, setRepostCaption] = useState('')
   const [commentsOpen, setCommentsOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [reportOpen, setReportOpen] = useState(false)
@@ -388,11 +390,18 @@ export function FeedPostCard({
     }
   }
 
-  async function onRepost() {
+  async function submitRepost(e: FormEvent) {
+    e.preventDefault()
     if (reposting || engagement.repostedByMe || isMine) return
     setReposting(true)
     try {
-      await createRepost({ userId: selfUid, original: post, audience: 'friends' })
+      const caption = repostCaption.trim()
+      await createRepost({
+        userId: selfUid,
+        original: post,
+        audience: 'friends',
+        quote: caption,
+      })
       onEngagementChange({ ...engagement, repostedByMe: true })
       void notifyPostEngagement({
         authorId: post.authorId,
@@ -400,14 +409,22 @@ export function FeedPostCard({
         actorName: selfName,
         kind: 'post_repost',
         postId: post.id,
-        preview: post.text,
+        preview: caption || post.text,
       })
-      toast.success('Reposted to friends')
+      setRepostOpen(false)
+      setRepostCaption('')
+      toast.success(caption ? 'Reposted with your caption' : 'Reposted to friends')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Couldn’t repost')
     } finally {
       setReposting(false)
     }
+  }
+
+  function openRepost() {
+    if (reposting || engagement.repostedByMe || isMine) return
+    setRepostCaption('')
+    setRepostOpen(true)
   }
 
   async function onComment(e: FormEvent) {
@@ -582,6 +599,10 @@ export function FeedPostCard({
       ? selfName
       : names[post.repost.authorId] || 'Friend'
     : null
+  const repostPreviewText = post.repost?.text || post.text
+  const repostPreviewMedia = post.repost?.media || post.media
+  const repostPreviewCard = post.repost?.card || post.card
+  const repostPreviewAuthor = originalAuthorName || authorName
 
   return (
     <motion.article
@@ -741,7 +762,7 @@ export function FeedPostCard({
                 'inline-flex items-center gap-1.5 rounded-full px-2 py-1.5 text-xs transition hover:bg-emerald-500/10 hover:text-emerald-600 disabled:opacity-40',
                 engagement.repostedByMe && 'text-emerald-600',
               )}
-              onClick={() => void onRepost()}
+              onClick={openRepost}
               aria-label="Repost"
             >
               {reposting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Repeat2 className="h-4 w-4" />}
@@ -825,6 +846,67 @@ export function FeedPostCard({
               />
               <Button type="submit" disabled={commentBusy || !commentDraft.trim()} className="self-end">
                 {commentBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : replyTo ? 'Reply' : 'Comment'}
+              </Button>
+            </div>
+          </form>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet
+        open={repostOpen}
+        onOpenChange={(open) => {
+          setRepostOpen(open)
+          if (!open) setRepostCaption('')
+        }}
+      >
+        <SheetContent
+          side="bottom"
+          className="max-h-[min(88vh,34rem)] gap-0 rounded-t-[1.5rem] border-border/50 pb-[max(1rem,env(safe-area-inset-bottom))]"
+          onOpenAutoFocus={(e) => e.preventDefault()}
+        >
+          <SheetHeader className="border-b border-border/40 px-5 pb-3 pt-2 text-left">
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border" />
+            <SheetTitle className="text-lg">Repost</SheetTitle>
+            <SheetDescription>Add a caption, then share to friends.</SheetDescription>
+          </SheetHeader>
+          <form onSubmit={(e) => void submitRepost(e)} className="space-y-3 overflow-y-auto px-5 py-4">
+            <Textarea
+              value={repostCaption}
+              onChange={(e) => setRepostCaption(e.target.value.slice(0, FEED_TEXT_MAX))}
+              rows={3}
+              placeholder="Say something about this…"
+              className="resize-none"
+              autoFocus
+            />
+            <p className="text-right text-[0.7rem] text-muted-foreground">
+              {repostCaption.length}/{FEED_TEXT_MAX}
+            </p>
+            <div className="rounded-2xl border border-border/60 bg-secondary/20 p-3">
+              <p className="text-xs font-medium text-muted-foreground">{repostPreviewAuthor}</p>
+              {repostPreviewText ? (
+                <p className="mt-1 line-clamp-4 whitespace-pre-wrap text-sm leading-relaxed">
+                  {repostPreviewText}
+                </p>
+              ) : null}
+              <FeedMediaBlock media={repostPreviewMedia} compact />
+              {repostPreviewCard ? (
+                <div className="mt-2">
+                  <FeedCardView card={repostPreviewCard} />
+                </div>
+              ) : null}
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1"
+                disabled={reposting}
+                onClick={() => setRepostOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" className="flex-1" disabled={reposting}>
+                {reposting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Repost'}
               </Button>
             </div>
           </form>

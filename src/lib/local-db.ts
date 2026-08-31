@@ -14,6 +14,7 @@ export const WORKSPACE_COLLECTIONS = [
   'note_folders',
   'goals',
   'habits',
+  'habit_folders',
   'habit_logs',
   'journal_entries',
   'workouts',
