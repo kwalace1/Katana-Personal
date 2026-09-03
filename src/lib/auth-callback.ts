@@ -51,7 +51,7 @@ export function mapCloudAuthError(err: unknown): string {
   const raw = err instanceof Error ? err.message : 'Couldn’t sign in'
   const msg = raw.toLowerCase()
   if (msg.includes('email not confirmed')) {
-    return 'Confirm your email first — open the link we sent, then sign in.'
+    return 'Confirm your email first — open the link we sent, then sign in. If you don’t see it in your inbox, check your spam.'
   }
   if (msg.includes('invalid login credentials')) {
     return 'Email or password doesn’t match. Try Sign in, or Create if you’re new.'
@@ -60,7 +60,7 @@ export function mapCloudAuthError(err: unknown): string {
     return 'This email already has an account. Use Sign in instead.'
   }
   if (msg.includes('row-level security') || msg.includes('not authenticated')) {
-    return 'Confirm your email first — open the link we sent, then come back.'
+    return 'Confirm your email first — open the link we sent, then come back. If you don’t see it in your inbox, check your spam.'
   }
   return raw
 }

@@ -155,7 +155,8 @@ export default function LandingPage() {
         }
         if (needsEmailConfirmation) {
           toast.success('Check your email', {
-            description: 'Open the confirmation link to finish Cloud. Your space is ready on this device.',
+            description:
+              'Open the confirmation link to finish Cloud. Your space is ready on this device. If you don’t see it in your inbox, check your spam.',
             duration: 8000,
           })
         } else {
@@ -451,7 +452,7 @@ export default function LandingPage() {
                 ) : null}
                 <p className="text-center text-xs text-muted-foreground">
                   {mode === 'signup'
-                    ? 'We’ll email a confirmation link. Open it to finish Cloud — Friends, Circles, and sync.'
+                    ? 'We’ll email a confirmation link. Open it to finish Cloud — Friends, Circles, and sync. If you don’t see it in your inbox, check your spam.'
                     : 'Signs you into Friends, Circles, and cloud sync for this device.'}
                 </p>
               </form>

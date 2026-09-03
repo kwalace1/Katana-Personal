@@ -27,5 +27,6 @@ describe('auth callback URL', () => {
 describe('mapCloudAuthError', () => {
   it('explains unconfirmed email instead of a generic sign-in failure', () => {
     expect(mapCloudAuthError(new Error('Email not confirmed'))).toMatch(/confirm your email/i)
+    expect(mapCloudAuthError(new Error('Email not confirmed'))).toMatch(/check your spam/i)
   })
 })

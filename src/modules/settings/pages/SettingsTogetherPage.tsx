@@ -55,7 +55,8 @@ export function SettingsTogetherPage() {
         const { needsEmailConfirmation } = await signUpCloud(emailTrim, password, signupName)
         if (needsEmailConfirmation) {
           toast.success('Check your email', {
-            description: 'Open the confirmation link to finish this Cloud account.',
+            description:
+              'Open the confirmation link to finish this Cloud account. If you don’t see it in your inbox, check your spam.',
             duration: 8000,
           })
         } else {
@@ -237,7 +238,7 @@ export function SettingsTogetherPage() {
               </Button>
               {cloudMode === 'signup' ? (
                 <p className="text-center text-xs text-muted-foreground">
-                  You’ll get a confirmation email. Open that link to finish Cloud.
+                  You’ll get a confirmation email. Open that link to finish Cloud. If you don’t see it in your inbox, check your spam.
                 </p>
               ) : null}
             </form>
