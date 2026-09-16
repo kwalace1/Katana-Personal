@@ -135,10 +135,8 @@ function NavGroup({
                 [...query.entries()].every(([key, value]) => search.get(key) === value)
               : location.pathname === path
             return cn(
-              'group flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-[0.925rem] font-medium transition-all duration-200',
-              active
-                ? 'bg-primary/10 text-primary shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.12)]'
-                : 'text-muted-foreground hover:bg-secondary/80 hover:text-foreground',
+              'group flex min-h-11 items-center gap-3 px-3 py-2 text-[0.925rem] font-medium transition-all duration-200',
+              active ? 'kp-glass-control kp-glass-control-active' : 'kp-nav-idle',
             )
           }}
         >
@@ -170,7 +168,7 @@ function NavExpandable({
       <button
         type="button"
         onClick={onToggle}
-        className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2 text-[0.925rem] font-medium text-muted-foreground transition hover:bg-secondary/80 hover:text-foreground"
+        className="kp-nav-idle flex min-h-11 w-full items-center gap-3 px-3 py-2 text-[0.925rem] font-medium"
         aria-expanded={open}
       >
         <Icon className="h-[1.05rem] w-[1.05rem] shrink-0 opacity-80" />
@@ -294,10 +292,8 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
           onClick={closeNav}
           className={({ isActive }) =>
             cn(
-              'flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-[0.925rem] font-medium transition-all',
-              isActive
-                ? 'bg-primary/10 text-primary'
-                : 'text-muted-foreground hover:bg-secondary/80 hover:text-foreground',
+              'flex min-h-11 items-center gap-3 px-3 py-2 text-[0.925rem] font-medium transition-all',
+              isActive ? 'kp-glass-control kp-glass-control-active' : 'kp-nav-idle',
             )
           }
         >
@@ -361,7 +357,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
             <Button
               variant="ghost"
               size="icon"
-              className="rounded-xl"
+              className="rounded-full"
               aria-label="Search"
               onClick={() => setPaletteOpen(true)}
             >
@@ -374,12 +370,13 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="kp-glass-chrome sticky top-0 z-20 flex items-center justify-between border-b px-3 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] md:hidden">
-          <div className="flex items-center gap-1">
+        <header className="sticky top-0 z-20 px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] md:hidden">
+          <div className="kp-glass-chrome flex items-center justify-between rounded-full border px-1.5 py-1.5">
+          <div className="flex items-center gap-0.5">
             <Button
               variant="ghost"
               size="icon"
-              className="h-11 w-11 rounded-xl"
+              className="h-11 w-11 rounded-full"
               aria-label="Open menu"
               aria-expanded={navOpen}
               onClick={openNav}
@@ -388,18 +385,19 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
             </Button>
             <BrandMark compact />
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-0.5">
             <NotificationBell />
             <Button
               variant="ghost"
               size="icon"
-              className="h-11 w-11 rounded-xl"
+              className="h-11 w-11 rounded-full"
               aria-label="Search or capture"
               onClick={() => setPaletteOpen(true)}
             >
               <Plus className="h-4 w-4" />
             </Button>
             <SimpleThemeToggle />
+          </div>
           </div>
         </header>
 
@@ -552,7 +550,7 @@ function MobileNavDrawer({
           <motion.div
             role="presentation"
             aria-hidden
-            className="fixed inset-0 z-40 touch-manipulation bg-black/35 backdrop-blur-sm md:hidden"
+            className="fixed inset-0 z-40 touch-manipulation bg-black/25 backdrop-blur-md md:hidden"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -567,7 +565,7 @@ function MobileNavDrawer({
             role="dialog"
             aria-modal="true"
             aria-label="Navigation"
-            className="kp-glass-chrome fixed inset-y-0 left-0 z-50 flex w-[min(17.5rem,85vw)] flex-col border-r touch-pan-y md:hidden"
+            className="kp-glass-chrome fixed inset-y-2 left-2 z-50 flex w-[min(17.5rem,85vw)] flex-col overflow-hidden rounded-[1.75rem] border touch-pan-y md:hidden"
             style={{ width: `min(${DRAWER_WIDTH}px, 85vw)` }}
             initial={{ x: '-100%' }}
             animate={{ x: 0 }}

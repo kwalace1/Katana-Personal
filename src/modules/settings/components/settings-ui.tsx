@@ -50,7 +50,7 @@ export function SettingsGroup({ title, children, className }: SettingsGroupProps
   return (
     <section className={cn('mb-5', className)}>
       {title ? <p className="kp-section-label mb-2 px-1 uppercase tracking-wide">{title}</p> : null}
-      <div className="kp-surface divide-y divide-border/40 overflow-hidden rounded-2xl">{children}</div>
+      <div className="kp-surface divide-y divide-white/25 overflow-hidden dark:divide-white/10">{children}</div>
     </section>
   )
 }

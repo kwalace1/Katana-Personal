@@ -333,7 +333,7 @@ export default function LandingPage() {
               <p className="mb-4 font-display text-2xl tracking-tight">Open Katana</p>
             ) : null}
 
-            <div className="flex gap-2 rounded-2xl bg-secondary/60 p-1">
+            <div className="kp-glass-chrome flex gap-1 rounded-full border p-1">
               {(
                 [
                   ['open', 'Open'],
@@ -345,8 +345,10 @@ export default function LandingPage() {
                   key={id}
                   type="button"
                   className={cn(
-                    'min-h-11 flex-1 rounded-xl text-sm font-semibold transition',
-                    mode === id ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground',
+                    'min-h-11 flex-1 rounded-full text-sm font-semibold transition',
+                    mode === id
+                      ? 'kp-glass-control kp-glass-control-active text-foreground'
+                      : 'kp-nav-idle',
                   )}
                   onClick={() => setMode(id)}
                 >
