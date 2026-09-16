@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -20,7 +20,6 @@ import { SettingsPanel } from './settings-ui'
 export function DeleteSpacePanel() {
   const { user } = useAuth()
   const { cloudUser, deleteTogetherAccount } = useCloudAuth()
-  const navigate = useNavigate()
   const [open, setOpen] = useState<'device' | 'account' | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -76,17 +75,14 @@ export function DeleteSpacePanel() {
           </Button>
         ) : null}
       </div>
-      <p className="mt-2 text-xs text-muted-foreground">
-        Privacy Policy and Terms live in Settings — or go to{' '}
-        <button
-          type="button"
-          className="text-primary underline-offset-2 hover:underline"
-          onClick={() => navigate('/settings/legal/privacy')}
-        >
+      <nav className="mt-2 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground" aria-label="Legal">
+        <Link to="/settings/legal/privacy" className="min-h-11 inline-flex items-center text-primary underline-offset-2 hover:underline">
           Privacy Policy
-        </button>
-        .
-      </p>
+        </Link>
+        <Link to="/settings/legal/terms" className="min-h-11 inline-flex items-center text-primary underline-offset-2 hover:underline">
+          Terms of Use
+        </Link>
+      </nav>
 
       <AlertDialog open={open === 'device'} onOpenChange={(next) => !busy && setOpen(next ? 'device' : null)}>
         <AlertDialogContent>

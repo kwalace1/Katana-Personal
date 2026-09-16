@@ -154,15 +154,14 @@ export function PrivacyDataPanel({
         )}
       </section>
 
-      <p className="text-xs text-muted-foreground">
-        <Link to="/settings/legal/privacy" className="text-primary underline-offset-2 hover:underline">
+      <nav className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground" aria-label="Legal">
+        <Link to="/settings/legal/privacy" className="min-h-11 inline-flex items-center text-primary underline-offset-2 hover:underline">
           Privacy Policy
         </Link>
-        {' · '}
-        <Link to="/settings/legal/terms" className="text-primary underline-offset-2 hover:underline">
-          Terms
+        <Link to="/settings/legal/terms" className="min-h-11 inline-flex items-center text-primary underline-offset-2 hover:underline">
+          Terms of Use
         </Link>
-      </p>
+      </nav>
     </div>
   )
 }
