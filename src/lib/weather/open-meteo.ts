@@ -102,10 +102,10 @@ export async function queryGeolocationPermission(): Promise<GeolocationPermissio
   }
 }
 
-function getPosition(): Promise<GeolocationPosition> {
+function getPosition(forceFresh = false): Promise<GeolocationPosition> {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
-      reject(new Error('Location isn’t available in this browser'))
+      reject(new WeatherGeoError('unavailable', 'Location isn’t available in this browser'))
       return
     }
 
@@ -113,7 +113,12 @@ function getPosition(): Promise<GeolocationPosition> {
     const timer = window.setTimeout(() => {
       if (settled) return
       settled = true
-      reject(new Error('Location timed out — tap retry after allowing access.'))
+      reject(
+        new WeatherGeoError(
+          'timeout',
+          'Location timed out. Tap Allow location — then approve the system prompt.',
+        ),
+      )
     }, GEO_TIMEOUT_MS)
 
     navigator.geolocation.getCurrentPosition(
@@ -128,20 +133,34 @@ function getPosition(): Promise<GeolocationPosition> {
         settled = true
         window.clearTimeout(timer)
         if (err.code === err.PERMISSION_DENIED) {
-          reject(new Error('Location permission denied'))
+          reject(
+            new WeatherGeoError(
+              'denied',
+              'Location permission denied',
+            ),
+          )
         } else if (err.code === err.TIMEOUT) {
-          reject(new Error('Location timed out — tap retry.'))
+          reject(new WeatherGeoError('timeout', 'Location timed out. Tap Allow location.'))
         } else {
-          reject(new Error(err.message || 'Couldn’t read location'))
+          reject(new WeatherGeoError('unknown', err.message || 'Couldn’t read location'))
         }
       },
       {
         enableHighAccuracy: false,
         timeout: GEO_TIMEOUT_MS - 500,
-        maximumAge: 10 * 60_000,
+        maximumAge: forceFresh ? 0 : 10 * 60_000,
       },
     )
   })
+}
+
+export class WeatherGeoError extends Error {
+  kind: 'denied' | 'timeout' | 'unavailable' | 'unknown'
+  constructor(kind: WeatherGeoError['kind'], message: string) {
+    super(message)
+    this.name = 'WeatherGeoError'
+    this.kind = kind
+  }
 }
 
 export async function fetchWeatherSnapshot(force = false): Promise<WeatherSnapshot> {
@@ -150,7 +169,7 @@ export async function fetchWeatherSnapshot(force = false): Promise<WeatherSnapsh
     if (cached) return cached
   }
 
-  const pos = await getPosition()
+  const pos = await getPosition(force)
   const lat = pos.coords.latitude
   const lon = pos.coords.longitude
   const url = new URL('https://api.open-meteo.com/v1/forecast')

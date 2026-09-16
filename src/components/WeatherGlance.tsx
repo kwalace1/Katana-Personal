@@ -7,6 +7,7 @@ import {
   formatTemp,
   queryGeolocationPermission,
   readWeatherCache,
+  WeatherGeoError,
   type WeatherSnapshot,
 } from '@/lib/weather/open-meteo'
 
@@ -16,41 +17,55 @@ type Props = {
   className?: string
 }
 
-type Phase = 'loading' | 'ready' | 'error'
+type Phase = 'loading' | 'ready' | 'needs_allow' | 'os_denied' | 'error'
 
 /**
- * Auto-pull location on first visit. iOS PWAs often drop the first
- * getCurrentPosition callback after Allow — we hard-timeout and retry when
- * the app becomes visible/focused again so testers don’t need a full refresh.
+ * Auto-try location on first visit, but recover without a full app refresh:
+ * - Mount request can hang on iOS after Allow → timeout → show Allow location CTA
+ * - Tapping Allow location is a user gesture (reliable path for the system prompt)
+ * - Only show “blocked in Settings” after a confirmed OS denial
  */
 export function WeatherGlance({ variant = 'today', className }: Props) {
   const [snap, setSnap] = useState<WeatherSnapshot | null>(() => readWeatherCache())
   const [error, setError] = useState<string | null>(null)
   const [phase, setPhase] = useState<Phase>(() => (readWeatherCache() ? 'ready' : 'loading'))
   const inFlight = useRef(false)
-  const deniedRef = useRef(false)
   const hasSnap = useRef(Boolean(readWeatherCache()))
+  const osDenied = useRef(false)
 
-  async function load(force = false) {
+  async function load(opts: { force?: boolean; fromUserGesture?: boolean } = {}) {
+    const { force = false, fromUserGesture = false } = opts
     if (inFlight.current) return
-    if (deniedRef.current && !force) return
     inFlight.current = true
     setPhase('loading')
     setError(null)
     try {
       const next = await fetchWeatherSnapshot(force)
       hasSnap.current = true
-      deniedRef.current = false
+      osDenied.current = false
       setSnap(next)
       setPhase('ready')
     } catch (err) {
+      const kind = err instanceof WeatherGeoError ? err.kind : 'unknown'
       const msg = err instanceof Error ? err.message : 'Couldn’t load weather'
-      const denied = /denied|permission/i.test(msg)
-      deniedRef.current = denied
-      if (!hasSnap.current) {
-        setSnap(null)
+
+      if (kind === 'denied') {
+        // Confirm with Permissions API when possible — mount-time denials on iOS are often recoverable
+        // via a real tap (user gesture). Only show Settings copy after a confirmed deny.
+        const permission = await queryGeolocationPermission()
+        if (!hasSnap.current) {
+          if (permission === 'denied' || fromUserGesture) {
+            osDenied.current = true
+            setError(msg)
+            setPhase('os_denied')
+          } else {
+            setError(msg)
+            setPhase('needs_allow')
+          }
+        }
+      } else if (!hasSnap.current) {
         setError(msg)
-        setPhase('error')
+        setPhase(kind === 'timeout' || kind === 'unknown' ? 'needs_allow' : 'error')
       }
     } finally {
       inFlight.current = false
@@ -73,22 +88,29 @@ export function WeatherGlance({ variant = 'today', className }: Props) {
 
       const permission = await queryGeolocationPermission()
       if (cancelled) return
+
       if (permission === 'denied') {
-        deniedRef.current = true
+        osDenied.current = true
+        setPhase('os_denied')
         setError('Location permission denied')
-        setPhase('error')
         return
       }
 
-      // First open: request location immediately (shows system Allow dialog).
-      await load(false)
+      if (permission === 'granted') {
+        await load({ force: false })
+        return
+      }
+
+      // First visit: try automatically (may show the system prompt).
+      // If iOS drops the callback after Allow, we time out into needs_allow — no app refresh required.
+      await load({ force: false, fromUserGesture: false })
     }
 
     void boot()
 
     function retryAfterPrompt() {
-      if (cancelled || deniedRef.current || hasSnap.current || inFlight.current) return
-      void load(true)
+      if (cancelled || hasSnap.current || inFlight.current || osDenied.current) return
+      void load({ force: true, fromUserGesture: false })
     }
 
     function onVisibility() {
@@ -105,13 +127,14 @@ export function WeatherGlance({ variant = 'today', className }: Props) {
         if (!navigator.permissions?.query) return
         permissionStatus = await navigator.permissions.query({ name: 'geolocation' })
         permissionStatus.onchange = () => {
-          if (permissionStatus?.state === 'granted') retryAfterPrompt()
-          if (permissionStatus?.state === 'denied') {
-            deniedRef.current = true
-            if (!hasSnap.current) {
-              setError('Location permission denied')
-              setPhase('error')
-            }
+          if (permissionStatus?.state === 'granted') {
+            osDenied.current = false
+            retryAfterPrompt()
+          }
+          if (permissionStatus?.state === 'denied' && !hasSnap.current) {
+            osDenied.current = true
+            setError('Location permission denied')
+            setPhase('os_denied')
           }
         }
       } catch {
@@ -128,9 +151,10 @@ export function WeatherGlance({ variant = 'today', className }: Props) {
     }
   }, [])
 
-  const denied =
-    Boolean(error?.toLowerCase().includes('denied')) ||
-    Boolean(error?.toLowerCase().includes('permission'))
+  function onAllowLocation() {
+    osDenied.current = false
+    void load({ force: true, fromUserGesture: true })
+  }
 
   if (variant === 'today') {
     return (
@@ -151,28 +175,50 @@ export function WeatherGlance({ variant = 'today', className }: Props) {
               </p>
               <p className="truncate text-xs text-muted-foreground">{snap.outdoorHint}</p>
             </>
+          ) : phase === 'needs_allow' ? (
+            <>
+              <p className="text-sm font-medium">Local weather</p>
+              <p className="text-xs text-muted-foreground">
+                Tap Allow location, then approve the phone prompt — no app refresh needed.
+              </p>
+            </>
+          ) : phase === 'os_denied' ? (
+            <>
+              <p className="text-sm font-medium">Location is off for Katana</p>
+              <p className="text-xs text-muted-foreground">
+                iPhone: Settings → Privacy & Security → Location Services → Katana (or Safari) → While
+                Using. Then tap Try again.
+              </p>
+            </>
           ) : (
-            <p className="text-sm text-muted-foreground">
-              {denied
-                ? 'Location blocked — enable it in system settings to see weather.'
-                : error || 'Weather unavailable.'}
-            </p>
+            <p className="text-sm text-muted-foreground">{error || 'Weather unavailable.'}</p>
           )}
         </div>
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          className="shrink-0 gap-1.5"
-          disabled={phase === 'loading'}
-          onClick={() => {
-            deniedRef.current = false
-            void load(true)
-          }}
-          aria-label="Refresh weather"
-        >
-          <RefreshCw className={cn('h-3.5 w-3.5', phase === 'loading' && 'animate-spin')} />
-        </Button>
+        {phase === 'ready' ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="shrink-0 gap-1.5"
+            disabled={phase === 'loading'}
+            onClick={() => void load({ force: true, fromUserGesture: true })}
+            aria-label="Refresh weather"
+          >
+            <RefreshCw className={cn('h-3.5 w-3.5')} />
+          </Button>
+        ) : phase === 'loading' ? (
+          <Button type="button" size="sm" variant="ghost" className="shrink-0" disabled aria-label="Loading">
+            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+          </Button>
+        ) : phase === 'os_denied' ? (
+          <Button type="button" size="sm" variant="outline" className="shrink-0" onClick={onAllowLocation}>
+            Try again
+          </Button>
+        ) : (
+          <Button type="button" size="sm" variant="outline" className="shrink-0" onClick={onAllowLocation}>
+            Allow location
+          </Button>
+        )}
       </section>
     )
   }
@@ -196,25 +242,41 @@ export function WeatherGlance({ variant = 'today', className }: Props) {
               </p>
               <p className="mt-0.5 text-xs text-muted-foreground">{snap.outdoorHint}</p>
             </>
-          ) : (
+          ) : phase === 'needs_allow' ? (
             <p className="mt-0.5 text-sm text-muted-foreground">
-              {denied ? 'Location blocked in system settings.' : error || 'Weather unavailable.'}
+              Tap Allow location, then approve the phone prompt.
             </p>
+          ) : phase === 'os_denied' ? (
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              Location is off in system settings. Turn it on for Katana, then Try again.
+            </p>
+          ) : (
+            <p className="mt-0.5 text-sm text-muted-foreground">{error || 'Weather unavailable.'}</p>
           )}
         </div>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="shrink-0"
-          disabled={phase === 'loading'}
-          onClick={() => {
-            deniedRef.current = false
-            void load(true)
-          }}
-        >
-          Refresh
-        </Button>
+        {phase === 'ready' ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="shrink-0"
+            onClick={() => void load({ force: true, fromUserGesture: true })}
+          >
+            Refresh
+          </Button>
+        ) : phase === 'loading' ? (
+          <Button type="button" size="sm" variant="outline" className="shrink-0" disabled>
+            …
+          </Button>
+        ) : phase === 'os_denied' ? (
+          <Button type="button" size="sm" variant="outline" className="shrink-0" onClick={onAllowLocation}>
+            Try again
+          </Button>
+        ) : (
+          <Button type="button" size="sm" variant="outline" className="shrink-0" onClick={onAllowLocation}>
+            Allow location
+          </Button>
+        )}
       </div>
     </div>
   )
