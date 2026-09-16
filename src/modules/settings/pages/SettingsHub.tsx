@@ -5,8 +5,11 @@ import {
   ChevronRight,
   Cloud,
   Database,
+  FileText,
   Link2,
+  Mail,
   Palette,
+  ScrollText,
   Shield,
   Smartphone,
   Sparkles,
@@ -14,6 +17,7 @@ import {
   Wrench,
   Zap,
 } from 'lucide-react'
+import { SUPPORT_EMAIL } from '@/lib/brand'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { usePlusStatus } from '@/components/PlusPaywall'
 import { useAuth } from '@/contexts/AuthContext'
@@ -84,6 +88,17 @@ export function SettingsHub() {
       <SettingsGroup title="Privacy">
         <SettingsRow to="/settings/privacy" icon={Shield} label="Privacy & data" value="What stays local" />
         <SettingsRow to="/settings/backup" icon={Database} label="Install & backup" value="Copy & restore" />
+      </SettingsGroup>
+
+      <SettingsGroup title="Legal">
+        <SettingsRow to="/settings/legal/privacy" icon={ScrollText} label="Privacy Policy" detail="What we store and why" />
+        <SettingsRow to="/settings/legal/terms" icon={FileText} label="Terms of Use" detail="How Katana works" />
+        <SettingsRow
+          href={`mailto:${SUPPORT_EMAIL}`}
+          icon={Mail}
+          label="Support"
+          detail={SUPPORT_EMAIL}
+        />
       </SettingsGroup>
 
       <SettingsGroup title="Accountability">

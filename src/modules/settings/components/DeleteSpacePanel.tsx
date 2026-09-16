@@ -77,9 +77,13 @@ export function DeleteSpacePanel() {
         ) : null}
       </div>
       <p className="mt-2 text-xs text-muted-foreground">
-        Privacy Policy and Terms are on the landing page footer — or go to{' '}
-        <button type="button" className="text-primary underline-offset-2 hover:underline" onClick={() => navigate('/privacy')}>
-          Privacy
+        Privacy Policy and Terms live in Settings — or go to{' '}
+        <button
+          type="button"
+          className="text-primary underline-offset-2 hover:underline"
+          onClick={() => navigate('/settings/legal/privacy')}
+        >
+          Privacy Policy
         </button>
         .
       </p>

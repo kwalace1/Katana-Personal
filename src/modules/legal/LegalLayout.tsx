@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { BrandMark } from '@/components/BrandMark'
 import { SiteFooter } from '@/components/SiteFooter'
+import { legalProseClass } from './legal-copy'
 
 export function LegalLayout({
   title,
@@ -20,9 +21,7 @@ export function LegalLayout({
         <p className="kp-section-label mb-2">Katana Personal</p>
         <h1 className="font-display text-4xl tracking-tight">{title}</h1>
         <p className="mt-2 text-sm text-muted-foreground">Last updated {updated}</p>
-        <div className="mt-8 space-y-6 text-sm leading-relaxed text-muted-foreground [&_h2]:font-display [&_h2]:text-xl [&_h2]:tracking-tight [&_h2]:text-foreground [&_p]:mt-2 [&_ul]:mt-2 [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-5">
-          {children}
-        </div>
+        <div className={`mt-8 ${legalProseClass}`}>{children}</div>
       </article>
       <SiteFooter />
     </div>

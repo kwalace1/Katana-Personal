@@ -13,6 +13,7 @@ import { SettingsSharingPage } from './SettingsSharingPage'
 import { SettingsSyncPage } from './SettingsSyncPage'
 import { SettingsBackupPage } from './SettingsBackupPage'
 import { SettingsAdvancedPage } from './SettingsAdvancedPage'
+import { SettingsLegalPrivacyPage, SettingsLegalTermsPage } from './SettingsLegalPages'
 
 export default function SettingsRouter() {
   return (
@@ -25,6 +26,8 @@ export default function SettingsRouter() {
         <Route path="notifications" element={<SettingsNotificationsPage />} />
         <Route path="connections" element={<SettingsConnectionsPage />} />
         <Route path="privacy" element={<SettingsPrivacyPage />} />
+        <Route path="legal/privacy" element={<SettingsLegalPrivacyPage />} />
+        <Route path="legal/terms" element={<SettingsLegalTermsPage />} />
         <Route path="ask" element={<SettingsAskPage />} />
         <Route path="plus" element={<SettingsPlusPage />} />
         <Route path="together" element={<SettingsTogetherPage />} />

@@ -155,11 +155,11 @@ export function PrivacyDataPanel({
       </section>
 
       <p className="text-xs text-muted-foreground">
-        <Link to="/privacy" className="text-primary underline-offset-2 hover:underline">
+        <Link to="/settings/legal/privacy" className="text-primary underline-offset-2 hover:underline">
           Privacy Policy
         </Link>
         {' · '}
-        <Link to="/terms" className="text-primary underline-offset-2 hover:underline">
+        <Link to="/settings/legal/terms" className="text-primary underline-offset-2 hover:underline">
           Terms
         </Link>
       </p>

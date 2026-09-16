@@ -6,6 +6,8 @@ import { toast } from 'sonner'
 const HASH_ROUTES: Record<string, string> = {
   connections: '/settings/connections',
   privacy: '/settings/privacy',
+  'legal-privacy': '/settings/legal/privacy',
+  'legal-terms': '/settings/legal/terms',
   plus: '/settings/plus',
   cloud: '/settings/together',
   'ask-coach': '/settings/ask',

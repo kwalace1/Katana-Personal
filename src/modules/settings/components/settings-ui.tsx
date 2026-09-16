@@ -57,6 +57,7 @@ export function SettingsGroup({ title, children, className }: SettingsGroupProps
 
 type SettingsRowProps = {
   to?: string
+  href?: string
   icon?: LucideIcon
   iconClassName?: string
   label: string
@@ -69,6 +70,7 @@ type SettingsRowProps = {
 
 export function SettingsRow({
   to,
+  href,
   icon: Icon,
   iconClassName,
   label,
@@ -95,7 +97,7 @@ export function SettingsRow({
         {detail ? <span className="mt-0.5 block text-xs text-muted-foreground">{detail}</span> : null}
       </span>
       {value ? <span className="shrink-0 text-sm text-muted-foreground">{value}</span> : null}
-      {chevron && (to || onClick) ? (
+      {chevron && (to || href || onClick) ? (
         <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/70" aria-hidden />
       ) : null}
     </>
@@ -103,7 +105,7 @@ export function SettingsRow({
 
   const className = cn(
     'flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors',
-    (to || onClick) && 'hover:bg-secondary/40 active:bg-secondary/60',
+    (to || href || onClick) && 'hover:bg-secondary/40 active:bg-secondary/60',
   )
 
   if (to) {
@@ -111,6 +113,14 @@ export function SettingsRow({
       <Link to={to} className={className}>
         {content}
       </Link>
+    )
+  }
+
+  if (href) {
+    return (
+      <a href={href} className={className}>
+        {content}
+      </a>
     )
   }
 
