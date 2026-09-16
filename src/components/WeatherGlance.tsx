@@ -200,7 +200,6 @@ export function WeatherGlance({ variant = 'today', className }: Props) {
             size="sm"
             variant="ghost"
             className="shrink-0 gap-1.5"
-            disabled={phase === 'loading'}
             onClick={() => void load({ force: true, fromUserGesture: true })}
             aria-label="Refresh weather"
           >
