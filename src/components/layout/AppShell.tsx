@@ -353,7 +353,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
         Skip to content
       </a>
 
-      <aside className="sticky top-0 hidden h-[100dvh] w-[17.5rem] shrink-0 flex-col border-r border-border/40 bg-card/40 pt-[env(safe-area-inset-top)] backdrop-blur-xl md:flex">
+      <aside className="kp-glass-chrome sticky top-0 hidden h-[100dvh] w-[17.5rem] shrink-0 flex-col border-r pt-[env(safe-area-inset-top)] md:flex">
         <div className="flex items-center justify-between gap-2 px-5 pb-2 pt-6">
           <BrandMark to="/dashboard" />
           <div className="flex items-center gap-0.5">
@@ -374,7 +374,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border/40 bg-background/75 px-3 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur-xl md:hidden">
+        <header className="kp-glass-chrome sticky top-0 z-20 flex items-center justify-between border-b px-3 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] md:hidden">
           <div className="flex items-center gap-1">
             <Button
               variant="ghost"
@@ -552,7 +552,7 @@ function MobileNavDrawer({
           <motion.div
             role="presentation"
             aria-hidden
-            className="fixed inset-0 z-40 touch-manipulation bg-black/50 md:hidden"
+            className="fixed inset-0 z-40 touch-manipulation bg-black/35 backdrop-blur-sm md:hidden"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -567,7 +567,7 @@ function MobileNavDrawer({
             role="dialog"
             aria-modal="true"
             aria-label="Navigation"
-            className="fixed inset-y-0 left-0 z-50 flex w-[min(17.5rem,85vw)] flex-col border-r border-border/40 bg-background shadow-xl touch-pan-y md:hidden"
+            className="kp-glass-chrome fixed inset-y-0 left-0 z-50 flex w-[min(17.5rem,85vw)] flex-col border-r touch-pan-y md:hidden"
             style={{ width: `min(${DRAWER_WIDTH}px, 85vw)` }}
             initial={{ x: '-100%' }}
             animate={{ x: 0 }}

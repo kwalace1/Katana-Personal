@@ -62,7 +62,7 @@ class ErrorBoundary extends React.Component<
   }
 }
 
-const APP_BUILD = '2026-09-16-capacitor-ios'
+const APP_BUILD = '2026-09-16-liquid-glass-preview'
 
 const isNative = Capacitor.isNativePlatform()
 
