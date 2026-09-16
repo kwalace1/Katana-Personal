@@ -1,27 +1,33 @@
-import { FormEvent, useMemo, useState } from 'react'
-import { Activity, Calendar, HeartPulse, Link2, RefreshCw, Unplug } from 'lucide-react'
+import { FormEvent, useMemo, useState, type ReactNode } from 'react'
+import {
+  Calendar,
+  CheckSquare,
+  CloudSun,
+  FileDown,
+  Link2,
+  ListTodo,
+  Mail,
+  RefreshCw,
+  Unplug,
+} from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { broadcastLocalRefresh } from '@/hooks/useLocalRefresh'
-import { PlusPaywallSheet } from '@/components/PlusPaywall'
-import { canUsePlusFeature } from '@/lib/plus'
 import { importedEventCount, removeImportedBySource } from '@/lib/integrations/calendar-merge'
+import {
+  googleTasksConfigured,
+  outlookCalendarConfigured,
+  todoistConfigured,
+} from '@/lib/integrations/coming-soon'
 import {
   connectAndSyncGoogleCalendar,
   googleCalendarConfigured,
   syncGoogleCalendar,
 } from '@/lib/integrations/google-calendar'
 import { connectAndSyncIcsCalendar, syncIcsCalendar } from '@/lib/integrations/ics-calendar'
-import {
-  connectAndSyncFitbit,
-  connectAndSyncStrava,
-  fitbitConfigured,
-  stravaConfigured,
-  syncFitbit,
-  syncStrava,
-} from '@/lib/integrations/health-providers'
 import {
   disconnectProvider,
   listConnections,
@@ -49,12 +55,14 @@ export function ConnectionsPanel({ userId, tick = 0 }: Props) {
   void tick
   const [busy, setBusy] = useState<string | null>(null)
   const [icsUrl, setIcsUrl] = useState('')
-  const [plusWallOpen, setPlusWallOpen] = useState(false)
+  const [icsHelpOpen, setIcsHelpOpen] = useState(false)
   const googleReady = googleCalendarConfigured()
-  const fitbitReady = fitbitConfigured()
-  const stravaReady = stravaConfigured()
+  const outlookReady = outlookCalendarConfigured()
+  const googleTasksReady = googleTasksConfigured()
+  const todoistReady = todoistConfigured()
 
   const connections = useMemo(() => listConnections(userId), [userId, tick, busy])
+  const legacyHealth = connections.filter((c) => c.provider === 'fitbit' || c.provider === 'strava')
 
   async function run(label: string, fn: () => Promise<number>, unit = 'events') {
     setBusy(label)
@@ -70,10 +78,6 @@ export function ConnectionsPanel({ userId, tick = 0 }: Props) {
   }
 
   async function onConnectGoogle() {
-    if (!canUsePlusFeature('integrations')) {
-      setPlusWallOpen(true)
-      return
-    }
     await run('google-connect', () => connectAndSyncGoogleCalendar(userId))
   }
 
@@ -88,31 +92,17 @@ export function ConnectionsPanel({ userId, tick = 0 }: Props) {
     setIcsUrl('')
   }
 
-  async function onConnectFitbit() {
-    if (!canUsePlusFeature('integrations')) {
-      setPlusWallOpen(true)
-      return
-    }
-    await run('fitbit-connect', () => connectAndSyncFitbit(userId), 'records')
-  }
-
-  async function onConnectStrava() {
-    if (!canUsePlusFeature('integrations')) {
-      setPlusWallOpen(true)
-      return
-    }
-    await run('strava-connect', () => connectAndSyncStrava(userId), 'records')
-  }
-
   function onDisconnect(conn: IntegrationConnection) {
     if (conn.provider === 'google_calendar') {
       removeImportedBySource(userId, 'google')
       disconnectProvider(userId, 'google_calendar')
     } else if (conn.provider === 'fitbit' || conn.provider === 'strava') {
       disconnectProvider(userId, conn.provider)
-    } else {
+    } else if (conn.provider === 'ics_calendar') {
       removeImportedBySource(userId, 'ics')
       removeConnection(userId, conn.id)
+    } else {
+      disconnectProvider(userId, conn.provider)
     }
     broadcastLocalRefresh()
     toast.message('Disconnected')
@@ -122,10 +112,77 @@ export function ConnectionsPanel({ userId, tick = 0 }: Props) {
     <div className="space-y-4">
       <div className="rounded-2xl border border-border/60 bg-secondary/30 px-4 py-3 text-sm text-muted-foreground">
         <p>
-          Events sync into this device only. Katana reads your external calendar to improve Today and Ask — nothing
-          is uploaded unless you enable cloud backup.
+          Events and tasks sync onto this device. Katana uses them for Today and Ask — nothing is uploaded
+          unless you enable cloud backup. Weather on Today and cardio uses free Open-Meteo with your
+          location (no key).
         </p>
       </div>
+
+      <form onSubmit={(e) => void onConnectIcs(e)} className="kp-surface space-y-3 p-4">
+        <div className="flex items-start gap-3">
+          <Link2 className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+          <div className="min-w-0 flex-1">
+            <h3 className="font-display text-lg tracking-tight">Calendar subscribe (.ics)</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Easiest free path — Apple, Google secret address, Outlook web, or any public .ics feed.
+              Read-only.
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          className="text-left text-xs font-medium text-primary hover:underline"
+          onClick={() => setIcsHelpOpen((v) => !v)}
+        >
+          {icsHelpOpen ? 'Hide how-to' : 'How to get a subscribe URL'}
+        </button>
+        {icsHelpOpen ? (
+          <ol className="list-decimal space-y-2 rounded-xl border border-border/50 bg-background/50 px-4 py-3 text-xs text-muted-foreground pl-8">
+            <li>
+              <span className="font-medium text-foreground">Apple Calendar (Mac/iOS):</span> Calendar →
+              File → Export → or share a public calendar and copy the webcal/https link ending in{' '}
+              <code className="text-[10px]">.ics</code>.
+            </li>
+            <li>
+              <span className="font-medium text-foreground">Google Calendar:</span> Settings → select
+              calendar → Integrate calendar → Secret address in iCal format → copy.
+            </li>
+            <li>
+              <span className="font-medium text-foreground">Outlook on the web:</span> Calendar → settings
+              → Shared calendars → Publish a calendar → copy the ICS link.
+            </li>
+            <li>Paste the https URL below (webcal:// also works — we’ll fetch it as https).</li>
+          </ol>
+        ) : null}
+
+        <div className="space-y-2">
+          <Label htmlFor="ics-url">Calendar URL (.ics)</Label>
+          <Input
+            id="ics-url"
+            value={icsUrl}
+            onChange={(e) => setIcsUrl(e.target.value)}
+            placeholder="https://…/basic.ics"
+            inputMode="url"
+          />
+        </div>
+        <Button type="submit" disabled={busy != null || !icsUrl.trim()}>
+          {busy === 'ics-connect' ? 'Subscribing…' : 'Add calendar feed'}
+        </Button>
+
+        {connections
+          .filter((c) => c.provider === 'ics_calendar')
+          .map((conn) => (
+            <ConnectionRow
+              key={conn.id}
+              conn={conn}
+              detail={conn.config.icsUrl || ''}
+              busy={busy}
+              onSync={() => run(`sync-${conn.id}`, () => syncIcsCalendar(userId, conn.id))}
+              onDisconnect={() => onDisconnect(conn)}
+            />
+          ))}
+      </form>
 
       <div className="kp-surface space-y-3 p-4">
         <div className="flex items-start gap-3">
@@ -133,11 +190,12 @@ export function ConnectionsPanel({ userId, tick = 0 }: Props) {
           <div className="min-w-0 flex-1">
             <h3 className="font-display text-lg tracking-tight">Google Calendar</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              Read meetings and plans from Google so Today and Ask see your real schedule. Plus feature.
+              Live OAuth sync so Today and Ask see meetings without a secret .ics link.
             </p>
             {!googleReady ? (
-              <p className="mt-2 text-xs text-muted-foreground">
-                Google Calendar isn’t available in this build yet.
+              <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
+                Waiting on Google OAuth env (`VITE_GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET`). We’ll
+                wire this in production next.
               </p>
             ) : null}
           </div>
@@ -167,117 +225,118 @@ export function ConnectionsPanel({ userId, tick = 0 }: Props) {
         ) : null}
       </div>
 
-      <form onSubmit={(e) => void onConnectIcs(e)} className="kp-surface space-y-3 p-4">
-        <div className="flex items-start gap-3">
-          <Link2 className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-          <div className="min-w-0 flex-1">
-            <h3 className="font-display text-lg tracking-tight">Subscribe via URL</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Apple Calendar, Google secret address, or any public .ics feed — read-only.
-            </p>
-          </div>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="ics-url">Calendar URL (.ics)</Label>
-          <Input
-            id="ics-url"
-            value={icsUrl}
-            onChange={(e) => setIcsUrl(e.target.value)}
-            placeholder="https://…/calendar.ics"
-            inputMode="url"
-          />
-        </div>
-        <Button type="submit" disabled={busy != null || !icsUrl.trim()}>
-          {busy === 'ics-connect' ? 'Subscribing…' : 'Add calendar feed'}
-        </Button>
+      <UpcomingIntegration
+        icon={<Mail className="mt-0.5 h-5 w-5 shrink-0 text-primary" />}
+        title="Outlook / Microsoft Calendar"
+        body="Read Outlook and Microsoft 365 calendars the same way as Google — for work schedules."
+        ready={outlookReady}
+        readyHint="Microsoft app registration env is set — connect flow ships next."
+        waitingHint="Add `VITE_MS_CLIENT_ID` (+ server secret) when you’re ready to set this up."
+      />
 
-        {connections
-          .filter((c) => c.provider === 'ics_calendar')
-          .map((conn) => (
-            <ConnectionRow
-              key={conn.id}
-              conn={conn}
-              detail={conn.config.icsUrl || ''}
-              busy={busy}
-              onSync={() => run(`sync-${conn.id}`, () => syncIcsCalendar(userId, conn.id))}
-              onDisconnect={() => onDisconnect(conn)}
-            />
-          ))}
-      </form>
+      <UpcomingIntegration
+        icon={<CheckSquare className="mt-0.5 h-5 w-5 shrink-0 text-primary" />}
+        title="Google Tasks"
+        body="Pull open tasks into Katana so Do this next and Ask see what’s already on your plate."
+        ready={googleTasksReady}
+        readyHint="Google client id present — Tasks scopes + connect UI come next."
+        waitingHint="Can reuse Google Calendar OAuth client, or set `VITE_GOOGLE_TASKS_CLIENT_ID`."
+      />
+
+      <UpcomingIntegration
+        icon={<ListTodo className="mt-0.5 h-5 w-5 shrink-0 text-primary" />}
+        title="Todoist"
+        body="Import active Todoist tasks (free Todoist API / OAuth — no paid plan required for basic sync)."
+        ready={todoistReady}
+        readyHint="Todoist client id is set — connect flow ships next."
+        waitingHint="Add `VITE_TODOIST_CLIENT_ID` (+ secret) when you’re ready."
+      />
 
       <div className="kp-surface space-y-3 p-4">
         <div className="flex items-start gap-3">
-          <HeartPulse className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+          <FileDown className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
           <div className="min-w-0 flex-1">
-            <h3 className="font-display text-lg tracking-tight">Fitbit</h3>
+            <h3 className="font-display text-lg tracking-tight">Apple Health & Fitbit files</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              Read sleep and activity into Health — powers recovery-aware Today and Ask. Plus feature.
+              Free, no live OAuth. Import Apple Health <code className="text-[10px]">export.xml</code> or
+              a Fitbit sleep CSV in Health — sleep and workouts stay on this device.
             </p>
-            {!fitbitReady ? (
-              <p className="mt-2 text-xs text-muted-foreground">
-                Fitbit isn’t available in this build yet. You can still import a sleep file in Health.
-              </p>
-            ) : null}
+            <Button asChild variant="outline" className="mt-3">
+              <Link to="/health?tab=sleep">Open Health import</Link>
+            </Button>
           </div>
         </div>
-
-        {connections
-          .filter((c) => c.provider === 'fitbit')
-          .map((conn) => (
-            <ConnectionRow
-              key={conn.id}
-              conn={conn}
-              detail="Sleep + activity on device"
-              busy={busy}
-              onSync={() => run(`sync-${conn.id}`, () => syncFitbit(userId))}
-              onDisconnect={() => onDisconnect(conn)}
-            />
-          ))}
-
-        {!connections.some((c) => c.provider === 'fitbit') ? (
-          <Button type="button" disabled={!fitbitReady || busy != null} onClick={() => void onConnectFitbit()}>
-            {busy === 'fitbit-connect' ? 'Connecting…' : 'Connect Fitbit'}
-          </Button>
-        ) : null}
       </div>
 
       <div className="kp-surface space-y-3 p-4">
         <div className="flex items-start gap-3">
-          <Activity className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+          <CloudSun className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
           <div className="min-w-0 flex-1">
-            <h3 className="font-display text-lg tracking-tight">Strava</h3>
+            <h3 className="font-display text-lg tracking-tight">Weather</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              Import recent runs and rides into workouts — read-only. Plus feature.
+              Free Open-Meteo forecast on Today and when you track runs/walks in Health. Uses device
+              location — no API key, no Plus.
             </p>
-            {!stravaReady ? (
-              <p className="mt-2 text-xs text-muted-foreground">
-                Strava isn’t available in this build yet. You can still log cardio in Health.
-              </p>
-            ) : null}
           </div>
         </div>
+      </div>
 
-        {connections
-          .filter((c) => c.provider === 'strava')
-          .map((conn) => (
+      {legacyHealth.length > 0 ? (
+        <div className="kp-surface space-y-3 border border-destructive/20 p-4">
+          <p className="text-sm font-medium">Legacy live Fitbit / Strava</p>
+          <p className="text-xs text-muted-foreground">
+            Live OAuth for Fitbit and Strava was removed. Disconnect any leftover connections — use file
+            import for health data instead.
+          </p>
+          {legacyHealth.map((conn) => (
             <ConnectionRow
               key={conn.id}
               conn={conn}
-              detail="Activities on device"
+              detail="No longer supported"
               busy={busy}
-              onSync={() => run(`sync-${conn.id}`, () => syncStrava(userId))}
+              onSync={() => toast.message('Live sync retired — use Health file import')}
               onDisconnect={() => onDisconnect(conn)}
             />
           ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
 
-        {!connections.some((c) => c.provider === 'strava') ? (
-          <Button type="button" disabled={!stravaReady || busy != null} onClick={() => void onConnectStrava()}>
-            {busy === 'strava-connect' ? 'Connecting…' : 'Connect Strava'}
-          </Button>
-        ) : null}
+function UpcomingIntegration({
+  icon,
+  title,
+  body,
+  ready,
+  readyHint,
+  waitingHint,
+}: {
+  icon: ReactNode
+  title: string
+  body: string
+  ready: boolean
+  readyHint: string
+  waitingHint: string
+}) {
+  return (
+    <div className="kp-surface space-y-3 p-4">
+      <div className="flex items-start gap-3">
+        {icon}
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="font-display text-lg tracking-tight">{title}</h3>
+            <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+              {ready ? 'Env ready' : 'Setup next'}
+            </span>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">{body}</p>
+          <p className="mt-2 text-xs text-muted-foreground">{ready ? readyHint : waitingHint}</p>
+        </div>
       </div>
-
-      <PlusPaywallSheet open={plusWallOpen} onOpenChange={setPlusWallOpen} feature="integrations" />
+      <Button type="button" disabled>
+        Connect (coming with credentials)
+      </Button>
     </div>
   )
 }
@@ -303,9 +362,7 @@ function ConnectionRow({
           <p className="truncate text-xs text-muted-foreground">{detail}</p>
           <p className="mt-1 text-xs text-muted-foreground">
             Last sync: {formatWhen(conn.lastSyncAt)}
-            {conn.lastError ? (
-              <span className="text-destructive"> · {conn.lastError}</span>
-            ) : null}
+            {conn.lastError ? <span className="text-destructive"> · {conn.lastError}</span> : null}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

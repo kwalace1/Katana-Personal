@@ -37,8 +37,9 @@ export function PrivacyBody({ termsTo }: { termsTo: string }) {
       <h2>Integrations</h2>
       <p>
         Calendar subscribe URLs (.ics) are fetched so events can live on this device. Google Calendar,
-        Fitbit, and Strava (Plus) read the data you authorize and store copies locally. We don’t sell this
-        data.
+        Outlook, Google Tasks, and Todoist (when connected) read the data you authorize and store copies
+        locally. Weather uses Open-Meteo with your device location. Apple Health and Fitbit file imports
+        stay on this device. We don’t sell this data.
       </p>
 
       <h2>Notifications</h2>

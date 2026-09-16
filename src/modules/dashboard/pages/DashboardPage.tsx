@@ -52,6 +52,7 @@ import {
 import { FirstRitual } from '@/modules/dashboard/components/FirstRitual'
 import { TodayQuickCreate } from '@/modules/dashboard/components/TodayQuickCreate'
 import { TodayRecentFeed } from '@/modules/dashboard/components/TodayRecentFeed'
+import { WeatherGlance } from '@/components/WeatherGlance'
 import { toast } from 'sonner'
 import { listFriendships } from '@/lib/social/friends'
 import { listMyCircles } from '@/lib/social/circles'
@@ -371,6 +372,7 @@ export default function DashboardPage() {
       {onboardingDone ? (
         <>
           <TodayQuickCreate userId={userId} onCreated={refresh} />
+          <WeatherGlance variant="today" />
           <TodayRecentFeed />
 
           {data.overdue.length > 0 && (

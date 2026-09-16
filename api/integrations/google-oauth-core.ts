@@ -252,7 +252,7 @@ export async function handleIcsFetchRequest(req: Request): Promise<Response> {
   } catch {
     return new Response(JSON.stringify({ error: 'Invalid JSON' }), { status: 400 })
   }
-  const rawUrl = body.url?.trim()
+  const rawUrl = body.url?.trim().replace(/^webcal:/i, 'https:')
   if (!rawUrl) return new Response(JSON.stringify({ error: 'url required' }), { status: 400 })
 
   let parsed: URL

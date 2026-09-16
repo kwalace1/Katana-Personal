@@ -136,12 +136,26 @@ export function SleepPanel({
         <div className="flex items-start gap-3">
           <Watch className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
           <div className="min-w-0 flex-1">
-            <p className="text-xs text-muted-foreground">Apple Watch & Fitbit</p>
-            <h3 className="font-display text-lg tracking-tight">Bring sleep in from your watch</h3>
+            <p className="text-xs text-muted-foreground">Apple Health & Fitbit files</p>
+            <h3 className="font-display text-lg tracking-tight">Import sleep & workouts</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              Live Apple Health sync needs the native app. On the web, import an Apple Health export or
-              Fitbit sleep CSV — or connect Fitbit in Settings → Connections (Plus).
+              Free file import — no live Fitbit or Strava login. Use an Apple Health export or Fitbit sleep
+              CSV. Live Apple HealthKit sync needs the native app later.
             </p>
+            <details className="mt-2 rounded-xl border border-border/50 bg-background/50 px-3 py-2 text-xs text-muted-foreground">
+              <summary className="cursor-pointer font-medium text-foreground">How to export</summary>
+              <ol className="mt-2 list-decimal space-y-1.5 pl-4">
+                <li>
+                  <span className="font-medium text-foreground">Apple Health:</span> Health app → profile
+                  picture → Export All Health Data → unzip → pick{' '}
+                  <code className="text-[10px]">export.xml</code>.
+                </li>
+                <li>
+                  <span className="font-medium text-foreground">Fitbit:</span> Fitbit account / data export
+                  → sleep CSV (or download sleep history) → import the .csv here.
+                </li>
+              </ol>
+            </details>
             {lastImportAt ? (
               <p className="mt-2 text-xs text-muted-foreground">
                 Last imported {formatImportWhen(lastImportAt)}.

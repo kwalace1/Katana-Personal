@@ -43,9 +43,9 @@ export const PLUS_FEATURE_MATRIX: PlusTierRow[] = [
   },
   {
     feature: 'integrations',
-    label: 'Advanced integrations',
-    free: 'Apple Calendar (.ics URL)',
-    plus: 'Google Calendar · Fitbit · Strava',
+    label: 'Connections',
+    free: '.ics · weather · Health/Fitbit file import · Google/Outlook/Tasks/Todoist when configured',
+    plus: 'Same connections — Plus is for Ask depth, challenges, meal AI, push',
   },
   {
     feature: 'orchestration_push',
@@ -136,6 +136,8 @@ export function consumeLlmAsk() {
 export function canUsePlusFeature(feature: PlusFeature): boolean {
   if (isPlusUnlocked()) return true
   if (feature === 'llm') return canUseLlmAsk()
+  // Connections (.ics, weather, OAuth when configured) are free product surface.
+  if (feature === 'integrations') return true
   return false
 }
 
@@ -154,8 +156,8 @@ export function plusFeatureBlurb(feature: PlusFeature): { title: string; body: s
   }
   if (feature === 'integrations') {
     return {
-      title: 'Accountability pack · integrations',
-      body: 'Subscribe calendars with .ics for free. Plus adds Google Calendar, Fitbit sleep/activity, and Strava workouts.',
+      title: 'Connections',
+      body: 'Calendars, tasks, weather, and health file import live under Settings → Connections. .ics and weather are free; OAuth apps connect once credentials are set.',
     }
   }
   if (feature === 'orchestration_push') {

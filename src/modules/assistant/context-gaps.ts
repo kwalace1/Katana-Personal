@@ -100,7 +100,7 @@ export function assessContextGaps(userId: string, snap: LifeSnapshot): ContextAs
     })
   }
 
-  if (snap.sleepHoursLast <= 0 && !integrations.fitbit) {
+  if (snap.sleepHoursLast <= 0 && !integrations.healthConnected) {
     gaps.push({
       id: 'sleep',
       label: 'Sleep',
@@ -113,8 +113,7 @@ export function assessContextGaps(userId: string, snap: LifeSnapshot): ContextAs
   if (
     snap.recentWorkouts + snap.recentLifts === 0 &&
     snap.week.workouts + snap.week.lifts === 0 &&
-    !integrations.strava &&
-    !integrations.fitbit
+    !integrations.healthConnected
   ) {
     gaps.push({
       id: 'movement',

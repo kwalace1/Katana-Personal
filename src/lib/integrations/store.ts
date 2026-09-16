@@ -68,7 +68,8 @@ export function connectGoogleCalendar(
 }
 
 export function connectIcsCalendar(userId: string, icsUrl: string, label = 'Subscribed calendar'): IntegrationConnection {
-  const existing = listConnections(userId).find((c) => c.provider === 'ics_calendar' && c.config.icsUrl === icsUrl)
+  const normalized = icsUrl.trim().replace(/^webcal:/i, 'https:')
+  const existing = listConnections(userId).find((c) => c.provider === 'ics_calendar' && c.config.icsUrl === normalized)
   const connection: IntegrationConnection = {
     id: existing?.id ?? createId(),
     provider: 'ics_calendar',
@@ -76,7 +77,7 @@ export function connectIcsCalendar(userId: string, icsUrl: string, label = 'Subs
     status: 'connected',
     lastSyncAt: existing?.lastSyncAt ?? null,
     lastError: null,
-    config: { icsUrl },
+    config: { icsUrl: normalized },
   }
   upsertConnection(userId, connection)
   return connection

@@ -10,12 +10,12 @@ export function SettingsConnectionsPage() {
   return (
     <SettingsDetail
       title="Connections"
-      description="Link calendars and health apps so Today and Ask see your real schedule."
+      description="Calendars, tasks, weather, and health file import — so Today and Ask see the real day."
     >
       <SettingsPanel>
         <p className="text-sm text-muted-foreground">
-          Data stays on this device unless you enable cloud backup. Google, Fitbit, and Strava are Plus
-          features; .ics feeds are free.
+          .ics feeds, weather, and Apple Health / Fitbit file import are free. Google Calendar, Outlook,
+          Google Tasks, and Todoist show here for production setup — connect when credentials are in env.
         </p>
         {user ? <ConnectionsPanel userId={user.id} tick={tick} /> : null}
       </SettingsPanel>

@@ -40,19 +40,17 @@ export function IntegrationStatusStrip({ userId, tick = 0 }: Props) {
       </div>
       <div className="mt-2 flex flex-wrap gap-2">
         <StatusPill ok={status.calendarConnected} label="Calendar" />
-        <StatusPill ok={status.healthConnected} label="Health ecosystem" />
+        <StatusPill ok={status.healthConnected} label="Health import" />
         {status.googleCalendar ? <StatusPill ok label="Google" /> : null}
         {status.icsCalendar ? <StatusPill ok label=".ics" /> : null}
-        {status.fitbit ? <StatusPill ok label="Fitbit" /> : null}
-        {status.strava ? <StatusPill ok label="Strava" /> : null}
-        {status.appleHealthImport && !status.fitbit ? <StatusPill ok label="Health import" /> : null}
+        {status.appleHealthImport ? <StatusPill ok label="Apple / Fitbit file" /> : null}
       </div>
       {!status.calendarConnected || !status.healthConnected ? (
         <p className="mt-2 text-xs text-muted-foreground">
           {!status.calendarConnected && !status.healthConnected
-            ? 'Connect calendars and health in Settings so Today and Ask read what matters.'
+            ? 'Add a .ics feed or Google Calendar, and import Health/Fitbit files, so Today and Ask read what matters.'
             : !status.healthConnected
-              ? 'Health ecosystem is manual until you connect Fitbit, Strava, or import Apple Health.'
+              ? 'Import Apple Health export.xml or a Fitbit sleep CSV in Health.'
               : 'Add a calendar feed or Google Calendar for richer workout windows.'}
         </p>
       ) : null}

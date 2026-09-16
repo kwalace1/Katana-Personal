@@ -45,7 +45,7 @@ export function SettingsHub() {
         ? 'Calendar connected'
         : integrations.healthConnected
           ? 'Health connected'
-          : 'Google, Fitbit, Strava, .ics'
+          : 'Google, Outlook, Tasks, Todoist, .ics'
     : 'Calendars & health apps'
 
   return (

@@ -1,4 +1,11 @@
-export type IntegrationProvider = 'google_calendar' | 'ics_calendar' | 'fitbit' | 'strava'
+export type IntegrationProvider =
+  | 'google_calendar'
+  | 'ics_calendar'
+  | 'outlook_calendar'
+  | 'google_tasks'
+  | 'todoist'
+  | 'fitbit'
+  | 'strava'
 
 export type IntegrationStatus = 'connected' | 'error' | 'disconnected'
 

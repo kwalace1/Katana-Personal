@@ -30,6 +30,7 @@ import {
 import { useCardioTrack } from '../useCardioTrack'
 import { formatLiftDate } from './lift/LiftLineChart'
 import { CardioMap } from './CardioMap'
+import { WeatherGlance } from '@/components/WeatherGlance'
 
 type Props = {
   userId: string
@@ -185,6 +186,7 @@ export function CardioPanel({ userId, logDate, tick, refresh }: Props) {
             keep dropping points. Don’t swipe the app away. Tap the live bar to finish.
           </p>
         </div>
+        <WeatherGlance variant="cardio" />
         <div className="flex flex-wrap gap-2">
           {ACTIVITIES.map((kind) => (
             <Button
