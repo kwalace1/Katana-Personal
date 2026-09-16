@@ -1,6 +1,9 @@
-/** True when running as an installed home-screen app (iOS Safari PWA). */
+import { Capacitor } from '@capacitor/core'
+
+/** True when running as an installed home-screen app (iOS Safari PWA) or Capacitor. */
 export function isStandalonePwa(): boolean {
   if (typeof window === 'undefined') return false
+  if (Capacitor.isNativePlatform()) return true
   const nav = window.navigator as Navigator & { standalone?: boolean }
   if (nav.standalone) return true
   return window.matchMedia('(display-mode: standalone)').matches

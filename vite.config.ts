@@ -8,6 +8,9 @@ import { integrationsDevPlugin } from './vite.integrations-plugin'
 import { pushDevPlugin } from './vite.push-plugin'
 
 export default defineConfig({
+  // Relative asset URLs so the iOS shell can load from the bundled dist.
+  // Web/Vercel keeps absolute `/` paths.
+  base: process.env.CAPACITOR === '1' ? './' : '/',
   plugins: [react(), geminiAskDevPlugin(), foodSearchDevPlugin(), integrationsDevPlugin(), pushDevPlugin()],
   resolve: {
     alias: {

@@ -9,7 +9,9 @@ import { CloudAuthProvider } from '@/contexts/CloudAuthContext'
 import { Toaster } from '@/components/ui/sonner'
 import { ReminderHost } from '@/components/ReminderHost'
 import { Analytics } from '@vercel/analytics/react'
+import { Capacitor } from '@capacitor/core'
 import App from './App'
+import { initNativeShell } from '@/lib/native/init'
 import 'sonner/dist/styles.css'
 import './index.css'
 
@@ -60,9 +62,11 @@ class ErrorBoundary extends React.Component<
   }
 }
 
-const APP_BUILD = '2026-09-16-support-email'
+const APP_BUILD = '2026-09-16-capacitor-ios'
 
-if ('serviceWorker' in navigator) {
+const isNative = Capacitor.isNativePlatform()
+
+if ('serviceWorker' in navigator && !isNative) {
   window.addEventListener('load', () => {
     void (async () => {
       try {
@@ -110,6 +114,14 @@ if ('serviceWorker' in navigator) {
       })
     })()
   })
+}
+
+if (isNative) {
+  // Drop any leftover PWA workers if this WebView previously loaded the site.
+  void navigator.serviceWorker?.getRegistrations?.().then((regs) => {
+    void Promise.all(regs.map((r) => r.unregister()))
+  })
+  void initNativeShell()
 }
 
 window.addEventListener('visibilitychange', () => {

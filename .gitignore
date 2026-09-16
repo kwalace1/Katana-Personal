@@ -74,5 +74,17 @@ src/**/*.d.ts
 __pycache__/
 *.pyc
 
-# Overhaul backups
-katana-agents/overhaul/backups/
+# Capacitor / native
+ios/App/Pods/
+ios/App/Podfile.lock
+ios/App/build/
+ios/DerivedData/
+ios/App/App/public/
+android/.gradle/
+android/app/build/
+android/build/
+android/captures/
+*.ipa
+*.dSYM.zip
+*.mobileprovision
+.capacitor/

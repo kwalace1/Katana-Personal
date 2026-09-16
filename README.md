@@ -21,6 +21,8 @@ npm run dev
 
 Open http://localhost:3001 — on a phone, Add to Home Screen for an app-like feel.
 
+**Native iOS (Capacitor):** see [docs/NATIVE_MOBILE.md](./docs/NATIVE_MOBILE.md). On a Mac: `npm run build:ios` then `npx cap open ios` (Simulator works before Apple Developer enrollment; TestFlight needs approval).
+
 ## Soft launch
 
 See [docs/SOFT_LAUNCH_CHECKLIST.md](./docs/SOFT_LAUNCH_CHECKLIST.md). Ask + Gemini via OpenRouter: [docs/GEMINI_ASK.md](./docs/GEMINI_ASK.md). Demo data: Settings → Load demo day.

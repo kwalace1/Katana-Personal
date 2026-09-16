@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
 import { X, Smartphone } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { isNativeShell } from '@/lib/native/platform'
 
 const DISMISS_KEY = 'katana-personal:pwa-nudge-dismiss'
 const OFFER_KEY = 'katana-personal:pwa-nudge-offer'
 
 function isStandaloneApp() {
   if (typeof window === 'undefined') return false
+  if (isNativeShell()) return true
   const mq = window.matchMedia('(display-mode: standalone)').matches
   const ios = 'standalone' in navigator && Boolean((navigator as Navigator & { standalone?: boolean }).standalone)
   return mq || ios

@@ -19,11 +19,13 @@ import { ensureUserLoaded, localDb } from '@/lib/local-db'
 import { pageEnterSubtle, staggerContainer, staggerItem } from '@/lib/motion-ui'
 import { TAGLINE } from '@/lib/brand'
 import { cn } from '@/lib/utils'
+import { isNativeShell } from '@/lib/native/platform'
 
 type Mode = 'open' | 'signin' | 'signup'
 
 function isStandaloneApp() {
   if (typeof window === 'undefined') return false
+  if (isNativeShell()) return true
   const mq = window.matchMedia('(display-mode: standalone)').matches
   const ios = 'standalone' in navigator && Boolean((navigator as Navigator & { standalone?: boolean }).standalone)
   return mq || ios
