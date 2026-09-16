@@ -74,7 +74,7 @@ export function PrivacyDataPanel({
         <h3 className="text-sm font-semibold">Leaves this device (only if you opt in)</h3>
         {!cloudEnabled ? (
           <p className="mt-1 text-sm text-muted-foreground">
-            Cloud is not configured — everything stays local until you connect Supabase.
+            Cloud isn’t available in this build — everything stays on this device.
           </p>
         ) : !cloudSignedIn ? (
           <p className="mt-1 text-sm text-muted-foreground">
@@ -153,6 +153,16 @@ export function PrivacyDataPanel({
           </Button>
         )}
       </section>
+
+      <p className="text-xs text-muted-foreground">
+        <Link to="/privacy" className="text-primary underline-offset-2 hover:underline">
+          Privacy Policy
+        </Link>
+        {' · '}
+        <Link to="/terms" className="text-primary underline-offset-2 hover:underline">
+          Terms
+        </Link>
+      </p>
     </div>
   )
 }

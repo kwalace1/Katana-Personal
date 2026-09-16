@@ -38,7 +38,7 @@ export const PLUS_FEATURE_MATRIX: PlusTierRow[] = [
   {
     feature: 'nutrition_ai',
     label: 'Meal & label AI',
-    free: 'Manual logging',
+    free: 'Manual logging + food search',
     plus: 'Photo/label estimates for honest fuel',
   },
   {
@@ -54,12 +54,23 @@ export const PLUS_FEATURE_MATRIX: PlusTierRow[] = [
     plus: 'Orchestration push — workout windows & focus',
   },
   {
+    feature: 'programs',
+    label: 'Training programs',
+    free: 'Beginner Full Body · Classic 5×5',
+    plus: 'Push/Pull/Legs · Upper/Lower',
+  },
+  {
     feature: 'diet_plans',
     label: 'Diet templates',
     free: 'Starter plans',
     plus: 'Complete macro templates',
   },
 ]
+
+/** Local demo unlock is for development only — never show it in production. */
+export function demoPlusAllowed(): boolean {
+  return import.meta.env.DEV
+}
 
 export function isPlusUnlocked(): boolean {
   try {
@@ -156,7 +167,7 @@ export function plusFeatureBlurb(feature: PlusFeature): { title: string; body: s
   if (feature === 'programs') {
     return {
       title: 'Accountability pack · training programs',
-      body: 'Starter and complete training templates are free. Plus still unlocks coach depth and meal AI.',
+      body: 'Beginner Full Body and Classic 5×5 stay free. Plus unlocks Push/Pull/Legs and Upper/Lower templates you can copy and edit.',
     }
   }
   if (feature === 'diet_plans') {

@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
@@ -10,6 +11,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import {
+  demoPlusAllowed,
   isPlusUnlocked,
   plusFeatureBlurb,
   setPlusUnlocked,
@@ -25,6 +27,8 @@ type Props = {
 
 export function PlusPaywallSheet({ open, onOpenChange, feature, onUnlocked }: Props) {
   const blurb = plusFeatureBlurb(feature)
+  const navigate = useNavigate()
+  const showDemo = demoPlusAllowed()
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -48,22 +52,35 @@ export function PlusPaywallSheet({ open, onOpenChange, feature, onUnlocked }: Pr
             </li>
             <li>
               <span className="font-medium text-foreground">Plus · Accountability pack:</span> deeper
-              Ask coach, Circle challenges, meal & label AI that keeps fuel honest
+              Ask coach, Circle challenges, meal & label AI, live calendar & health apps
             </li>
           </ul>
           <Button
             className="min-h-11 w-full"
             onClick={() => {
-              setPlusUnlocked(true)
-              toast.success('Accountability pack unlocked')
               onOpenChange(false)
-              onUnlocked?.()
+              navigate('/settings/plus')
             }}
           >
-            Unlock Accountability pack
+            See the Accountability pack
           </Button>
+          {showDemo ? (
+            <Button
+              type="button"
+              variant="secondary"
+              className="min-h-11 w-full"
+              onClick={() => {
+                setPlusUnlocked(true)
+                toast.success('Accountability pack unlocked (dev)')
+                onOpenChange(false)
+                onUnlocked?.()
+              }}
+            >
+              Unlock for testing
+            </Button>
+          ) : null}
           <p className="text-center text-xs text-muted-foreground">
-            Unlock on this device. Store billing comes later.
+            Free stays a full daily OS. Plus is optional.
           </p>
           <Button type="button" variant="outline" className="min-h-11 w-full" onClick={() => onOpenChange(false)}>
             Not now
@@ -74,7 +91,7 @@ export function PlusPaywallSheet({ open, onOpenChange, feature, onUnlocked }: Pr
   )
 }
 
-/** Re-render when demo Plus toggles. */
+/** Re-render when Plus toggles. */
 export function usePlusStatus() {
   const [plus, setPlus] = useState(() => isPlusUnlocked())
   useEffect(() => {

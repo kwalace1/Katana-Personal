@@ -29,7 +29,7 @@ if (supabaseConfigured) {
 
 export function getSupabase(): SupabaseClient {
   if (!client) {
-    throw new Error('Cloud account isn’t set up yet. Add Supabase keys to .env — see SUPABASE_SETUP.md')
+    throw new Error('Cloud isn’t available in this build.')
   }
   return client
 }

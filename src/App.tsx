@@ -6,6 +6,8 @@ import { ritualAllowsPath } from '@/lib/ritual-path'
 import LandingPage from '@/modules/dashboard/pages/LandingPage'
 import AuthPage from '@/modules/dashboard/pages/AuthPage'
 import AuthCallbackPage from '@/modules/dashboard/pages/AuthCallbackPage'
+import PrivacyPage from '@/modules/legal/pages/PrivacyPage'
+import TermsPage from '@/modules/legal/pages/TermsPage'
 import DashboardPage from '@/modules/dashboard/pages/DashboardPage'
 import SettingsPage from '@/modules/dashboard/pages/SettingsPage'
 import TasksPage from '@/modules/tasks/pages/TasksPage'
@@ -66,6 +68,8 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<LandingPage />} />
+      <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/terms" element={<TermsPage />} />
       <Route path="/auth" element={<AuthPage />} />
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
       <Route path="/invite/circle/:token" element={<InviteJoinPage />} />

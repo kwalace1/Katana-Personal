@@ -5,6 +5,7 @@ import {
   handlePushScheduleRequest,
   handlePushSendRequest,
 } from './api/push/push-core'
+import { handleAccountDeleteRequest } from './api/account/delete-core'
 import { handleBillingCheckoutRequest } from './api/billing/checkout-core'
 
 const PUSH_API_PATHS = new Set([
@@ -27,7 +28,8 @@ export function pushDevPlugin(): Plugin {
 
         const isPush = PUSH_API_PATHS.has(path)
         const isBilling = path === '/api/billing/checkout'
-        if (!isPush && !isBilling) {
+        const isAccountDelete = path === '/api/account/delete'
+        if (!isPush && !isBilling && !isAccountDelete) {
           next()
           return
         }
@@ -62,7 +64,13 @@ export function pushDevPlugin(): Plugin {
           }
 
           let response: Response
-          if (isBilling) {
+          if (isAccountDelete) {
+            response = await handleAccountDeleteRequest(request, {
+              supabaseUrl: env.VITE_SUPABASE_URL || '',
+              supabaseAnonKey: env.VITE_SUPABASE_ANON_KEY || '',
+              supabaseServiceKey: env.SUPABASE_SERVICE_ROLE_KEY || '',
+            })
+          } else if (isBilling) {
             response = await handleBillingCheckoutRequest(request, {
               stripeSecretKey: env.STRIPE_SECRET_KEY || '',
               stripePriceId: env.STRIPE_PRICE_ID || '',

@@ -84,8 +84,8 @@ export function SettingsTogetherPage() {
       <SettingsPanel>
         {!cloudEnabled ? (
           <p className="rounded-2xl bg-secondary/60 px-4 py-3 text-sm text-muted-foreground">
-            Add Supabase keys to <code className="text-xs">.env</code> — see{' '}
-            <code className="text-xs">SUPABASE_SETUP.md</code> (≈3 minutes).
+            Together isn’t available in this build. Friends, Circles, and cloud sync will show up here when
+            they’re turned on.
           </p>
         ) : cloudUser && cloudProfile ? (
           <div className="space-y-3">

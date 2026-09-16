@@ -133,13 +133,11 @@ export function ConnectionsPanel({ userId, tick = 0 }: Props) {
           <div className="min-w-0 flex-1">
             <h3 className="font-display text-lg tracking-tight">Google Calendar</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              Read meetings and plans from Google. Requires server keys{' '}
-              <code className="text-xs">GOOGLE_CLIENT_ID</code> +{' '}
-              <code className="text-xs">GOOGLE_CLIENT_SECRET</code>.
+              Read meetings and plans from Google so Today and Ask see your real schedule. Plus feature.
             </p>
             {!googleReady ? (
-              <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
-                Not configured — add env vars and redeploy to enable.
+              <p className="mt-2 text-xs text-muted-foreground">
+                Google Calendar isn’t available in this build yet.
               </p>
             ) : null}
           </div>
@@ -216,8 +214,8 @@ export function ConnectionsPanel({ userId, tick = 0 }: Props) {
               Read sleep and activity into Health — powers recovery-aware Today and Ask. Plus feature.
             </p>
             {!fitbitReady ? (
-              <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
-                Not configured — add <code className="text-xs">FITBIT_CLIENT_ID</code> + secret, redeploy.
+              <p className="mt-2 text-xs text-muted-foreground">
+                Fitbit isn’t available in this build yet. You can still import a sleep file in Health.
               </p>
             ) : null}
           </div>
@@ -252,8 +250,8 @@ export function ConnectionsPanel({ userId, tick = 0 }: Props) {
               Import recent runs and rides into workouts — read-only. Plus feature.
             </p>
             {!stravaReady ? (
-              <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
-                Not configured — add <code className="text-xs">STRAVA_CLIENT_ID</code> + secret, redeploy.
+              <p className="mt-2 text-xs text-muted-foreground">
+                Strava isn’t available in this build yet. You can still log cardio in Health.
               </p>
             ) : null}
           </div>

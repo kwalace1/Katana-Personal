@@ -139,8 +139,8 @@ export function SleepPanel({
             <p className="text-xs text-muted-foreground">Apple Watch & Fitbit</p>
             <h3 className="font-display text-lg tracking-tight">Bring sleep in from your watch</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              Browsers can’t live-sync Health or Fitbit. Export from Apple Health (export.xml) or a Fitbit
-              sleep CSV — sleep and workouts import together — or log bedtime and wake below.
+              Live Apple Health sync needs the native app. On the web, import an Apple Health export or
+              Fitbit sleep CSV — or connect Fitbit in Settings → Connections (Plus).
             </p>
             {lastImportAt ? (
               <p className="mt-2 text-xs text-muted-foreground">

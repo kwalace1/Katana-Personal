@@ -14,8 +14,10 @@ import { createId } from '@/lib/id'
 import { isAuthCallbackLocation, mapCloudAuthError } from '@/lib/auth-callback'
 import { takeInviteReturn, peekInviteReturn } from '@/lib/invite-return'
 import AuthCallbackPage from '@/modules/dashboard/pages/AuthCallbackPage'
+import { SiteFooter } from '@/components/SiteFooter'
 import { ensureUserLoaded, localDb } from '@/lib/local-db'
 import { pageEnterSubtle, staggerContainer, staggerItem } from '@/lib/motion-ui'
+import { TAGLINE } from '@/lib/brand'
 import { cn } from '@/lib/utils'
 
 type Mode = 'open' | 'signin' | 'signup'
@@ -270,7 +272,7 @@ export default function LandingPage() {
             <p className="mt-4 max-w-md text-base leading-relaxed text-muted-foreground sm:text-lg">
               {standalone
                 ? 'Your day, on this phone.'
-                : 'Plan the day. Do the next thing. Share your wins.'}
+                : TAGLINE}
             </p>
 
             {!standalone ? (
@@ -477,6 +479,7 @@ export default function LandingPage() {
                 {busy ? 'Bringing it back…' : 'Bring a copy back'}
               </Button>
             </div>
+            <SiteFooter className="mt-10" />
           </div>
         </motion.div>
       </div>

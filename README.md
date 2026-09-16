@@ -1,6 +1,6 @@
 # Katana Personal
 
-**Calm daily OS:** one next step today, Ask that can act, Together only if you want it — private on this device.
+**Calm daily OS:** Plan the day. Do the next thing. Share your wins.
 
 Not another list app. Not a water tracker. See [docs/POSITIONING.md](./docs/POSITIONING.md).
 

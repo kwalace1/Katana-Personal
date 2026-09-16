@@ -42,6 +42,7 @@ interface CloudAuthContextType {
   signInCloud: (email: string, password: string) => Promise<void>
   signInWithApple: () => Promise<void>
   signOutCloud: () => Promise<void>
+  deleteTogetherAccount: () => Promise<{ ok: boolean; error?: string }>
   refreshCloudProfile: () => Promise<void>
   saveDisplayName: (name: string) => Promise<void>
   saveSharePrefs: (prefs: SharePrefs) => Promise<void>
@@ -240,6 +241,43 @@ export function CloudAuthProvider({ children }: { children: React.ReactNode }) {
     setCloudUser(null)
   }, [])
 
+  const deleteTogetherAccount = useCallback(async (): Promise<{ ok: boolean; error?: string }> => {
+    if (!supabaseConfigured) return { ok: true }
+    const supabase = getSupabase()
+    const session = (await supabase.auth.getSession()).data.session
+    const uid = session?.user?.id || cloudUser?.uid
+    let error: string | undefined
+    if (session?.access_token) {
+      try {
+        const res = await fetch('/api/account/delete', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+        if (!res.ok && res.status !== 503) {
+          const data = (await res.json().catch(() => ({}))) as { error?: string }
+          error = data.error || `Couldn’t delete Together account (${res.status})`
+        }
+      } catch {
+        error = 'Couldn’t reach account deletion'
+      }
+    }
+    if (uid) {
+      try {
+        await supabase.from('profiles').delete().eq('uid', uid)
+      } catch {
+        // RLS or network — local erase still proceeds
+      }
+    }
+    try {
+      await supabase.auth.signOut()
+    } catch {
+      // user may already be deleted
+    }
+    setCloudProfile(null)
+    setCloudUser(null)
+    return { ok: !error, error }
+  }, [cloudUser?.uid])
+
   const refreshCloudProfile = useCallback(async () => {
     if (!cloudUser) return
     const profile = await getCloudProfile(cloudUser.uid)
@@ -345,6 +383,7 @@ export function CloudAuthProvider({ children }: { children: React.ReactNode }) {
       signInCloud,
       signInWithApple,
       signOutCloud,
+      deleteTogetherAccount,
       refreshCloudProfile,
       saveDisplayName,
       saveSharePrefs,
@@ -359,6 +398,7 @@ export function CloudAuthProvider({ children }: { children: React.ReactNode }) {
       signInCloud,
       signInWithApple,
       signOutCloud,
+      deleteTogetherAccount,
       refreshCloudProfile,
       saveDisplayName,
       saveSharePrefs,

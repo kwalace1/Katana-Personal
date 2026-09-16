@@ -19,7 +19,7 @@ export function PlusFeatureMatrix({ compact }: Props) {
           </tr>
         </thead>
         <tbody>
-          {PLUS_FEATURE_MATRIX.filter((row) => !compact || ['llm', 'integrations', 'orchestration_push', 'challenge', 'nutrition_ai'].includes(row.feature)).map((row) => (
+          {PLUS_FEATURE_MATRIX.filter((row) => !compact || ['llm', 'integrations', 'orchestration_push', 'challenge', 'nutrition_ai', 'programs'].includes(row.feature)).map((row) => (
             <tr key={row.feature} className="border-b border-border/40 last:border-0">
               <td className="px-3 py-2.5 font-medium">{row.label}</td>
               <td className="px-3 py-2.5 text-muted-foreground">{row.free}</td>

@@ -1,7 +1,7 @@
 {
   "name": "Katana Personal",
   "short_name": "Katana",
-  "description": "Your life, organized in one calm place.",
+  "description": "Plan the day. Do the next thing. Share your wins.",
   "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",

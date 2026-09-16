@@ -119,7 +119,7 @@ export function SettingsHub() {
       ) : null}
 
       <SettingsGroup title="More">
-        <SettingsRow to="/settings/advanced" icon={Wrench} label="Advanced" detail="Demo data & tips" />
+        <SettingsRow to="/settings/advanced" icon={Wrench} label="Advanced" detail="Tips" />
         <SettingsRow
           to="/settings/backup"
           icon={Smartphone}

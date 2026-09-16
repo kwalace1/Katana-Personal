@@ -181,7 +181,7 @@ export default function HealthPage() {
         description={
           healthArea === 'fitness'
             ? 'Train, follow your split, and see what is getting stronger.'
-            : 'Weight, rest, fuel, and supplements.'
+            : 'Sleep, meals, weight, and the other signals Today uses — water included.'
         }
         eyebrow="Health & Wellness"
       />

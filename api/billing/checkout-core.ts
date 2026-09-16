@@ -31,7 +31,7 @@ export async function handleBillingCheckoutRequest(req: Request, env: BillingEnv
   if (!billingConfigured(env)) {
     return Response.json(
       {
-        error: 'Stripe not configured. Set STRIPE_SECRET_KEY and STRIPE_PRICE_ID, or use demo unlock.',
+        error: 'Store billing isn’t live yet.',
         demo: true,
       },
       { status: 503 },

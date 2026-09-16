@@ -2,6 +2,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
 import { DEFAULT_SHARE_PREFS } from '@/lib/social/types'
 import { PrivacyDataPanel } from '../components/PrivacyDataPanel'
+import { DeleteSpacePanel } from '../components/DeleteSpacePanel'
 import { SettingsDetail, SettingsPanel } from '../components/settings-ui'
 
 export function SettingsPrivacyPage() {
@@ -21,6 +22,7 @@ export function SettingsPrivacyPage() {
           />
         ) : null}
       </SettingsPanel>
+      <DeleteSpacePanel />
     </SettingsDetail>
   )
 }
