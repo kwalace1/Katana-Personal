@@ -13,8 +13,13 @@ export type WeatherSnapshot = {
   lon: number
 }
 
+export type GeolocationPermissionState = 'granted' | 'prompt' | 'denied' | 'unknown'
+
 const CACHE_KEY = 'katana-personal:weather-cache'
+const OPTED_IN_KEY = 'katana-personal:weather-location-ok'
 const CACHE_MS = 20 * 60_000
+/** Hard cap — iOS PWAs sometimes never fire getCurrentPosition after Allow on first paint. */
+const GEO_TIMEOUT_MS = 8_000
 
 const WMO: Record<number, { label: string; outdoor: string }> = {
   0: { label: 'Clear', outdoor: 'Great for a run or walk' },
@@ -44,11 +49,11 @@ function describeCode(code: number): { label: string; outdoor: string } {
   return WMO[code] ?? { label: 'Mixed skies', outdoor: 'Check conditions before you head out' }
 }
 
-function readCache(): WeatherSnapshot | null {
+export function readWeatherCache(): WeatherSnapshot | null {
   try {
     const raw = localStorage.getItem(CACHE_KEY)
     if (!raw) return null
-    const parsed = JSON.parse(raw) as WeatherSnapshot & { expiresAt?: number }
+    const parsed = JSON.parse(raw) as WeatherSnapshot
     if (!parsed.fetchedAt) return null
     const age = Date.now() - new Date(parsed.fetchedAt).getTime()
     if (age > CACHE_MS) return null
@@ -66,23 +71,82 @@ function writeCache(snap: WeatherSnapshot) {
   }
 }
 
+export function weatherLocationOptedIn(): boolean {
+  try {
+    return localStorage.getItem(OPTED_IN_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+export function setWeatherLocationOptedIn(on: boolean) {
+  try {
+    if (on) localStorage.setItem(OPTED_IN_KEY, '1')
+    else localStorage.removeItem(OPTED_IN_KEY)
+  } catch {
+    // ignore
+  }
+}
+
+export async function queryGeolocationPermission(): Promise<GeolocationPermissionState> {
+  try {
+    if (!navigator.permissions?.query) return 'unknown'
+    const result = await navigator.permissions.query({ name: 'geolocation' })
+    if (result.state === 'granted' || result.state === 'prompt' || result.state === 'denied') {
+      return result.state
+    }
+    return 'unknown'
+  } catch {
+    // Safari often throws for geolocation permission queries.
+    return 'unknown'
+  }
+}
+
 function getPosition(): Promise<GeolocationPosition> {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
       reject(new Error('Location isn’t available in this browser'))
       return
     }
-    navigator.geolocation.getCurrentPosition(resolve, reject, {
-      enableHighAccuracy: false,
-      timeout: 12_000,
-      maximumAge: 10 * 60_000,
-    })
+
+    let settled = false
+    const timer = window.setTimeout(() => {
+      if (settled) return
+      settled = true
+      reject(new Error('Location timed out — tap retry after allowing access.'))
+    }, GEO_TIMEOUT_MS)
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        if (settled) return
+        settled = true
+        window.clearTimeout(timer)
+        resolve(pos)
+      },
+      (err) => {
+        if (settled) return
+        settled = true
+        window.clearTimeout(timer)
+        if (err.code === err.PERMISSION_DENIED) {
+          reject(new Error('Location permission denied'))
+        } else if (err.code === err.TIMEOUT) {
+          reject(new Error('Location timed out — tap retry.'))
+        } else {
+          reject(new Error(err.message || 'Couldn’t read location'))
+        }
+      },
+      {
+        enableHighAccuracy: false,
+        timeout: GEO_TIMEOUT_MS - 500,
+        maximumAge: 10 * 60_000,
+      },
+    )
   })
 }
 
 export async function fetchWeatherSnapshot(force = false): Promise<WeatherSnapshot> {
   if (!force) {
-    const cached = readCache()
+    const cached = readWeatherCache()
     if (cached) return cached
   }
 
@@ -121,6 +185,7 @@ export async function fetchWeatherSnapshot(force = false): Promise<WeatherSnapsh
     lon,
   }
   writeCache(snap)
+  setWeatherLocationOptedIn(true)
   return snap
 }
 
