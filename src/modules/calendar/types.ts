@@ -15,7 +15,7 @@ export interface CalendarEvent {
   /** Optional hex override; otherwise category palette */
   color: string | null
   /** Where this event came from — local entries omit or use 'local' */
-  source?: 'local' | 'google' | 'ics'
+  source?: 'local' | 'google' | 'ics' | 'outlook'
   /** Provider-stable id for imported events (dedupe on sync) */
   external_id?: string | null
   created_at: string

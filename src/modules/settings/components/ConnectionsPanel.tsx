@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState, type ReactNode } from 'react'
+import { FormEvent, useMemo, useState } from 'react'
 import {
   Calendar,
   CheckSquare,
@@ -18,21 +18,28 @@ import { Label } from '@/components/ui/label'
 import { broadcastLocalRefresh } from '@/hooks/useLocalRefresh'
 import { importedEventCount, removeImportedBySource } from '@/lib/integrations/calendar-merge'
 import {
-  googleTasksConfigured,
-  outlookCalendarConfigured,
-  todoistConfigured,
-} from '@/lib/integrations/coming-soon'
-import {
   connectAndSyncGoogleCalendar,
   googleCalendarConfigured,
   syncGoogleCalendar,
 } from '@/lib/integrations/google-calendar'
+import {
+  connectAndSyncGoogleTasks,
+  googleTasksConfigured,
+  syncGoogleTasks,
+} from '@/lib/integrations/google-tasks'
 import { connectAndSyncIcsCalendar, syncIcsCalendar } from '@/lib/integrations/ics-calendar'
+import {
+  connectAndSyncOutlookCalendar,
+  outlookCalendarConfigured,
+  syncOutlookCalendar,
+} from '@/lib/integrations/outlook-calendar'
 import {
   disconnectProvider,
   listConnections,
   removeConnection,
 } from '@/lib/integrations/store'
+import { importedTaskCount, removeImportedTasksBySource } from '@/lib/integrations/task-merge'
+import { connectAndSyncTodoist, syncTodoist, todoistConfigured } from '@/lib/integrations/todoist'
 import type { IntegrationConnection } from '@/lib/integrations/types'
 
 type Props = {
@@ -81,6 +88,18 @@ export function ConnectionsPanel({ userId, tick = 0 }: Props) {
     await run('google-connect', () => connectAndSyncGoogleCalendar(userId))
   }
 
+  async function onConnectOutlook() {
+    await run('outlook-connect', () => connectAndSyncOutlookCalendar(userId))
+  }
+
+  async function onConnectGoogleTasks() {
+    await run('google-tasks-connect', () => connectAndSyncGoogleTasks(userId), 'tasks')
+  }
+
+  async function onConnectTodoist() {
+    await run('todoist-connect', () => connectAndSyncTodoist(userId), 'tasks')
+  }
+
   async function onConnectIcs(e: FormEvent) {
     e.preventDefault()
     const url = icsUrl.trim()
@@ -96,6 +115,15 @@ export function ConnectionsPanel({ userId, tick = 0 }: Props) {
     if (conn.provider === 'google_calendar') {
       removeImportedBySource(userId, 'google')
       disconnectProvider(userId, 'google_calendar')
+    } else if (conn.provider === 'outlook_calendar') {
+      removeImportedBySource(userId, 'outlook')
+      disconnectProvider(userId, 'outlook_calendar')
+    } else if (conn.provider === 'google_tasks') {
+      removeImportedTasksBySource(userId, 'google_tasks')
+      disconnectProvider(userId, 'google_tasks')
+    } else if (conn.provider === 'todoist') {
+      removeImportedTasksBySource(userId, 'todoist')
+      disconnectProvider(userId, 'todoist')
     } else if (conn.provider === 'fitbit' || conn.provider === 'strava') {
       disconnectProvider(userId, conn.provider)
     } else if (conn.provider === 'ics_calendar') {
@@ -225,32 +253,116 @@ export function ConnectionsPanel({ userId, tick = 0 }: Props) {
         ) : null}
       </div>
 
-      <UpcomingIntegration
-        icon={<Mail className="mt-0.5 h-5 w-5 shrink-0 text-primary" />}
-        title="Outlook / Microsoft Calendar"
-        body="Read Outlook and Microsoft 365 calendars the same way as Google — for work schedules."
-        ready={outlookReady}
-        readyHint="Microsoft app registration env is set — connect flow ships next."
-        waitingHint="Add `VITE_MS_CLIENT_ID` (+ server secret) when you’re ready to set this up."
-      />
+      <div className="kp-surface space-y-3 p-4">
+        <div className="flex items-start gap-3">
+          <Mail className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+          <div className="min-w-0 flex-1">
+            <h3 className="font-display text-lg tracking-tight">Outlook / Microsoft Calendar</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Read Outlook and Microsoft 365 calendars so Today and Ask see work meetings.
+            </p>
+            {!outlookReady ? (
+              <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
+                Waiting on Microsoft env (`VITE_MS_CLIENT_ID` + `MS_CLIENT_SECRET`).
+              </p>
+            ) : null}
+          </div>
+        </div>
+        {connections
+          .filter((c) => c.provider === 'outlook_calendar')
+          .map((conn) => (
+            <ConnectionRow
+              key={conn.id}
+              conn={conn}
+              detail={`${importedEventCount(userId, 'outlook')} events on device`}
+              busy={busy}
+              onSync={() => run(`sync-${conn.id}`, () => syncOutlookCalendar(userId))}
+              onDisconnect={() => onDisconnect(conn)}
+            />
+          ))}
+        {!connections.some((c) => c.provider === 'outlook_calendar') ? (
+          <Button
+            type="button"
+            disabled={!outlookReady || busy != null}
+            onClick={() => void onConnectOutlook()}
+          >
+            {busy === 'outlook-connect' ? 'Connecting…' : 'Connect Outlook Calendar'}
+          </Button>
+        ) : null}
+      </div>
 
-      <UpcomingIntegration
-        icon={<CheckSquare className="mt-0.5 h-5 w-5 shrink-0 text-primary" />}
-        title="Google Tasks"
-        body="Pull open tasks into Katana so Do this next and Ask see what’s already on your plate."
-        ready={googleTasksReady}
-        readyHint="Google client id present — Tasks scopes + connect UI come next."
-        waitingHint="Can reuse Google Calendar OAuth client, or set `VITE_GOOGLE_TASKS_CLIENT_ID`."
-      />
+      <div className="kp-surface space-y-3 p-4">
+        <div className="flex items-start gap-3">
+          <CheckSquare className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+          <div className="min-w-0 flex-1">
+            <h3 className="font-display text-lg tracking-tight">Google Tasks</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Pull open Google Tasks into Katana so Do this next and Ask see what’s already on your plate.
+            </p>
+            {!googleTasksReady ? (
+              <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
+                Waiting on Google env (`VITE_GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET`). Enable Google
+                Tasks API in Cloud Console.
+              </p>
+            ) : null}
+          </div>
+        </div>
+        {connections
+          .filter((c) => c.provider === 'google_tasks')
+          .map((conn) => (
+            <ConnectionRow
+              key={conn.id}
+              conn={conn}
+              detail={`${importedTaskCount(userId, 'google_tasks')} tasks on device`}
+              busy={busy}
+              onSync={() => run(`sync-${conn.id}`, () => syncGoogleTasks(userId), 'tasks')}
+              onDisconnect={() => onDisconnect(conn)}
+            />
+          ))}
+        {!connections.some((c) => c.provider === 'google_tasks') ? (
+          <Button
+            type="button"
+            disabled={!googleTasksReady || busy != null}
+            onClick={() => void onConnectGoogleTasks()}
+          >
+            {busy === 'google-tasks-connect' ? 'Connecting…' : 'Connect Google Tasks'}
+          </Button>
+        ) : null}
+      </div>
 
-      <UpcomingIntegration
-        icon={<ListTodo className="mt-0.5 h-5 w-5 shrink-0 text-primary" />}
-        title="Todoist"
-        body="Import active Todoist tasks (free Todoist API / OAuth — no paid plan required for basic sync)."
-        ready={todoistReady}
-        readyHint="Todoist client id is set — connect flow ships next."
-        waitingHint="Add `VITE_TODOIST_CLIENT_ID` (+ secret) when you’re ready."
-      />
+      <div className="kp-surface space-y-3 p-4">
+        <div className="flex items-start gap-3">
+          <ListTodo className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+          <div className="min-w-0 flex-1">
+            <h3 className="font-display text-lg tracking-tight">Todoist</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Import active Todoist tasks — read-only sync onto this device.
+            </p>
+            {!todoistReady ? (
+              <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
+                Waiting on Todoist env (`VITE_TODOIST_CLIENT_ID` + `TODOIST_CLIENT_SECRET`).
+              </p>
+            ) : null}
+          </div>
+        </div>
+        {connections
+          .filter((c) => c.provider === 'todoist')
+          .map((conn) => (
+            <ConnectionRow
+              key={conn.id}
+              conn={conn}
+              detail={`${importedTaskCount(userId, 'todoist')} tasks on device`}
+              busy={busy}
+              onSync={() => run(`sync-${conn.id}`, () => syncTodoist(userId), 'tasks')}
+              onDisconnect={() => onDisconnect(conn)}
+            />
+          ))}
+        {!connections.some((c) => c.provider === 'todoist') ? (
+          <Button type="button" disabled={!todoistReady || busy != null} onClick={() => void onConnectTodoist()}>
+            {busy === 'todoist-connect' ? 'Connecting…' : 'Connect Todoist'}
+          </Button>
+        ) : null}
+      </div>
 
       <div className="kp-surface space-y-3 p-4">
         <div className="flex items-start gap-3">
@@ -300,43 +412,6 @@ export function ConnectionsPanel({ userId, tick = 0 }: Props) {
           ))}
         </div>
       ) : null}
-    </div>
-  )
-}
-
-function UpcomingIntegration({
-  icon,
-  title,
-  body,
-  ready,
-  readyHint,
-  waitingHint,
-}: {
-  icon: ReactNode
-  title: string
-  body: string
-  ready: boolean
-  readyHint: string
-  waitingHint: string
-}) {
-  return (
-    <div className="kp-surface space-y-3 p-4">
-      <div className="flex items-start gap-3">
-        {icon}
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="font-display text-lg tracking-tight">{title}</h3>
-            <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-              {ready ? 'Env ready' : 'Setup next'}
-            </span>
-          </div>
-          <p className="mt-1 text-sm text-muted-foreground">{body}</p>
-          <p className="mt-2 text-xs text-muted-foreground">{ready ? readyHint : waitingHint}</p>
-        </div>
-      </div>
-      <Button type="button" disabled>
-        Connect (coming with credentials)
-      </Button>
     </div>
   )
 }

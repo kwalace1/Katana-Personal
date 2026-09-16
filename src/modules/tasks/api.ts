@@ -23,6 +23,8 @@ function normalizeTask(task: Task): Task {
     notes: task.notes ?? '',
     category: known ? legacy : 'personal',
     completed_at: task.completed_at ?? null,
+    source: task.source ?? 'local',
+    external_id: task.external_id ?? null,
   }
 }
 
@@ -95,6 +97,8 @@ export const tasksApi = {
       goal_id?: string | null
       habit_id?: string | null
       sort_order?: number
+      source?: Task['source']
+      external_id?: string | null
     },
   ): Task {
     const ts = now()
@@ -118,6 +122,8 @@ export const tasksApi = {
         sort_order: input.sort_order ?? maxOrder + 1,
         goal_id: input.goal_id ?? null,
         habit_id: input.habit_id ?? null,
+        source: input.source ?? 'local',
+        external_id: input.external_id ?? null,
         created_at: ts,
         updated_at: ts,
       }),

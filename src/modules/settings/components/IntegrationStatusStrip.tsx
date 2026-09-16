@@ -42,7 +42,10 @@ export function IntegrationStatusStrip({ userId, tick = 0 }: Props) {
         <StatusPill ok={status.calendarConnected} label="Calendar" />
         <StatusPill ok={status.healthConnected} label="Health import" />
         {status.googleCalendar ? <StatusPill ok label="Google" /> : null}
+        {status.outlookCalendar ? <StatusPill ok label="Outlook" /> : null}
         {status.icsCalendar ? <StatusPill ok label=".ics" /> : null}
+        {status.googleTasks ? <StatusPill ok label="Google Tasks" /> : null}
+        {status.todoist ? <StatusPill ok label="Todoist" /> : null}
         {status.appleHealthImport ? <StatusPill ok label="Apple / Fitbit file" /> : null}
       </div>
       {!status.calendarConnected || !status.healthConnected ? (

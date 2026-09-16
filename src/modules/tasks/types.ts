@@ -27,6 +27,10 @@ export interface Task {
   sort_order: number
   goal_id: string | null
   habit_id: string | null
+  /** Where this task came from — local entries omit or use 'local' */
+  source?: 'local' | 'google_tasks' | 'todoist'
+  /** Provider-stable id for imported tasks (dedupe on sync) */
+  external_id?: string | null
   created_at: string
   updated_at: string
 }

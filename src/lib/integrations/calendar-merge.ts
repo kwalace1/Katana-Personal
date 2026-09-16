@@ -3,7 +3,7 @@ import { calendarApi } from '@/modules/calendar/api'
 import type { CalendarEvent } from '@/modules/calendar/types'
 import type { ExternalCalendarEvent } from './types'
 
-export type CalendarImportSource = 'google' | 'ics'
+export type CalendarImportSource = 'google' | 'ics' | 'outlook'
 
 /** Merge imported events into local IndexedDB; returns count upserted. */
 export function mergeExternalEvents(
@@ -87,5 +87,5 @@ export function importedEventCount(userId: string, source: CalendarImportSource)
 }
 
 export function isImportedEvent(event: CalendarEvent): boolean {
-  return event.source === 'google' || event.source === 'ics'
+  return event.source === 'google' || event.source === 'ics' || event.source === 'outlook'
 }

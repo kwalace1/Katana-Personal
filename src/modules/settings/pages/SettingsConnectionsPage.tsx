@@ -15,7 +15,7 @@ export function SettingsConnectionsPage() {
       <SettingsPanel>
         <p className="text-sm text-muted-foreground">
           .ics feeds, weather, and Apple Health / Fitbit file import are free. Google Calendar, Outlook,
-          Google Tasks, and Todoist show here for production setup — connect when credentials are in env.
+          Google Tasks, and Todoist connect when their env credentials are set on this deploy.
         </p>
         {user ? <ConnectionsPanel userId={user.id} tick={tick} /> : null}
       </SettingsPanel>

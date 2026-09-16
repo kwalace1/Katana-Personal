@@ -107,7 +107,10 @@ export function disconnectProvider(userId: string, provider: IntegrationProvider
 
 export function connectOAuthProvider(
   userId: string,
-  provider: Extract<IntegrationProvider, 'fitbit' | 'strava'>,
+  provider: Extract<
+    IntegrationProvider,
+    'fitbit' | 'strava' | 'outlook_calendar' | 'google_tasks' | 'todoist'
+  >,
   tokens: OAuthTokens,
   label: string,
 ): IntegrationConnection {
