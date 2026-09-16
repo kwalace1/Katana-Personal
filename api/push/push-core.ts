@@ -21,7 +21,7 @@ export function readPushEnv(): PushEnv {
   return {
     vapidPublicKey: process.env.VITE_VAPID_PUBLIC_KEY || process.env.VAPID_PUBLIC_KEY || '',
     vapidPrivateKey: process.env.VAPID_PRIVATE_KEY || '',
-    vapidSubject: process.env.VAPID_SUBJECT || 'mailto:support@katana.app',
+    vapidSubject: process.env.VAPID_SUBJECT || 'mailto:katanatechnologysystems@gmail.com',
     supabaseUrl: process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '',
     supabaseServiceKey: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
     cronSecret: process.env.CRON_SECRET || '',

@@ -8,4 +8,4 @@ export const TAGLINE = 'Plan the day. Do the next thing. Share your wins.'
 export const DESCRIPTION =
   'Your calm daily OS: one next step today, Ask that can act, Together only if you want it — private on this device.'
 
-export const SUPPORT_EMAIL = 'support@katana.app'
+export const SUPPORT_EMAIL = 'katanatechnologysystems@gmail.com'

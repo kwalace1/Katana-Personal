@@ -1,5 +1,5 @@
 /* Katana Personal — offline icons only; never pin HTML so deploys show up */
-const CACHE = 'katana-shell-v10'
+const CACHE = 'katana-shell-v11'
 const SHELL = ['/manifest.webmanifest', '/icons/katana-192.png', '/icons/katana-512.png']
 
 function shouldBypassCache(url) {

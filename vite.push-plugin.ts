@@ -57,7 +57,7 @@ export function pushDevPlugin(): Plugin {
           const pushEnv = {
             vapidPublicKey: env.VITE_VAPID_PUBLIC_KEY || env.VAPID_PUBLIC_KEY || '',
             vapidPrivateKey: env.VAPID_PRIVATE_KEY || '',
-            vapidSubject: env.VAPID_SUBJECT || 'mailto:support@katana.app',
+            vapidSubject: env.VAPID_SUBJECT || 'mailto:katanatechnologysystems@gmail.com',
             supabaseUrl: env.VITE_SUPABASE_URL || '',
             supabaseServiceKey: env.SUPABASE_SERVICE_ROLE_KEY || '',
             cronSecret: env.CRON_SECRET || '',
