@@ -154,6 +154,11 @@ function getPosition(forceFresh = false): Promise<GeolocationPosition> {
   })
 }
 
+/** Start geolocation immediately — call this synchronously inside a click handler on iOS. */
+export function requestGeolocation(forceFresh = false): Promise<GeolocationPosition> {
+  return getPosition(forceFresh)
+}
+
 export class WeatherGeoError extends Error {
   kind: 'denied' | 'timeout' | 'unavailable' | 'unknown'
   constructor(kind: WeatherGeoError['kind'], message: string) {
@@ -163,15 +168,7 @@ export class WeatherGeoError extends Error {
   }
 }
 
-export async function fetchWeatherSnapshot(force = false): Promise<WeatherSnapshot> {
-  if (!force) {
-    const cached = readWeatherCache()
-    if (cached) return cached
-  }
-
-  const pos = await getPosition(force)
-  const lat = pos.coords.latitude
-  const lon = pos.coords.longitude
+export async function fetchWeatherFromCoords(lat: number, lon: number): Promise<WeatherSnapshot> {
   const url = new URL('https://api.open-meteo.com/v1/forecast')
   url.searchParams.set('latitude', String(lat))
   url.searchParams.set('longitude', String(lon))
@@ -206,6 +203,16 @@ export async function fetchWeatherSnapshot(force = false): Promise<WeatherSnapsh
   writeCache(snap)
   setWeatherLocationOptedIn(true)
   return snap
+}
+
+export async function fetchWeatherSnapshot(force = false): Promise<WeatherSnapshot> {
+  if (!force) {
+    const cached = readWeatherCache()
+    if (cached) return cached
+  }
+
+  const pos = await getPosition(force)
+  return fetchWeatherFromCoords(pos.coords.latitude, pos.coords.longitude)
 }
 
 export function formatTemp(snap: WeatherSnapshot, useFahrenheit = true): string {
