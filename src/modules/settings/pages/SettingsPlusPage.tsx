@@ -8,7 +8,9 @@ import {
   freeLlmAsksRemaining,
   setPlusUnlocked,
 } from '@/lib/plus'
+import { isNativeShell } from '@/lib/native/platform'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
+import { NativePlusBilling } from '../components/NativePlusBilling'
 import { PlusFeatureMatrix } from '../components/PlusFeatureMatrix'
 import { SettingsDetail, SettingsPanel } from '../components/settings-ui'
 
@@ -17,6 +19,7 @@ export function SettingsPlusPage() {
   const { cloudUser, cloudProfile } = useCloudAuth()
   const llmLeft = plus ? null : freeLlmAsksRemaining()
   const showDemo = demoPlusAllowed()
+  const native = isNativeShell()
 
   return (
     <SettingsDetail
@@ -44,6 +47,7 @@ export function SettingsPlusPage() {
                 Turn off Plus (dev)
               </Button>
             ) : null}
+            {native ? <div className="mt-3"><NativePlusBilling plus /></div> : null}
           </div>
         ) : (
           <div className="space-y-3">
@@ -53,47 +57,64 @@ export function SettingsPlusPage() {
                 Deeper Ask left today: {llmLeft}/{FREE_LLM_ASKS_PER_DAY}
               </p>
             ) : null}
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                className="min-h-11"
-                onClick={async () => {
-                  const result = await startPlusCheckout({
-                    email: cloudProfile?.email || undefined,
-                    uid: cloudUser?.uid,
-                  })
-                  if (result.url) {
-                    window.location.href = result.url
-                    return
-                  }
-                  if (result.demo) {
-                    toast.message(
-                      'Store billing isn’t live yet. Plus will unlock through the App Store — or Stripe when keys are set.',
-                    )
-                    return
-                  }
-                  toast.error(result.error || 'Checkout unavailable')
-                }}
-              >
-                Subscribe
-              </Button>
-              {showDemo ? (
+            {native ? (
+              <NativePlusBilling plus={false} />
+            ) : (
+              <div className="flex flex-wrap gap-2">
                 <Button
                   type="button"
-                  variant="outline"
                   className="min-h-11"
-                  onClick={() => {
-                    setPlusUnlocked(true)
-                    toast.success('Accountability pack unlocked (dev)')
+                  onClick={async () => {
+                    const result = await startPlusCheckout({
+                      email: cloudProfile?.email || undefined,
+                      uid: cloudUser?.uid,
+                    })
+                    if (result.url) {
+                      window.location.href = result.url
+                      return
+                    }
+                    if (result.demo) {
+                      toast.message(
+                        'Store billing isn’t live yet. Plus will unlock through the App Store — or Stripe when keys are set.',
+                      )
+                      return
+                    }
+                    toast.error(result.error || 'Checkout unavailable')
                   }}
                 >
-                  Unlock for testing
+                  Subscribe
                 </Button>
-              ) : null}
-            </div>
+                {showDemo ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="min-h-11"
+                    onClick={() => {
+                      setPlusUnlocked(true)
+                      toast.success('Accountability pack unlocked (dev)')
+                    }}
+                  >
+                    Unlock for testing
+                  </Button>
+                ) : null}
+              </div>
+            )}
+            {showDemo && native ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-11"
+                onClick={() => {
+                  setPlusUnlocked(true)
+                  toast.success('Accountability pack unlocked (dev)')
+                }}
+              >
+                Unlock for testing
+              </Button>
+            ) : null}
             <p className="text-xs text-muted-foreground">
               Free is the full daily OS. Plus is optional — meal AI, extra Ask depth, challenges, and live
-              calendar & health apps.
+              calendar & health apps. On iPhone, billing goes through the App Store.
             </p>
           </div>
         )}

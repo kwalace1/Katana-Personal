@@ -26,6 +26,7 @@ import { registerActivityPing, registerStreakSync } from '@/lib/social/streak-sy
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from 'sonner'
 import { urlBase64ToUint8Array } from '@/lib/web-notify'
+import { isNativeShell } from '@/lib/native/platform'
 
 interface CloudAuthContextType {
   cloudEnabled: boolean
@@ -120,6 +121,13 @@ export function CloudAuthProvider({ children }: { children: React.ReactNode }) {
     }
     prevCloudUserRef.current = cloudUser
   }, [cloudUser, cloudLoading])
+
+  useEffect(() => {
+    if (!cloudUser || !isNativeShell()) return
+    void import('@/lib/billing/revenuecat').then(({ identifyRevenueCatUser }) =>
+      identifyRevenueCatUser({ appUserID: cloudUser.uid, email: cloudUser.email }),
+    )
+  }, [cloudUser])
 
   useEffect(() => {
     if (!supabaseConfigured) {

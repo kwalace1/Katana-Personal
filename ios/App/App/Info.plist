@@ -66,5 +66,13 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>NSCameraUsageDescription</key>
+	<string>Katana uses the camera to photograph meals and Nutrition Facts labels for food estimates.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Katana lets you pick photos for meals, the Together feed, and documents you keep on this device.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Katana uses your location for local weather on Today and optional cardio GPS. You can type a city instead.</string>
 </dict>
 </plist>

@@ -2,11 +2,16 @@ import { Capacitor } from '@capacitor/core'
 import { App as CapApp } from '@capacitor/app'
 import { StatusBar, Style } from '@capacitor/status-bar'
 import { SplashScreen } from '@capacitor/splash-screen'
+import { patchNativeApiFetch } from '@/lib/api-origin'
+import { initRevenueCat } from '@/lib/billing/revenuecat'
 import { isNativeShell } from '@/lib/native/platform'
 
 /** Status bar, splash, and Android back button for the Capacitor shell. */
 export async function initNativeShell() {
   if (!isNativeShell()) return
+
+  patchNativeApiFetch()
+  void initRevenueCat()
 
   try {
     await SplashScreen.hide()
