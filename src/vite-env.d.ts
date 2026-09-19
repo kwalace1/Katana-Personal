@@ -8,6 +8,9 @@ interface ImportMetaEnv {
   readonly VITE_DEV_PASSWORD?: string
   readonly VITE_DEV_FULL_NAME?: string
   readonly VITE_VAPID_PUBLIC_KEY?: string
+  readonly VITE_APP_URL?: string
+  readonly VITE_REVENUECAT_APPLE_API_KEY?: string
+  readonly VITE_STRIPE_PRICE_ID?: string
 }
 
 interface ImportMeta {

@@ -4,6 +4,8 @@ import {
   encodeOAuthState,
   oauthPopupHtml,
   requestBaseUrl,
+  resolveOAuthReturnOrigin,
+  withOAuthOriginCookie,
 } from './shared/oauth-popup'
 
 export interface MsOAuthEnv {
@@ -91,22 +93,29 @@ export async function handleOutlookOAuthRequest(req: Request, env = readMsOAuthE
     auth.searchParams.set('scope', MS_SCOPES)
     auth.searchParams.set('state', state)
     auth.searchParams.set('prompt', 'select_account')
-    return Response.redirect(auth.toString(), 302)
+    return withOAuthOriginCookie(Response.redirect(auth.toString(), 302), origin)
   }
 
   if (action === 'callback') {
+    const state = decodeOAuthState(url.searchParams.get('state') || '')
+    const returnOrigin = resolveOAuthReturnOrigin(req, state?.origin || null)
     const err = url.searchParams.get('error')
     if (err) {
-      return oauthPopupHtml('katana-outlook-oauth', {
-        error: url.searchParams.get('error_description') || err,
-      })
+      return oauthPopupHtml(
+        'katana-outlook-oauth',
+        { error: url.searchParams.get('error_description') || err },
+        returnOrigin,
+      )
     }
     const code = url.searchParams.get('code')
-    if (!code) return oauthPopupHtml('katana-outlook-oauth', { error: 'Missing OAuth code.' })
+    if (!code) return oauthPopupHtml('katana-outlook-oauth', { error: 'Missing OAuth code.' }, returnOrigin)
     if (!env.clientId || !env.clientSecret) {
-      return oauthPopupHtml('katana-outlook-oauth', { error: 'Microsoft OAuth secrets not configured.' })
+      return oauthPopupHtml(
+        'katana-outlook-oauth',
+        { error: 'Microsoft OAuth secrets not configured.' },
+        returnOrigin,
+      )
     }
-    void decodeOAuthState(url.searchParams.get('state') || '')
 
     const tokenRes = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
       method: 'POST',
@@ -122,17 +131,23 @@ export async function handleOutlookOAuthRequest(req: Request, env = readMsOAuthE
     })
     const tokenJson = (await tokenRes.json()) as Record<string, unknown>
     if (!tokenRes.ok) {
-      return oauthPopupHtml('katana-outlook-oauth', {
-        error: String(tokenJson.error_description || tokenJson.error || 'Token exchange failed'),
-      })
+      return oauthPopupHtml(
+        'katana-outlook-oauth',
+        { error: String(tokenJson.error_description || tokenJson.error || 'Token exchange failed') },
+        returnOrigin,
+      )
     }
-    return oauthPopupHtml('katana-outlook-oauth', {
-      tokens: {
-        access_token: String(tokenJson.access_token || ''),
-        refresh_token: String(tokenJson.refresh_token || ''),
-        expiry_date: Date.now() + Number(tokenJson.expires_in || 3600) * 1000,
+    return oauthPopupHtml(
+      'katana-outlook-oauth',
+      {
+        tokens: {
+          access_token: String(tokenJson.access_token || ''),
+          refresh_token: String(tokenJson.refresh_token || ''),
+          expiry_date: Date.now() + Number(tokenJson.expires_in || 3600) * 1000,
+        },
       },
-    })
+      returnOrigin,
+    )
   }
 
   return new Response('Not found', { status: 404 })

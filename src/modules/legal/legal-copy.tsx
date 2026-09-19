@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { SUPPORT_EMAIL, TAGLINE } from '@/lib/brand'
 
-export const LEGAL_UPDATED = 'September 16, 2026'
+export const LEGAL_UPDATED = 'September 18, 2026'
 
 export const legalProseClass =
   'space-y-6 text-sm leading-relaxed text-muted-foreground [&_h2]:font-display [&_h2]:text-xl [&_h2]:tracking-tight [&_h2]:text-foreground [&_p]:mt-2 [&_ul]:mt-2 [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-5 [&_a]:text-primary [&_a]:underline-offset-2 hover:[&_a]:underline'
@@ -48,6 +48,15 @@ export function PrivacyBody({ termsTo }: { termsTo: string }) {
         orchestration nudges you asked for. You can turn this off in Settings.
       </p>
 
+      <h2>Purchases</h2>
+      <p>
+        Katana Plus is optional. On iPhone, Apple processes the subscription through the App Store. We use
+        RevenueCat to confirm that your Apple ID has an active Plus entitlement so features unlock on this
+        device and after you restore purchases. RevenueCat receives an anonymous or Together account id, the
+        product you bought, and transaction status — not your full day. Web billing, when enabled, uses
+        Stripe.
+      </p>
+
       <h2>Contact</h2>
       <p>
         Questions or a deletion request:{' '}
@@ -83,9 +92,12 @@ export function TermsBody({ privacyTo }: { privacyTo: string }) {
       <ul>
         <li>Together is optional. Only share what you’re comfortable friends seeing.</li>
         <li>
-          Katana Plus (the Accountability pack) is optional paid access to extra Ask depth, meal AI, live
-          integrations, Circle challenges, and advanced templates. Billing will run through the store or
-          Stripe when enabled.
+          Katana Plus (the Accountability pack) is optional paid access to extra Ask depth, meal AI, Circle
+          challenges, advanced templates, and proactive nudges. On iPhone, Plus is an auto-renewable App
+          Store subscription billed to your Apple ID. It renews unless you cancel at least 24 hours before
+          the current period ends. Manage or cancel in iPhone Settings → Apple ID → Subscriptions, or
+          Settings → Katana Plus in the app. Restore purchases uses the same Apple ID. On the web, billing
+          may use Stripe when enabled.
         </li>
       </ul>
 

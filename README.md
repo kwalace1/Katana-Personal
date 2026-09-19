@@ -21,7 +21,7 @@ npm run dev
 
 Open http://localhost:3001 — on a phone, Add to Home Screen for an app-like feel.
 
-**Native iOS (Capacitor):** see [docs/NATIVE_MOBILE.md](./docs/NATIVE_MOBILE.md). On a Mac: `npm run build:ios` then `npx cap open ios` (Simulator works before Apple Developer enrollment; TestFlight needs approval).
+**Native iOS (Capacitor):** see [docs/NATIVE_MOBILE.md](./docs/NATIVE_MOBILE.md). **App Store + RevenueCat (enrollment approved):** [docs/APP_STORE.md](./docs/APP_STORE.md). On a Mac: `npm run build:ios` then `npx cap open ios`.
 
 ## Soft launch
 

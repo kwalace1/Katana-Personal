@@ -29,7 +29,7 @@ Use this before putting the app in front of 10–20 real busy people.
 
 - Ask uses rules for actions; optional Gemini Flash via OpenRouter when `OPENROUTER_API_KEY` is set (see `.env.example`)
 - Together Feed (text / photo / video / cards) needs Supabase schema + Storage — see [TOGETHER_FEED.md](./TOGETHER_FEED.md)
-- No App Store / TestFlight build yet until Apple Developer enrollment is approved — Capacitor iOS shell is scaffolded (see [NATIVE_MOBILE.md](./NATIVE_MOBILE.md)); Simulator works on a Mac without paid enrollment
+- App Store / TestFlight: Apple Developer enrollment is approved — follow [APP_STORE.md](./APP_STORE.md) (Capacitor shell + RevenueCat Plus are in-repo)
 - Push delivery not wired yet — in-app + open-tab reminders
 - No collaborative editing — Shared is plans/accountability, not multiplayer docs
 - Apple Sign In hidden unless `VITE_SUPABASE_APPLE_AUTH=true`

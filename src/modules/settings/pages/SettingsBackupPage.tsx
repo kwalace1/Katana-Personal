@@ -4,12 +4,14 @@ import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/AuthContext'
 import { downloadBackup, parseBackup, restoreBackup, shareOrDownloadBackup } from '@/lib/backup'
 import { ensureUserLoaded, localDb } from '@/lib/local-db'
+import { isNativeShell } from '@/lib/native/platform'
 import { SettingsDetail, SettingsPanel } from '../components/settings-ui'
 
 export function SettingsBackupPage() {
   const { profile, updateDisplayName } = useAuth()
   const fileRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
+  const native = isNativeShell()
 
   async function onSaveCopy() {
     if (!profile) return
@@ -46,18 +48,27 @@ export function SettingsBackupPage() {
   }
 
   return (
-    <SettingsDetail title="Install & backup" description="Home Screen install and .katana device copies.">
-      <SettingsPanel className="mb-4">
-        <h3 className="text-sm font-semibold">Install on your phone</h3>
-        <p className="mt-1 text-sm text-muted-foreground">
-          On iPhone Safari: Share → <span className="font-medium text-foreground">Add to Home Screen</span>.
-          On Android Chrome: menu → Install app.
-        </p>
-        <p className="mt-2 text-xs text-muted-foreground">
-          Three calm layers: Home Screen for the feel, Cloud sync for devices when signed in, and a
-          <code className="mx-1 rounded bg-secondary px-1 text-xs">.katana</code> copy as your safety net.
-        </p>
-      </SettingsPanel>
+    <SettingsDetail
+      title="Backup data"
+      description={
+        native
+          ? 'Export or restore a .katana copy of this device.'
+          : 'Optional Home Screen install and .katana device copies.'
+      }
+    >
+      {!native ? (
+        <SettingsPanel className="mb-4">
+          <h3 className="text-sm font-semibold">Install on your phone</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            On iPhone Safari: Share → <span className="font-medium text-foreground">Add to Home Screen</span>.
+            On Android Chrome: menu → Install app.
+          </p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Three calm layers: Home Screen for the feel, Cloud sync for devices when signed in, and a
+            <code className="mx-1 rounded bg-secondary px-1 text-xs">.katana</code> copy as your safety net.
+          </p>
+        </SettingsPanel>
+      ) : null}
 
       <SettingsPanel>
         <h3 className="text-sm font-semibold">Save a copy</h3>

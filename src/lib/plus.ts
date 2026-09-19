@@ -1,4 +1,4 @@
-/** Katana Plus entitlements — local unlock or Stripe web checkout. */
+/** Katana Plus entitlements — RevenueCat on iOS, Stripe or local unlock on web. */
 
 export type PlusFeature =
   | 'llm'

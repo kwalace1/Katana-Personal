@@ -1,4 +1,5 @@
 import { defaultSyncWindow, mergeExternalEvents } from './calendar-merge'
+import { isOAuthRedirect, openIntegrationOAuthPopup } from './oauth-popup'
 import {
   connectGoogleCalendar,
   getConnectionByProvider,
@@ -11,36 +12,12 @@ export function googleCalendarConfigured(): boolean {
   return Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID)
 }
 
-export function openGoogleCalendarOAuth(): Promise<GoogleCalendarTokens> {
-  return new Promise((resolve, reject) => {
-    const url = `/api/integrations/google?action=start&origin=${encodeURIComponent(window.location.origin)}`
-    const popup = window.open(url, 'katana-google-calendar', 'width=520,height=680')
-    if (!popup) {
-      reject(new Error('Popup blocked — allow popups to connect Google Calendar.'))
-      return
-    }
-
-    const timeout = window.setTimeout(() => {
-      cleanup()
-      reject(new Error('Google sign-in timed out.'))
-    }, 120_000)
-
-    function onMessage(ev: MessageEvent) {
-      const data = ev.data as { type?: string; tokens?: GoogleCalendarTokens; error?: string }
-      if (data?.type !== 'katana-google-calendar-oauth') return
-      cleanup()
-      if (data.error) reject(new Error(data.error))
-      else if (data.tokens?.refresh_token) resolve(data.tokens)
-      else reject(new Error('Google did not return a refresh token. Try again and approve calendar access.'))
-    }
-
-    function cleanup() {
-      window.clearTimeout(timeout)
-      window.removeEventListener('message', onMessage)
-    }
-
-    window.addEventListener('message', onMessage)
-  })
+export function openGoogleCalendarOAuth(): Promise<GoogleCalendarTokens | { redirected: true }> {
+  return openIntegrationOAuthPopup(
+    '/api/integrations/google',
+    'katana-google-calendar-oauth',
+    'katana-google-calendar',
+  )
 }
 
 async function fetchGoogleEvents(
@@ -109,9 +86,13 @@ export async function syncGoogleCalendar(userId: string): Promise<number> {
   }
 }
 
-export async function connectAndSyncGoogleCalendar(userId: string): Promise<number> {
-  const tokens = await openGoogleCalendarOAuth()
-  const connection = connectGoogleCalendar(userId, tokens)
+export async function connectAndSyncGoogleCalendar(userId: string): Promise<number | 'redirected'> {
+  const result = await openGoogleCalendarOAuth()
+  if (isOAuthRedirect(result)) return 'redirected'
+  if (!result.refresh_token) {
+    throw new Error('Google did not return a refresh token. Try again and approve calendar access.')
+  }
+  const connection = connectGoogleCalendar(userId, result)
   return syncGoogleCalendar(userId).catch((err) => {
     markConnectionSync(userId, connection.id, {
       lastError: err instanceof Error ? err.message : 'Sync failed',

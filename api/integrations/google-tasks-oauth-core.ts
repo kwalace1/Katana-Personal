@@ -3,6 +3,8 @@ import {
   encodeOAuthState,
   oauthPopupHtml,
   requestBaseUrl,
+  resolveOAuthReturnOrigin,
+  withOAuthOriginCookie,
 } from './shared/oauth-popup'
 
 export interface GoogleTasksOAuthEnv {
@@ -75,18 +77,25 @@ export async function handleGoogleTasksOAuthRequest(
     auth.searchParams.set('access_type', 'offline')
     auth.searchParams.set('prompt', 'consent')
     auth.searchParams.set('state', state)
-    return Response.redirect(auth.toString(), 302)
+    return withOAuthOriginCookie(Response.redirect(auth.toString(), 302), origin)
   }
 
   if (action === 'callback') {
+    const state = decodeOAuthState(url.searchParams.get('state') || '')
+    const returnOrigin = resolveOAuthReturnOrigin(req, state?.origin || null)
     const err = url.searchParams.get('error')
-    if (err) return oauthPopupHtml('katana-google-tasks-oauth', { error: err })
+    if (err) return oauthPopupHtml('katana-google-tasks-oauth', { error: err }, returnOrigin)
     const code = url.searchParams.get('code')
-    if (!code) return oauthPopupHtml('katana-google-tasks-oauth', { error: 'Missing OAuth code.' })
-    if (!env.clientId || !env.clientSecret) {
-      return oauthPopupHtml('katana-google-tasks-oauth', { error: 'Google OAuth secrets not configured.' })
+    if (!code) {
+      return oauthPopupHtml('katana-google-tasks-oauth', { error: 'Missing OAuth code.' }, returnOrigin)
     }
-    void decodeOAuthState(url.searchParams.get('state') || '')
+    if (!env.clientId || !env.clientSecret) {
+      return oauthPopupHtml(
+        'katana-google-tasks-oauth',
+        { error: 'Google OAuth secrets not configured.' },
+        returnOrigin,
+      )
+    }
 
     const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
@@ -101,17 +110,23 @@ export async function handleGoogleTasksOAuthRequest(
     })
     const tokenJson = (await tokenRes.json()) as Record<string, unknown>
     if (!tokenRes.ok) {
-      return oauthPopupHtml('katana-google-tasks-oauth', {
-        error: String(tokenJson.error || 'Token exchange failed'),
-      })
+      return oauthPopupHtml(
+        'katana-google-tasks-oauth',
+        { error: String(tokenJson.error || 'Token exchange failed') },
+        returnOrigin,
+      )
     }
-    return oauthPopupHtml('katana-google-tasks-oauth', {
-      tokens: {
-        access_token: String(tokenJson.access_token || ''),
-        refresh_token: String(tokenJson.refresh_token || ''),
-        expiry_date: Date.now() + Number(tokenJson.expires_in || 3600) * 1000,
+    return oauthPopupHtml(
+      'katana-google-tasks-oauth',
+      {
+        tokens: {
+          access_token: String(tokenJson.access_token || ''),
+          refresh_token: String(tokenJson.refresh_token || ''),
+          expiry_date: Date.now() + Number(tokenJson.expires_in || 3600) * 1000,
+        },
       },
-    })
+      returnOrigin,
+    )
   }
 
   return new Response('Not found', { status: 404 })

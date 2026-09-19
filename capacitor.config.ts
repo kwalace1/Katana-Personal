@@ -13,6 +13,9 @@ const config: CapacitorConfig = {
     iosScheme: 'https',
   },
   plugins: {
+    CapacitorHttp: {
+      enabled: true,
+    },
     SplashScreen: {
       launchAutoHide: true,
       backgroundColor: '#F4F8F9',
