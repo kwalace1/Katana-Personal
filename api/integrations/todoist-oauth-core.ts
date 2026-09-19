@@ -3,6 +3,8 @@ import {
   encodeOAuthState,
   oauthPopupHtml,
   requestBaseUrl,
+  resolveOAuthReturnOrigin,
+  withOAuthOriginCookie,
 } from './shared/oauth-popup'
 import type { ExternalTask } from './google-tasks-oauth-core'
 
@@ -42,12 +44,12 @@ export async function handleTodoistOAuthRequest(
     auth.searchParams.set('state', state)
     // Todoist uses redirect_uri registered on the app; include for clarity when supported.
     auth.searchParams.set('redirect_uri', redirectUri(req))
-    return Response.redirect(auth.toString(), 302)
+    return withOAuthOriginCookie(Response.redirect(auth.toString(), 302), origin)
   }
 
   if (action === 'callback') {
     const state = decodeOAuthState(url.searchParams.get('state') || '')
-    const returnOrigin = state?.origin || null
+    const returnOrigin = resolveOAuthReturnOrigin(req, state?.origin || null)
     const err = url.searchParams.get('error')
     if (err) return oauthPopupHtml('katana-todoist-oauth', { error: err }, returnOrigin)
     const code = url.searchParams.get('code')

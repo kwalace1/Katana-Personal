@@ -5,6 +5,8 @@ import {
   encodeOAuthState,
   oauthPopupHtml as sharedOAuthPopupHtml,
   requestBaseUrl,
+  resolveOAuthReturnOrigin,
+  withOAuthOriginCookie,
 } from './shared/oauth-popup'
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || ''
@@ -50,12 +52,12 @@ export async function handleGoogleOAuthRequest(req: Request, env?: GoogleOAuthEn
     auth.searchParams.set('access_type', 'offline')
     auth.searchParams.set('prompt', 'consent')
     auth.searchParams.set('state', state)
-    return Response.redirect(auth.toString(), 302)
+    return withOAuthOriginCookie(Response.redirect(auth.toString(), 302), origin)
   }
 
   if (action === 'callback') {
     const state = decodeOAuthState(url.searchParams.get('state') || '')
-    const returnOrigin = state?.origin || null
+    const returnOrigin = resolveOAuthReturnOrigin(req, state?.origin || null)
     const err = url.searchParams.get('error')
     if (err) return oauthPopupHtml({ error: err }, returnOrigin)
     const code = url.searchParams.get('code')

@@ -28,7 +28,7 @@ import {
   syncGoogleTasks,
 } from '@/lib/integrations/google-tasks'
 import { connectAndSyncIcsCalendar, syncIcsCalendar } from '@/lib/integrations/ics-calendar'
-import { consumeOAuthHashReturn } from '@/lib/integrations/oauth-popup'
+import { consumeOAuthHashReturn, consumeOAuthPendingReturn } from '@/lib/integrations/oauth-popup'
 import {
   connectAndSyncOutlookCalendar,
   outlookCalendarConfigured,
@@ -91,95 +91,112 @@ export function ConnectionsPanel({ userId, tick = 0 }: Props) {
   }
 
   useEffect(() => {
-    if (oauthReturnHandled.current) return
-    const payload = consumeOAuthHashReturn()
-    if (!payload) return
-    oauthReturnHandled.current = true
+    function applyOAuthPayload(payload: {
+      type: string
+      tokens?: OAuthTokens | null
+      error?: string | null
+    }) {
+      if (oauthReturnHandled.current) return
+      oauthReturnHandled.current = true
 
-    if (payload.error) {
-      toast.error(payload.error)
-      return
-    }
-
-    const tokens = payload.tokens as OAuthTokens | null | undefined
-    if (!tokens?.access_token) {
-      toast.error('No OAuth tokens returned.')
-      return
-    }
-
-    void (async () => {
-      setBusy('oauth-return')
-      try {
-        let count = 0
-        let unit = 'events'
-        switch (payload.type) {
-          case 'katana-google-calendar-oauth': {
-            if (!tokens.refresh_token) {
-              throw new Error('Google did not return a refresh token. Try again and approve calendar access.')
-            }
-            const connection = connectGoogleCalendar(userId, tokens)
-            count = await syncGoogleCalendar(userId).catch((err) => {
-              markConnectionSync(userId, connection.id, {
-                lastError: err instanceof Error ? err.message : 'Sync failed',
-                status: 'error',
-              })
-              throw err
-            })
-            break
-          }
-          case 'katana-outlook-oauth': {
-            if (!tokens.refresh_token) {
-              throw new Error('Microsoft did not return a refresh token. Try again.')
-            }
-            const connection = connectOAuthProvider(userId, 'outlook_calendar', tokens, 'Outlook Calendar')
-            count = await syncOutlookCalendar(userId).catch((err) => {
-              markConnectionSync(userId, connection.id, {
-                lastError: err instanceof Error ? err.message : 'Sync failed',
-                status: 'error',
-              })
-              throw err
-            })
-            break
-          }
-          case 'katana-google-tasks-oauth': {
-            if (!tokens.refresh_token) {
-              throw new Error('Google did not return a refresh token. Try again and approve Tasks access.')
-            }
-            const connection = connectOAuthProvider(userId, 'google_tasks', tokens, 'Google Tasks')
-            count = await syncGoogleTasks(userId).catch((err) => {
-              markConnectionSync(userId, connection.id, {
-                lastError: err instanceof Error ? err.message : 'Sync failed',
-                status: 'error',
-              })
-              throw err
-            })
-            unit = 'tasks'
-            break
-          }
-          case 'katana-todoist-oauth': {
-            const connection = connectOAuthProvider(userId, 'todoist', tokens, 'Todoist')
-            count = await syncTodoist(userId).catch((err) => {
-              markConnectionSync(userId, connection.id, {
-                lastError: err instanceof Error ? err.message : 'Sync failed',
-                status: 'error',
-              })
-              throw err
-            })
-            unit = 'tasks'
-            break
-          }
-          default:
-            toast.message('Connected')
-            return
-        }
-        broadcastLocalRefresh()
-        toast.success(count > 0 ? `Synced ${count} ${unit}` : 'Connected')
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : 'Connection failed')
-      } finally {
-        setBusy(null)
+      if (payload.error) {
+        toast.error(payload.error)
+        return
       }
-    })()
+
+      const tokens = payload.tokens as OAuthTokens | null | undefined
+      if (!tokens?.access_token) {
+        toast.error('No OAuth tokens returned.')
+        return
+      }
+
+      void (async () => {
+        setBusy('oauth-return')
+        try {
+          let count = 0
+          let unit = 'events'
+          switch (payload.type) {
+            case 'katana-google-calendar-oauth': {
+              if (!tokens.refresh_token) {
+                throw new Error('Google did not return a refresh token. Try again and approve calendar access.')
+              }
+              const connection = connectGoogleCalendar(userId, tokens)
+              count = await syncGoogleCalendar(userId).catch((err) => {
+                markConnectionSync(userId, connection.id, {
+                  lastError: err instanceof Error ? err.message : 'Sync failed',
+                  status: 'error',
+                })
+                throw err
+              })
+              break
+            }
+            case 'katana-outlook-oauth': {
+              if (!tokens.refresh_token) {
+                throw new Error('Microsoft did not return a refresh token. Try again.')
+              }
+              const connection = connectOAuthProvider(userId, 'outlook_calendar', tokens, 'Outlook Calendar')
+              count = await syncOutlookCalendar(userId).catch((err) => {
+                markConnectionSync(userId, connection.id, {
+                  lastError: err instanceof Error ? err.message : 'Sync failed',
+                  status: 'error',
+                })
+                throw err
+              })
+              break
+            }
+            case 'katana-google-tasks-oauth': {
+              if (!tokens.refresh_token) {
+                throw new Error('Google did not return a refresh token. Try again and approve Tasks access.')
+              }
+              const connection = connectOAuthProvider(userId, 'google_tasks', tokens, 'Google Tasks')
+              count = await syncGoogleTasks(userId).catch((err) => {
+                markConnectionSync(userId, connection.id, {
+                  lastError: err instanceof Error ? err.message : 'Sync failed',
+                  status: 'error',
+                })
+                throw err
+              })
+              unit = 'tasks'
+              break
+            }
+            case 'katana-todoist-oauth': {
+              const connection = connectOAuthProvider(userId, 'todoist', tokens, 'Todoist')
+              count = await syncTodoist(userId).catch((err) => {
+                markConnectionSync(userId, connection.id, {
+                  lastError: err instanceof Error ? err.message : 'Sync failed',
+                  status: 'error',
+                })
+                throw err
+              })
+              unit = 'tasks'
+              break
+            }
+            default:
+              toast.message('Connected')
+              return
+          }
+          broadcastLocalRefresh()
+          toast.success(count > 0 ? `Synced ${count} ${unit}` : 'Connected')
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : 'Connection failed')
+        } finally {
+          setBusy(null)
+        }
+      })()
+    }
+
+    function tryConsume() {
+      const payload = consumeOAuthHashReturn() || consumeOAuthPendingReturn()
+      if (payload) applyOAuthPayload(payload)
+    }
+
+    tryConsume()
+    const onPending = () => {
+      oauthReturnHandled.current = false
+      tryConsume()
+    }
+    window.addEventListener('katana-oauth-pending', onPending)
+    return () => window.removeEventListener('katana-oauth-pending', onPending)
   }, [userId])
 
   async function onConnectGoogle() {

@@ -3,6 +3,8 @@ import {
   encodeOAuthState,
   oauthPopupHtml,
   requestBaseUrl,
+  resolveOAuthReturnOrigin,
+  withOAuthOriginCookie,
 } from './shared/oauth-popup'
 
 export interface HealthOAuthEnv {
@@ -110,12 +112,12 @@ export async function handleFitbitOAuthRequest(req: Request, env = readHealthOAu
     auth.searchParams.set('scope', 'sleep activity heartrate')
     auth.searchParams.set('redirect_uri', redirectUri)
     auth.searchParams.set('state', state)
-    return Response.redirect(auth.toString(), 302)
+    return withOAuthOriginCookie(Response.redirect(auth.toString(), 302), origin)
   }
 
   if (action === 'callback') {
     const state = decodeOAuthState(url.searchParams.get('state') || '')
-    const returnOrigin = state?.origin || null
+    const returnOrigin = resolveOAuthReturnOrigin(req, state?.origin || null)
     const code = url.searchParams.get('code')
     if (!code) {
       return oauthPopupHtml('katana-fitbit-oauth', { error: 'Missing OAuth code.' }, returnOrigin)
@@ -175,12 +177,12 @@ export async function handleStravaOAuthRequest(req: Request, env = readHealthOAu
     auth.searchParams.set('scope', 'activity:read_all')
     auth.searchParams.set('redirect_uri', redirectUri)
     auth.searchParams.set('state', state)
-    return Response.redirect(auth.toString(), 302)
+    return withOAuthOriginCookie(Response.redirect(auth.toString(), 302), origin)
   }
 
   if (action === 'callback') {
     const state = decodeOAuthState(url.searchParams.get('state') || '')
-    const returnOrigin = state?.origin || null
+    const returnOrigin = resolveOAuthReturnOrigin(req, state?.origin || null)
     const code = url.searchParams.get('code')
     if (!code) {
       return oauthPopupHtml('katana-strava-oauth', { error: 'Missing OAuth code.' }, returnOrigin)
