@@ -1,4 +1,9 @@
-import { encodeOAuthState, oauthPopupHtml, requestBaseUrl } from './shared/oauth-popup'
+import {
+  decodeOAuthState,
+  encodeOAuthState,
+  oauthPopupHtml,
+  requestBaseUrl,
+} from './shared/oauth-popup'
 import type { ExternalTask } from './google-tasks-oauth-core'
 
 export interface TodoistOAuthEnv {
@@ -41,12 +46,18 @@ export async function handleTodoistOAuthRequest(
   }
 
   if (action === 'callback') {
+    const state = decodeOAuthState(url.searchParams.get('state') || '')
+    const returnOrigin = state?.origin || null
     const err = url.searchParams.get('error')
-    if (err) return oauthPopupHtml('katana-todoist-oauth', { error: err })
+    if (err) return oauthPopupHtml('katana-todoist-oauth', { error: err }, returnOrigin)
     const code = url.searchParams.get('code')
-    if (!code) return oauthPopupHtml('katana-todoist-oauth', { error: 'Missing OAuth code.' })
+    if (!code) return oauthPopupHtml('katana-todoist-oauth', { error: 'Missing OAuth code.' }, returnOrigin)
     if (!env.clientId || !env.clientSecret) {
-      return oauthPopupHtml('katana-todoist-oauth', { error: 'Todoist OAuth secrets not configured.' })
+      return oauthPopupHtml(
+        'katana-todoist-oauth',
+        { error: 'Todoist OAuth secrets not configured.' },
+        returnOrigin,
+      )
     }
 
     const tokenRes = await fetch('https://todoist.com/oauth/access_token', {
@@ -60,19 +71,25 @@ export async function handleTodoistOAuthRequest(
     })
     const tokenJson = (await tokenRes.json()) as Record<string, unknown>
     if (!tokenRes.ok || !tokenJson.access_token) {
-      return oauthPopupHtml('katana-todoist-oauth', {
-        error: String(tokenJson.error || 'Token exchange failed'),
-      })
+      return oauthPopupHtml(
+        'katana-todoist-oauth',
+        { error: String(tokenJson.error || 'Token exchange failed') },
+        returnOrigin,
+      )
     }
     const access = String(tokenJson.access_token)
     // Todoist access tokens are long-lived; mirror as refresh for our shared token shape.
-    return oauthPopupHtml('katana-todoist-oauth', {
-      tokens: {
-        access_token: access,
-        refresh_token: access,
-        expiry_date: Date.now() + 365 * 86400000,
+    return oauthPopupHtml(
+      'katana-todoist-oauth',
+      {
+        tokens: {
+          access_token: access,
+          refresh_token: access,
+          expiry_date: Date.now() + 365 * 86400000,
+        },
       },
-    })
+      returnOrigin,
+    )
   }
 
   return new Response('Not found', { status: 404 })

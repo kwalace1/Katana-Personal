@@ -1,5 +1,5 @@
 import { defaultSyncWindow, mergeExternalEvents } from './calendar-merge'
-import { openIntegrationOAuthPopup } from './oauth-popup'
+import { isOAuthRedirect, openIntegrationOAuthPopup } from './oauth-popup'
 import {
   connectOAuthProvider,
   getConnectionByProvider,
@@ -12,7 +12,7 @@ export function outlookCalendarConfigured(): boolean {
   return Boolean(import.meta.env.VITE_MS_CLIENT_ID || import.meta.env.VITE_OUTLOOK_CLIENT_ID)
 }
 
-export function openOutlookOAuth(): Promise<OAuthTokens> {
+export function openOutlookOAuth(): Promise<OAuthTokens | { redirected: true }> {
   return openIntegrationOAuthPopup('/api/integrations/outlook', 'katana-outlook-oauth', 'katana-outlook')
 }
 
@@ -82,10 +82,11 @@ export async function syncOutlookCalendar(userId: string): Promise<number> {
   }
 }
 
-export async function connectAndSyncOutlookCalendar(userId: string): Promise<number> {
-  const tokens = await openOutlookOAuth()
-  if (!tokens.refresh_token) throw new Error('Microsoft did not return a refresh token. Try again.')
-  const connection = connectOAuthProvider(userId, 'outlook_calendar', tokens, 'Outlook Calendar')
+export async function connectAndSyncOutlookCalendar(userId: string): Promise<number | 'redirected'> {
+  const result = await openOutlookOAuth()
+  if (isOAuthRedirect(result)) return 'redirected'
+  if (!result.refresh_token) throw new Error('Microsoft did not return a refresh token. Try again.')
+  const connection = connectOAuthProvider(userId, 'outlook_calendar', result, 'Outlook Calendar')
   return syncOutlookCalendar(userId).catch((err) => {
     markConnectionSync(userId, connection.id, {
       lastError: err instanceof Error ? err.message : 'Sync failed',

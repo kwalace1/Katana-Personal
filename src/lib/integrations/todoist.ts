@@ -1,4 +1,4 @@
-import { openIntegrationOAuthPopup } from './oauth-popup'
+import { isOAuthRedirect, openIntegrationOAuthPopup } from './oauth-popup'
 import {
   connectOAuthProvider,
   getConnectionByProvider,
@@ -12,7 +12,7 @@ export function todoistConfigured(): boolean {
   return Boolean(import.meta.env.VITE_TODOIST_CLIENT_ID)
 }
 
-export function openTodoistOAuth(): Promise<OAuthTokens> {
+export function openTodoistOAuth(): Promise<OAuthTokens | { redirected: true }> {
   return openIntegrationOAuthPopup('/api/integrations/todoist', 'katana-todoist-oauth', 'katana-todoist')
 }
 
@@ -77,9 +77,10 @@ export async function syncTodoist(userId: string): Promise<number> {
   }
 }
 
-export async function connectAndSyncTodoist(userId: string): Promise<number> {
-  const tokens = await openTodoistOAuth()
-  const connection = connectOAuthProvider(userId, 'todoist', tokens, 'Todoist')
+export async function connectAndSyncTodoist(userId: string): Promise<number | 'redirected'> {
+  const result = await openTodoistOAuth()
+  if (isOAuthRedirect(result)) return 'redirected'
+  const connection = connectOAuthProvider(userId, 'todoist', result, 'Todoist')
   return syncTodoist(userId).catch((err) => {
     markConnectionSync(userId, connection.id, {
       lastError: err instanceof Error ? err.message : 'Sync failed',

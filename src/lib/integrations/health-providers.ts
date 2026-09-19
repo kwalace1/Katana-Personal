@@ -1,4 +1,5 @@
 import type { OAuthTokens } from './types'
+import { isOAuthRedirect, openIntegrationOAuthPopup } from './oauth-popup'
 
 export interface ImportedSleepNight {
   date: string
@@ -19,44 +20,12 @@ export function fitbitConfigured(): boolean {
   return Boolean(import.meta.env.VITE_FITBIT_CLIENT_ID)
 }
 
-export function openFitbitOAuth(): Promise<OAuthTokens> {
-  return openOAuthPopup('fitbit', 'katana-fitbit-oauth')
+export function openFitbitOAuth(): Promise<OAuthTokens | { redirected: true }> {
+  return openIntegrationOAuthPopup('/api/integrations/fitbit', 'katana-fitbit-oauth', 'katana-fitbit')
 }
 
-export function openStravaOAuth(): Promise<OAuthTokens> {
-  return openOAuthPopup('strava', 'katana-strava-oauth')
-}
-
-function openOAuthPopup(provider: 'fitbit' | 'strava', messageType: string): Promise<OAuthTokens> {
-  return new Promise((resolve, reject) => {
-    const url = `/api/integrations/${provider}?action=start&origin=${encodeURIComponent(window.location.origin)}`
-    const popup = window.open(url, `katana-${provider}`, 'width=520,height=720')
-    if (!popup) {
-      reject(new Error('Popup blocked — allow popups to connect.'))
-      return
-    }
-
-    const timeout = window.setTimeout(() => {
-      cleanup()
-      reject(new Error(`${provider} sign-in timed out.`))
-    }, 120_000)
-
-    function onMessage(ev: MessageEvent) {
-      const data = ev.data as { type?: string; tokens?: OAuthTokens; error?: string }
-      if (data?.type !== messageType) return
-      cleanup()
-      if (data.error) reject(new Error(data.error))
-      else if (data.tokens?.refresh_token) resolve(data.tokens)
-      else reject(new Error(`${provider} did not return a refresh token.`))
-    }
-
-    function cleanup() {
-      window.clearTimeout(timeout)
-      window.removeEventListener('message', onMessage)
-    }
-
-    window.addEventListener('message', onMessage)
-  })
+export function openStravaOAuth(): Promise<OAuthTokens | { redirected: true }> {
+  return openIntegrationOAuthPopup('/api/integrations/strava', 'katana-strava-oauth', 'katana-strava')
 }
 
 async function syncHealthProvider(
@@ -128,10 +97,11 @@ export async function syncStrava(userId: string): Promise<number> {
   })
 }
 
-export async function connectAndSyncFitbit(userId: string): Promise<number> {
+export async function connectAndSyncFitbit(userId: string): Promise<number | 'redirected'> {
   const { connectOAuthProvider, markConnectionSync } = await import('./store')
-  const tokens = await openFitbitOAuth()
-  const connection = connectOAuthProvider(userId, 'fitbit', tokens, 'Fitbit')
+  const result = await openFitbitOAuth()
+  if (isOAuthRedirect(result)) return 'redirected'
+  const connection = connectOAuthProvider(userId, 'fitbit', result, 'Fitbit')
   return syncFitbit(userId).catch((err) => {
     markConnectionSync(userId, connection.id, {
       lastError: err instanceof Error ? err.message : 'Sync failed',
@@ -141,10 +111,11 @@ export async function connectAndSyncFitbit(userId: string): Promise<number> {
   })
 }
 
-export async function connectAndSyncStrava(userId: string): Promise<number> {
+export async function connectAndSyncStrava(userId: string): Promise<number | 'redirected'> {
   const { connectOAuthProvider, markConnectionSync } = await import('./store')
-  const tokens = await openStravaOAuth()
-  const connection = connectOAuthProvider(userId, 'strava', tokens, 'Strava')
+  const result = await openStravaOAuth()
+  if (isOAuthRedirect(result)) return 'redirected'
+  const connection = connectOAuthProvider(userId, 'strava', result, 'Strava')
   return syncStrava(userId).catch((err) => {
     markConnectionSync(userId, connection.id, {
       lastError: err instanceof Error ? err.message : 'Sync failed',

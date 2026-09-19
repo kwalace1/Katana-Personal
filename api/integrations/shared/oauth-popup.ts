@@ -1,17 +1,35 @@
-export function oauthPopupHtml(messageType: string, payload: Record<string, unknown>): Response {
+export function oauthPopupHtml(
+  messageType: string,
+  payload: Record<string, unknown>,
+  returnOrigin?: string | null,
+): Response {
   const body = `<!DOCTYPE html><html><body><script>
     (function () {
       var payload = ${JSON.stringify(payload)};
+      var messageType = ${JSON.stringify(messageType)};
+      var returnOrigin = ${JSON.stringify(returnOrigin || '')};
       try {
         if (window.opener) {
           window.opener.postMessage({
-            type: '${messageType}',
+            type: messageType,
             tokens: payload.tokens || null,
             error: payload.error || null
           }, '*');
+          window.close();
+          document.body.textContent = payload.error ? 'Connection failed. You can close this window.' : 'Connected. You can close this window.';
+          return;
         }
       } catch (e) {}
-      window.close();
+      if (returnOrigin) {
+        var data = encodeURIComponent(JSON.stringify({
+          type: messageType,
+          tokens: payload.tokens || null,
+          error: payload.error || null
+        }));
+        var base = String(returnOrigin).replace(/\\/$/, '');
+        location.replace(base + '/settings/connections#katana_oauth=' + data);
+        return;
+      }
       document.body.textContent = payload.error ? 'Connection failed. You can close this window.' : 'Connected. You can close this window.';
     })();
   </script></body></html>`

@@ -1,4 +1,4 @@
-import { openIntegrationOAuthPopup } from './oauth-popup'
+import { isOAuthRedirect, openIntegrationOAuthPopup } from './oauth-popup'
 import {
   connectOAuthProvider,
   getConnectionByProvider,
@@ -12,7 +12,7 @@ export function googleTasksConfigured(): boolean {
   return Boolean(import.meta.env.VITE_GOOGLE_TASKS_CLIENT_ID || import.meta.env.VITE_GOOGLE_CLIENT_ID)
 }
 
-export function openGoogleTasksOAuth(): Promise<OAuthTokens> {
+export function openGoogleTasksOAuth(): Promise<OAuthTokens | { redirected: true }> {
   return openIntegrationOAuthPopup(
     '/api/integrations/google-tasks',
     'katana-google-tasks-oauth',
@@ -81,12 +81,13 @@ export async function syncGoogleTasks(userId: string): Promise<number> {
   }
 }
 
-export async function connectAndSyncGoogleTasks(userId: string): Promise<number> {
-  const tokens = await openGoogleTasksOAuth()
-  if (!tokens.refresh_token) {
+export async function connectAndSyncGoogleTasks(userId: string): Promise<number | 'redirected'> {
+  const result = await openGoogleTasksOAuth()
+  if (isOAuthRedirect(result)) return 'redirected'
+  if (!result.refresh_token) {
     throw new Error('Google did not return a refresh token. Try again and approve Tasks access.')
   }
-  const connection = connectOAuthProvider(userId, 'google_tasks', tokens, 'Google Tasks')
+  const connection = connectOAuthProvider(userId, 'google_tasks', result, 'Google Tasks')
   return syncGoogleTasks(userId).catch((err) => {
     markConnectionSync(userId, connection.id, {
       lastError: err instanceof Error ? err.message : 'Sync failed',

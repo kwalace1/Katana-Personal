@@ -11,7 +11,6 @@ import {
   Palette,
   ScrollText,
   Shield,
-  Smartphone,
   Sparkles,
   User,
   Wrench,
@@ -87,7 +86,7 @@ export function SettingsHub() {
 
       <SettingsGroup title="Privacy">
         <SettingsRow to="/settings/privacy" icon={Shield} label="Privacy & data" value="What stays local" />
-        <SettingsRow to="/settings/backup" icon={Database} label="Install & backup" value="Copy & restore" />
+        <SettingsRow to="/settings/backup" icon={Database} label="Backup data" value="Copy & restore" />
       </SettingsGroup>
 
       <SettingsGroup title="Legal">
@@ -137,9 +136,9 @@ export function SettingsHub() {
         <SettingsRow to="/settings/advanced" icon={Wrench} label="Advanced" detail="Tips" />
         <SettingsRow
           to="/settings/backup"
-          icon={Smartphone}
-          label="Install on your phone"
-          detail="Add to Home Screen"
+          icon={Database}
+          label="Backup data"
+          detail="Save or restore a .katana copy"
         />
       </SettingsGroup>
     </motion.div>

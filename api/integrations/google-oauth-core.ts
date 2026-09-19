@@ -1,5 +1,11 @@
 import type { ExternalCalendarEvent } from './shared/types'
 import { filterEventsInWindow, parseIcsEvents } from './shared/ics-parse'
+import {
+  decodeOAuthState,
+  encodeOAuthState,
+  oauthPopupHtml as sharedOAuthPopupHtml,
+  requestBaseUrl,
+} from './shared/oauth-popup'
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || ''
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || ''
@@ -17,46 +23,12 @@ export function googleOAuthConfigured(env: GoogleOAuthEnv = {
   return Boolean(env.clientId && env.clientSecret)
 }
 
-function baseUrl(req: Request): string {
-  const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || 'localhost:3001'
-  const proto = req.headers.get('x-forwarded-proto') || 'http'
-  return `${proto}://${host}`
-}
-
 function redirectUri(req: Request): string {
-  return `${baseUrl(req)}/api/integrations/google`
+  return `${requestBaseUrl(req)}/api/integrations/google`
 }
 
-function encodeState(payload: Record<string, string>): string {
-  return Buffer.from(JSON.stringify(payload)).toString('base64url')
-}
-
-function decodeState(raw: string): Record<string, string> | null {
-  try {
-    return JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')) as Record<string, string>
-  } catch {
-    return null
-  }
-}
-
-function oauthPopupHtml(payload: Record<string, unknown>): Response {
-  const body = `<!DOCTYPE html><html><body><script>
-    (function () {
-      var payload = ${JSON.stringify(payload)};
-      try {
-        if (window.opener) {
-          window.opener.postMessage({
-            type: 'katana-google-calendar-oauth',
-            tokens: payload.tokens || null,
-            error: payload.error || null
-          }, '*');
-        }
-      } catch (e) {}
-      window.close();
-      document.body.textContent = payload.error ? 'Connection failed. You can close this window.' : 'Connected. You can close this window.';
-    })();
-  </script></body></html>`
-  return new Response(body, { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } })
+function oauthPopupHtml(payload: Record<string, unknown>, returnOrigin?: string | null): Response {
+  return sharedOAuthPopupHtml('katana-google-calendar-oauth', payload, returnOrigin)
 }
 
 export async function handleGoogleOAuthRequest(req: Request, env?: GoogleOAuthEnv): Promise<Response> {
@@ -68,8 +40,8 @@ export async function handleGoogleOAuthRequest(req: Request, env?: GoogleOAuthEn
     if (!cfg.clientId) {
       return oauthPopupHtml({ error: 'Google Calendar is not configured on this server (missing GOOGLE_CLIENT_ID).' })
     }
-    const origin = url.searchParams.get('origin') || baseUrl(req)
-    const state = encodeState({ origin, nonce: crypto.randomUUID() })
+    const origin = url.searchParams.get('origin') || requestBaseUrl(req)
+    const state = encodeOAuthState({ origin, nonce: crypto.randomUUID() })
     const auth = new URL('https://accounts.google.com/o/oauth2/v2/auth')
     auth.searchParams.set('client_id', cfg.clientId)
     auth.searchParams.set('redirect_uri', redirectUri(req))
@@ -82,13 +54,14 @@ export async function handleGoogleOAuthRequest(req: Request, env?: GoogleOAuthEn
   }
 
   if (action === 'callback') {
+    const state = decodeOAuthState(url.searchParams.get('state') || '')
+    const returnOrigin = state?.origin || null
     const err = url.searchParams.get('error')
-    if (err) return oauthPopupHtml({ error: err })
+    if (err) return oauthPopupHtml({ error: err }, returnOrigin)
     const code = url.searchParams.get('code')
-    const stateRaw = url.searchParams.get('state')
-    if (!code || !stateRaw) return oauthPopupHtml({ error: 'Missing OAuth code.' })
+    if (!code) return oauthPopupHtml({ error: 'Missing OAuth code.' }, returnOrigin)
     if (!cfg.clientId || !cfg.clientSecret) {
-      return oauthPopupHtml({ error: 'Google OAuth secrets not configured.' })
+      return oauthPopupHtml({ error: 'Google OAuth secrets not configured.' }, returnOrigin)
     }
 
     const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
@@ -105,17 +78,20 @@ export async function handleGoogleOAuthRequest(req: Request, env?: GoogleOAuthEn
     const tokenJson = (await tokenRes.json()) as Record<string, unknown>
     if (!tokenRes.ok) {
       const msg = typeof tokenJson.error === 'string' ? tokenJson.error : 'Token exchange failed'
-      return oauthPopupHtml({ error: msg })
+      return oauthPopupHtml({ error: msg }, returnOrigin)
     }
 
     const expiry = Date.now() + Number(tokenJson.expires_in || 3600) * 1000
-    return oauthPopupHtml({
-      tokens: {
-        access_token: String(tokenJson.access_token || ''),
-        refresh_token: String(tokenJson.refresh_token || ''),
-        expiry_date: expiry,
+    return oauthPopupHtml(
+      {
+        tokens: {
+          access_token: String(tokenJson.access_token || ''),
+          refresh_token: String(tokenJson.refresh_token || ''),
+          expiry_date: expiry,
+        },
       },
-    })
+      returnOrigin,
+    )
   }
 
   return new Response(JSON.stringify({ error: 'Unknown action' }), {

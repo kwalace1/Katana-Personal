@@ -1,3 +1,10 @@
+import {
+  decodeOAuthState,
+  encodeOAuthState,
+  oauthPopupHtml,
+  requestBaseUrl,
+} from './shared/oauth-popup'
+
 export interface HealthOAuthEnv {
   fitbitClientId: string
   fitbitClientSecret: string
@@ -25,30 +32,8 @@ export function readHealthOAuthEnv(): HealthOAuthEnv {
   }
 }
 
-function baseUrl(req: Request): string {
-  const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || 'localhost:3001'
-  const proto = req.headers.get('x-forwarded-proto') || 'http'
-  return `${proto}://${host}`
-}
-
-function oauthPopupHtml(messageType: string, payload: Record<string, unknown>): Response {
-  const body = `<!DOCTYPE html><html><body><script>
-    (function () {
-      var payload = ${JSON.stringify(payload)};
-      try {
-        if (window.opener) {
-          window.opener.postMessage({
-            type: '${messageType}',
-            tokens: payload.tokens || null,
-            error: payload.error || null
-          }, '*');
-        }
-      } catch (e) {}
-      window.close();
-      document.body.textContent = payload.error ? 'Connection failed.' : 'Connected.';
-    })();
-  </script></body></html>`
-  return new Response(body, { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } })
+function redirectUriFor(req: Request, provider: 'fitbit' | 'strava'): string {
+  return `${requestBaseUrl(req)}/api/integrations/${provider}`
 }
 
 async function refreshFitbitToken(refreshToken: string, env: HealthOAuthEnv): Promise<OAuthTokens> {
@@ -111,23 +96,30 @@ async function ensureAccessToken(
 export async function handleFitbitOAuthRequest(req: Request, env = readHealthOAuthEnv()): Promise<Response> {
   const url = new URL(req.url)
   const action = url.searchParams.get('action') || 'start'
-  const redirectUri = `${baseUrl(req)}/api/integrations/fitbit`
+  const redirectUri = redirectUriFor(req, 'fitbit')
 
   if (action === 'start') {
     if (!env.fitbitClientId) {
       return oauthPopupHtml('katana-fitbit-oauth', { error: 'Fitbit not configured (FITBIT_CLIENT_ID).' })
     }
+    const origin = url.searchParams.get('origin') || requestBaseUrl(req)
+    const state = encodeOAuthState({ origin, nonce: crypto.randomUUID() })
     const auth = new URL('https://www.fitbit.com/oauth2/authorize')
     auth.searchParams.set('client_id', env.fitbitClientId)
     auth.searchParams.set('response_type', 'code')
     auth.searchParams.set('scope', 'sleep activity heartrate')
     auth.searchParams.set('redirect_uri', redirectUri)
+    auth.searchParams.set('state', state)
     return Response.redirect(auth.toString(), 302)
   }
 
   if (action === 'callback') {
+    const state = decodeOAuthState(url.searchParams.get('state') || '')
+    const returnOrigin = state?.origin || null
     const code = url.searchParams.get('code')
-    if (!code) return oauthPopupHtml('katana-fitbit-oauth', { error: 'Missing OAuth code.' })
+    if (!code) {
+      return oauthPopupHtml('katana-fitbit-oauth', { error: 'Missing OAuth code.' }, returnOrigin)
+    }
     const basic = Buffer.from(`${env.fitbitClientId}:${env.fitbitClientSecret}`).toString('base64')
     const tokenRes = await fetch('https://api.fitbit.com/oauth2/token', {
       method: 'POST',
@@ -144,15 +136,23 @@ export async function handleFitbitOAuthRequest(req: Request, env = readHealthOAu
     })
     const tokenJson = (await tokenRes.json()) as Record<string, unknown>
     if (!tokenRes.ok) {
-      return oauthPopupHtml('katana-fitbit-oauth', { error: String(tokenJson.errors || 'Token exchange failed') })
+      return oauthPopupHtml(
+        'katana-fitbit-oauth',
+        { error: String(tokenJson.errors || 'Token exchange failed') },
+        returnOrigin,
+      )
     }
-    return oauthPopupHtml('katana-fitbit-oauth', {
-      tokens: {
-        access_token: String(tokenJson.access_token || ''),
-        refresh_token: String(tokenJson.refresh_token || ''),
-        expiry_date: Date.now() + Number(tokenJson.expires_in || 3600) * 1000,
+    return oauthPopupHtml(
+      'katana-fitbit-oauth',
+      {
+        tokens: {
+          access_token: String(tokenJson.access_token || ''),
+          refresh_token: String(tokenJson.refresh_token || ''),
+          expiry_date: Date.now() + Number(tokenJson.expires_in || 3600) * 1000,
+        },
       },
-    })
+      returnOrigin,
+    )
   }
 
   return new Response('Not found', { status: 404 })
@@ -161,23 +161,30 @@ export async function handleFitbitOAuthRequest(req: Request, env = readHealthOAu
 export async function handleStravaOAuthRequest(req: Request, env = readHealthOAuthEnv()): Promise<Response> {
   const url = new URL(req.url)
   const action = url.searchParams.get('action') || 'start'
-  const redirectUri = `${baseUrl(req)}/api/integrations/strava`
+  const redirectUri = redirectUriFor(req, 'strava')
 
   if (action === 'start') {
     if (!env.stravaClientId) {
       return oauthPopupHtml('katana-strava-oauth', { error: 'Strava not configured (STRAVA_CLIENT_ID).' })
     }
+    const origin = url.searchParams.get('origin') || requestBaseUrl(req)
+    const state = encodeOAuthState({ origin, nonce: crypto.randomUUID() })
     const auth = new URL('https://www.strava.com/oauth/authorize')
     auth.searchParams.set('client_id', env.stravaClientId)
     auth.searchParams.set('response_type', 'code')
     auth.searchParams.set('scope', 'activity:read_all')
     auth.searchParams.set('redirect_uri', redirectUri)
+    auth.searchParams.set('state', state)
     return Response.redirect(auth.toString(), 302)
   }
 
   if (action === 'callback') {
+    const state = decodeOAuthState(url.searchParams.get('state') || '')
+    const returnOrigin = state?.origin || null
     const code = url.searchParams.get('code')
-    if (!code) return oauthPopupHtml('katana-strava-oauth', { error: 'Missing OAuth code.' })
+    if (!code) {
+      return oauthPopupHtml('katana-strava-oauth', { error: 'Missing OAuth code.' }, returnOrigin)
+    }
     const tokenRes = await fetch('https://www.strava.com/oauth/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -190,15 +197,23 @@ export async function handleStravaOAuthRequest(req: Request, env = readHealthOAu
     })
     const tokenJson = (await tokenRes.json()) as Record<string, unknown>
     if (!tokenRes.ok) {
-      return oauthPopupHtml('katana-strava-oauth', { error: String(tokenJson.message || 'Token exchange failed') })
+      return oauthPopupHtml(
+        'katana-strava-oauth',
+        { error: String(tokenJson.message || 'Token exchange failed') },
+        returnOrigin,
+      )
     }
-    return oauthPopupHtml('katana-strava-oauth', {
-      tokens: {
-        access_token: String(tokenJson.access_token || ''),
-        refresh_token: String(tokenJson.refresh_token || ''),
-        expiry_date: Date.now() + Number(tokenJson.expires_in || 3600) * 1000,
+    return oauthPopupHtml(
+      'katana-strava-oauth',
+      {
+        tokens: {
+          access_token: String(tokenJson.access_token || ''),
+          refresh_token: String(tokenJson.refresh_token || ''),
+          expiry_date: Date.now() + Number(tokenJson.expires_in || 3600) * 1000,
+        },
       },
-    })
+      returnOrigin,
+    )
   }
 
   return new Response('Not found', { status: 404 })
