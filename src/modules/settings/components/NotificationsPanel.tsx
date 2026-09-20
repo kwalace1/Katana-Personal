@@ -12,6 +12,7 @@ import {
 import { pushConfigured, sendPushToSelf } from '@/lib/notifications/push'
 import { canUsePlusFeature } from '@/lib/plus'
 import { requestReminderPermission, sendTestReminderPing } from '@/lib/reminders'
+import { isNativeShell } from '@/lib/native/platform'
 import { isStandalonePwa } from '@/lib/web-notify'
 import { useState } from 'react'
 
@@ -32,12 +33,17 @@ export function NotificationsPanel({
   const gentle = remindersEnabled(preferences)
   const orchPush = orchestrationPushEnabled(preferences)
   const quiet = parseQuietHours(preferences)
+  const native = isNativeShell()
 
   async function onToggleReminders(next: boolean) {
     if (next) {
       const ok = await requestReminderPermission()
       if (!ok) {
-        toast.message('Reminders need permission from your device')
+        toast.message(
+          native
+            ? 'Allow notifications for Katana in iPhone Settings → Notifications'
+            : 'Reminders need permission from your device',
+        )
         onUpdatePreferences({ gentle_reminders: false })
         return
       }
@@ -57,7 +63,11 @@ export function NotificationsPanel({
     if (next) {
       const ok = await requestReminderPermission()
       if (!ok) {
-        toast.message('Allow notifications first')
+        toast.message(
+          native
+            ? 'Allow notifications for Katana in iPhone Settings → Notifications'
+            : 'Allow notifications first',
+        )
         return
       }
       if (cloudSignedIn && enablePushNotifications) {
@@ -85,8 +95,9 @@ export function NotificationsPanel({
           <div>
             <h2 className="font-semibold">Gentle reminders</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Habits ping until you check in. Events remind before they start. On iPhone, add Katana to
-              your Home Screen first — Safari tabs cannot reliably alert.
+              {native
+                ? 'Habits ping until you check in. Events remind before they start. Katana will ask for notification permission on this iPhone.'
+                : 'Habits ping until you check in. Events remind before they start. On iPhone, add Katana to your Home Screen first — Safari tabs cannot reliably alert.'}
             </p>
           </div>
           <Switch checked={gentle} onCheckedChange={(v) => void onToggleReminders(v)} />
@@ -96,8 +107,9 @@ export function NotificationsPanel({
           <div>
             <p className="text-sm font-medium">Proactive orchestration nudges</p>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Plus — workout windows, focus tasks, goal pace. Works locally while open; background push
-              needs cloud sign-in + VAPID keys.
+              {native
+                ? 'Plus — workout windows, focus tasks, goal pace. Local alerts on this device; cloud push needs sign-in.'
+                : 'Plus — workout windows, focus tasks, goal pace. Works locally while open; background push needs cloud sign-in + VAPID keys.'}
             </p>
           </div>
           <Switch checked={orchPush} onCheckedChange={(v) => void onToggleOrchestrationPush(v)} />
@@ -159,14 +171,18 @@ export function NotificationsPanel({
         </div>
 
         <p className="text-xs text-muted-foreground">
-          {isStandalonePwa()
-            ? 'Home Screen app detected. Leave Katana in Recents so catch-up pings can land.'
-            : 'Add to Home Screen for reliable iPhone alerts (Share → Add to Home Screen).'}
-          {pushConfigured()
+          {native
+            ? 'Turn the switch on — iOS will ask for notification permission. If you denied it earlier, enable Katana in iPhone Settings → Notifications.'
+            : isStandalonePwa()
+              ? 'Home Screen app detected. Leave Katana in Recents so catch-up pings can land.'
+              : 'Add to Home Screen for reliable iPhone alerts (Share → Add to Home Screen).'}
+          {!native && pushConfigured()
             ? cloudSignedIn
               ? ' Server push is configured.'
               : ' Sign in to cloud for background push when the app is closed.'
-            : ' Set VITE_VAPID_PUBLIC_KEY + server keys for background push.'}
+            : !native
+              ? ' Set VITE_VAPID_PUBLIC_KEY + server keys for background push.'
+              : null}
         </p>
 
         <div className="flex flex-wrap gap-2">
@@ -177,7 +193,12 @@ export function NotificationsPanel({
               try {
                 const ok = await sendTestReminderPing()
                 if (ok) toast.success('Test ping sent — check the notification shade')
-                else toast.message('Allow notifications, then try again from the Home Screen app')
+                else
+                  toast.message(
+                    native
+                      ? 'Allow notifications for Katana, then try again'
+                      : 'Allow notifications, then try again from the Home Screen app',
+                  )
               } catch (err) {
                 toast.error(err instanceof Error ? err.message : 'Couldn’t send a test ping')
               }
