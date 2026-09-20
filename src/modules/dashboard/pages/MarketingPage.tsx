@@ -1,130 +1,419 @@
 import { motion } from 'framer-motion'
-import { CalendarCheck, Smartphone, Sparkles, Users } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import {
+  CalendarCheck,
+  HeartPulse,
+  Lock,
+  NotebookPen,
+  Shield,
+  Smartphone,
+  Sparkles,
+  Target,
+  Users,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { BrandMark } from '@/components/BrandMark'
 import { SiteFooter } from '@/components/SiteFooter'
-import { DESCRIPTION, SUPPORT_EMAIL, TAGLINE } from '@/lib/brand'
+import { APP_NAME_FULL, DESCRIPTION, SUPPORT_EMAIL, TAGLINE } from '@/lib/brand'
 import { pageEnterSubtle, staggerContainer, staggerItem } from '@/lib/motion-ui'
 import { iosDownloadUrl } from '@/lib/web-app-lock'
+import { cn } from '@/lib/utils'
 
-const STORY = [
+const LOOP = [
   {
     icon: CalendarCheck,
     title: 'Today',
-    body: 'Decide one next step. Capture what matters. Close the day — that’s the loop.',
+    body: 'One next step, capture what matters, evening close, and a weekly review. Your day stays on this iPhone unless you choose Together.',
   },
   {
     icon: Sparkles,
     title: 'Ask',
-    body: 'A day guide that already knows your plate — and can draft small actions for you.',
+    body: 'A day guide that already knows your plate — and can draft small actions for you. Free covers the loop; Katana Plus adds deeper Ask.',
   },
   {
     icon: Users,
     title: 'Together',
-    body: 'Optional accountability with friends and Circles. Private life stays on this device.',
+    body: 'Optional friends, a feed, shared plans, and Circles. Local-first: private life stays on the device. Share only what you choose.',
   },
 ] as const
 
+const DEPTH = [
+  {
+    icon: Target,
+    title: 'Plan',
+    body: 'Tasks, goals, habits, and a calendar when you need more than the next step.',
+  },
+  {
+    icon: HeartPulse,
+    title: 'Life signals',
+    body: 'Health logging, cardio, sleep import, meals — signals inside the day, not a tracker that owns the product.',
+  },
+  {
+    icon: NotebookPen,
+    title: 'Notes & journal',
+    body: 'Capture thoughts and close the day without building a second brain you’ll never open.',
+  },
+  {
+    icon: Shield,
+    title: 'Connections',
+    body: 'Optional calendar and task sync (Google, Outlook, Todoist) when you’re ready — still on your terms.',
+  },
+] as const
+
+const NOT_THIS = [
+  'Not Notion — we don’t want a wiki or second brain.',
+  'Not Todoist — not an endless task list.',
+  'Not a water or habit tracker with extras bolted on.',
+  'Not “AI chat for life” — Ask is a guide inside the day loop.',
+] as const
+
+const NAV = [
+  { href: '#loop', label: 'The loop' },
+  { href: '#about', label: 'About' },
+  { href: '#privacy', label: 'Privacy' },
+  { href: '#get', label: 'Get the app' },
+] as const
+
+function CtaButtons({ className }: { className?: string }) {
+  const download = iosDownloadUrl()
+  return (
+    <div className={cn('flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center', className)}>
+      {download ? (
+        <Button asChild size="lg" className="min-h-12 px-7">
+          <a href={download} target="_blank" rel="noreferrer">
+            Get it on iPhone
+          </a>
+        </Button>
+      ) : (
+        <Button asChild size="lg" className="min-h-12 px-7">
+          <a href={`mailto:${SUPPORT_EMAIL}?subject=Katana%20TestFlight`}>
+            <Smartphone className="mr-2 h-4 w-4" />
+            Ask for TestFlight
+          </a>
+        </Button>
+      )}
+      <a
+        className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+        href={`mailto:${SUPPORT_EMAIL}`}
+      >
+        {download ? 'Support' : 'Questions? Email us'}
+      </a>
+    </div>
+  )
+}
+
 /**
- * Public website at `/` — story + iPhone CTA. The product UI is not on the web.
+ * Public website at `/` — full browser marketing site.
+ * Product UI stays in the iPhone app / localhost; this page never unlocks the SPA.
  */
 export default function MarketingPage() {
-  const download = iosDownloadUrl()
-
   return (
-    <div className="relative flex min-h-[100dvh] flex-col overflow-hidden">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,hsl(168_45%_70%/0.45),transparent_55%)]" />
-        <div className="absolute -left-24 top-24 h-80 w-80 rounded-full bg-[hsl(168_45%_70%/0.28)] blur-3xl" />
-        <div className="absolute bottom-0 right-0 h-72 w-72 rounded-full bg-[hsl(200_50%_80%/0.28)] blur-3xl" />
-        <div
-          className="absolute inset-x-0 top-0 h-[70vh] opacity-[0.12]"
-          style={{
-            backgroundImage:
-              'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%232F6F68\' fill-opacity=\'0.35\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")',
-          }}
-        />
+    <div className="relative min-h-[100dvh] overflow-x-hidden">
+      <div className="pointer-events-none absolute inset-0 -z-10">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_90%_55%_at_50%_-15%,hsl(168_45%_70%/0.5),transparent_58%)]" />
+        <div className="absolute -left-32 top-32 h-[28rem] w-[28rem] rounded-full bg-[hsl(168_45%_70%/0.22)] blur-3xl" />
+        <div className="absolute right-[-10%] top-[20%] h-[22rem] w-[22rem] rounded-full bg-[hsl(200_50%_80%/0.28)] blur-3xl" />
+        <div className="absolute bottom-0 left-1/3 h-64 w-64 rounded-full bg-[hsl(155_40%_78%/0.2)] blur-3xl" />
       </div>
 
-      <div className="relative mx-auto flex w-full max-w-lg flex-1 flex-col px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1.25rem,env(safe-area-inset-top))]">
-        <header className="flex items-center justify-between py-2">
+      <header className="sticky top-0 z-20 border-b border-border/30 bg-background/70 backdrop-blur-xl">
+        <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between gap-4 px-5 sm:h-16 sm:px-8">
           <BrandMark to="/" />
-          <p className="text-[0.65rem] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-            iPhone
-          </p>
-        </header>
-
-        <motion.div {...pageEnterSubtle} className="flex flex-1 flex-col py-6 sm:py-10">
-          <div className="flex min-h-0 flex-col justify-center py-4 sm:min-h-[52vh]">
-            <h1 className="font-display text-5xl tracking-tight sm:text-6xl">Katana</h1>
-            <p className="mt-4 max-w-md text-base leading-relaxed text-muted-foreground sm:text-lg">
-              {TAGLINE}
-            </p>
-            <p className="mt-3 max-w-md text-sm leading-relaxed text-muted-foreground">{DESCRIPTION}</p>
-
-            <div className="mt-8 flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-              {download ? (
-                <Button asChild size="lg" className="min-h-12 px-6">
-                  <a href={download} target="_blank" rel="noreferrer">
-                    Get it on iPhone
-                  </a>
-                </Button>
-              ) : (
-                <Button asChild size="lg" className="min-h-12 px-6">
-                  <a href={`mailto:${SUPPORT_EMAIL}?subject=Katana%20TestFlight`}>
-                    <Smartphone className="mr-2 h-4 w-4" />
-                    Ask for TestFlight
-                  </a>
-                </Button>
-              )}
-              {!download ? (
-                <p className="text-sm text-muted-foreground">iPhone app — not a web login.</p>
-              ) : (
-                <a
-                  className="text-sm font-medium text-primary underline-offset-4 hover:underline"
-                  href={`mailto:${SUPPORT_EMAIL}`}
-                >
-                  Support
-                </a>
-              )}
-            </div>
-            <p className="mt-4 max-w-md text-xs leading-relaxed text-muted-foreground">
-              Katana isn’t a website you log into. The daily OS lives in the iPhone app — TestFlight
-              now, App Store next.
-            </p>
-          </div>
-
-          <motion.div
-            variants={staggerContainer}
-            initial="hidden"
-            whileInView="show"
-            viewport={{ once: true, margin: '-40px' }}
-            className="mb-8 mt-4 space-y-4 border-t border-border/40 pt-10"
+          <nav className="hidden items-center gap-6 md:flex">
+            {NAV.map((item) => (
+              <a
+                key={item.href}
+                href={item.href}
+                className="text-sm font-medium text-muted-foreground transition hover:text-foreground"
+              >
+                {item.label}
+              </a>
+            ))}
+          </nav>
+          <a
+            href="#get"
+            className="text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-primary"
           >
-            <p className="kp-section-label">The loop</p>
-            {STORY.map((item) => {
-              const Icon = item.icon
-              return (
-                <motion.div
-                  key={item.title}
-                  variants={staggerItem}
-                  className="flex gap-4 rounded-2xl bg-card/50 px-4 py-4 backdrop-blur-sm"
-                >
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                    <Icon className="h-5 w-5" />
-                  </span>
-                  <div>
-                    <p className="font-display text-lg tracking-tight">{item.title}</p>
-                    <p className="mt-0.5 text-sm leading-relaxed text-muted-foreground">{item.body}</p>
-                  </div>
-                </motion.div>
-              )
-            })}
+            iPhone
+          </a>
+        </div>
+      </header>
+
+      <main>
+        {/* Hero — brand first, one composition, full-bleed atmosphere */}
+        <section className="relative mx-auto grid w-full max-w-6xl gap-12 px-5 pb-20 pt-12 sm:px-8 sm:pb-28 sm:pt-20 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:items-end lg:gap-16">
+          <motion.div {...pageEnterSubtle} className="max-w-2xl">
+            <p className="kp-section-label">Katana Personal</p>
+            <h1 className="font-display mt-3 text-5xl tracking-tight sm:text-6xl lg:text-7xl">Katana</h1>
+            <p className="mt-5 text-xl font-medium leading-snug text-foreground/90 sm:text-2xl">{TAGLINE}</p>
+            <p className="mt-4 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+              {DESCRIPTION}
+            </p>
+            <CtaButtons className="mt-9" />
+            <p className="mt-5 max-w-md text-sm leading-relaxed text-muted-foreground">
+              This site is about the product. The daily OS lives on iPhone — TestFlight now, App Store
+              next. There is no web login.
+            </p>
           </motion.div>
 
-          <SiteFooter className="mt-auto" />
-        </motion.div>
-      </div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.12, duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+            className="relative hidden min-h-[22rem] lg:block"
+            aria-hidden
+          >
+            <div className="absolute inset-0 rounded-[2rem] bg-gradient-to-br from-[hsl(168_40%_88%/0.7)] via-[hsl(200_35%_92%/0.5)] to-transparent" />
+            <div className="absolute inset-6 overflow-hidden rounded-[1.5rem] border border-border/40 bg-card/40 shadow-[0_30px_80px_-40px_hsl(172_48%_20%/0.45)] backdrop-blur-sm">
+              <div className="border-b border-border/30 px-6 py-4">
+                <p className="font-display text-2xl tracking-tight">Today</p>
+                <p className="mt-1 text-xs text-muted-foreground">Do this next</p>
+              </div>
+              <div className="space-y-4 p-6">
+                <div className="rounded-2xl bg-primary/10 px-4 py-3">
+                  <p className="text-sm font-semibold text-primary">Call Mom · Friday 3pm</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Captured from Ask · on this device</p>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {['Today', 'Ask', 'Together'].map((label) => (
+                    <div
+                      key={label}
+                      className="rounded-xl border border-border/40 bg-background/60 px-2 py-3 text-center text-[0.7rem] font-semibold tracking-wide text-muted-foreground"
+                    >
+                      {label}
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  Private by default. Friends and Circles only when you want them.
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        </section>
+
+        {/* The loop */}
+        <section id="loop" className="scroll-mt-20 border-t border-border/40 bg-card/30 py-16 sm:py-24">
+          <div className="mx-auto w-full max-w-6xl px-5 sm:px-8">
+            <motion.div
+              variants={staggerContainer}
+              initial="hidden"
+              whileInView="show"
+              viewport={{ once: true, margin: '-60px' }}
+            >
+              <motion.div variants={staggerItem} className="max-w-2xl">
+                <p className="kp-section-label">The loop</p>
+                <h2 className="font-display mt-3 text-3xl tracking-tight sm:text-4xl">
+                  Plan the day. Do the next. Share only if you want.
+                </h2>
+                <p className="mt-4 text-base leading-relaxed text-muted-foreground sm:text-lg">
+                  Katana is built around one calm daily loop — not a wall of modules. After a minute,
+                  you should feel a day guide with friends if you want them, not another to-do list.
+                </p>
+              </motion.div>
+
+              <div className="mt-12 grid gap-8 md:grid-cols-3 md:gap-6 lg:gap-10">
+                {LOOP.map((item, i) => {
+                  const Icon = item.icon
+                  return (
+                    <motion.div key={item.title} variants={staggerItem} className="relative">
+                      <p className="font-display text-5xl text-primary/15">{String(i + 1).padStart(2, '0')}</p>
+                      <span className="mt-2 flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                        <Icon className="h-5 w-5" />
+                      </span>
+                      <h3 className="font-display mt-4 text-2xl tracking-tight">{item.title}</h3>
+                      <p className="mt-2 text-sm leading-relaxed text-muted-foreground sm:text-[0.95rem]">
+                        {item.body}
+                      </p>
+                    </motion.div>
+                  )
+                })}
+              </div>
+            </motion.div>
+          </div>
+        </section>
+
+        {/* What it is / isn't */}
+        <section className="mx-auto grid w-full max-w-6xl gap-12 px-5 py-16 sm:px-8 sm:py-24 lg:grid-cols-2 lg:gap-16">
+          <div>
+            <p className="kp-section-label">What it is</p>
+            <h2 className="font-display mt-3 text-3xl tracking-tight sm:text-4xl">A calm daily OS</h2>
+            <p className="mt-4 text-base leading-relaxed text-muted-foreground">
+              {APP_NAME_FULL} is for people who want one clear next step, a guide that can act, and
+              optional accountability — without turning life into a project-management dashboard.
+            </p>
+            <p className="mt-4 text-base leading-relaxed text-muted-foreground">
+              Plan and Life tools (tasks, habits, health, notes, documents) are depth when you need
+              them. They support the loop; they aren’t the home story.
+            </p>
+          </div>
+          <div>
+            <p className="kp-section-label">What it isn’t</p>
+            <h2 className="font-display mt-3 text-3xl tracking-tight sm:text-4xl">Clear anti-positions</h2>
+            <ul className="mt-6 space-y-3">
+              {NOT_THIS.map((line) => (
+                <li
+                  key={line}
+                  className="border-l-2 border-primary/30 pl-4 text-sm leading-relaxed text-muted-foreground sm:text-base"
+                >
+                  {line}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+
+        {/* Depth */}
+        <section className="border-t border-border/40 bg-card/20 py-16 sm:py-24">
+          <div className="mx-auto w-full max-w-6xl px-5 sm:px-8">
+            <div className="max-w-2xl">
+              <p className="kp-section-label">Depth when you need it</p>
+              <h2 className="font-display mt-3 text-3xl tracking-tight sm:text-4xl">
+                Everything else stays in service of Today
+              </h2>
+            </div>
+            <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+              {DEPTH.map((item) => {
+                const Icon = item.icon
+                return (
+                  <div key={item.title}>
+                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                      <Icon className="h-5 w-5" />
+                    </span>
+                    <h3 className="font-display mt-4 text-xl tracking-tight">{item.title}</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{item.body}</p>
+                  </div>
+                )
+              })}
+            </div>
+            <p className="mt-10 max-w-3xl text-sm leading-relaxed text-muted-foreground">
+              Katana Plus is optional — deeper Ask, Circle challenges, meal AI, extra templates, and
+              proactive nudges. Health logging is for your own tracking; Katana is not medical advice.
+            </p>
+          </div>
+        </section>
+
+        {/* Privacy */}
+        <section id="privacy" className="scroll-mt-20 mx-auto grid w-full max-w-6xl gap-10 px-5 py-16 sm:px-8 sm:py-24 lg:grid-cols-[1fr_1.1fr] lg:items-center">
+          <div>
+            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+              <Lock className="h-6 w-6" />
+            </span>
+            <p className="kp-section-label mt-6">Privacy</p>
+            <h2 className="font-display mt-3 text-3xl tracking-tight sm:text-4xl">
+              Private on this device
+            </h2>
+            <p className="mt-4 text-base leading-relaxed text-muted-foreground">
+              Your day lives locally on your iPhone by default. Cloud (Together) is optional — for
+              friends, Circles, and sync — and only what you choose to share leaves the device.
+            </p>
+            <p className="mt-4 text-base leading-relaxed text-muted-foreground">
+              Read the full{' '}
+              <Link to="/privacy" className="font-medium text-primary underline-offset-4 hover:underline">
+                Privacy Policy
+              </Link>{' '}
+              and{' '}
+              <Link to="/terms" className="font-medium text-primary underline-offset-4 hover:underline">
+                Terms of Use
+              </Link>
+              .
+            </p>
+          </div>
+          <div className="rounded-[1.75rem] border border-border/40 bg-gradient-to-br from-card/80 to-card/30 p-8 sm:p-10">
+            <ul className="space-y-5 text-sm leading-relaxed text-muted-foreground sm:text-base">
+              <li>
+                <span className="font-semibold text-foreground">Local-first.</span> Tasks, calendar,
+                habits, journal, and health stay on-device unless you opt into cloud features.
+              </li>
+              <li>
+                <span className="font-semibold text-foreground">Together is opt-in.</span> Friends,
+                feed, and Circles require Cloud sign-in — and you control what gets posted.
+              </li>
+              <li>
+                <span className="font-semibold text-foreground">Ask stays grounded.</span> Open-ended
+                Ask and meal AI use cloud models only when you use those features; we don’t train our
+                own models on your life.
+              </li>
+            </ul>
+          </div>
+        </section>
+
+        {/* About the business */}
+        <section id="about" className="scroll-mt-20 border-t border-border/40 bg-card/30 py-16 sm:py-24">
+          <div className="mx-auto w-full max-w-6xl px-5 sm:px-8">
+            <div className="grid gap-10 lg:grid-cols-[1fr_1fr] lg:gap-16">
+              <div>
+                <p className="kp-section-label">About</p>
+                <h2 className="font-display mt-3 text-3xl tracking-tight sm:text-4xl">
+                  Built by Katana Technology Systems
+                </h2>
+                <p className="mt-4 text-base leading-relaxed text-muted-foreground">
+                  {APP_NAME_FULL} is our consumer product: a calm daily OS for people who want less
+                  noise and more follow-through. We’re shipping on iPhone first so the experience
+                  stays focused, private, and actually usable every day.
+                </p>
+                <p className="mt-4 text-base leading-relaxed text-muted-foreground">
+                  The public website is here so anyone — friends, investors, reviewers, or future
+                  users — can understand what Katana is without treating the browser as a second copy
+                  of the app.
+                </p>
+              </div>
+              <div className="space-y-6">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                    Product
+                  </p>
+                  <p className="mt-1 font-display text-xl tracking-tight">{APP_NAME_FULL}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">iPhone · TestFlight · App Store next</p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                    Contact
+                  </p>
+                  <a
+                    className="mt-1 inline-block text-sm font-medium text-primary underline-offset-4 hover:underline"
+                    href={`mailto:${SUPPORT_EMAIL}`}
+                  >
+                    {SUPPORT_EMAIL}
+                  </a>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    TestFlight invites, support, and press — same inbox.
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                    Status
+                  </p>
+                  <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                    Soft launch on TestFlight. We’re iterating with real daily use before a wider App
+                    Store release.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Final CTA */}
+        <section id="get" className="scroll-mt-20 mx-auto w-full max-w-6xl px-5 py-16 sm:px-8 sm:py-24">
+          <div className="relative overflow-hidden rounded-[2rem] border border-border/40 bg-gradient-to-br from-primary/15 via-card/60 to-[hsl(200_50%_88%/0.35)] px-6 py-12 sm:px-12 sm:py-16">
+            <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-primary/10 blur-3xl" />
+            <div className="relative max-w-2xl">
+              <p className="kp-section-label">Get the app</p>
+              <h2 className="font-display mt-3 text-3xl tracking-tight sm:text-4xl">
+                Your day, on this iPhone
+              </h2>
+              <p className="mt-4 text-base leading-relaxed text-muted-foreground sm:text-lg">
+                Katana isn’t a website you log into. If you’re on TestFlight already, open the app.
+                If you want in, ask for access — we’ll get you a link.
+              </p>
+              <CtaButtons className="mt-8" />
+            </div>
+          </div>
+
+          <SiteFooter className="mt-14" />
+        </section>
+      </main>
     </div>
   )
 }
