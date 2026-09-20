@@ -10,13 +10,44 @@ function isEditable(el: EventTarget | null): el is HTMLElement {
   )
 }
 
+function scrollableAncestor(el: HTMLElement): HTMLElement | null {
+  let node: HTMLElement | null = el.parentElement
+  while (node && node !== document.body) {
+    const style = window.getComputedStyle(node)
+    const overflowY = style.overflowY
+    const canScroll =
+      (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay') &&
+      node.scrollHeight > node.clientHeight + 4
+    if (canScroll) return node
+    node = node.parentElement
+  }
+  return null
+}
+
+function reveal(el: HTMLElement) {
+  try {
+    el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' })
+  } catch {
+    el.scrollIntoView(true)
+  }
+
+  // Also nudge the nearest scroll parent (drawers / dialogs / Ask transcript).
+  const scroller = scrollableAncestor(el)
+  if (!scroller) return
+  const rect = el.getBoundingClientRect()
+  const parentRect = scroller.getBoundingClientRect()
+  const pad = 24
+  if (rect.bottom > parentRect.bottom - pad) {
+    scroller.scrollTop += rect.bottom - parentRect.bottom + pad
+  } else if (rect.top < parentRect.top + pad) {
+    scroller.scrollTop -= parentRect.top + pad - rect.top
+  }
+}
+
 /**
- * Keep focused fields above the on-screen keyboard (esp. iOS PWA).
- * First focus often opens the keyboard before the visual viewport settles —
- * re-scrolling on visualViewport resize/scroll fixes the “covers then works on 2nd tap” bug.
- *
- * Skips overlays/sheets: those manage their own layout, and auto-focus + scroll
- * was yanking the keyboard open over comments.
+ * Keep focused fields above the on-screen keyboard (iOS Capacitor + PWA).
+ * Re-scrolls when the visual viewport / native keyboard settles so the first
+ * tap doesn’t leave the caret under the keyboard.
  */
 export function useKeepInputVisible() {
   useEffect(() => {
@@ -29,27 +60,9 @@ export function useKeepInputVisible() {
       timers = []
     }
 
-    const shouldHandle = (el: HTMLElement) => {
-      // Dialogs / bottom sheets: don’t scroll the page under them.
-      if (el.closest('[data-slot="sheet-content"], [data-slot="dialog-content"], [role="dialog"]')) {
-        return false
-      }
-      return true
-    }
-
-    const reveal = (el: HTMLElement) => {
-      try {
-        el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' })
-      } catch {
-        el.scrollIntoView(true)
-      }
-    }
-
     const scheduleReveal = (el: HTMLElement) => {
-      if (!shouldHandle(el)) return
       clearTimers()
-      // iOS keyboard animation is staggered — nudge a few times.
-      for (const ms of [16, 120, 280, 450]) {
+      for (const ms of [16, 100, 250, 420, 700]) {
         timers.push(window.setTimeout(() => reveal(el), ms))
       }
     }
@@ -61,7 +74,7 @@ export function useKeepInputVisible() {
 
     const onViewportChange = () => {
       const active = document.activeElement
-      if (!isEditable(active) || !shouldHandle(active)) return
+      if (!isEditable(active)) return
       reveal(active)
     }
 
@@ -69,12 +82,16 @@ export function useKeepInputVisible() {
     const vv = window.visualViewport
     vv?.addEventListener('resize', onViewportChange)
     vv?.addEventListener('scroll', onViewportChange)
+    window.addEventListener('keyboardDidShow', onViewportChange as EventListener)
+    window.addEventListener('keyboardWillShow', onViewportChange as EventListener)
 
     return () => {
       clearTimers()
       document.removeEventListener('focusin', onFocusIn)
       vv?.removeEventListener('resize', onViewportChange)
       vv?.removeEventListener('scroll', onViewportChange)
+      window.removeEventListener('keyboardDidShow', onViewportChange as EventListener)
+      window.removeEventListener('keyboardWillShow', onViewportChange as EventListener)
     }
   }, [])
 }

@@ -32,6 +32,8 @@
     --kp-glass-edge: 0 0% 100%;
     --kp-specular: 0 0% 100%;
     --kp-lens: 172 40% 55%;
+    /* Updated by src/lib/native/keyboard.ts when the soft keyboard covers the viewport (web/PWA). */
+    --keyboard-inset: 0px;
   }
 
   .dark {
@@ -78,6 +80,12 @@
   /* Prevent a black native strip above the WebView on iOS Capacitor. */
   html {
     background-color: hsl(var(--background));
+  }
+
+  /* Bottom sheets / drawers: lift with soft keyboard on web (native uses WebView resize). */
+  [data-slot='drawer-content'],
+  [data-slot='sheet-content'] {
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), var(--keyboard-inset, 0px));
   }
 
   body {

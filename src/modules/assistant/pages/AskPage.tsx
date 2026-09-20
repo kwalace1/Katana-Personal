@@ -328,7 +328,7 @@ export default function AskPage() {
   return (
     <motion.div
       {...pageEnterSubtle}
-      className="kp-page relative mx-auto flex h-[calc(100dvh-3.75rem)] max-w-2xl flex-col overflow-hidden !py-4 md:h-[100dvh] md:!py-6 lg:!py-6"
+      className="kp-page relative mx-auto flex h-[calc(100dvh-3.75rem-var(--keyboard-inset,0px))] max-w-2xl flex-col overflow-hidden !py-4 md:h-[calc(100dvh-var(--keyboard-inset,0px))] md:!py-6 lg:!py-6"
     >
       <div
         className="pointer-events-none absolute -right-24 -top-16 h-56 w-56 rounded-full bg-primary/15 blur-3xl"
