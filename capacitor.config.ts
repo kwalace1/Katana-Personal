@@ -31,9 +31,9 @@ const config: CapacitorConfig = {
       sound: 'default',
     },
     Keyboard: {
-      // Shrink the native WebView with the keyboard so content moves up
-      // instead of sitting under it (body-only resize left fixed UI covered).
-      resize: 'native',
+      // We pad via --keyboard-inset on keyboardWillShow (see src/lib/native/keyboard.ts).
+      // Native WebView resize races the keyboard animation and feels glitchy.
+      resize: 'none',
       resizeOnFullScreen: true,
       autoBackdropColor: 'auto',
     },
