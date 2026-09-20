@@ -31,9 +31,9 @@ const config: CapacitorConfig = {
       sound: 'default',
     },
     Keyboard: {
-      // We pad via --keyboard-inset on keyboardWillShow (see src/lib/native/keyboard.ts).
-      // Native WebView resize races the keyboard animation and feels glitchy.
-      resize: 'none',
+      // Shrink the WebView with the keyboard. Never use setScroll({ isDisabled: true })
+      // — on iOS that disables ALL page scrolling, not just while the keyboard is open.
+      resize: 'native',
       resizeOnFullScreen: true,
       autoBackdropColor: 'auto',
     },

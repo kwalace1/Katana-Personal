@@ -80,13 +80,9 @@
   /* Prevent a black native strip above the WebView on iOS Capacitor. */
   html {
     background-color: hsl(var(--background));
-    scroll-padding-bottom: calc(var(--keyboard-inset, 0px) + 1.25rem);
   }
 
-  /*
-   * Soft keyboard: --keyboard-inset is set on keyboardWillShow (native) /
-   * visualViewport (web) so layout moves with the keyboard — no delayed catch-up.
-   */
+  /* Bottom sheets on web/PWA: --keyboard-inset comes from visualViewport. */
   [data-slot='drawer-content'],
   [data-slot='sheet-content'] {
     padding-bottom: max(env(safe-area-inset-bottom, 0px), var(--keyboard-inset, 0px));

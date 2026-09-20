@@ -216,7 +216,7 @@ Native `/api/*` calls (Ask, food, account delete) go to `VITE_APP_URL` so the st
 2. Settings → **Notifications** → turn on **Together & Social alerts** (allow the iOS permission sheet).
 3. With a second cloud account: like a post, comment, repost, share a win to a circle, or post in a circle — the other account should get an in-app bell item, an in-app toast, and a device notification when permission is granted.
 4. Tap a notification — it should open Social / Circles.
-5. **Keyboard** — tap into Ask, Notes, Social comments, or any text field. Content should lift **with** the keyboard (no cover-then-jump, no leftover blank band when it dismisses).
+5. **Scroll + keyboard** — pages must scroll normally. Tap into Ask / Notes / a comment: field should stay usable above the keyboard. Dismissing the keyboard should not leave a blank band or freeze scrolling.
 
 ### Sandbox purchase test
 
