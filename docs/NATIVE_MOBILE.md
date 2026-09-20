@@ -9,7 +9,7 @@ Katana Personal ships as a **PWA** on the web. Capacitor wraps the same React ap
 - `capacitor.config.ts` — app id `com.katana.personal`, webDir `dist`, CapacitorHttp so `/api/*` reaches production
 - `@capacitor/core` + App / StatusBar / SplashScreen / Keyboard / LocalNotifications
 - iOS `contentInset: never` + StatusBar overlays WebView (no black status-bar gap)
-- Keyboard layout via `--keyboard-inset` on `keyboardWillShow` (`resize: none`) so fields stay visible without the cover-then-jump glitch
+- Keyboard `resize: native` + scroll always enabled (never `setScroll({ isDisabled: true })` — that freezes iOS page scrolling)
 - `@revenuecat/purchases-capacitor` — Plus entitlement `plus` (`katana_plus_monthly` / `katana_plus_yearly`)
 - `npm run build:ios` — Vite build with relative asset paths + `cap sync ios`
 - Native shell skips the PWA service worker and the “Add to Home Screen” nudge
