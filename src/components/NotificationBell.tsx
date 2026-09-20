@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
+import { useAuth } from '@/contexts/AuthContext'
 import {
   listNotifications,
   markAllNotificationsRead,
@@ -20,8 +21,10 @@ import {
   unreadCount,
   type AppNotification,
 } from '@/lib/social/notifications'
+import { socialPushEnabled } from '@/lib/notifications/preferences'
 import { formatShortDate } from '@/lib/dates'
 import { cn } from '@/lib/utils'
+import { showLocalNotification } from '@/lib/web-notify'
 
 const POLL_MS = 3000
 
@@ -115,12 +118,13 @@ export function NotificationBell() {
                   n.href ||
                   (n.kind === 'circle_invite' || n.kind === 'friend_request'
                     ? '/social?tab=friends#invites'
-                    : n.kind === 'circle_joined'
+                    : n.kind === 'circle_joined' || n.kind === 'circle_post'
                       ? '/circles'
                       : n.kind === 'post_like' ||
                           n.kind === 'post_comment' ||
                           n.kind === 'post_repost' ||
                           n.kind === 'post_mention' ||
+                          n.kind === 'post_new' ||
                           n.kind === 'comment_like' ||
                           n.kind === 'comment_reply'
                         ? '/social'
@@ -139,11 +143,13 @@ export function NotificationBell() {
   )
 }
 
-/** Toast when a new notification arrives via realtime snapshot / poll. */
+/** Toast + device banner when a new notification arrives via realtime / poll. */
 export function useNotificationToasts() {
   const { cloudUser } = useCloudAuth()
+  const { profile } = useAuth()
   const primed = useRef(false)
   const lastIds = useRef(new Set<string>())
+  const socialOn = socialPushEnabled(profile?.preferences)
 
   useEffect(() => {
     if (!cloudUser) return
@@ -155,6 +161,14 @@ export function useNotificationToasts() {
         for (const item of items) {
           if (!item.read && !lastIds.current.has(item.id)) {
             toast(item.title, { description: item.body })
+            if (socialOn) {
+              void showLocalNotification(
+                item.title,
+                item.body,
+                `social-${item.id}`,
+                item.href || '/social',
+              )
+            }
           }
         }
       }
@@ -171,5 +185,5 @@ export function useNotificationToasts() {
       unsub()
       window.clearInterval(poll)
     }
-  }, [cloudUser?.uid])
+  }, [cloudUser?.uid, socialOn])
 }

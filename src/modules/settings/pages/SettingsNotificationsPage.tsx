@@ -8,7 +8,7 @@ export function SettingsNotificationsPage() {
   const { cloudUser, enablePushNotifications } = useCloudAuth()
 
   return (
-    <SettingsDetail title="Notifications" description="Gentle reminders and proactive orchestration nudges.">
+    <SettingsDetail title="Notifications" description="Reminders, Together alerts, and orchestration nudges.">
       <NotificationsPanel
         preferences={profile?.preferences}
         cloudSignedIn={Boolean(cloudUser)}

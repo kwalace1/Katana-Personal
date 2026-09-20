@@ -28,4 +28,12 @@ describe('notification preferences', () => {
     expect(canNotifyNow(prefs, new Date('2026-08-29T14:00:00'))).toBe(false)
     expect(canNotifyNow(prefs, new Date('2026-08-30T14:00:00'))).toBe(true)
   })
+
+  it('defaults social push on unless explicitly disabled', async () => {
+    const { socialPushEnabled } = await import('@/lib/notifications/preferences')
+    expect(socialPushEnabled(null)).toBe(true)
+    expect(socialPushEnabled({})).toBe(true)
+    expect(socialPushEnabled({ social_push: false })).toBe(false)
+    expect(socialPushEnabled({ social_push: true })).toBe(true)
+  })
 })

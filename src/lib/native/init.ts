@@ -26,10 +26,27 @@ export async function initNativeShell() {
 
   try {
     if (Capacitor.getPlatform() === 'ios' || Capacitor.getPlatform() === 'android') {
+      // Overlay so the WebView fills under the status bar (no native black gap).
+      await StatusBar.setOverlaysWebView({ overlay: true })
+      await StatusBar.setBackgroundColor({ color: '#F4F8F9' })
       await StatusBar.setStyle({ style: Style.Light })
     }
   } catch {
     // Simulator / older OS builds may not support status bar tweaks
+  }
+
+  try {
+    if (isNativeShell()) {
+      const { LocalNotifications } = await import('@capacitor/local-notifications')
+      await LocalNotifications.addListener('localNotificationActionPerformed', (event) => {
+        const href = (event.notification.extra as { href?: string } | undefined)?.href
+        if (href && typeof href === 'string' && href.startsWith('/')) {
+          window.location.assign(href)
+        }
+      })
+    }
+  } catch {
+    // Plugin may be missing until `cap sync`
   }
 
   CapApp.addListener('backButton', ({ canGoBack }) => {

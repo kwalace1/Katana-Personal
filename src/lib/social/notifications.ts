@@ -1,5 +1,6 @@
 import { getSupabase } from '@/lib/supabase'
 import { createId } from '@/lib/id'
+import { sendPushToUser } from '@/lib/notifications/push'
 import type { Unsubscribe } from './friends'
 
 export type NotificationKind =
@@ -8,6 +9,8 @@ export type NotificationKind =
   | 'shared_item'
   | 'circle_invite'
   | 'circle_joined'
+  | 'circle_post'
+  | 'post_new'
   | 'post_like'
   | 'post_comment'
   | 'post_repost'
@@ -64,8 +67,9 @@ export async function createNotification(input: {
 }): Promise<void> {
   if (!input.uid) return
   const now = new Date().toISOString()
+  const id = createId()
   const { error } = await getSupabase().from('notifications').insert({
-    id: createId(),
+    id,
     uid: input.uid,
     kind: input.kind,
     title: input.title,
@@ -76,6 +80,14 @@ export async function createNotification(input: {
     meta: input.meta || {},
   })
   if (error) throw error
+
+  // Best-effort device push when the recipient has enabled browser/native notifications.
+  void sendPushToUser(input.uid, {
+    title: input.title,
+    body: input.body,
+    href: input.href || '/social',
+    tag: `social-${input.kind}-${id.slice(0, 10)}`,
+  }).catch(() => undefined)
 }
 
 /** Notify a post author about engagement (never notifies yourself). */
@@ -138,6 +150,71 @@ export async function notifyCommentEngagement(input: {
   } catch {
     // Never block the like/reply on notification failure
   }
+}
+
+/** Notify friends / circle members that someone shared a win or post. */
+export async function notifyNewPost(input: {
+  authorId: string
+  authorName: string
+  recipientIds: string[]
+  postId: string
+  preview?: string
+  audience: 'friends' | 'circle'
+  circleName?: string
+}): Promise<void> {
+  const name = input.authorName.trim() || 'Someone'
+  const recipients = [...new Set(input.recipientIds)].filter((uid) => uid && uid !== input.authorId)
+  if (recipients.length === 0) return
+
+  const title =
+    input.audience === 'circle' && input.circleName
+      ? `${name} shared in ${input.circleName}`
+      : `${name} shared a win`
+  const body =
+    input.preview?.trim() ||
+    (input.audience === 'circle' ? 'Open Circles to see it' : 'Open Social to see it')
+
+  await Promise.all(
+    recipients.slice(0, 40).map((uid) =>
+      createNotification({
+        uid,
+        kind: 'post_new',
+        title,
+        body: body.slice(0, 180),
+        href: input.audience === 'circle' ? '/social?tab=circles' : '/social',
+        meta: { postId: input.postId, actorId: input.authorId },
+      }).catch(() => undefined),
+    ),
+  )
+}
+
+/** Notify circle members about a new circle chat/post. */
+export async function notifyCirclePost(input: {
+  authorId: string
+  authorName: string
+  recipientIds: string[]
+  circleId: string
+  circleName: string
+  preview?: string
+}): Promise<void> {
+  const name = input.authorName.trim() || 'Someone'
+  const recipients = [...new Set(input.recipientIds)].filter((uid) => uid && uid !== input.authorId)
+  if (recipients.length === 0) return
+  const title = `${name} posted in ${input.circleName}`
+  const body = input.preview?.trim() || 'Open Circles to read it'
+
+  await Promise.all(
+    recipients.slice(0, 40).map((uid) =>
+      createNotification({
+        uid,
+        kind: 'circle_post',
+        title,
+        body: body.slice(0, 180),
+        href: `/circles?id=${input.circleId}`,
+        meta: { circleId: input.circleId, actorId: input.authorId },
+      }).catch(() => undefined),
+    ),
+  )
 }
 
 export async function listNotifications(uid: string, max = 40): Promise<AppNotification[]> {

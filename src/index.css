@@ -75,6 +75,11 @@
     @apply min-h-full;
   }
 
+  /* Prevent a black native strip above the WebView on iOS Capacitor. */
+  html {
+    background-color: hsl(var(--background));
+  }
+
   body {
     @apply bg-background text-foreground font-sans antialiased;
     /* Rich ambient field so glass has something to refract / tint from */

@@ -210,6 +210,13 @@ Native `/api/*` calls (Ask, food, account delete) go to `VITE_APP_URL` so the st
 4. App Store Connect → **TestFlight**. After processing (10–30 min), add yourself as an **Internal Tester**.
 5. Install from TestFlight on a real iPhone.
 
+### What to verify on this build (safe area + Together alerts)
+
+1. **No black bar** under the status bar on Today / Social / Settings — content should sit under the notch with the soft gradient visible behind the clock.
+2. Settings → **Notifications** → turn on **Together & Social alerts** (allow the iOS permission sheet).
+3. With a second cloud account: like a post, comment, repost, share a win to a circle, or post in a circle — the other account should get an in-app bell item, an in-app toast, and a device notification when permission is granted.
+4. Tap a notification — it should open Social / Circles.
+
 ### Sandbox purchase test
 
 1. iPhone Settings → **Developer** (or App Store → Sandbox) → **Sandbox Account** → sign in with a [Sandbox Apple ID](https://appstoreconnect.apple.com) (**Users and Access** → **Sandbox** → **Testers**). Do **not** use your real Apple ID.

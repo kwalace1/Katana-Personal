@@ -1,6 +1,8 @@
 import { getSupabase } from '@/lib/supabase'
 import { createId } from '@/lib/id'
-import type { Unsubscribe } from './friends'
+import { getCircle } from './circles'
+import { getCloudProfile, type Unsubscribe } from './friends'
+import { notifyCirclePost } from './notifications'
 
 export interface CirclePost {
   id: string
@@ -100,7 +102,28 @@ export async function createCirclePost(input: {
   }
   const { data, error } = await getSupabase().from('circle_posts').insert(row).select('*').single()
   if (error) throw error
-  return mapPost(data as PostRow)
+  const post = mapPost(data as PostRow)
+
+  try {
+    const [circle, author] = await Promise.all([
+      getCircle(input.circleId),
+      getCloudProfile(input.authorId),
+    ])
+    if (circle) {
+      void notifyCirclePost({
+        authorId: input.authorId,
+        authorName: author?.displayName || 'Someone',
+        recipientIds: circle.memberIds,
+        circleId: circle.id,
+        circleName: circle.name,
+        preview: message,
+      })
+    }
+  } catch {
+    // Never block posting on notification failure
+  }
+
+  return post
 }
 
 export async function deleteCirclePost(id: string): Promise<void> {

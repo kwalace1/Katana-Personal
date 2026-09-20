@@ -135,14 +135,14 @@ export function SettingsTogetherPage() {
                 onClick={async () => {
                   try {
                     const ok = await enablePushNotifications()
-                    if (ok) toast.success('Browser notifications on')
+                    if (ok) toast.success('Notifications on for Together activity')
                     else toast.message('Permission wasn’t granted')
                   } catch (err) {
                     toast.error(err instanceof Error ? err.message : 'Couldn’t enable notifications')
                   }
                 }}
               >
-                Enable browser notifications
+                Enable Together notifications
               </Button>
               <Button
                 variant="ghost"

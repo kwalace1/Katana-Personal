@@ -23,13 +23,21 @@ const config: CapacitorConfig = {
     },
     StatusBar: {
       style: 'LIGHT',
+      backgroundColor: '#F4F8F9',
+    },
+    LocalNotifications: {
+      smallIcon: 'ic_stat_icon_config_sample',
+      iconColor: '#5B4B8A',
+      sound: 'default',
     },
     Keyboard: {
       resize: 'body',
     },
   },
   ios: {
-    contentInset: 'automatic',
+    // 'automatic' insets the WebView and leaves a native black strip above the page.
+    // Draw edge-to-edge; CSS env(safe-area-inset-*) pads content under the status bar.
+    contentInset: 'never',
     preferredContentMode: 'mobile',
     scheme: 'Katana Personal',
   },
