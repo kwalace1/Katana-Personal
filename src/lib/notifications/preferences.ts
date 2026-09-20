@@ -35,6 +35,12 @@ export function remindersEnabled(preferences?: Record<string, unknown> | null): 
   return preferences?.gentle_reminders === true
 }
 
+/** Social / Together activity (likes, posts, circle updates). On by default once push is enabled. */
+export function socialPushEnabled(preferences?: Record<string, unknown> | null): boolean {
+  if (preferences?.social_push === false) return false
+  return true
+}
+
 /** Proactive orchestration nudges (workout windows, focus pings). Plus feature. */
 export function orchestrationPushEnabled(preferences?: Record<string, unknown> | null): boolean {
   return preferences?.orchestration_push === true

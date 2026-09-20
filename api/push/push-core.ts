@@ -118,6 +118,83 @@ export async function handlePushSendRequest(req: Request, env: PushEnv = readPus
   }
 }
 
+export type NotifyUserPayload = PushSendPayload & {
+  /** Recipient cloud user id */
+  uid: string
+}
+
+/**
+ * POST /api/push/notify — deliver a social/Together push to another signed-in user.
+ * Caller must be authenticated. Recipient must have a real web-push subscription stored.
+ */
+export async function handlePushNotifyUserRequest(req: Request, env: PushEnv = readPushEnv()): Promise<Response> {
+  if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 })
+  if (!pushServerConfigured(env)) {
+    return Response.json({ error: 'Push not configured on server (VAPID + Supabase service key).' }, { status: 503 })
+  }
+
+  const actorId = await verifyUserToken(req, env)
+  if (!actorId) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+
+  let body: NotifyUserPayload
+  try {
+    body = (await req.json()) as NotifyUserPayload
+  } catch {
+    return Response.json({ error: 'Invalid JSON' }, { status: 400 })
+  }
+
+  const targetUid = typeof body.uid === 'string' ? body.uid.trim() : ''
+  if (!targetUid || targetUid === actorId) {
+    return Response.json({ error: 'uid required (and must differ from caller)' }, { status: 400 })
+  }
+  if (!body.title?.trim() || !body.body?.trim()) {
+    return Response.json({ error: 'title and body required' }, { status: 400 })
+  }
+
+  // Soft anti-spam: require a matching unread notification row created in the last 2 minutes.
+  const sb = adminClient(env)
+  const since = new Date(Date.now() - 2 * 60 * 1000).toISOString()
+  const { data: recent, error: recentErr } = await sb
+    .from('notifications')
+    .select('id')
+    .eq('uid', targetUid)
+    .eq('title', body.title.trim())
+    .gte('created_at', since)
+    .limit(1)
+
+  if (recentErr) {
+    return Response.json({ error: recentErr.message }, { status: 500 })
+  }
+  if (!recent?.length) {
+    return Response.json({ error: 'No matching recent notification for recipient' }, { status: 404 })
+  }
+
+  const subscriptionJson = await loadUserToken(targetUid, env)
+  if (!subscriptionJson) {
+    // Recipient opted out or never enabled push — not an error for the actor.
+    return Response.json({ ok: true, delivered: false, reason: 'no_subscription' })
+  }
+
+  try {
+    await sendToSubscription(
+      subscriptionJson,
+      {
+        title: body.title.trim(),
+        body: body.body.trim(),
+        href: body.href || '/social',
+        tag: body.tag || `social-${targetUid.slice(0, 8)}`,
+      },
+      env,
+    )
+    return Response.json({ ok: true, delivered: true })
+  } catch (err) {
+    return Response.json(
+      { error: err instanceof Error ? err.message : 'Push delivery failed' },
+      { status: 502 },
+    )
+  }
+}
+
 export type SchedulePayload = PushSendPayload & {
   fire_at: string
   kind?: string

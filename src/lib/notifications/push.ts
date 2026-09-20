@@ -51,6 +51,50 @@ export async function sendPushToSelf(payload: PushPayload): Promise<{ ok: boolea
   return { ok: true }
 }
 
+/** Fan-out a social notification to another user's push subscription (best-effort). */
+export async function sendPushToUser(
+  uid: string,
+  payload: PushPayload,
+): Promise<{ ok: boolean; delivered?: boolean; error?: string }> {
+  if (!uid || !payload.title?.trim() || !payload.body?.trim()) {
+    return { ok: false, error: 'uid, title, and body required' }
+  }
+
+  const supabase = getSupabase()
+  const session = (await supabase.auth.getSession()).data.session
+  if (!session?.access_token) {
+    return { ok: false, error: 'Not signed in' }
+  }
+
+  try {
+    const res = await fetch('/api/push/notify', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        uid,
+        title: payload.title,
+        body: payload.body,
+        href: payload.href || '/social',
+        tag: payload.tag || `social-${uid.slice(0, 8)}`,
+      }),
+    })
+    const data = (await res.json().catch(() => ({}))) as {
+      ok?: boolean
+      delivered?: boolean
+      error?: string
+    }
+    if (!res.ok) {
+      return { ok: false, error: data.error || `Notify failed (${res.status})` }
+    }
+    return { ok: true, delivered: data.delivered === true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Notify failed' }
+  }
+}
+
 export type ScheduledNudge = PushPayload & {
   fire_at: string
   kind: string

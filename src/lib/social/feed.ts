@@ -1,13 +1,13 @@
 import { getSupabase } from '@/lib/supabase'
 import { createId } from '@/lib/id'
-import { listMyCircles } from '@/lib/social/circles'
+import { getCircle, listMyCircles } from '@/lib/social/circles'
 import {
   feedMediaStoragePaths,
   signFeedMediaTimeline,
   uploadTogetherFile,
 } from '@/lib/social/feed-media-storage'
 import { listFriendProfiles, getCloudProfile, getCloudProfiles, resolveProfilePhotoUrl, type Unsubscribe } from '@/lib/social/friends'
-import { createNotification } from '@/lib/social/notifications'
+import { createNotification, notifyNewPost } from '@/lib/social/notifications'
 
 export const FEED_TEXT_MAX = 500
 /** Hard reject — uploads are compressed well below this. */
@@ -333,18 +333,45 @@ export async function createTogetherPost(input: {
   const { error } = await getSupabase().from('together_posts').insert(row)
   if (error) throw error
   const author = await getCloudProfile(input.authorId)
+  const authorName = author?.displayName || 'A friend'
   await Promise.all(
     mentions.map((mention) =>
       createNotification({
         uid: mention.uid,
         kind: 'post_mention',
-        title: `${author?.displayName || 'A friend'} mentioned you`,
+        title: `${authorName} mentioned you`,
         body: text.slice(0, 180) || 'Open Social to see the post',
         href: '/social',
         meta: { postId: id, actorId: input.authorId },
       }).catch(() => undefined),
     ),
   )
+
+  // Fan-out to friends / circle (skip people already mentioned to avoid double pings).
+  const mentionSet = new Set(mentions.map((m) => m.uid))
+  let circleName: string | undefined
+  if (input.audience === 'circle' && input.circleId) {
+    try {
+      const circle = await getCircle(input.circleId)
+      circleName = circle?.name
+    } catch {
+      // optional label
+    }
+  }
+  const preview =
+    text ||
+    (input.card?.title ? String(input.card.title) : '') ||
+    (input.repost ? 'Reposted a win' : 'Shared a win')
+  void notifyNewPost({
+    authorId: input.authorId,
+    authorName,
+    recipientIds: viewerIds.filter((uid) => !mentionSet.has(uid)),
+    postId: id,
+    preview,
+    audience: input.audience,
+    circleName,
+  })
+
   return {
     id,
     authorId: input.authorId,

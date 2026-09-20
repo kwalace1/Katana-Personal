@@ -8,6 +8,7 @@ import {
   orchestrationPushEnabled,
   parseQuietHours,
   remindersEnabled,
+  socialPushEnabled,
 } from '@/lib/notifications/preferences'
 import { pushConfigured, sendPushToSelf } from '@/lib/notifications/push'
 import { canUsePlusFeature } from '@/lib/plus'
@@ -32,6 +33,7 @@ export function NotificationsPanel({
   const [plusWallOpen, setPlusWallOpen] = useState(false)
   const gentle = remindersEnabled(preferences)
   const orchPush = orchestrationPushEnabled(preferences)
+  const socialPush = socialPushEnabled(preferences)
   const quiet = parseQuietHours(preferences)
   const native = isNativeShell()
 
@@ -53,6 +55,32 @@ export function NotificationsPanel({
     }
     onUpdatePreferences({ gentle_reminders: false })
     toast.message('Reminders off')
+  }
+
+  async function onToggleSocialPush(next: boolean) {
+    if (next) {
+      const ok = await requestReminderPermission()
+      if (!ok) {
+        toast.message(
+          native
+            ? 'Allow notifications for Katana in iPhone Settings → Notifications'
+            : 'Allow notifications first',
+        )
+        return
+      }
+      if (cloudSignedIn && enablePushNotifications) {
+        try {
+          await enablePushNotifications()
+        } catch {
+          // Local banners still work while the app is open.
+        }
+      }
+      onUpdatePreferences({ social_push: true })
+      toast.success('Together alerts on')
+      return
+    }
+    onUpdatePreferences({ social_push: false })
+    toast.message('Together alerts off')
   }
 
   async function onToggleOrchestrationPush(next: boolean) {
@@ -101,6 +129,19 @@ export function NotificationsPanel({
             </p>
           </div>
           <Switch checked={gentle} onCheckedChange={(v) => void onToggleReminders(v)} />
+        </div>
+
+        <div className="flex items-center justify-between gap-4 rounded-2xl border border-border/50 bg-secondary/20 px-4 py-3">
+          <div>
+            <p className="text-sm font-medium">Together & Social alerts</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Likes, comments, reposts, mentions, new wins, circle posts, and friend invites.
+              {native
+                ? ' Uses this device’s notification permission.'
+                : ' Needs notification permission (and cloud sign-in for background push).'}
+            </p>
+          </div>
+          <Switch checked={socialPush} onCheckedChange={(v) => void onToggleSocialPush(v)} />
         </div>
 
         <div className="flex items-center justify-between gap-4 rounded-2xl border border-border/50 bg-secondary/20 px-4 py-3">
