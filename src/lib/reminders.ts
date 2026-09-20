@@ -10,7 +10,11 @@ import {
   remindersEnabled,
 } from '@/lib/notifications/preferences'
 import { canUsePlusFeature } from '@/lib/plus'
-import { canShowLocalNotification, showLocalNotification } from '@/lib/web-notify'
+import {
+  canShowLocalNotification,
+  requestNotificationPermission,
+  showLocalNotification,
+} from '@/lib/web-notify'
 
 const LAST_NUDGE_KEY = 'katana-personal:last-nudge-day'
 const FIRED_KEY = 'katana-personal:fired-reminders'
@@ -19,11 +23,7 @@ const ORCH_NUDGE_KEY = 'katana-personal:last-orch-nudge'
 export { remindersEnabled }
 
 export async function requestReminderPermission(): Promise<boolean> {
-  if (typeof Notification === 'undefined') return false
-  if (Notification.permission === 'granted') return true
-  if (Notification.permission === 'denied') return false
-  const result = await Notification.requestPermission()
-  return result === 'granted'
+  return requestNotificationPermission()
 }
 
 function canNotify(): boolean {

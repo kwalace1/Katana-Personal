@@ -6,6 +6,7 @@ import { patchNativeApiFetch } from '@/lib/api-origin'
 import { initRevenueCat } from '@/lib/billing/revenuecat'
 import { parseOAuthDeepLink } from '@/lib/integrations/oauth-popup'
 import { isNativeShell } from '@/lib/native/platform'
+import { refreshNativeNotificationPermission } from '@/lib/web-notify'
 
 export const OAUTH_PENDING_KEY = 'katana-oauth-pending'
 
@@ -15,6 +16,7 @@ export async function initNativeShell() {
 
   patchNativeApiFetch()
   void initRevenueCat()
+  void refreshNativeNotificationPermission()
 
   try {
     await SplashScreen.hide()
