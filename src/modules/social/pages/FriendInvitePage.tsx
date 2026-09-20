@@ -7,6 +7,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
 import { stashInviteReturn } from '@/lib/invite-return'
 import { findUidByFriendCode, getCloudProfile, requestFriend } from '@/lib/social/friends'
+import { OpenInIosScreen } from '@/components/OpenInIosScreen'
+import { isWebAppLocked, nativeInviteDeepLink } from '@/lib/web-app-lock'
 
 export default function FriendInvitePage() {
   const { code } = useParams<{ code: string }>()
@@ -20,10 +22,12 @@ export default function FriendInvitePage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (isWebAppLocked()) return
     stashInviteReturn(location.pathname)
   }, [location.pathname])
 
   useEffect(() => {
+    if (isWebAppLocked()) return
     if (!code || !cloudEnabled || !cloudUser) return
     void (async () => {
       try {
@@ -57,6 +61,16 @@ export default function FriendInvitePage() {
     } finally {
       setBusy(false)
     }
+  }
+
+  if (isWebAppLocked()) {
+    return (
+      <OpenInIosScreen
+        title="Add me on Katana"
+        body="Friend invites open in the Katana iPhone app. If you already have it, tap Open in Katana."
+        deepLink={code ? nativeInviteDeepLink('friend', code) : undefined}
+      />
+    )
   }
 
   if (localLoading || cloudLoading) {

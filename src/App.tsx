@@ -26,6 +26,7 @@ import CirclesPage from '@/modules/social/pages/CirclesPage'
 import SharedPage from '@/modules/social/pages/SharedPage'
 import FriendInvitePage from '@/modules/social/pages/FriendInvitePage'
 import InviteJoinPage from '@/modules/social/pages/InviteJoinPage'
+import { isWebAppLocked, isWebPublicPath } from '@/lib/web-app-lock'
 
 function RitualLock({ children }: { children: React.ReactNode }) {
   const { onboardingDone, loading } = useAuth()
@@ -47,8 +48,18 @@ function Protected({ children }: { children: React.ReactNode }) {
   )
 }
 
+function WebAppGate({ children }: { children: React.ReactNode }) {
+  const location = useLocation()
+  if (!isWebAppLocked()) return <>{children}</>
+  if (isWebPublicPath(location.pathname)) return <>{children}</>
+  return <Navigate to="/" replace />
+}
+
 function RootRedirect() {
   const { user, loading } = useAuth()
+  if (isWebAppLocked()) {
+    return <Navigate to="/" replace />
+  }
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -66,36 +77,38 @@ function FeedProfileRedirect() {
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/" element={<LandingPage />} />
-      <Route path="/privacy" element={<PrivacyPage />} />
-      <Route path="/terms" element={<TermsPage />} />
-      <Route path="/auth" element={<AuthPage />} />
-      <Route path="/auth/callback" element={<AuthCallbackPage />} />
-      <Route path="/invite/circle/:token" element={<InviteJoinPage />} />
-      <Route path="/invite/friend/:code" element={<FriendInvitePage />} />
-      <Route path="/home" element={<RootRedirect />} />
+    <WebAppGate>
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/auth" element={<AuthPage />} />
+        <Route path="/auth/callback" element={<AuthCallbackPage />} />
+        <Route path="/invite/circle/:token" element={<InviteJoinPage />} />
+        <Route path="/invite/friend/:code" element={<FriendInvitePage />} />
+        <Route path="/home" element={<RootRedirect />} />
 
-      <Route path="/dashboard" element={<Protected><DashboardPage /></Protected>} />
-      <Route path="/tasks" element={<Protected><TasksPage /></Protected>} />
-      <Route path="/calendar" element={<Protected><CalendarPage /></Protected>} />
-      <Route path="/notes" element={<Protected><NotesPage /></Protected>} />
-      <Route path="/goals" element={<Protected><GoalsPage /></Protected>} />
-      <Route path="/habits" element={<Protected><HabitsPage /></Protected>} />
-      <Route path="/journal" element={<Protected><JournalPage /></Protected>} />
-      <Route path="/health" element={<Protected><HealthPage /></Protected>} />
-      <Route path="/documents" element={<Protected><DocumentsPage /></Protected>} />
-      <Route path="/ask" element={<Protected><AskPage /></Protected>} />
-      <Route path="/social" element={<Protected><FeedPage /></Protected>} />
-      <Route path="/social/u/:uid" element={<Protected><FeedProfilePage /></Protected>} />
-      <Route path="/friends" element={<Protected><FriendsPage /></Protected>} />
-      <Route path="/feed" element={<Navigate to="/social" replace />} />
-      <Route path="/feed/u/:uid" element={<FeedProfileRedirect />} />
-      <Route path="/circles" element={<Protected><CirclesPage /></Protected>} />
-      <Route path="/shared" element={<Protected><SharedPage /></Protected>} />
-      <Route path="/settings/*" element={<Protected><SettingsPage /></Protected>} />
+        <Route path="/dashboard" element={<Protected><DashboardPage /></Protected>} />
+        <Route path="/tasks" element={<Protected><TasksPage /></Protected>} />
+        <Route path="/calendar" element={<Protected><CalendarPage /></Protected>} />
+        <Route path="/notes" element={<Protected><NotesPage /></Protected>} />
+        <Route path="/goals" element={<Protected><GoalsPage /></Protected>} />
+        <Route path="/habits" element={<Protected><HabitsPage /></Protected>} />
+        <Route path="/journal" element={<Protected><JournalPage /></Protected>} />
+        <Route path="/health" element={<Protected><HealthPage /></Protected>} />
+        <Route path="/documents" element={<Protected><DocumentsPage /></Protected>} />
+        <Route path="/ask" element={<Protected><AskPage /></Protected>} />
+        <Route path="/social" element={<Protected><FeedPage /></Protected>} />
+        <Route path="/social/u/:uid" element={<Protected><FeedProfilePage /></Protected>} />
+        <Route path="/friends" element={<Protected><FriendsPage /></Protected>} />
+        <Route path="/feed" element={<Navigate to="/social" replace />} />
+        <Route path="/feed/u/:uid" element={<FeedProfileRedirect />} />
+        <Route path="/circles" element={<Protected><CirclesPage /></Protected>} />
+        <Route path="/shared" element={<Protected><SharedPage /></Protected>} />
+        <Route path="/settings/*" element={<Protected><SettingsPage /></Protected>} />
 
-      <Route path="*" element={<RootRedirect />} />
-    </Routes>
+        <Route path="*" element={<RootRedirect />} />
+      </Routes>
+    </WebAppGate>
   )
 }

@@ -12,6 +12,7 @@ import { Analytics } from '@vercel/analytics/react'
 import { Capacitor } from '@capacitor/core'
 import App from './App'
 import { initNativeShell } from '@/lib/native/init'
+import { isWebAppLocked } from '@/lib/web-app-lock'
 import 'sonner/dist/styles.css'
 import './index.css'
 
@@ -49,10 +50,10 @@ class ErrorBoundary extends React.Component<
               className="rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
               onClick={() => {
                 this.setState({ hasError: false, error: null })
-                window.location.assign('/dashboard')
+                window.location.assign(isWebAppLocked() ? '/' : '/dashboard')
               }}
             >
-              Back to Today
+              {isWebAppLocked() ? 'Back' : 'Back to Today'}
             </button>
           </div>
         </div>
@@ -62,7 +63,7 @@ class ErrorBoundary extends React.Component<
   }
 }
 
-const APP_BUILD = '2026-09-16-liquid-glass-v2'
+const APP_BUILD = '2026-09-20-ios-only-web-lock'
 
 const isNative = Capacitor.isNativePlatform()
 
@@ -70,6 +71,15 @@ if ('serviceWorker' in navigator && !isNative) {
   window.addEventListener('load', () => {
     void (async () => {
       try {
+        if (isWebAppLocked()) {
+          const regs = await navigator.serviceWorker.getRegistrations()
+          await Promise.all(regs.map((r) => r.unregister()))
+          if ('caches' in window) {
+            const keys = await caches.keys()
+            await Promise.all(keys.map((k) => caches.delete(k)))
+          }
+          return
+        }
         const prev = localStorage.getItem('katana-sw-build')
         if (prev !== APP_BUILD) {
           const regs = await navigator.serviceWorker.getRegistrations()

@@ -6,6 +6,7 @@ import { patchNativeApiFetch } from '@/lib/api-origin'
 import { initRevenueCat } from '@/lib/billing/revenuecat'
 import { parseOAuthDeepLink } from '@/lib/integrations/oauth-popup'
 import { isNativeShell } from '@/lib/native/platform'
+import { appPathFromDeepLink } from '@/lib/native/deep-links'
 import { refreshNativeNotificationPermission } from '@/lib/web-notify'
 import { initKeyboardInset } from '@/lib/native/keyboard'
 
@@ -57,16 +58,25 @@ export async function initNativeShell() {
   })
 
   CapApp.addListener('appUrlOpen', ({ url }) => {
-    void handleOAuthDeepLink(url)
+    void handleIncomingUrl(url)
   })
 
   // Cold start from a deep link
   try {
     const launch = await CapApp.getLaunchUrl()
-    if (launch?.url) void handleOAuthDeepLink(launch.url)
+    if (launch?.url) void handleIncomingUrl(launch.url)
   } catch {
     // ignore
   }
+}
+
+async function handleIncomingUrl(url: string) {
+  if (parseOAuthDeepLink(url)) {
+    await handleOAuthDeepLink(url)
+    return
+  }
+  const path = appPathFromDeepLink(url)
+  if (path) window.location.assign(path)
 }
 
 async function handleOAuthDeepLink(url: string) {
