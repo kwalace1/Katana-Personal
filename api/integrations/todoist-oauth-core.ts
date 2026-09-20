@@ -117,30 +117,53 @@ export async function handleTodoistSyncRequest(
     return new Response(JSON.stringify({ error: 'access_token required' }), { status: 400 })
   }
 
-  const res = await fetch('https://api.todoist.com/rest/v2/tasks', {
-    headers: { Authorization: `Bearer ${access}` },
-  })
-  if (!res.ok) {
-    const text = await res.text()
-    return new Response(JSON.stringify({ error: text || 'Todoist sync failed' }), { status: 502 })
-  }
-  const items = (await res.json()) as {
+  type TodoistTask = {
     id?: string
     content?: string
     description?: string
     due?: { datetime?: string; date?: string } | null
+    checked?: boolean
     is_completed?: boolean
-  }[]
+  }
+
+  const items: TodoistTask[] = []
+  let cursor: string | undefined
+  do {
+    const listUrl = new URL('https://api.todoist.com/api/v1/tasks')
+    listUrl.searchParams.set('limit', '200')
+    if (cursor) listUrl.searchParams.set('cursor', cursor)
+
+    const res = await fetch(listUrl.toString(), {
+      headers: { Authorization: `Bearer ${access}` },
+    })
+    if (!res.ok) {
+      const text = await res.text()
+      return new Response(JSON.stringify({ error: text || 'Todoist sync failed' }), { status: 502 })
+    }
+
+    const json = (await res.json()) as { results?: TodoistTask[]; next_cursor?: string | null } | TodoistTask[]
+    // API v1 returns { results, next_cursor }; tolerate a bare array if Todoist changes shape.
+    if (Array.isArray(json)) {
+      items.push(...json)
+      cursor = undefined
+    } else {
+      items.push(...(json.results || []))
+      cursor = json.next_cursor || undefined
+    }
+  } while (cursor)
 
   const tasks: ExternalTask[] = []
   for (const item of items) {
-    if (!item.id || !item.content?.trim() || item.is_completed) continue
+    if (!item.id || !item.content?.trim()) continue
+    if (item.checked || item.is_completed) continue
     const dueRaw = item.due?.datetime || item.due?.date || null
     tasks.push({
       external_id: String(item.id),
       title: item.content.trim(),
       notes: item.description || '',
-      due_at: dueRaw ? new Date(dueRaw.length === 10 ? `${dueRaw}T12:00:00.000Z` : dueRaw).toISOString() : null,
+      due_at: dueRaw
+        ? new Date(dueRaw.length === 10 ? `${dueRaw}T12:00:00.000Z` : dueRaw).toISOString()
+        : null,
       status: 'todo',
     })
   }
