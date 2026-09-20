@@ -14,7 +14,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { BrandMark } from '@/components/BrandMark'
 import { SiteFooter } from '@/components/SiteFooter'
-import { APP_NAME_FULL, DESCRIPTION, SUPPORT_EMAIL, TAGLINE } from '@/lib/brand'
+import { APP_NAME_FULL, COMPANY_LEGAL, COMPANY_NAME, DESCRIPTION, SUPPORT_EMAIL, TAGLINE } from '@/lib/brand'
 import { pageEnterSubtle, staggerContainer, staggerItem } from '@/lib/motion-ui'
 import { iosDownloadUrl } from '@/lib/web-app-lock'
 import { cn } from '@/lib/utils'
@@ -345,12 +345,12 @@ export default function MarketingPage() {
               <div>
                 <p className="kp-section-label">About</p>
                 <h2 className="font-display mt-3 text-3xl tracking-tight sm:text-4xl">
-                  Built by Katana Technology Systems
+                  Built by {COMPANY_NAME}
                 </h2>
                 <p className="mt-4 text-base leading-relaxed text-muted-foreground">
-                  {APP_NAME_FULL} is our consumer product: a calm daily OS for people who want less
-                  noise and more follow-through. We’re shipping on iPhone first so the experience
-                  stays focused, private, and actually usable every day.
+                  {APP_NAME_FULL} is our consumer product from {COMPANY_LEGAL}: a calm daily OS for
+                  people who want less noise and more follow-through. We’re shipping on iPhone first so
+                  the experience stays focused, private, and actually usable every day.
                 </p>
                 <p className="mt-4 text-base leading-relaxed text-muted-foreground">
                   The public website is here so anyone — friends, investors, reviewers, or future
@@ -359,6 +359,13 @@ export default function MarketingPage() {
                 </p>
               </div>
               <div className="space-y-6">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                    Company
+                  </p>
+                  <p className="mt-1 font-display text-xl tracking-tight">{COMPANY_NAME}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{COMPANY_LEGAL}</p>
+                </div>
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                     Product
