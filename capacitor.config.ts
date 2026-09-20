@@ -31,7 +31,11 @@ const config: CapacitorConfig = {
       sound: 'default',
     },
     Keyboard: {
-      resize: 'body',
+      // Shrink the native WebView with the keyboard so content moves up
+      // instead of sitting under it (body-only resize left fixed UI covered).
+      resize: 'native',
+      resizeOnFullScreen: true,
+      autoBackdropColor: 'auto',
     },
   },
   ios: {

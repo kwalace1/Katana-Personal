@@ -122,6 +122,8 @@ if (isNative) {
     void Promise.all(regs.map((r) => r.unregister()))
   })
   void initNativeShell()
+} else {
+  void import('@/lib/native/keyboard').then(({ initKeyboardInset }) => initKeyboardInset())
 }
 
 window.addEventListener('visibilitychange', () => {
