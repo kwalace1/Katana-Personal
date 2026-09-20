@@ -19,7 +19,9 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3001 — on a phone, Add to Home Screen for an app-like feel.
+Open http://localhost:3001 — that’s the **full app** for development. Change code here, push Git, pull on your Mac, then `npm run build:ios` and archive in Xcode as before.
+
+The public site (Vercel) is a marketing page. People cannot use Katana in a browser. `/api/*`, Privacy, and Terms stay live so the iPhone app and App Store listing keep working.
 
 **Native iOS (Capacitor):** see [docs/NATIVE_MOBILE.md](./docs/NATIVE_MOBILE.md). **App Store + RevenueCat (enrollment approved):** [docs/APP_STORE.md](./docs/APP_STORE.md). On a Mac: `npm run build:ios` then `npx cap open ios`.
 

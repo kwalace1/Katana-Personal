@@ -1,6 +1,10 @@
 # Native mobile (Capacitor)
 
-Katana Personal ships as a **PWA** on the web. Capacitor wraps the same React app for the **App Store**. Plus on iOS is **RevenueCat / StoreKit**.
+Katana Personal is an **iPhone app**. Capacitor wraps the React app for TestFlight / the App Store. Plus on iOS is **RevenueCat / StoreKit**.
+
+The production website (`VITE_APP_URL`) is a **marketing page** plus `/api/*`, `/privacy`, and `/terms`. Browsers cannot open the daily OS. `npm run dev` on localhost still runs the full app so you can edit here, push Git, pull on a Mac, then `npm run build:ios` → Xcode → App Store Connect.
+
+To temporarily put the full app back on the website (no rebuild): set `VITE_ALLOW_WEB_APP=true` on Vercel and redeploy.
 
 **Ship checklist (Apple Developer is approved):** [APP_STORE.md](./APP_STORE.md) — App Store Connect, IAP products, RevenueCat keys, TestFlight, review.
 
@@ -56,10 +60,8 @@ VITE_SUPABASE_ANON_KEY=…
 
 ## Billing
 
-- **Web / PWA:** Stripe Checkout when `STRIPE_SECRET_KEY` + `STRIPE_PRICE_ID` are set.
 - **iOS:** RevenueCat. Settings → Katana Plus purchases StoreKit packages and unlocks the same Plus entitlement the paywall already gates. Restore purchases is on that screen.
-
-Do not use Stripe inside the iOS binary (App Store Guideline 3.1.1).
+- **Web Stripe:** unused while the public site is marketing-only. Do not use Stripe inside the iOS binary (App Store Guideline 3.1.1).
 
 ## HealthKit / Android / Push
 

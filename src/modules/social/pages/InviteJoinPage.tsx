@@ -7,6 +7,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
 import { stashInviteReturn } from '@/lib/invite-return'
 import { acceptCircleInvite, getCircleInvite, type CircleInvite } from '@/lib/social/invites'
+import { OpenInIosScreen } from '@/components/OpenInIosScreen'
+import { isWebAppLocked, nativeInviteDeepLink } from '@/lib/web-app-lock'
 
 export default function InviteJoinPage() {
   const { token } = useParams<{ token: string }>()
@@ -19,10 +21,12 @@ export default function InviteJoinPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (isWebAppLocked()) return
     stashInviteReturn(location.pathname)
   }, [location.pathname])
 
   useEffect(() => {
+    if (isWebAppLocked()) return
     if (!token || !cloudEnabled || !cloudUser) return
     void getCircleInvite(token)
       .then((inv) => {
@@ -44,6 +48,16 @@ export default function InviteJoinPage() {
     } finally {
       setBusy(false)
     }
+  }
+
+  if (isWebAppLocked()) {
+    return (
+      <OpenInIosScreen
+        title="Circle invite"
+        body="This invite opens in the Katana iPhone app. If you already have it, tap Open in Katana."
+        deepLink={token ? nativeInviteDeepLink('circle', token) : undefined}
+      />
+    )
   }
 
   if (localLoading || cloudLoading) {

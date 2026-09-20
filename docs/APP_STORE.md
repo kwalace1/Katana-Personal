@@ -260,7 +260,7 @@ Katana is not medical advice. Health logging is for your own tracking.
 **Keywords** (100 characters, commas, no spaces after commas):  
 `planner,habits,tasks,calendar,journal,health,focus,accountability,circles,daily`
 
-**Support URL:** `https://katana-personal.vercel.app`  
+**Support URL:** `https://katana-personal.vercel.app` (marketing site; the product is the iPhone app)  
 **Marketing URL:** same  
 **Privacy:** `https://katana-personal.vercel.app/privacy`
 

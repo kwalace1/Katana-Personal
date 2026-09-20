@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { BrandMark } from '@/components/BrandMark'
+import { OpenInIosScreen } from '@/components/OpenInIosScreen'
 import { useAuth } from '@/contexts/AuthContext'
 import { getAuthCallbackParams } from '@/lib/auth-callback'
 import { takeInviteReturn } from '@/lib/invite-return'
+import { isWebAppLocked } from '@/lib/web-app-lock'
 import { getSupabase, supabaseConfigured, toCloudUser } from '@/lib/supabase'
 import type { EmailOtpType } from '@supabase/supabase-js'
 
@@ -24,6 +26,7 @@ export default function AuthCallbackPage() {
   const navigate = useNavigate()
   const { loading, adoptCloudWorkspace } = useAuth()
   const [message, setMessage] = useState('Confirming your account…')
+  const [confirmed, setConfirmed] = useState(false)
   const started = useRef(false)
 
   useEffect(() => {
@@ -58,6 +61,12 @@ export default function AuthCallbackPage() {
         if (cancelled) return
         const { data } = await supabase.auth.getSession()
         if (data.session?.user) {
+          if (isWebAppLocked()) {
+            setConfirmed(true)
+            setMessage('Email confirmed. Open the Katana app on your iPhone and sign in with the same email.')
+            toast.success('Email confirmed')
+            return
+          }
           const cu = toCloudUser(data.session.user)
           await adoptCloudWorkspace(cu.uid, cu.displayName || 'You')
           toast.success('You’re in', { description: 'Cloud account confirmed.' })
@@ -77,13 +86,24 @@ export default function AuthCallbackPage() {
       const text = err instanceof Error ? err.message : 'Couldn’t confirm that link'
       setMessage(text)
       toast.error(text)
-      window.setTimeout(() => navigate('/?mode=signin', { replace: true }), 2800)
+      if (!isWebAppLocked()) {
+        window.setTimeout(() => navigate('/?mode=signin', { replace: true }), 2800)
+      }
     })
 
     return () => {
       cancelled = true
     }
   }, [adoptCloudWorkspace, loading, navigate])
+
+  if (confirmed) {
+    return (
+      <OpenInIosScreen
+        title="Email confirmed"
+        body="Open the Katana app on your iPhone and sign in with the same email. The website doesn’t host your space."
+      />
+    )
+  }
 
   return (
     <div className="relative flex min-h-[100dvh] flex-col items-center justify-center px-6">

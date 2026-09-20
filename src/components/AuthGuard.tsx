@@ -1,9 +1,14 @@
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
+import { isWebAppLocked } from '@/lib/web-app-lock'
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
   const location = useLocation()
+
+  if (isWebAppLocked()) {
+    return <Navigate to="/" replace />
+  }
 
   if (loading) {
     return (

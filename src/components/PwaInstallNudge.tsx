@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { X, Smartphone } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { isNativeShell } from '@/lib/native/platform'
+import { isWebAppLocked } from '@/lib/web-app-lock'
 
 const DISMISS_KEY = 'katana-personal:pwa-nudge-dismiss'
 const OFFER_KEY = 'katana-personal:pwa-nudge-offer'
@@ -17,6 +18,7 @@ function isStandaloneApp() {
 /** Offer after evening close — once — if not already installed as PWA. */
 export function offerPwaNudge() {
   if (typeof window === 'undefined') return
+  if (isWebAppLocked()) return
   if (isStandaloneApp()) return
   if (localStorage.getItem(DISMISS_KEY) === '1') return
   localStorage.setItem(OFFER_KEY, '1')
@@ -28,7 +30,7 @@ export function PwaInstallNudge() {
 
   useEffect(() => {
     function sync() {
-      if (isStandaloneApp()) {
+      if (isWebAppLocked() || isStandaloneApp()) {
         setShow(false)
         return
       }

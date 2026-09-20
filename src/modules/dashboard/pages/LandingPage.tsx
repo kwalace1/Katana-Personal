@@ -20,6 +20,8 @@ import { pageEnterSubtle, staggerContainer, staggerItem } from '@/lib/motion-ui'
 import { TAGLINE } from '@/lib/brand'
 import { cn } from '@/lib/utils'
 import { isNativeShell } from '@/lib/native/platform'
+import { isWebAppLocked } from '@/lib/web-app-lock'
+import MarketingPage from '@/modules/dashboard/pages/MarketingPage'
 
 type Mode = 'open' | 'signin' | 'signup'
 
@@ -95,6 +97,10 @@ export default function LandingPage() {
   // session is exchanged — that was dropping the code and looking like "just the website".
   if (isAuthCallbackLocation(location.search, location.hash)) {
     return <AuthCallbackPage />
+  }
+
+  if (isWebAppLocked()) {
+    return <MarketingPage />
   }
 
   if (!loading && user && !busy) {
