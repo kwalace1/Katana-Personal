@@ -19,6 +19,7 @@ To temporarily put the full app back on the website (no rebuild): set `VITE_ALLO
 - Native shell skips the PWA service worker and the “Add to Home Screen” nudge
 - Platform helpers in `src/lib/native/`
 - StoreKit test file: `ios/App/KatanaPlus.storekit`
+- iOS window / WebView background `#F4F8F9` (avoids a black flash on large iPad simulators)
 
 ## First-time Mac setup
 
