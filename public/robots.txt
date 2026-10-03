@@ -1,0 +1,28 @@
+# Katana Personal — https://katanapersonal.app
+User-agent: *
+Allow: /
+Allow: /privacy
+Allow: /terms
+
+# Product UI is not available on the public web; keep crawlers on marketing + legal.
+Disallow: /dashboard
+Disallow: /tasks
+Disallow: /calendar
+Disallow: /notes
+Disallow: /goals
+Disallow: /habits
+Disallow: /journal
+Disallow: /health
+Disallow: /documents
+Disallow: /ask
+Disallow: /social
+Disallow: /friends
+Disallow: /circles
+Disallow: /shared
+Disallow: /settings
+Disallow: /auth
+Disallow: /home
+Disallow: /feed
+Disallow: /invite/
+
+Sitemap: https://katanapersonal.app/sitemap.xml

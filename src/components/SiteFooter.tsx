@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { BrandMark } from '@/components/BrandMark'
 import { SUPPORT_EMAIL } from '@/lib/brand'
+import { APP_STORE_URL } from '@/lib/site'
 import { cn } from '@/lib/utils'
 
 export function SiteFooter({ className }: { className?: string }) {
@@ -13,6 +14,9 @@ export function SiteFooter({ className }: { className?: string }) {
     >
       <BrandMark to="/" compact />
       <nav className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <a href={APP_STORE_URL} target="_blank" rel="noreferrer" className="hover:text-foreground">
+          App Store
+        </a>
         <Link to="/privacy" className="hover:text-foreground">
           Privacy
         </Link>

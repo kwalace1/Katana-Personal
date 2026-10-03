@@ -13,9 +13,11 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { BrandMark } from '@/components/BrandMark'
+import { MarketingSeo } from '@/components/MarketingSeo'
 import { SiteFooter } from '@/components/SiteFooter'
 import { APP_NAME_FULL, COMPANY_LEGAL, COMPANY_NAME, DESCRIPTION, SUPPORT_EMAIL, TAGLINE } from '@/lib/brand'
 import { pageEnterSubtle, staggerContainer, staggerItem } from '@/lib/motion-ui'
+import { MARKETING_FAQS } from '@/lib/site'
 import { iosDownloadUrl } from '@/lib/web-app-lock'
 import { cn } from '@/lib/utils'
 
@@ -69,8 +71,9 @@ const NOT_THIS = [
 
 const NAV = [
   { href: '#loop', label: 'The loop' },
+  { href: '#wellness', label: 'Wellness' },
+  { href: '#faq', label: 'FAQ' },
   { href: '#about', label: 'About' },
-  { href: '#privacy', label: 'Privacy' },
   { href: '#get', label: 'Get the app' },
 ] as const
 
@@ -101,6 +104,7 @@ function CtaButtons({ className }: { className?: string }) {
 export default function MarketingPage() {
   return (
     <div className="relative min-h-[100dvh] overflow-x-hidden">
+      <MarketingSeo />
       <div className="pointer-events-none absolute inset-0 -z-10">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_90%_55%_at_50%_-15%,hsl(168_45%_70%/0.5),transparent_58%)]" />
         <div className="absolute -left-32 top-32 h-[28rem] w-[28rem] rounded-full bg-[hsl(168_45%_70%/0.22)] blur-3xl" />
@@ -143,8 +147,8 @@ export default function MarketingPage() {
             </p>
             <CtaButtons className="mt-9" />
             <p className="mt-5 max-w-md text-sm leading-relaxed text-muted-foreground">
-              This site is about the product. The daily OS lives on iPhone — download it on the App
-              Store. There is no web login.
+              Free on the App Store for iPhone. This site is the product story and download page —
+              there is no web login.
             </p>
           </motion.div>
 
@@ -285,6 +289,42 @@ export default function MarketingPage() {
           </div>
         </section>
 
+        {/* Wellness — SEO-facing, one job */}
+        <section id="wellness" className="scroll-mt-20 mx-auto w-full max-w-6xl px-5 py-16 sm:px-8 sm:py-24">
+          <div className="max-w-2xl">
+            <p className="kp-section-label">Wellness &amp; daily life</p>
+            <h2 className="font-display mt-3 text-3xl tracking-tight sm:text-4xl">
+              A daily planner that keeps health in the loop
+            </h2>
+            <p className="mt-4 text-base leading-relaxed text-muted-foreground sm:text-lg">
+              Looking for a calm habit tracker, wellness journal, or focus planner? Katana brings
+              those signals into one private day loop on iPhone — so sleep, movement, meals, and
+              habits inform what you do next, without becoming the whole product.
+            </p>
+          </div>
+          <ul className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {[
+              {
+                title: 'Habits that stick to the day',
+                body: 'Build routines beside your next step — streak-aware, not a separate app you forget to open.',
+              },
+              {
+                title: 'Wellness signals, not noise',
+                body: 'Log cardio, lifts, sleep import, and meals as context for Today. For your own tracking — not a diagnosis.',
+              },
+              {
+                title: 'Journal & close the day',
+                body: 'Capture thoughts, review the week, and share wins with friends only when you choose Together.',
+              },
+            ].map((item) => (
+              <li key={item.title}>
+                <h3 className="font-display text-xl tracking-tight">{item.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{item.body}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
+
         {/* Privacy */}
         <section id="privacy" className="scroll-mt-20 mx-auto grid w-full max-w-6xl gap-10 px-5 py-16 sm:px-8 sm:py-24 lg:grid-cols-[1fr_1.1fr] lg:items-center">
           <div>
@@ -327,6 +367,31 @@ export default function MarketingPage() {
                 own models on your life.
               </li>
             </ul>
+          </div>
+        </section>
+
+        {/* FAQ — FAQPage schema in index.html + MarketingSeo */}
+        <section id="faq" className="scroll-mt-20 border-t border-border/40 bg-card/20 py-16 sm:py-24">
+          <div className="mx-auto w-full max-w-6xl px-5 sm:px-8">
+            <div className="max-w-2xl">
+              <p className="kp-section-label">FAQ</p>
+              <h2 className="font-display mt-3 text-3xl tracking-tight sm:text-4xl">
+                Common questions
+              </h2>
+              <p className="mt-4 text-base leading-relaxed text-muted-foreground">
+                Straight answers for people comparing daily planners, habit apps, and wellness tools.
+              </p>
+            </div>
+            <dl className="mt-10 max-w-3xl space-y-8">
+              {MARKETING_FAQS.map((item) => (
+                <div key={item.question}>
+                  <dt className="font-display text-xl tracking-tight">{item.question}</dt>
+                  <dd className="mt-2 text-sm leading-relaxed text-muted-foreground sm:text-base">
+                    {item.answer}
+                  </dd>
+                </div>
+              ))}
+            </dl>
           </div>
         </section>
 
