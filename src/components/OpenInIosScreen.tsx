@@ -31,27 +31,23 @@ export function OpenInIosScreen({
               <a href={deepLink}>Open in Katana</a>
             </Button>
           ) : null}
-          {download ? (
-            <Button
-              asChild
-              variant={deepLink ? 'outline' : 'default'}
-              className="min-h-12 w-full"
-              size="lg"
-            >
-              <a href={download} target="_blank" rel="noreferrer">
-                Get the iPhone app
-              </a>
-            </Button>
-          ) : null}
-        </div>
-        {!download ? (
-          <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
-            Katana is an iPhone app. If you already have TestFlight, open it there. Questions:{' '}
-            <a className="underline-offset-4 hover:underline" href={`mailto:${SUPPORT_EMAIL}`}>
-              {SUPPORT_EMAIL}
+          <Button
+            asChild
+            variant={deepLink ? 'outline' : 'default'}
+            className="min-h-12 w-full"
+            size="lg"
+          >
+            <a href={download} target="_blank" rel="noreferrer">
+              Download on the App Store
             </a>
-          </p>
-        ) : null}
+          </Button>
+        </div>
+        <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
+          Katana is an iPhone app. Questions:{' '}
+          <a className="underline-offset-4 hover:underline" href={`mailto:${SUPPORT_EMAIL}`}>
+            {SUPPORT_EMAIL}
+          </a>
+        </p>
         <SiteFooter className="mt-10" />
       </div>
     </div>

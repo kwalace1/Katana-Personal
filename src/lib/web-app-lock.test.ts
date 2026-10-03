@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  APP_STORE_URL,
   isWebPublicPath,
   nativeInviteDeepLink,
+  resolveIosDownloadUrl,
   resolveWebAppLocked,
 } from './web-app-lock'
 
@@ -64,5 +66,17 @@ describe('nativeInviteDeepLink', () => {
     expect(nativeInviteDeepLink('friend', 'ab12')).toBe(
       'katanapersonal://invite/friend/ab12',
     )
+  })
+})
+
+describe('resolveIosDownloadUrl', () => {
+  it('defaults to the live App Store listing', () => {
+    expect(resolveIosDownloadUrl()).toBe(APP_STORE_URL)
+    expect(resolveIosDownloadUrl('')).toBe(APP_STORE_URL)
+    expect(resolveIosDownloadUrl('   ')).toBe(APP_STORE_URL)
+  })
+
+  it('lets VITE_IOS_DOWNLOAD_URL override the default', () => {
+    expect(resolveIosDownloadUrl('https://example.com/app')).toBe('https://example.com/app')
   })
 })

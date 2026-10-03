@@ -78,25 +78,17 @@ function CtaButtons({ className }: { className?: string }) {
   const download = iosDownloadUrl()
   return (
     <div className={cn('flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center', className)}>
-      {download ? (
-        <Button asChild size="lg" className="min-h-12 px-7">
-          <a href={download} target="_blank" rel="noreferrer">
-            Get it on iPhone
-          </a>
-        </Button>
-      ) : (
-        <Button asChild size="lg" className="min-h-12 px-7">
-          <a href={`mailto:${SUPPORT_EMAIL}?subject=Katana%20TestFlight`}>
-            <Smartphone className="mr-2 h-4 w-4" />
-            Ask for TestFlight
-          </a>
-        </Button>
-      )}
+      <Button asChild size="lg" className="min-h-12 px-7">
+        <a href={download} target="_blank" rel="noreferrer">
+          <Smartphone className="mr-2 h-4 w-4" />
+          Download on the App Store
+        </a>
+      </Button>
       <a
         className="text-sm font-medium text-primary underline-offset-4 hover:underline"
         href={`mailto:${SUPPORT_EMAIL}`}
       >
-        {download ? 'Support' : 'Questions? Email us'}
+        Support
       </a>
     </div>
   )
@@ -151,8 +143,8 @@ export default function MarketingPage() {
             </p>
             <CtaButtons className="mt-9" />
             <p className="mt-5 max-w-md text-sm leading-relaxed text-muted-foreground">
-              This site is about the product. The daily OS lives on iPhone — TestFlight now, App Store
-              next. There is no web login.
+              This site is about the product. The daily OS lives on iPhone — download it on the App
+              Store. There is no web login.
             </p>
           </motion.div>
 
@@ -371,7 +363,7 @@ export default function MarketingPage() {
                     Product
                   </p>
                   <p className="mt-1 font-display text-xl tracking-tight">{APP_NAME_FULL}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">iPhone · TestFlight · App Store next</p>
+                  <p className="mt-1 text-sm text-muted-foreground">iPhone · Available on the App Store</p>
                 </div>
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
@@ -384,7 +376,7 @@ export default function MarketingPage() {
                     {SUPPORT_EMAIL}
                   </a>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    TestFlight invites, support, and press — same inbox.
+                    Support and press — same inbox.
                   </p>
                 </div>
                 <div>
@@ -392,8 +384,7 @@ export default function MarketingPage() {
                     Status
                   </p>
                   <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                    Soft launch on TestFlight. We’re iterating with real daily use before a wider App
-                    Store release.
+                    Live on the App Store. Download Katana Personal on iPhone and start your day loop.
                   </p>
                 </div>
               </div>
@@ -411,8 +402,8 @@ export default function MarketingPage() {
                 Your day, on this iPhone
               </h2>
               <p className="mt-4 text-base leading-relaxed text-muted-foreground sm:text-lg">
-                Katana isn’t a website you log into. If you’re on TestFlight already, open the app.
-                If you want in, ask for access — we’ll get you a link.
+                Katana isn’t a website you log into. Get it on the App Store, then open the app on
+                your iPhone.
               </p>
               <CtaButtons className="mt-8" />
             </div>

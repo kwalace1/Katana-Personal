@@ -37,10 +37,18 @@ export function isWebAppLocked(): boolean {
   })
 }
 
-/** Optional App Store / TestFlight public URL (set `VITE_IOS_DOWNLOAD_URL` when you have one). */
-export function iosDownloadUrl(): string | null {
-  const fromEnv = (import.meta.env.VITE_IOS_DOWNLOAD_URL as string | undefined)?.trim()
-  return fromEnv || null
+/** Live App Store listing — default CTA on the public marketing site. */
+export const APP_STORE_URL = 'https://apps.apple.com/us/app/katana-personal/id6813697936'
+
+/** Pure resolver — env override wins; otherwise the live App Store URL. */
+export function resolveIosDownloadUrl(fromEnv?: string | null): string {
+  const trimmed = fromEnv?.trim()
+  return trimmed || APP_STORE_URL
+}
+
+/** Public download URL for marketing / open-in-iOS screens. Override with `VITE_IOS_DOWNLOAD_URL`. */
+export function iosDownloadUrl(): string {
+  return resolveIosDownloadUrl(import.meta.env.VITE_IOS_DOWNLOAD_URL as string | undefined)
 }
 
 export function nativeInviteDeepLink(kind: 'circle' | 'friend', value: string): string {
