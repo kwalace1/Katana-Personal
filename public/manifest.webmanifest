@@ -1,15 +1,22 @@
 {
   "name": "Katana Personal",
   "short_name": "Katana",
-  "description": "Plan the day. Do the next thing. Share your wins.",
+  "description": "Calm daily planner for wellness and focus. Plan the day. Do the next thing. Share your wins — private on your iPhone.",
   "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",
   "background_color": "#F4F8F9",
   "theme_color": "#2F6F68",
   "orientation": "portrait-primary",
-  "categories": ["productivity", "lifestyle"],
-  "prefer_related_applications": false,
+  "categories": ["productivity", "lifestyle", "health"],
+  "prefer_related_applications": true,
+  "related_applications": [
+    {
+      "platform": "itunes",
+      "url": "https://apps.apple.com/us/app/katana-personal/id6813697936",
+      "id": "6813697936"
+    }
+  ],
   "shortcuts": [
     {
       "name": "Calendar",

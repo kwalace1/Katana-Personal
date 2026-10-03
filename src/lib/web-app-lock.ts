@@ -1,4 +1,5 @@
 import { isNativeShell } from '@/lib/native/platform'
+import { APP_STORE_URL as DEFAULT_APP_STORE_URL } from '@/lib/site'
 
 /**
  * Production website is a marketing page. The full product stays on:
@@ -38,12 +39,12 @@ export function isWebAppLocked(): boolean {
 }
 
 /** Live App Store listing — default CTA on the public marketing site. */
-export const APP_STORE_URL = 'https://apps.apple.com/us/app/katana-personal/id6813697936'
+export const APP_STORE_URL = DEFAULT_APP_STORE_URL
 
 /** Pure resolver — env override wins; otherwise the live App Store URL. */
 export function resolveIosDownloadUrl(fromEnv?: string | null): string {
   const trimmed = fromEnv?.trim()
-  return trimmed || APP_STORE_URL
+  return trimmed || DEFAULT_APP_STORE_URL
 }
 
 /** Public download URL for marketing / open-in-iOS screens. Override with `VITE_IOS_DOWNLOAD_URL`. */
