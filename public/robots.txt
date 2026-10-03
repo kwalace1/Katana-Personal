@@ -1,4 +1,4 @@
-# Katana Personal — https://katanapersonal.app
+# Katana Personal — https://www.katanapersonal.app
 User-agent: *
 Allow: /
 Allow: /privacy
@@ -25,4 +25,5 @@ Disallow: /home
 Disallow: /feed
 Disallow: /invite/
 
-Sitemap: https://katanapersonal.app/sitemap.xml
+# Must be the www host — apex redirects and GSC fails "Sitemap could not be read".
+Sitemap: https://www.katanapersonal.app/sitemap.xml
