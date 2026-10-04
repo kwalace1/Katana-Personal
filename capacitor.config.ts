@@ -42,7 +42,10 @@ const config: CapacitorConfig = {
     // 'automatic' insets the WebView and leaves a native black strip above the page.
     // Draw edge-to-edge; CSS env(safe-area-inset-*) pads content under the status bar.
     contentInset: 'never',
-    preferredContentMode: 'mobile',
+    // 'mobile' can leave a blank/black WKWebView on large iPad simulators; let WebKit pick.
+    preferredContentMode: 'recommended',
+    // Avoid a black flash behind the WebView (default UIKit background).
+    backgroundColor: '#F4F8F9',
     scheme: 'Katana Personal',
   },
 }
