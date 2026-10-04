@@ -1,6 +1,10 @@
-/** Canonical public site + SEO strings for katanapersonal.app */
-
-export const SITE_URL = 'https://katanapersonal.app'
+/**
+ * Canonical public site + SEO strings.
+ * Vercel’s primary host is www (apex 308s → www). Google Search Console
+ * cannot reliably read sitemaps that only return a redirect, so all SEO
+ * URLs must use the www origin that serves 200.
+ */
+export const SITE_URL = 'https://www.katanapersonal.app'
 export const SITE_ORIGIN = SITE_URL
 
 /** Apple App Store numeric id (Smart App Banner + structured data). */

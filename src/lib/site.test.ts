@@ -10,7 +10,7 @@ import {
 
 describe('site SEO constants', () => {
   it('uses the live .app origin and App Store listing', () => {
-    expect(SITE_URL).toBe('https://katanapersonal.app')
+    expect(SITE_URL).toBe('https://www.katanapersonal.app')
     expect(APPLE_APP_ID).toBe('6813697936')
     expect(APP_STORE_URL).toContain(APPLE_APP_ID)
     expect(APP_STORE_URL).toContain('apps.apple.com')
