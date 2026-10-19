@@ -83,7 +83,7 @@ export function SettingsTogetherPage() {
     >
       <SettingsPanel>
         {!cloudEnabled ? (
-          <p className="rounded-2xl bg-secondary/60 px-4 py-3 text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             Together isn’t available in this build. Friends, Circles, and cloud sync will show up here when
             they’re turned on.
           </p>
@@ -95,8 +95,8 @@ export function SettingsTogetherPage() {
                 <span className="text-muted-foreground"> ({cloudProfile.email})</span>
               ) : null}
             </p>
-            <div className="rounded-2xl bg-primary/10 px-4 py-3">
-              <p className="text-xs font-medium uppercase tracking-wide text-primary">Share your code</p>
+            <div className="border-t border-border pt-3">
+              <p className="kp-section-label text-primary">Share your code</p>
               <p className="font-display mt-1 text-2xl tracking-widest">{cloudProfile.friendCode}</p>
               <div className="mt-2 flex flex-wrap gap-2">
                 <Button

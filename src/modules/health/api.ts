@@ -18,6 +18,7 @@ import type {
   SupplementTimeOfDay,
   GeoPoint,
 } from './types'
+import { formatWater, glassesFromMl, GLASS_ML, mlFromAmount, waterMl, type WaterUnit } from './water'
 
 const WORKOUTS = 'workouts'
 const WATER = 'water_logs'
@@ -26,9 +27,6 @@ const DIET_PLANS = 'diet_plans'
 const SLEEP = 'sleep_logs'
 const SUPPLEMENT_ITEMS = 'supplement_items'
 const SUPPLEMENT_LOGS = 'supplement_logs'
-
-/** Daily goal used for Circles hydration streaks */
-export const WATER_GOAL_GLASSES = 6
 
 export const MEAL_CATEGORIES: { value: MealCategory; label: string }[] = [
   { value: 'breakfast', label: 'Breakfast' },
@@ -54,8 +52,10 @@ function now() {
 function pickBestWaterRows(rows: WaterLog[]): WaterLog | null {
   if (rows.length === 0) return null
   return rows.reduce((best, row) => {
-    if (row.glasses > best.glasses) return row
-    if (row.glasses === best.glasses && (row.updated_at || '') > (best.updated_at || '')) return row
+    const rowMl = waterMl(row)
+    const bestMl = waterMl(best)
+    if (rowMl > bestMl) return row
+    if (rowMl === bestMl && (row.updated_at || '') > (best.updated_at || '')) return row
     return best
   })
 }
@@ -74,8 +74,8 @@ function dedupeWaterLogs(rows: WaterLog[]): WaterLog[] {
       continue
     }
     if (
-      row.glasses > existing.glasses ||
-      (row.glasses === existing.glasses && (row.updated_at || '') > (existing.updated_at || ''))
+      waterMl(row) > waterMl(existing) ||
+      (waterMl(row) === waterMl(existing) && (row.updated_at || '') > (existing.updated_at || ''))
     ) {
       byDate.set(row.date, row)
     }
@@ -160,6 +160,46 @@ export function formatMacros(entry: { protein?: number; carbs?: number; fat?: nu
 
 function localTimeHHMM(date = new Date()) {
   return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+}
+
+const MAX_WATER_ML = 15_000
+
+function writeWater(userId: string, date: string, ml: number): WaterLog {
+  const nextMl = Math.round(Math.min(MAX_WATER_ML, Math.max(0, ml)))
+  const nextGlasses = glassesFromMl(nextMl)
+  const rows = localDb.list<WaterLog>(WATER, userId).filter((w) => w.date === date)
+  const best = pickBestWaterRows(rows)
+  let updated: WaterLog
+  if (!best) {
+    updated = localDb.insert(WATER, userId, {
+      id: createId(),
+      user_id: userId,
+      date,
+      glasses: nextGlasses,
+      ml: nextMl,
+      updated_at: now(),
+    })
+  } else {
+    updated =
+      localDb.update<WaterLog>(WATER, userId, best.id, {
+        glasses: nextGlasses,
+        ml: nextMl,
+        updated_at: now(),
+      }) || { ...best, glasses: nextGlasses, ml: nextMl, updated_at: now() }
+    for (const row of rows) {
+      if (row.id !== best.id) localDb.remove(WATER, userId, row.id)
+    }
+  }
+  if (date === todayKey()) {
+    notifyCheckIn(
+      nextMl === 0
+        ? 'Reset water for today'
+        : `Logged water — ${formatWater(nextMl, 'ml')} today`,
+    )
+  } else {
+    notifyLocalProgress()
+  }
+  return updated
 }
 
 export const healthApi = {
@@ -261,48 +301,27 @@ export const healthApi = {
       user_id: userId,
       date,
       glasses: 0,
+      ml: 0,
       updated_at: '',
     }
   },
 
   setWater(userId: string, glasses: number, date = todayKey()): WaterLog {
     const next = Math.max(0, glasses)
-    const rows = localDb.list<WaterLog>(WATER, userId).filter((w) => w.date === date)
-    const best = pickBestWaterRows(rows)
-    let updated: WaterLog
-    if (!best) {
-      updated = localDb.insert(WATER, userId, {
-        id: createId(),
-        user_id: userId,
-        date,
-        glasses: next,
-        updated_at: now(),
-      })
-    } else {
-      updated =
-        localDb.update<WaterLog>(WATER, userId, best.id, {
-          glasses: next,
-          updated_at: now(),
-        }) || { ...best, glasses: next, updated_at: now() }
-      for (const row of rows) {
-        if (row.id !== best.id) localDb.remove(WATER, userId, row.id)
-      }
-    }
-    if (date === todayKey()) {
-      notifyCheckIn(
-        next === 0
-          ? 'Reset water for today'
-          : `Logged water — ${next} glass${next === 1 ? '' : 'es'} today`,
-      )
-    } else {
-      notifyLocalProgress()
-    }
-    return updated
+    return writeWater(userId, date, next * GLASS_ML)
+  },
+
+  /** Add (or subtract) a volume. */
+  addVolume(userId: string, amount: number, unit: WaterUnit, date = todayKey()): WaterLog {
+    const current = healthApi.getWater(userId, date)
+    if (!Number.isFinite(amount) || amount === 0) return current
+    const delta = mlFromAmount(amount, unit)
+    if (!Number.isFinite(delta) || delta === 0) return current
+    return writeWater(userId, date, waterMl(current) + delta)
   },
 
   addGlass(userId: string, date = todayKey()): WaterLog {
-    const current = healthApi.getWater(userId, date)
-    return healthApi.setWater(userId, current.glasses + 1, date)
+    return healthApi.addVolume(userId, 250, 'ml', date)
   },
 
   listNutrition(userId: string): NutritionLog[] {
@@ -570,19 +589,20 @@ export const healthApi = {
     )
   },
 
-  waterSeries(userId: string, days = 7): { date: string; glasses: number }[] {
+  waterSeries(userId: string, days = 7): { date: string; ml: number }[] {
     cleanupWaterDuplicates(userId)
     const map = new Map<string, number>()
     for (const w of healthApi.listWater(userId)) {
       const prev = map.get(w.date)
-      if (prev == null || w.glasses > prev) map.set(w.date, w.glasses)
+      const ml = waterMl(w)
+      if (prev == null || ml > prev) map.set(w.date, ml)
     }
-    const out: { date: string; glasses: number }[] = []
+    const out: { date: string; ml: number }[] = []
     let cursor = new Date()
     cursor.setDate(cursor.getDate() - (days - 1))
     for (let i = 0; i < days; i++) {
       const key = todayKey(cursor)
-      out.push({ date: key, glasses: map.get(key) ?? 0 })
+      out.push({ date: key, ml: map.get(key) ?? 0 })
       cursor.setDate(cursor.getDate() + 1)
     }
     return out

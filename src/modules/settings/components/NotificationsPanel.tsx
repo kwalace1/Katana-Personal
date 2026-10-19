@@ -118,7 +118,7 @@ export function NotificationsPanel({
 
   return (
     <>
-      <section className="kp-surface mb-4 space-y-4 p-5">
+      <section className="kp-surface mb-4 space-y-3 p-4">
         <div className="flex items-center justify-between gap-4">
           <div>
             <h2 className="font-semibold">Gentle reminders</h2>
@@ -131,7 +131,7 @@ export function NotificationsPanel({
           <Switch checked={gentle} onCheckedChange={(v) => void onToggleReminders(v)} />
         </div>
 
-        <div className="flex items-center justify-between gap-4 rounded-2xl border border-border/50 bg-secondary/20 px-4 py-3">
+        <div className="flex items-center justify-between gap-4 border-t border-border pt-3">
           <div>
             <p className="text-sm font-medium">Together & Social alerts</p>
             <p className="mt-0.5 text-xs text-muted-foreground">
@@ -144,7 +144,7 @@ export function NotificationsPanel({
           <Switch checked={socialPush} onCheckedChange={(v) => void onToggleSocialPush(v)} />
         </div>
 
-        <div className="flex items-center justify-between gap-4 rounded-2xl border border-border/50 bg-secondary/20 px-4 py-3">
+        <div className="flex items-center justify-between gap-4 border-t border-border pt-3">
           <div>
             <p className="text-sm font-medium">Proactive orchestration nudges</p>
             <p className="mt-0.5 text-xs text-muted-foreground">
@@ -156,7 +156,7 @@ export function NotificationsPanel({
           <Switch checked={orchPush} onCheckedChange={(v) => void onToggleOrchestrationPush(v)} />
         </div>
 
-        <div className="rounded-2xl border border-border/50 bg-secondary/20 px-4 py-3 space-y-3">
+        <div className="space-y-3 border-t border-border pt-3">
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="text-sm font-medium">Quiet hours</p>

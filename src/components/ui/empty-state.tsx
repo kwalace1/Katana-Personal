@@ -8,6 +8,8 @@ interface EmptyStateProps {
   className?: string
   action?: React.ReactNode
   compact?: boolean
+  /** Skip the card chrome when this already sits inside a section. */
+  plain?: boolean
 }
 
 export function EmptyState({
@@ -17,25 +19,27 @@ export function EmptyState({
   className,
   action,
   compact = false,
+  plain = false,
 }: EmptyStateProps) {
   return (
     <div
       className={cn(
-        'kp-surface flex flex-col items-center justify-center text-center',
-        compact ? 'px-4 py-10' : 'px-6 py-14',
+        'flex flex-col items-center justify-center px-4 py-5 text-center',
+        plain ? 'px-0 py-2' : 'kp-surface',
+        compact && 'py-5',
         className,
       )}
     >
       {Icon ? (
-        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-accent text-primary">
-          <Icon className="h-5 w-5" aria-hidden />
+        <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-primary">
+          <Icon className="h-4 w-4" aria-hidden />
         </div>
       ) : null}
-      <h3 className="font-display text-xl tracking-tight text-foreground">{title}</h3>
+      <h3 className="font-display text-base tracking-tight text-foreground">{title}</h3>
       {description ? (
-        <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">{description}</p>
+        <p className="mt-1 max-w-sm text-sm text-muted-foreground">{description}</p>
       ) : null}
-      {action ? <div className="mt-5">{action}</div> : null}
+      {action ? <div className="mt-3">{action}</div> : null}
     </div>
   )
 }

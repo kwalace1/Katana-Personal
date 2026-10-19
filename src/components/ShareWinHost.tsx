@@ -181,7 +181,7 @@ export function ShareWinHost() {
           <>
             <SheetHeader className="border-b border-border/40 px-5 pb-4 pt-2 text-left">
               <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border" />
-              <SheetTitle className="font-display text-2xl tracking-tight">
+              <SheetTitle className="font-display text-lg tracking-tight">
                 {resolvedOffer?.headline || offer.headline}
               </SheetTitle>
               <SheetDescription>

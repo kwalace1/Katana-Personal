@@ -1,3 +1,4 @@
+import { Segmented } from '@/components/ui/segmented'
 import { cn } from '@/lib/utils'
 
 export function HealthCardHeader({
@@ -15,7 +16,7 @@ export function HealthCardHeader({
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="min-w-0 max-w-xl">
         {eyebrow ? <p className="kp-section-label">{eyebrow}</p> : null}
-        <h3 className="mt-1 font-display text-xl tracking-tight">{title}</h3>
+        <h3 className="mt-1 font-display text-lg tracking-tight">{title}</h3>
         {description ? (
           <div className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{description}</div>
         ) : null}
@@ -30,16 +31,18 @@ export function HealthStat({
   value,
   hint,
   valueClassName,
+  className,
 }: {
   label: string
   value: string
   hint?: string
   valueClassName?: string
+  className?: string
 }) {
   return (
-    <div className="rounded-2xl bg-secondary/45 px-3.5 py-3">
+    <div className={cn('min-w-0', className)}>
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p className={cn('font-display text-xl tracking-tight', valueClassName)}>{value}</p>
+      <p className={cn('font-display text-lg tracking-tight', valueClassName)}>{value}</p>
       {hint ? <p className="mt-0.5 text-[0.7rem] leading-snug text-muted-foreground">{hint}</p> : null}
     </div>
   )
@@ -57,7 +60,7 @@ export function HealthPill({
   return (
     <span
       className={cn(
-        'inline-flex items-center rounded-full px-2.5 py-0.5 text-[0.65rem] font-semibold',
+        'inline-flex items-center rounded-md px-2 py-0.5 text-[0.65rem] font-semibold',
         tone === 'primary' ? 'bg-primary/12 text-primary' : 'bg-secondary text-muted-foreground',
         className,
       )}
@@ -82,34 +85,15 @@ export function HealthSegmented<T extends string>({
   full?: boolean
   size?: 'sm' | 'lg'
 }) {
-  const large = size === 'lg'
   return (
-    <div
-      className={cn(
-        'flex gap-0.5 bg-secondary/70 p-1',
-        large ? 'rounded-2xl' : 'rounded-full',
-        full ? 'w-full' : 'inline-flex flex-wrap',
-        className,
-      )}
-    >
-      {options.map((option) => (
-        <button
-          key={option.id}
-          type="button"
-          onClick={() => onChange(option.id)}
-          className={cn(
-            'font-semibold transition',
-            large ? 'h-10 rounded-xl px-4 text-sm' : 'h-8 rounded-full px-3 text-xs',
-            full && 'min-w-0 flex-1',
-            value === option.id
-              ? 'bg-background text-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground',
-          )}
-        >
-          {option.label}
-        </button>
-      ))}
-    </div>
+    <Segmented
+      options={options}
+      value={value}
+      onChange={onChange}
+      className={className}
+      full={full}
+      size={size}
+    />
   )
 }
 
@@ -128,9 +112,9 @@ export function HealthInner({
   children: React.ReactNode
   className?: string
 }) {
-  return <div className={cn('rounded-2xl bg-secondary/40 p-3', className)}>{children}</div>
+  return <div className={cn('border-t border-border pt-3', className)}>{children}</div>
 }
 
 export const healthTableHead =
-  'border-b border-border/50 text-left text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground'
+  'border-b border-border/50 text-left kp-section-label'
 export const healthTableCell = 'py-2.5 pr-3'

@@ -4,6 +4,7 @@ import { executeAskTools } from './ask-tools'
 import { createId } from '@/lib/id'
 import { assessContextGaps } from './context-gaps'
 import type { AskChatMessage, AskToolCall, CompactLifeSnapshot } from './ask-llm-types'
+import { waterGoalMl } from '@/modules/health/water'
 
 export type { CompactLifeSnapshot, AskChatMessage, AskToolCall }
 
@@ -30,6 +31,7 @@ export function compactSnapshot(snap: LifeSnapshot, userId?: string): CompactLif
     journalToday: snap.journalToday,
     journalMood: snap.journalMood,
     waterGlasses: snap.waterGlasses,
+    waterGoalMl: waterGoalMl(),
     sleepHoursLast: snap.sleepHoursLast,
     caloriesToday: snap.caloriesToday,
     week: {

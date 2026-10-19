@@ -1,4 +1,6 @@
 import { createId } from '@/lib/id'
+import { healthApi } from '@/modules/health/api'
+import { formatWater, mlFromAmount, readWaterGoal, readWaterUnit, waterUnitMeta, type WaterUnit } from '@/modules/health/water'
 import { buildSnapshot, runAskAction } from './engine'
 import type { AskAction } from './ask-api'
 import type { AskToolCall } from './ask-llm-types'
@@ -9,6 +11,23 @@ export type AskToolExecResult = {
   ok: boolean
   message: string
   action?: AskAction
+}
+
+function waterUnitFromArg(value: unknown): WaterUnit | null {
+  if (value === 'ml' || value === 'l' || value === 'cup' || value === 'floz') return value
+  if (value === 'fl oz' || value === 'oz') return 'floz'
+  return null
+}
+
+function mlFromWaterArgs(args: Record<string, unknown>): number {
+  const unit = waterUnitFromArg(args.unit)
+  const amount = typeof args.amount === 'number' ? args.amount : null
+  if (unit && amount != null && amount > 0) return mlFromAmount(amount, unit)
+  if (typeof args.glasses === 'number' && args.glasses > 0) {
+    return Math.min(12, Math.floor(args.glasses)) * 250
+  }
+  const preferred = readWaterUnit()
+  return mlFromAmount(waterUnitMeta(preferred).defaultAmount, preferred)
 }
 
 function parseArgs(raw: string): Record<string, unknown> {
@@ -143,23 +162,13 @@ export function executeAskTool(userId: string, call: AskToolCall): AskToolExecRe
     }
 
     if (name === 'log_water') {
-      const n =
-        typeof args.glasses === 'number' && args.glasses > 0
-          ? Math.min(12, Math.floor(args.glasses))
-          : 1
-      let message = ''
-      for (let i = 0; i < n; i++) {
-        message = runAskAction(userId, {
-          id: createId(),
-          label: 'Log water',
-          kind: 'log_water',
-        })
-      }
+      const ml = mlFromWaterArgs(args)
+      if (ml > 0) healthApi.addVolume(userId, ml, 'ml')
       return {
         toolCallId,
         name,
-        ok: true,
-        message: n === 1 ? message || 'Logged a glass of water.' : `Logged ${n} glasses of water.`,
+        ok: ml > 0,
+        message: ml > 0 ? `Logged ${formatWater(ml, readWaterGoal().unit)}.` : 'Need an amount and a unit.',
         action: { id: createId(), label: 'Open Health', kind: 'open_route', route: '/health' },
       }
     }

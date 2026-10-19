@@ -15,7 +15,6 @@ import { Input } from '@/components/ui/input'
 import { parseCapture, commitCapture } from '@/lib/capture'
 import { todayKey } from '@/lib/dates'
 import { offerEventCreatedShare, offerTaskCreatedShare } from '@/lib/social/share-win'
-import { cn } from '@/lib/utils'
 import { calendarApi } from '@/modules/calendar/api'
 import { goalsApi } from '@/modules/goals/api'
 import { habitsApi } from '@/modules/habits/api'
@@ -126,26 +125,22 @@ export function TodayQuickCreate({ userId, onCreated }: Props) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="mb-5 kp-surface p-4 sm:p-5">
+    <form onSubmit={onSubmit} className="mb-3 kp-surface p-4">
       <p className="kp-section-label">Create</p>
-      <p className="mt-1 font-display text-xl tracking-tight sm:text-2xl">What do you want to create?</p>
+      <p className="mt-1 font-display text-lg tracking-tight">What do you want to create?</p>
 
       <div className="mt-3 flex flex-wrap gap-1.5">
         {KINDS.map(({ id, label, Icon }) => (
-          <button
+          <Button
             key={id}
             type="button"
+            size="sm"
+            variant={kind === id ? 'default' : 'secondary'}
             onClick={() => setKind(id)}
-            className={cn(
-              'inline-flex min-h-9 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition',
-              kind === id
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-secondary/70 text-muted-foreground hover:text-foreground',
-            )}
           >
             <Icon className="h-3.5 w-3.5" />
             {label}
-          </button>
+          </Button>
         ))}
       </div>
 
@@ -163,7 +158,7 @@ export function TodayQuickCreate({ userId, onCreated }: Props) {
       </div>
 
       {preview && title.trim() ? (
-        <p className="mt-2 rounded-xl bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary">
+        <p className="mt-2 border-t border-border pt-2 text-xs font-medium text-primary">
           Will create: {preview}
         </p>
       ) : kind === 'task' || kind === 'event' ? (

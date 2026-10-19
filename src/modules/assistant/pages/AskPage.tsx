@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import { CheckCircle2, Send, Sparkles, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
+import { FilterChip } from '@/components/ui/filter-chip'
 import { Textarea } from '@/components/ui/textarea'
 import { PlusPaywallSheet, usePlusStatus } from '@/components/PlusPaywall'
 import { useAuth } from '@/contexts/AuthContext'
@@ -330,24 +331,14 @@ export default function AskPage() {
       {...pageEnterSubtle}
       className="kp-page relative mx-auto flex h-[calc(100dvh-3.75rem)] max-w-2xl flex-col overflow-hidden !py-4 md:h-[100dvh] md:!py-6 lg:!py-6"
     >
-      <div
-        className="pointer-events-none absolute -right-24 -top-16 h-56 w-56 rounded-full bg-primary/15 blur-3xl"
-        aria-hidden
-      />
-      <div
-        className="pointer-events-none absolute -left-20 top-40 h-48 w-48 rounded-full bg-[hsl(200_40%_50%/0.12)] blur-3xl"
-        aria-hidden
-      />
-
       <div className="relative flex min-h-0 flex-1 flex-col">
         <PageHeader
           className="mb-3 shrink-0 sm:mb-4"
-          eyebrow="Life-aware AI"
           title="Ask"
           description="Sees your tasks, calendar, habits, and goals — and can act on them."
           actions={
             <div className="flex flex-wrap items-center gap-2">
-              <Button asChild variant="outline" size="sm" className="rounded-full text-xs">
+              <Button asChild variant="ghost" size="sm" className="text-xs">
                 <Link to="/settings/ask">Voice · {modeMeta.label}</Link>
               </Button>
               {messages.length > 1 ? (
@@ -410,14 +401,14 @@ export default function AskPage() {
               </p>
             </div>
             {pending ? (
-              <span className="hidden rounded-full bg-primary/10 px-2.5 py-1 text-[0.65rem] font-medium text-primary sm:inline">
+              <span className="hidden rounded-md bg-primary/10 px-2 py-1 text-[0.65rem] font-medium text-primary sm:inline">
                 Working
               </span>
             ) : null}
           </div>
 
           <div
-            className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-5"
+            className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4 sm:px-5"
             role="log"
             aria-live="polite"
             aria-relevant="additions"
@@ -469,9 +460,9 @@ export default function AskPage() {
                               key={action.id}
                               type="button"
                               size="sm"
-                              variant="secondary"
+                              variant="outline"
                               disabled={used || pending}
-                              className="min-h-10 rounded-full px-3.5 text-xs"
+                              className="px-3 text-xs"
                               onClick={() => onAction(action, m)}
                             >
                               {used ? 'Done' : action.label}
@@ -488,17 +479,9 @@ export default function AskPage() {
             {emptyChat ? (
               <div className="flex flex-wrap gap-2 pt-1">
                 {emptyPrompts.map((prompt) => (
-                  <Button
-                    key={prompt}
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    disabled={pending}
-                    className="rounded-full border border-border/40 bg-background/70"
-                    onClick={() => void ask(prompt)}
-                  >
+                  <FilterChip key={prompt} disabled={pending} onClick={() => void ask(prompt)}>
                     {prompt}
-                  </Button>
+                  </FilterChip>
                 ))}
               </div>
             ) : null}

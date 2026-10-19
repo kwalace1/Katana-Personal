@@ -83,7 +83,7 @@ export default function FriendInvitePage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4 py-12">
-      <div className="kp-surface w-full max-w-md p-8">
+      <div className="kp-surface w-full max-w-md p-6">
         <BrandMark to="/" />
         <h1 className="font-display mt-8 text-2xl tracking-tight">Add me on Katana</h1>
         {!cloudEnabled ? (

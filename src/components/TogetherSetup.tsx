@@ -43,9 +43,9 @@ export function TogetherSetup({
   cloudConnected?: boolean
 }) {
   return (
-    <div className={cn('kp-surface p-4 sm:p-5', className)}>
+    <div className={cn('kp-surface p-5', className)}>
       <p className="kp-section-label">How Together works</p>
-      <p className="mt-1 font-display text-lg tracking-tight sm:text-xl">
+      <p className="mt-1 font-display text-lg tracking-tight">
         Friends · Plans · Circles
       </p>
       {!compact ? (

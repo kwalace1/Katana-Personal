@@ -27,6 +27,8 @@ export type CompactLifeSnapshot = {
   journalToday: boolean
   journalMood: string | null
   waterGlasses: number
+  /** Daily water goal in milliliters, when the client knows it. */
+  waterGoalMl?: number
   sleepHoursLast: number
   caloriesToday: number
   week: {

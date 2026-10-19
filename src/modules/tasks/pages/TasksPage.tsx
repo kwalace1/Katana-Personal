@@ -14,11 +14,13 @@ import { CSS } from '@dnd-kit/utilities'
 import { ChevronDown, GripVertical, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/PageHeader'
+import { navSectionLabel } from '@/lib/nav'
 import { Button } from '@/components/ui/button'
+import { FilterChip } from '@/components/ui/filter-chip'
+import { Segmented } from '@/components/ui/segmented'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { EmptyState } from '@/components/ui/empty-state'
 import { CompleteToggle } from '@/components/CompleteToggle'
 import { ShareAudiencePicker, type ShareAudienceSelection } from '@/components/ShareAudiencePicker'
 import { ShareWithFriendsButton } from '@/components/ShareWithFriendsButton'
@@ -534,23 +536,17 @@ export default function TasksPage() {
 
   return (
     <motion.div {...pageEnterSubtle} className="kp-page">
-      <PageHeader title="Tasks" description="What needs attention — dated tasks show on Calendar." eyebrow="Plan" />
+      <PageHeader title="Tasks" description="What needs attention — dated tasks show on Calendar." eyebrow={navSectionLabel('/tasks')} />
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <Button
-          size="sm"
-          variant={listId === 'all' ? 'default' : 'outline'}
-          className="rounded-full"
-          onClick={() => setListId('all')}
-        >
+        <FilterChip selected={listId === 'all'} onClick={() => setListId('all')}>
           All folders
-        </Button>
+        </FilterChip>
         {lists.map((list) => (
           <div key={list.id} className="flex items-center">
-            <Button
-              size="sm"
-              variant={listId === list.id ? 'default' : 'outline'}
-              className="rounded-full gap-1.5 pr-1"
+            <FilterChip
+              selected={listId === list.id}
+              className="gap-1.5 pr-1"
               onClick={() => {
                 setListId(list.id)
                 setCreateFolderId(list.id)
@@ -560,7 +556,7 @@ export default function TasksPage() {
               <span className="h-2 w-2 rounded-full" style={{ background: list.color }} />
               {list.name}
               <span className="text-[0.65rem] opacity-70">{tasksApi.tasksOnList(userId, list.id).length}</span>
-            </Button>
+            </FilterChip>
             {lists.length > 1 ? (
               <Button
                 type="button"
@@ -616,91 +612,86 @@ export default function TasksPage() {
         </form>
       </div>
 
-      <form onSubmit={onCreate} className="kp-surface mb-6 space-y-4 p-4 sm:p-5">
+      <form onSubmit={onCreate} className="kp-surface mb-3 space-y-2 p-3">
         <div className="flex gap-2">
           <Input
             placeholder="Add something…"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="flex-1"
+            className="h-9 flex-1"
           />
-          <Button type="submit" size="icon" aria-label="Add">
+          <Button type="submit" size="sm" className="h-9 gap-1.5 px-3" aria-label="Add task">
             <Plus className="h-4 w-4" />
+            {shareAudience.hasAny ? 'Add & share' : 'Add'}
           </Button>
         </div>
 
-        <div className="space-y-1.5">
-          <p className="text-xs font-medium text-muted-foreground">Due date</p>
-          <div className="relative">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[12rem] flex-1">
             <Input
               type="datetime-local"
               value={dueAt}
               onChange={(e) => setDueAt(e.target.value)}
-              className={cn('w-full min-h-11', !dueAt && 'text-transparent')}
+              className={cn('h-9 w-full', !dueAt && 'text-transparent')}
               aria-label="Set due date"
             />
             {!dueAt ? (
               <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-muted-foreground">
-                Set due date here
+                Due date
               </span>
             ) : null}
           </div>
-          <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="rounded-full"
+            onClick={() => {
+              const d = new Date()
+              d.setHours(9, 0, 0, 0)
+              const pad = (n: number) => String(n).padStart(2, '0')
+              setDueAt(
+                `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`,
+              )
+            }}
+          >
+            Today
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="rounded-full"
+            onClick={() => {
+              const d = new Date()
+              d.setDate(d.getDate() + 1)
+              d.setHours(9, 0, 0, 0)
+              const pad = (n: number) => String(n).padStart(2, '0')
+              setDueAt(
+                `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`,
+              )
+            }}
+          >
+            Tomorrow
+          </Button>
+          {dueAt ? (
             <Button
               type="button"
               size="sm"
-              variant="outline"
-              className="rounded-full"
-              onClick={() => {
-                const d = new Date()
-                d.setHours(9, 0, 0, 0)
-                const pad = (n: number) => String(n).padStart(2, '0')
-                setDueAt(
-                  `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`,
-                )
-              }}
+              variant="ghost"
+              className="rounded-full text-muted-foreground"
+              onClick={() => setDueAt('')}
             >
-              Today
+              Clear
             </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="rounded-full"
-              onClick={() => {
-                const d = new Date()
-                d.setDate(d.getDate() + 1)
-                d.setHours(9, 0, 0, 0)
-                const pad = (n: number) => String(n).padStart(2, '0')
-                setDueAt(
-                  `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`,
-                )
-              }}
-            >
-              Tomorrow
-            </Button>
-            {dueAt ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="rounded-full text-muted-foreground"
-                onClick={() => setDueAt('')}
-              >
-                Clear
-              </Button>
-            ) : null}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {dueAt ? 'This task will show on your calendar.' : 'Optional — add a date to place it on the calendar.'}
-          </p>
+          ) : null}
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1.5 sm:col-span-2">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="space-y-1.5">
             <p className="text-xs font-medium text-muted-foreground">Folder</p>
             <Select value={createFolderId} onValueChange={setCreateFolderId}>
-              <SelectTrigger className="min-h-11">
+              <SelectTrigger className="!h-9 w-full">
                 <SelectValue placeholder="Choose folder" />
               </SelectTrigger>
               <SelectContent>
@@ -718,7 +709,7 @@ export default function TasksPage() {
           <div className="space-y-1.5">
             <p className="text-xs font-medium text-muted-foreground">Priority</p>
             <Select value={priority} onValueChange={(v) => setPriority(v as TaskPriority)}>
-              <SelectTrigger className="min-h-11">
+              <SelectTrigger className="!h-9 w-full">
                 <SelectValue placeholder="Choose priority" />
               </SelectTrigger>
               <SelectContent>
@@ -731,7 +722,7 @@ export default function TasksPage() {
           <div className="space-y-1.5">
             <p className="text-xs font-medium text-muted-foreground">Category</p>
             <Select value={category} onValueChange={(v) => setCategory(v as EventCategory)}>
-              <SelectTrigger className="min-h-11">
+              <SelectTrigger className="!h-9 w-full">
                 <SelectValue placeholder="Category" />
               </SelectTrigger>
               <SelectContent>
@@ -746,10 +737,10 @@ export default function TasksPage() {
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1.5 sm:col-span-2">
+          <div className="space-y-1.5">
             <p className="text-xs font-medium text-muted-foreground">Repeat</p>
             <Select value={recurrence} onValueChange={(v) => setRecurrence(v as Recurrence)}>
-              <SelectTrigger className="min-h-11">
+              <SelectTrigger className="!h-9 w-full">
                 <SelectValue placeholder="Does it repeat?" />
               </SelectTrigger>
               <SelectContent>
@@ -762,15 +753,7 @@ export default function TasksPage() {
           </div>
         </div>
 
-        <div className="space-y-1.5 rounded-xl border border-primary/20 bg-primary/5 p-3">
-          <p className="text-xs font-medium text-muted-foreground">Share when creating</p>
-          <p className="text-xs text-muted-foreground">
-            {cloudUser
-              ? dueAt
-                ? 'Optional — pick a circle or friends now. Circles also get a calendar entry.'
-                : 'Optional — pick friends now, or set a due date to share onto a circle calendar.'
-              : 'Connect under Settings to share with circles or friends while creating.'}
-          </p>
+        <div className="flex flex-wrap items-center gap-2">
           {cloudUser ? (
             <ShareAudiencePicker
               uid={cloudUser.uid}
@@ -786,54 +769,29 @@ export default function TasksPage() {
               <Link to="/settings">Connect to share</Link>
             </Button>
           )}
+          {dueAt ? (
+            <p className="text-xs text-muted-foreground">Shows on your calendar.</p>
+          ) : null}
         </div>
-
-        <Button type="submit" className="w-full sm:w-auto">
-          {shareAudience.hasAny ? 'Add & share task' : 'Add task'}
-        </Button>
       </form>
 
-      <div className="mb-4 flex flex-wrap gap-2">
-        {(
-          [
-            ['open', 'Open'],
-            ['overdue', `Overdue${overdue.length ? ` (${overdue.length})` : ''}`],
-            ['done', 'Done'],
-            ['all', 'All'],
-          ] as const
-        ).map(([key, label]) => (
-          <Button
-            key={key}
-            size="sm"
-            variant={filter === key ? 'default' : 'outline'}
-            className="rounded-full"
-            onClick={() => setFilter(key)}
-          >
-            {label}
-          </Button>
-        ))}
-      </div>
+      <Segmented
+        className="mb-3"
+        value={filter}
+        onChange={setFilter}
+        options={[
+          { id: 'open', label: 'Open' },
+          { id: 'overdue', label: overdue.length ? `Overdue (${overdue.length})` : 'Overdue' },
+          { id: 'done', label: 'Done' },
+          { id: 'all', label: 'All' },
+        ]}
+      />
 
       <div>
         {visible.length === 0 ? (
-          <EmptyState
-            title={selectedList ? `Nothing in ${selectedList.name}` : 'Nothing here'}
-            description={
-              selectedList
-                ? 'Add a task above — it will land on this list.'
-                : 'Add a task above — or ask Katana what to work on.'
-            }
-            action={
-              <div className="flex flex-wrap justify-center gap-2">
-                <Button asChild variant="outline">
-                  <Link to="/ask?q=What%20should%20I%20work%20on%20today%3F">Ask for focus</Link>
-                </Button>
-                <Button asChild variant="outline">
-                  <Link to="/settings">Load demo day</Link>
-                </Button>
-              </div>
-            }
-          />
+          <p className="text-sm text-muted-foreground">
+            {selectedList ? `Nothing in ${selectedList.name}.` : 'Nothing here yet.'}
+          </p>
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
             <SortableContext items={openIds} strategy={verticalListSortingStrategy}>

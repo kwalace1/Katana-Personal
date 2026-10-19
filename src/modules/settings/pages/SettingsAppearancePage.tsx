@@ -42,7 +42,7 @@ export function SettingsAppearancePage() {
   return (
     <SettingsDetail title="Appearance" description="Accent color and light or dark mode.">
       <SettingsPanel>
-        <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
           <HueWheel
             hue={accentHue}
             onChange={(h) => {

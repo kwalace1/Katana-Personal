@@ -70,7 +70,7 @@ export function CircleChallengeDialog({
         <DialogHeader>
           <DialogTitle>7-day challenge</DialogTitle>
         </DialogHeader>
-        <form className="space-y-4" onSubmit={(e) => void onSubmit(e)}>
+        <form className="space-y-3" onSubmit={(e) => void onSubmit(e)}>
           <div>
             <label className="text-sm font-medium" htmlFor="challenge-title">
               Title

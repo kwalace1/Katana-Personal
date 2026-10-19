@@ -78,6 +78,8 @@ export type CompactLifeSnapshot = {
   journalToday: boolean
   journalMood: string | null
   waterGlasses: number
+  /** Daily water goal in milliliters, when the client knows it. */
+  waterGoalMl?: number
   sleepHoursLast: number
   caloriesToday: number
   week: {
@@ -195,12 +197,14 @@ export const ASK_TOOL_DEFINITIONS = [
     type: 'function' as const,
     function: {
       name: 'log_water',
-      description: 'Log drinking water (glasses).',
+      description: 'Log drinking water by volume. Use the person’s unit when they name one.',
       parameters: {
         type: 'object',
         properties: {
-          glasses: { type: 'number', description: 'Glasses to add (default 1)' },
+          amount: { type: 'number', description: 'How much to add' },
+          unit: { type: 'string', enum: ['ml', 'floz', 'cup', 'l'], description: 'mL, fl oz, cup, or L' },
         },
+        required: ['amount', 'unit'],
       },
     },
   },
@@ -321,7 +325,7 @@ function formatSnapshot(snap: CompactLifeSnapshot): string {
     `Behind on goals: ${behind}`,
     `Journal today: ${snap.journalToday ? `yes (${snap.journalMood || 'mood n/a'})` : 'no'}`,
     `Recent journal:\n  ${journalBits}`,
-    `Water: ${snap.waterGlasses} glasses · Sleep last: ${snap.sleepHoursLast || 'n/a'}h · Calories today: ${snap.caloriesToday || 'n/a'}`,
+    `Water: ${snap.waterGlasses} mL logged${snap.waterGoalMl ? ` of a ${snap.waterGoalMl} mL goal` : ''} · Sleep last: ${snap.sleepHoursLast || 'n/a'}h · Calories today: ${snap.caloriesToday || 'n/a'}`,
     `This week (${snap.week.label}): ${snap.week.tasksCompleted} tasks done, ${snap.week.habitDays} habit days, ${snap.week.workouts} workouts, ${snap.week.journalEntries} journal entries`,
   ].join('\n')
 }

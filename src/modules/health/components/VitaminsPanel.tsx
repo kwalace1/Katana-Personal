@@ -4,7 +4,6 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
-import { EmptyState } from '@/components/ui/empty-state'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   buildHealthStreakShareCard,
@@ -67,7 +66,7 @@ export function VitaminsPanel({ userId, logDate, tick, refresh, kind = 'suppleme
 
   function renderRow(row: SupplementChecklistRow) {
     return (
-      <li key={row.item.id} className="flex items-start gap-3 rounded-2xl bg-secondary/50 px-3 py-3">
+      <li key={row.item.id} className="flex items-start gap-3 border-t border-border py-3">
         <Checkbox
           className="mt-0.5"
           checked={row.taken}
@@ -137,35 +136,24 @@ export function VitaminsPanel({ userId, logDate, tick, refresh, kind = 'suppleme
   }
 
   return (
-    <div className="space-y-4">
-      <div className="kp-surface p-4 sm:p-5">
+    <div className="space-y-3">
+      <div className="kp-surface p-4">
         <div className="mb-1 flex items-center gap-2">
           <Pill className="h-4 w-4 text-primary" />
           <p className="text-xs text-muted-foreground">{kind === 'vitamin' ? 'Vitamins' : 'Supplements'}</p>
         </div>
-        <h3 className="font-display text-xl tracking-tight">Daily checklist</h3>
+        <h3 className="font-display text-lg tracking-tight">Daily checklist</h3>
         <p className="mt-1 text-sm text-muted-foreground">
           {checklist.length === 0
             ? 'Add what you take, then check them off by time of day.'
             : `${takenCount} of ${checklist.length} taken · ${logDate}`}
         </p>
 
-        {checklist.length === 0 ? (
-          <div className="mt-4">
-            <EmptyState
-              title={kind === 'vitamin' ? 'No vitamins yet' : 'No supplements yet'}
-              description={
-                kind === 'vitamin'
-                  ? 'Vitamin D, B12, a multivitamin — set morning, afternoon, or evening.'
-                  : 'Creatine, fish oil, protein — set morning, afternoon, or evening.'
-              }
-            />
-          </div>
-        ) : (
-          <div className="mt-4 space-y-5">
+        {checklist.length === 0 ? null : (
+          <div className="mt-4 space-y-3">
             {groups.map((group) => (
               <div key={group.value}>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{group.label}</p>
+                <p className="mb-2 kp-section-label">{group.label}</p>
                 <ul className="space-y-2">{group.rows.map(renderRow)}</ul>
               </div>
             ))}

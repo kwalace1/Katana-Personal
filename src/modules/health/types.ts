@@ -32,7 +32,10 @@ export interface WaterLog {
   id: string
   user_id: string
   date: string
+  /** Whole glasses toward the hydration streak. Derived from `ml` on write. */
   glasses: number
+  /** Milliliters logged. Missing on older rows, which count as 250 mL per glass. */
+  ml?: number
   updated_at: string
 }
 

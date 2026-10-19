@@ -187,7 +187,7 @@ export function WorkspaceSyncHost() {
     const cloudLabel = cloudUser.email || cloudProfile?.displayName || 'the signed-in account'
     return (
       <div className="fixed inset-x-3 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-50 mx-auto max-w-lg md:bottom-8">
-        <div className="kp-surface border border-primary/25 p-4 shadow-xl sm:p-5">
+        <div className="kp-surface border border-primary/25 p-5 shadow-xl sm:p-5">
           <div className="flex items-start gap-3">
             <UserRound className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
             <div className="min-w-0 flex-1">
@@ -226,7 +226,7 @@ export function WorkspaceSyncHost() {
 
   return (
     <div className="fixed inset-x-3 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-50 mx-auto max-w-lg md:bottom-8">
-      <div className="kp-surface border border-primary/25 p-4 shadow-xl sm:p-5">
+      <div className="kp-surface border border-primary/25 p-5 shadow-xl sm:p-5">
         <div className="flex items-start gap-3">
           <Cloud className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
           <div className="min-w-0 flex-1">

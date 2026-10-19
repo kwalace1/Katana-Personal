@@ -38,7 +38,7 @@ export function PlusPaywallSheet({ open, onOpenChange, feature, onUnlocked }: Pr
       >
         <SheetHeader className="border-b border-border/40 px-5 pb-4 pt-2 text-left">
           <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border" />
-          <SheetTitle className="flex items-center gap-2 font-display text-2xl tracking-tight">
+          <SheetTitle className="flex items-center gap-2 font-display text-lg tracking-tight">
             <Sparkles className="h-5 w-5 text-primary" />
             {blurb.title}
           </SheetTitle>

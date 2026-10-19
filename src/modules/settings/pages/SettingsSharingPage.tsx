@@ -9,7 +9,7 @@ import { SettingsDetail, SettingsPanel } from '../components/settings-ui'
 const SHARE_TOGGLES: { key: keyof SharePrefs; label: string; hint: string }[] = [
   { key: 'activityFeed', label: 'Activity pings', hint: 'Check-ins & shares show on Circles timelines' },
   { key: 'feedCards', label: 'Feed cards', hint: 'Share win cards to Feed after lifts, streaks, and goals' },
-  { key: 'healthWater', label: 'Hydration streaks', hint: 'Glasses & water streaks on Circles' },
+  { key: 'healthWater', label: 'Hydration streaks', hint: 'Water goal and streaks on Circles' },
   { key: 'healthSleep', label: 'Sleep streaks', hint: 'Sleep days on Circles' },
   { key: 'healthNutrition', label: 'Nutrition streaks', hint: 'Logged meals streak' },
   { key: 'healthLifts', label: 'Lift streaks', hint: 'Strength session days on Circles' },

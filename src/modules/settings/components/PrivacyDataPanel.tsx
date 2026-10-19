@@ -4,6 +4,7 @@ import { DEFAULT_SHARE_PREFS, type SharePrefs } from '@/lib/social/types'
 import { computeWeights, recentEvents } from '@/lib/orchestration/feedback'
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
+import { SettingsPanel } from './settings-ui'
 
 const COLLECTION_LABELS: Record<string, string> = {
   tasks: 'Tasks & lists',
@@ -57,8 +58,9 @@ export function PrivacyDataPanel({
   )
 
   return (
-    <div className="space-y-4">
-      <section className="rounded-2xl border border-border/60 bg-secondary/20 p-4">
+    <div className="space-y-3">
+      <SettingsPanel className="divide-y space-y-0 p-0">
+      <section className="p-4">
         <h3 className="text-sm font-semibold">On this device</h3>
         <p className="mt-1 text-sm text-muted-foreground">
           Your personal workspace lives in IndexedDB in this browser. No account required.
@@ -70,7 +72,7 @@ export function PrivacyDataPanel({
         </ul>
       </section>
 
-      <section className="rounded-2xl border border-border/60 bg-secondary/20 p-4">
+      <section className="p-4">
         <h3 className="text-sm font-semibold">Leaves this device (only if you opt in)</h3>
         {!cloudEnabled ? (
           <p className="mt-1 text-sm text-muted-foreground">
@@ -100,7 +102,7 @@ export function PrivacyDataPanel({
         )}
       </section>
 
-      <section className="rounded-2xl border border-border/60 bg-secondary/20 p-4">
+      <section className="p-4">
         <h3 className="text-sm font-semibold">Integrations</h3>
         {connections.length === 0 ? (
           <p className="mt-1 text-sm text-muted-foreground">
@@ -125,7 +127,7 @@ export function PrivacyDataPanel({
         </p>
       </section>
 
-      <section className="rounded-2xl border border-border/60 bg-secondary/20 p-4">
+      <section className="p-4">
         <h3 className="text-sm font-semibold">Orchestration learning (local only)</h3>
         <p className="mt-1 text-sm text-muted-foreground">
           Katana adjusts which next-step types you see based on what you complete — stored only here
@@ -137,7 +139,7 @@ export function PrivacyDataPanel({
         </p>
       </section>
 
-      <section className="rounded-2xl border border-border/60 bg-secondary/20 p-4">
+      <section className="p-4">
         <h3 className="text-sm font-semibold">Export</h3>
         <p className="mt-1 text-sm text-muted-foreground">
           Save a <code className="text-xs">.katana</code> copy anytime — includes preferences and
@@ -153,6 +155,7 @@ export function PrivacyDataPanel({
           </Button>
         )}
       </section>
+      </SettingsPanel>
 
       <nav className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground" aria-label="Legal">
         <Link to="/settings/legal/privacy" className="min-h-11 inline-flex items-center text-primary underline-offset-2 hover:underline">

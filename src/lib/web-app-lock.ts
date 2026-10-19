@@ -8,11 +8,15 @@ import { APP_STORE_URL as DEFAULT_APP_STORE_URL } from '@/lib/site'
  *
  * Native is never locked. Do not point Capacitor `server.url` at Vercel.
  */
+const WEB_APP_UNLOCK_KEY = 'katana.web-app-unlock'
+
 export type WebAppAccessInput = {
   isDev: boolean
   isNative: boolean
   allowWebApp?: string | null
   lockWebApp?: string | null
+  /** Set after the hidden triple-click on the wordmark K. */
+  secretUnlocked?: boolean
 }
 
 function flagOn(value?: string | null): boolean {
@@ -20,9 +24,29 @@ function flagOn(value?: string | null): boolean {
   return s === 'true' || s === '1' || s === 'yes'
 }
 
+/** This browser has used the hidden wordmark gesture to open the real app. */
+export function isWebAppSecretUnlocked(): boolean {
+  if (typeof localStorage === 'undefined') return false
+  try {
+    return localStorage.getItem(WEB_APP_UNLOCK_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+/** Remember secret access on this browser, then the caller reloads into the app. */
+export function unlockWebApp(): void {
+  try {
+    localStorage.setItem(WEB_APP_UNLOCK_KEY, '1')
+  } catch {
+    // Private mode can block storage; the gesture still shouldn't throw.
+  }
+}
+
 /** Pure lock rules — used by tests so we never have to mock Vite/Capacitor. */
 export function resolveWebAppLocked(input: WebAppAccessInput): boolean {
   if (input.isNative) return false
+  if (input.secretUnlocked) return false
   if (flagOn(input.allowWebApp)) return false
   if (flagOn(input.lockWebApp)) return true
   if (input.isDev) return false
@@ -35,6 +59,7 @@ export function isWebAppLocked(): boolean {
     isNative: isNativeShell(),
     allowWebApp: import.meta.env.VITE_ALLOW_WEB_APP,
     lockWebApp: import.meta.env.VITE_LOCK_WEB_APP,
+    secretUnlocked: isWebAppSecretUnlocked(),
   })
 }
 

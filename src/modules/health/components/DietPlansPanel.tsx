@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { EmptyState } from '@/components/ui/empty-state'
 import {
   Dialog,
   DialogContent,
@@ -225,8 +224,8 @@ export function DietPlansPanel({ userId, tick, refresh }: Props) {
   }
 
   return (
-    <div className="space-y-5">
-      <form onSubmit={save} className="kp-surface space-y-5 p-4 sm:p-5">
+    <div className="space-y-3">
+      <form onSubmit={save} className="kp-surface space-y-3 p-4">
         <HealthCardHeader
           eyebrow="Diet plan"
           title="Create a plan"
@@ -250,13 +249,13 @@ export function DietPlansPanel({ userId, tick, refresh }: Props) {
 
         <div className="space-y-2">
           <p className="kp-section-label">Pre-made plans</p>
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div>
             {DIET_PROGRAMS.map((program) => (
               <button
                 key={program.id}
                 type="button"
                 onClick={() => applyProgram(program)}
-                className="rounded-2xl bg-secondary/40 p-3.5 text-left transition hover:bg-secondary/65"
+                className="border-t border-border py-2.5 text-left transition hover:bg-secondary/40"
               >
                 <div className="flex items-start justify-between gap-2">
                   <p className="font-semibold">{program.name}</p>
@@ -323,7 +322,7 @@ export function DietPlansPanel({ userId, tick, refresh }: Props) {
               </div>
               <div className="space-y-3">
                 {day.meals.map((meal, mealIndex) => (
-                  <div key={`${dayIndex}-${mealIndex}`} className="space-y-2 rounded-xl bg-secondary/30 p-3">
+                  <div key={`${dayIndex}-${mealIndex}`} className="space-y-2 border-t border-border pt-3">
                     <div className="grid gap-2 sm:grid-cols-[1fr_8rem_auto]">
                       <Input
                         placeholder="Meal name"
@@ -435,13 +434,13 @@ export function DietPlansPanel({ userId, tick, refresh }: Props) {
 
       <div>
         <p className="kp-section-label">Library</p>
-        <h3 className="mb-3 mt-1 font-display text-xl tracking-tight">Saved plans</h3>
+        <h3 className="mb-3 mt-1 font-display text-lg tracking-tight">Saved plans</h3>
         {plans.length === 0 ? (
-          <EmptyState title="No diet plans yet" description="Save a calorie target and meals above." />
+          <p className="text-sm text-muted-foreground">No diet plans yet.</p>
         ) : (
           <ul className="space-y-3">
             {plans.map((plan) => (
-              <li key={plan.id} className={cn('kp-surface p-4 sm:p-5', plan.active && 'ring-2 ring-primary/20')}>
+              <li key={plan.id} className={cn('kp-surface p-4', plan.active && 'ring-2 ring-primary/20')}>
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
@@ -525,7 +524,7 @@ export function DietPlansPanel({ userId, tick, refresh }: Props) {
             <DialogTitle>Share {sharePlan?.name}</DialogTitle>
           </DialogHeader>
           {cloudUser ? (
-            <div className="space-y-4">
+            <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
                 Friends get the calories, macros, meals, and ingredients — they can import their own copy.
               </p>

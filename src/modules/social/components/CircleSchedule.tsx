@@ -1,13 +1,12 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import { CalendarDays, Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { EmptyState } from '@/components/ui/empty-state'
 import {
   Dialog,
   DialogContent,
@@ -192,7 +191,7 @@ export function CircleSchedule({
         </Button>
       </div>
 
-      <div className="mb-6 grid gap-2 sm:grid-cols-2 lg:grid-cols-7">
+      <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-7">
         {weekDays.map((day) => {
           const dayEvents = eventsForDay(day)
           return (
@@ -247,7 +246,7 @@ export function CircleSchedule({
       </div>
 
       {selected ? (
-        <aside className="kp-surface mb-6 space-y-3 p-4">
+        <aside className="kp-surface mb-4 space-y-3 p-4">
           <p className="kp-section-label">Edit plan</p>
           <Input
             value={selected.title}
@@ -332,25 +331,15 @@ export function CircleSchedule({
       ) : null}
 
       {events.length === 0 ? (
-        <EmptyState
-          icon={CalendarDays}
-          title="No schedule items yet"
-          description="Circle Schedule shows on everyone’s Calendar. Plans is a separate inbox you copy into your own tasks."
-          action={
-            <Button onClick={() => openAdd()}>
-              <Plus className="mr-1 h-4 w-4" />
-              Add first plan
-            </Button>
-          }
-        />
+        <p className="text-sm text-muted-foreground">No plans yet.</p>
       ) : null}
 
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="font-display text-xl">Add to {circle.name}</DialogTitle>
+            <DialogTitle className="font-display text-lg">Add to {circle.name}</DialogTitle>
           </DialogHeader>
-          <form onSubmit={(e) => void onCreate(e)} className="space-y-4">
+          <form onSubmit={(e) => void onCreate(e)} className="space-y-3">
             <Input
               autoFocus
               placeholder="e.g. Pick up groceries"

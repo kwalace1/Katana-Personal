@@ -3,7 +3,6 @@ import { Lock, Plus, Share2, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { EmptyState } from '@/components/ui/empty-state'
 import {
   EXERCISE_LIBRARY_NAMES,
   formatRepRange,
@@ -280,10 +279,10 @@ export function LiftSplitsPanel({ userId, tick, refresh, onGoLift }: Props) {
   const listId = `split-exercise-list-${userId}`
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <form
         onSubmit={save}
-        className={cn('kp-surface space-y-5 p-4 sm:p-5', editingSplitId && 'ring-2 ring-primary/20')}
+        className={cn('kp-surface space-y-3 p-4', editingSplitId && 'ring-2 ring-primary/20')}
       >
         <datalist id={listId}>
           {exerciseNames.map((n) => (
@@ -313,13 +312,13 @@ export function LiftSplitsPanel({ userId, tick, refresh, onGoLift }: Props) {
 
         <div className="space-y-2">
           <p className="kp-section-label">Pre-made programs</p>
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div>
             {WORKOUT_PROGRAMS.map((program) => (
               <button
                 key={program.id}
                 type="button"
                 onClick={() => applyProgram(program)}
-                className="rounded-2xl bg-secondary/40 p-3.5 text-left transition hover:bg-secondary/65"
+                className="border-t border-border py-2.5 text-left transition hover:bg-secondary/40"
               >
                 <div className="flex items-start justify-between gap-2">
                   <p className="font-semibold">{program.name}</p>
@@ -387,7 +386,7 @@ export function LiftSplitsPanel({ userId, tick, refresh, onGoLift }: Props) {
               </div>
               {day.exercises.length ? (
                 <div className="space-y-2">
-                  <div className="hidden grid-cols-[1fr_4.5rem_4.5rem_4.5rem_auto] gap-2 text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground sm:grid">
+                  <div className="hidden grid-cols-[1fr_4.5rem_4.5rem_4.5rem_auto] gap-2 kp-section-label sm:grid">
                     <span>Exercise</span>
                     <span>Sets</span>
                     <span>Rep min</span>
@@ -539,16 +538,16 @@ export function LiftSplitsPanel({ userId, tick, refresh, onGoLift }: Props) {
 
       <div>
         <p className="kp-section-label">Library</p>
-        <h3 className="mb-3 mt-1 font-display text-xl tracking-tight">Saved splits</h3>
+        <h3 className="mb-3 mt-1 font-display text-lg tracking-tight">Saved splits</h3>
         {splits.length === 0 ? (
-          <EmptyState title="No splits yet" description="Save a cycle or weekday plan above." />
+          <p className="text-sm text-muted-foreground">No splits yet.</p>
         ) : (
           <ul className="space-y-3">
             {splits.map((split) => (
               <li
                 key={split.id}
                 className={cn(
-                  'kp-surface p-4 sm:p-5',
+                  'kp-surface p-4',
                   (split.active || editingSplitId === split.id) && 'ring-2 ring-primary/20',
                 )}
               >
@@ -651,7 +650,7 @@ export function LiftSplitsPanel({ userId, tick, refresh, onGoLift }: Props) {
             <DialogTitle>Share {shareSplit?.name}</DialogTitle>
           </DialogHeader>
           {cloudUser ? (
-            <div className="space-y-4">
+            <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
                 Friends receive the complete plan and can import their own copy.
               </p>

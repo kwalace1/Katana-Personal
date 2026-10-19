@@ -4,9 +4,9 @@ import { motion } from 'framer-motion'
 import { FileUp, Search, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/PageHeader'
+import { navItemLabel, navSectionLabel } from '@/lib/nav'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { EmptyState } from '@/components/ui/empty-state'
 import { LoadingState } from '@/components/ui/loading-state'
 import { ErrorState } from '@/components/ui/error-state'
 import {
@@ -111,9 +111,9 @@ export default function DocumentsPage() {
   return (
     <motion.div {...pageEnterSubtle} className="kp-page">
       <PageHeader
-        title="Documents"
+        title={navItemLabel('/documents') ?? 'Files'}
         description="Local files on this device — include them when you Save a copy."
-        eyebrow="Life"
+        eyebrow={navSectionLabel('/documents')}
         actions={
           <>
             <input
@@ -146,7 +146,7 @@ export default function DocumentsPage() {
 
       <div
         className={cn(
-          'mb-6 rounded-2xl border border-dashed border-border/70 bg-secondary/30 p-8 text-center transition',
+          'mb-3 rounded-lg border border-dashed border-border/70 bg-secondary/30 px-4 py-5 text-center transition',
           dragOver && 'border-primary bg-primary/5',
         )}
         onDragOver={(e) => {
@@ -172,24 +172,15 @@ export default function DocumentsPage() {
       ) : null}
 
       {docs.length === 0 && !busy ? (
-        <EmptyState
-          title="No files yet"
-          description="Add something important — it stays on this device. Back it up from Settings when you care about it."
-          action={
-            <Button onClick={() => inputRef.current?.click()}>
-              <FileUp className="mr-2 h-4 w-4" />
-              Add files
-            </Button>
-          }
-        />
+        <p className="text-sm text-muted-foreground">No files yet.</p>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-3">
           {grouped.map(([group, items]) => (
             <div key={group}>
               <p className="kp-section-label mb-2">{group}</p>
-              <ul className="space-y-2">
+              <ul className="kp-surface divide-y">
                 {items.map((doc) => (
-                  <li key={doc.id} className="kp-surface flex items-center justify-between gap-3 p-4">
+                  <li key={doc.id} className="flex items-center justify-between gap-3 px-4 py-3">
                     <div className="min-w-0 flex-1">
                       {renamingId === doc.id ? (
                         <Input

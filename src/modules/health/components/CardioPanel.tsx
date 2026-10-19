@@ -2,9 +2,9 @@ import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { MapPin, Pause, Play, Square, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { Segmented } from '@/components/ui/segmented'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { EmptyState } from '@/components/ui/empty-state'
 import { todayKey } from '@/lib/dates'
 import { burstConfetti } from '@/lib/celebrate'
 import { formatClock, formatDistance, formatPace, pathDistanceMeters } from '@/lib/geo'
@@ -176,51 +176,42 @@ export function CardioPanel({ userId, logDate, tick, refresh }: Props) {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="kp-surface space-y-4 overflow-hidden p-4">
+    <div className="space-y-3">
+      <div className="kp-surface space-y-3 overflow-hidden p-4">
         <div>
           <p className="text-xs text-muted-foreground">Live map</p>
-          <h3 className="font-display text-xl tracking-tight">Record a route</h3>
+          <h3 className="font-display text-lg tracking-tight">Record a route</h3>
           <p className="mt-1 text-sm text-muted-foreground">
             GPS stays on this device. Keep Katana in the background (lock the phone is fine) — we’ll
             keep dropping points. Don’t swipe the app away. Tap the live bar to finish.
           </p>
         </div>
         <WeatherGlance variant="cardio" />
-        <div className="flex flex-wrap gap-2">
-          {ACTIVITIES.map((kind) => (
-            <Button
-              key={kind}
-              type="button"
-              size="sm"
-              variant={trackKind === kind ? 'default' : 'outline'}
-              className="rounded-full"
-              disabled={status !== 'idle'}
-              onClick={() => setCardioTrackKind(kind)}
-            >
-              {kind}
-            </Button>
-          ))}
-        </div>
+        <Segmented
+          value={trackKind}
+          disabled={status !== 'idle'}
+          onChange={setCardioTrackKind}
+          options={ACTIVITIES.map((kind) => ({ id: kind, label: kind }))}
+        />
         {status !== 'idle' || path.length > 0 ? (
           <CardioMap path={path} follow={status === 'live'} className="h-56 w-full" />
         ) : (
-          <div className="flex h-40 items-center justify-center rounded-2xl bg-secondary/50 text-sm text-muted-foreground">
+          <div className="flex h-40 items-center justify-center border-y border-border text-sm text-muted-foreground">
             <MapPin className="mr-2 h-4 w-4" />
             Start to drop a live map
           </div>
         )}
-        <div className="grid grid-cols-3 gap-2 text-center">
-          <div className="rounded-xl bg-secondary/50 px-2 py-3">
-            <p className="text-[0.65rem] uppercase tracking-wide text-muted-foreground">Time</p>
+        <div className="grid grid-cols-3 divide-x border-y border-border text-center">
+          <div className="px-2 py-3">
+            <p className="kp-section-label">Time</p>
             <p className="font-display text-lg">{formatClock(elapsed)}</p>
           </div>
-          <div className="rounded-xl bg-secondary/50 px-2 py-3">
-            <p className="text-[0.65rem] uppercase tracking-wide text-muted-foreground">Distance</p>
+          <div className="px-2 py-3">
+            <p className="kp-section-label">Distance</p>
             <p className="font-display text-lg">{formatDistance(distance)}</p>
           </div>
-          <div className="rounded-xl bg-secondary/50 px-2 py-3">
-            <p className="text-[0.65rem] uppercase tracking-wide text-muted-foreground">Pace</p>
+          <div className="px-2 py-3">
+            <p className="kp-section-label">Pace</p>
             <p className="font-display text-lg">{formatPace(distance, elapsed)}</p>
           </div>
         </div>
@@ -268,10 +259,10 @@ export function CardioPanel({ userId, logDate, tick, refresh }: Props) {
         ) : null}
       </div>
 
-      <form onSubmit={save} className="kp-surface min-w-0 space-y-4 overflow-hidden p-4">
+      <form onSubmit={save} className="kp-surface min-w-0 space-y-3 overflow-hidden p-4">
         <div>
           <p className="text-xs text-muted-foreground">Cardio</p>
-          <h3 className="font-display text-xl tracking-tight">Log activity</h3>
+          <h3 className="font-display text-lg tracking-tight">Log activity</h3>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 *:min-w-0">
           <Input
@@ -339,7 +330,7 @@ export function CardioPanel({ userId, logDate, tick, refresh }: Props) {
         <p className="text-xs text-muted-foreground">History</p>
         <h3 className="mb-3 font-display text-lg tracking-tight">Cardio log</h3>
         {entries.length === 0 ? (
-          <EmptyState title="No cardio yet" description="Record a route or log a session." />
+          <p className="text-sm text-muted-foreground">No cardio yet.</p>
         ) : (
           <ul className="space-y-2">
             {entries.map((entry) => (

@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { EmptyState } from '@/components/ui/empty-state'
 import { todayKey } from '@/lib/dates'
 import { formatMealTime } from '../../api'
 import { formatLb, formatSplitExerciseLine, liftApi } from '../../lift-api'
@@ -87,7 +86,7 @@ export function LiftOverviewPanel({ userId, tick, refresh, onGoLift, onGoSplits 
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
           Strength snapshot — log a session anytime. Drafts stay on this device if you leave mid-workout.
@@ -102,9 +101,10 @@ export function LiftOverviewPanel({ userId, tick, refresh, onGoLift, onGoSplits 
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <HealthStat label="Workouts logged" value={String(sessions.length)} hint="All time" />
+      <div className="kp-surface grid divide-y sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+        <HealthStat className="px-4 py-3" label="Workouts logged" value={String(sessions.length)} hint="All time" />
         <HealthStat
+          className="px-4 py-3"
           label="Bodyweight"
           value={latestWeight ? `${latestWeight.weight} lb` : '—'}
           hint={
@@ -116,13 +116,14 @@ export function LiftOverviewPanel({ userId, tick, refresh, onGoLift, onGoSplits 
           }
         />
         <HealthStat
+          className="px-4 py-3"
           label="Active split"
           value={activeSplit?.name || 'None'}
           hint={activeSplit ? `${activeSplit.days.length} days · ${activeSplit.pattern}` : 'Create a split'}
         />
       </div>
 
-      <div className="kp-surface p-4 sm:p-5">
+      <div className="kp-surface p-4">
         <HealthCardHeader
           eyebrow="Training log"
           title={monthLabel}
@@ -150,7 +151,7 @@ export function LiftOverviewPanel({ userId, tick, refresh, onGoLift, onGoSplits 
             </div>
           }
         />
-        <div className="mb-1 mt-4 grid grid-cols-7 gap-1 text-center text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">
+        <div className="mb-1 mt-4 grid grid-cols-7 gap-1 text-center kp-section-label">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
             <div key={d}>{d}</div>
           ))}
@@ -168,10 +169,8 @@ export function LiftOverviewPanel({ userId, tick, refresh, onGoLift, onGoSplits 
                 type="button"
                 onClick={() => setSelectedDate(cell)}
                 className={cn(
-                  'flex min-h-[4.5rem] flex-col rounded-xl p-1.5 text-left transition',
-                  selected
-                    ? 'bg-primary/12 ring-1 ring-primary/30'
-                    : 'bg-secondary/30 hover:bg-secondary/55',
+                  'flex min-h-[4.5rem] flex-col p-1.5 text-left transition',
+                  selected ? 'bg-primary/10' : 'hover:bg-secondary/50',
                 )}
               >
                 <span
@@ -235,16 +234,16 @@ export function LiftOverviewPanel({ userId, tick, refresh, onGoLift, onGoSplits 
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="kp-surface p-4 sm:p-5">
+        <div className="kp-surface p-4">
           <HealthCardHeader eyebrow="Recent" title="Workouts" />
           {sessions.length === 0 ? (
-            <EmptyState title="No lifts yet" description="Log your first session under Lift." className="mt-3" />
+            <p className="mt-3 text-sm text-muted-foreground">No lifts yet.</p>
           ) : (
-            <ul className="mt-4 space-y-2">
+            <ul className="mt-3 divide-y border-t border-border">
               {sessions.slice(0, 4).map((s) => {
                 const groups = liftApi.sessionExerciseGroups(userId, s.id)
                 return (
-                  <li key={s.id} className="rounded-2xl bg-secondary/40 px-3.5 py-2.5">
+                  <li key={s.id} className="py-2.5">
                     <div className="flex items-center justify-between gap-2">
                       <p className="font-medium">{s.title}</p>
                       <p className="text-xs text-muted-foreground">{formatLiftDate(s.date)}</p>
@@ -259,7 +258,7 @@ export function LiftOverviewPanel({ userId, tick, refresh, onGoLift, onGoSplits 
           )}
         </div>
 
-        <div className="kp-surface p-4 sm:p-5">
+        <div className="kp-surface p-4">
           <HealthCardHeader
             eyebrow="Routine"
             title="Active split"
@@ -268,15 +267,11 @@ export function LiftOverviewPanel({ userId, tick, refresh, onGoLift, onGoSplits 
             }
           />
           {!activeSplit ? (
-            <EmptyState
-              title="No active split"
-              description="Build a cycle or weekday plan under Splits."
-              className="mt-3"
-            />
+            <p className="mt-3 text-sm text-muted-foreground">No active split.</p>
           ) : (
-            <ul className="mt-4 space-y-2">
+            <ul className="mt-3 divide-y border-t border-border">
               {activeSplit.days.slice(0, 7).map((day, i) => (
-                <li key={`${day.name}-${i}`} className="rounded-2xl bg-secondary/40 px-3.5 py-2.5 text-sm">
+                <li key={`${day.name}-${i}`} className="py-2.5 text-sm">
                   <div className="flex justify-between gap-2">
                     <span className="text-muted-foreground">{day.name}</span>
                     <span className="font-medium">{day.focus || 'Rest'}</span>

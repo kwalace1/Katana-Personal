@@ -84,7 +84,7 @@ export function seedDemoWorkspace(userId: string): { seeded: boolean; reason?: s
     schedule: 'daily',
     reminder_time: '08:00',
   })
-  habitsApi.create(userId, { title: 'Water (6 glasses)', schedule: 'daily', reminder_time: '18:00' })
+  habitsApi.create(userId, { title: 'Drink water', schedule: 'daily', reminder_time: '18:00' })
   habitsApi.create(userId, { title: 'Evening walk', schedule: 'daily', reminder_time: '19:00' })
   habitsApi.create(userId, { title: 'Gym', schedule: 'daily', reminder_time: '17:00' })
   habitsApi.toggleToday(userId, stretch.id)

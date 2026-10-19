@@ -25,6 +25,20 @@ describe('resolveWebAppLocked', () => {
     expect(resolveWebAppLocked({ isDev: false, isNative: false })).toBe(true)
   })
 
+  it('unlocks production web after the secret wordmark gesture', () => {
+    expect(
+      resolveWebAppLocked({ isDev: false, isNative: false, secretUnlocked: true }),
+    ).toBe(false)
+    expect(
+      resolveWebAppLocked({
+        isDev: false,
+        isNative: false,
+        lockWebApp: 'true',
+        secretUnlocked: true,
+      }),
+    ).toBe(false)
+  })
+
   it('unlocks production web when VITE_ALLOW_WEB_APP is set (fast revert)', () => {
     expect(
       resolveWebAppLocked({ isDev: false, isNative: false, allowWebApp: 'true' }),

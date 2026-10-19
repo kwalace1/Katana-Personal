@@ -6,6 +6,7 @@ import { journalApi } from '@/modules/journal/api'
 import { notesApi } from '@/modules/notes/api'
 import { documentsApi } from '@/modules/documents/api'
 import { formatShortDate, formatShortWhen, formatTime } from '@/lib/dates'
+import { navItemLabel } from '@/lib/nav'
 
 export type SearchKind = 'task' | 'note' | 'event' | 'goal' | 'habit' | 'journal' | 'file' | 'nav'
 
@@ -17,24 +18,30 @@ export interface SearchHit {
   to: string
 }
 
+function navHit(id: string, to: string, title = navItemLabel(to), subtitle?: string): SearchHit {
+  return { id: `nav-${id}`, kind: 'nav', title: title ?? id, to, subtitle }
+}
+
+const healthLabel = navItemLabel('/health')
+
 const NAV: SearchHit[] = [
-  { id: 'nav-today', kind: 'nav', title: 'Today', to: '/dashboard' },
-  { id: 'nav-ask', kind: 'nav', title: 'Ask', to: '/ask' },
-  { id: 'nav-calendar', kind: 'nav', title: 'Calendar', to: '/calendar' },
-  { id: 'nav-tasks', kind: 'nav', title: 'Tasks', to: '/tasks' },
-  { id: 'nav-goals', kind: 'nav', title: 'Goals', to: '/goals' },
-  { id: 'nav-habits', kind: 'nav', title: 'Habits', to: '/habits' },
-  { id: 'nav-journal', kind: 'nav', title: 'Journal', to: '/journal' },
-  { id: 'nav-health', kind: 'nav', title: 'Health & Wellness', to: '/health' },
-  { id: 'nav-fitness', kind: 'nav', title: 'Fitness', to: '/health?area=fitness&tab=lift' },
-  { id: 'nav-wellness', kind: 'nav', title: 'Wellness', to: '/health?area=wellness&tab=overview' },
-  { id: 'nav-notes', kind: 'nav', title: 'Notes', to: '/notes' },
-  { id: 'nav-files', kind: 'nav', title: 'Files', to: '/documents' },
-  { id: 'nav-social', kind: 'nav', title: 'Social', to: '/social' },
-  { id: 'nav-friends', kind: 'nav', title: 'Friends', to: '/social?tab=friends' },
-  { id: 'nav-shared', kind: 'nav', title: 'Plans', to: '/shared' },
-  { id: 'nav-circles', kind: 'nav', title: 'Circles', to: '/circles' },
-  { id: 'nav-settings', kind: 'nav', title: 'Settings', to: '/settings' },
+  navHit('today', '/dashboard'),
+  navHit('ask', '/ask'),
+  navHit('calendar', '/calendar'),
+  navHit('tasks', '/tasks'),
+  navHit('goals', '/goals'),
+  navHit('habits', '/habits'),
+  navHit('journal', '/journal'),
+  navHit('health', '/health'),
+  navHit('fitness', '/health?area=fitness&tab=lift', 'Fitness', healthLabel),
+  navHit('wellness', '/health?area=wellness&tab=overview', 'Wellness', healthLabel),
+  navHit('notes', '/notes'),
+  navHit('files', '/documents'),
+  navHit('social', '/social'),
+  navHit('friends', '/social?tab=friends', 'Friends', navItemLabel('/social')),
+  navHit('shared', '/shared'),
+  navHit('circles', '/circles'),
+  navHit('settings', '/settings'),
 ]
 
 export function searchWorkspace(userId: string, query: string, limit = 24): SearchHit[] {

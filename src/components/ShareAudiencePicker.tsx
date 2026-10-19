@@ -125,7 +125,7 @@ export function ShareAudiencePicker({
       <div className={`${listMax} space-y-4 overflow-y-auto`}>
         {showSocialFeed ? (
           <div>
-            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            <p className="mb-2 kp-section-label">
               Social
             </p>
             <ul className="space-y-2">
@@ -148,7 +148,7 @@ export function ShareAudiencePicker({
 
         {filteredCircles.length > 0 ? (
           <div>
-            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            <p className="mb-2 kp-section-label">
               Circles
             </p>
             <ul className="space-y-2">
@@ -189,7 +189,7 @@ export function ShareAudiencePicker({
 
         {filteredFriends.length > 0 ? (
           <div>
-            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            <p className="mb-2 kp-section-label">
               Friends
             </p>
             <ul className="space-y-2">

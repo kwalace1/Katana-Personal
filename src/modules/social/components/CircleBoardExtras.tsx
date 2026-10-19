@@ -1,13 +1,15 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Droplets, Dumbbell, MessageSquare, Minus, Plus, Send, Trash2 } from 'lucide-react'
+import { Droplets, Dumbbell, MessageSquare, Send, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
 import { useLocalRefresh } from '@/hooks/useLocalRefresh'
-import { healthApi, WATER_GOAL_GLASSES } from '@/modules/health/api'
+import { healthApi } from '@/modules/health/api'
+import { useWaterGoal, WaterGoalBar, WaterVolumeForm } from '@/modules/health/components/WaterVolumeForm'
+import { waterMl } from '@/modules/health/water'
 import { liftApi } from '@/modules/health/lift-api'
 import { todayKey } from '@/lib/dates'
 import {
@@ -78,8 +80,10 @@ export function CircleBoardExtras({
 
   const water = useMemo(() => {
     void tick
-    return user ? healthApi.getWater(user.id) : { glasses: 0 }
+    return user ? healthApi.getWater(user.id) : { glasses: 0, ml: 0 }
   }, [user, tick])
+  const [waterGoal, setWaterGoal] = useWaterGoal()
+  const waterAmountMl = waterMl(water)
 
   const liftedToday = useMemo(() => {
     void tick
@@ -178,7 +182,7 @@ export function CircleBoardExtras({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       {needsWaterShare || needsHabitsShare || needsLiftShare || needsActivityShare ? (
         <div className="rounded-2xl border border-amber-500/25 bg-amber-500/5 px-4 py-3 text-sm">
           <p className="font-medium">Sharing is off for some Circles features</p>
@@ -214,82 +218,42 @@ export function CircleBoardExtras({
       ) : null}
 
       {metric === 'water' && user ? (
-        <section className="kp-surface p-4 sm:p-5">
+        <section className="kp-surface p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="kp-section-label flex items-center gap-1.5">
                 <Droplets className="h-3.5 w-3.5" />
                 Your water today
               </p>
-              <p className="mt-1 font-display text-3xl tracking-tight">
-                {water.glasses}
-                <span className="ml-1 text-base font-sans text-muted-foreground">
-                  / {WATER_GOAL_GLASSES}
-                </span>
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Log glasses here — they sync to the Hydration board when sharing is on.
+              <div className="mt-2">
+                <WaterGoalBar loggedMl={waterAmountMl} goal={waterGoal} onGoalChange={setWaterGoal} />
+              </div>
+              <p className="mt-2 text-sm text-muted-foreground">
+                This syncs to the Hydration board when sharing is on.
               </p>
             </div>
-            <Button
-              className="gap-1.5"
-              onClick={() => {
-                healthApi.addGlass(user.id)
-                refresh()
-                window.setTimeout(() => onAfterCheckIn(), 900)
-              }}
-            >
-              <Plus className="h-4 w-4" />
-              Log a glass
-            </Button>
           </div>
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {Array.from({ length: Math.max(WATER_GOAL_GLASSES, water.glasses) }, (_, i) => (
-              <span
-                key={i}
-                className={cn(
-                  'h-3 w-3 rounded-full',
-                  i < water.glasses ? 'bg-sky-500' : 'bg-secondary',
-                )}
-              />
-            ))}
-          </div>
-          <div className="mt-3 flex gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                healthApi.setWater(user.id, Math.max(0, water.glasses - 1))
+          <div className="mt-3 border-t border-border pt-3">
+            <WaterVolumeForm
+              userId={user.id}
+              onLogged={() => {
                 refresh()
                 window.setTimeout(() => onAfterCheckIn(), 900)
               }}
-            >
-              <Minus className="h-3.5 w-3.5" />
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                healthApi.addGlass(user.id)
-                refresh()
-                window.setTimeout(() => onAfterCheckIn(), 900)
-              }}
-            >
-              <Plus className="h-3.5 w-3.5" />
-            </Button>
+            />
           </div>
         </section>
       ) : null}
 
       {metric === 'lift' && user ? (
-        <section className="kp-surface p-4 sm:p-5">
+        <section className="kp-surface p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="kp-section-label flex items-center gap-1.5">
                 <Dumbbell className="h-3.5 w-3.5" />
                 Your lifts today
               </p>
-              <p className="mt-1 font-display text-2xl tracking-tight">
+              <p className="mt-1 font-display text-lg tracking-tight">
                 {liftedToday ? 'Logged' : 'Not yet'}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
@@ -357,7 +321,7 @@ export function CircleBoardExtras({
           <span className="text-xs text-muted-foreground">Posts + check-ins</span>
         </div>
         {timeline.length === 0 ? (
-          <div className="kp-surface p-5 text-sm text-muted-foreground">
+          <div className="kp-surface p-4 text-sm text-muted-foreground">
             Nothing yet. Post a message, or log water, a meal, a workout, sleep, or a habit — check-ins
             show up here when Activity pings are on in Settings.
           </div>

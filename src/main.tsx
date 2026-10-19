@@ -42,7 +42,7 @@ class ErrorBoundary extends React.Component<
     if (this.state.hasError) {
       return (
         <div className="flex min-h-screen items-center justify-center p-6">
-          <div className="kp-surface max-w-md space-y-3 p-6">
+          <div className="kp-surface max-w-md space-y-4 p-6">
             <h1 className="font-display text-2xl">Something went wrong</h1>
             <p className="mt-2 text-sm text-muted-foreground">{this.state.error?.message}</p>
             <button

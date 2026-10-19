@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { BrandMark } from '@/components/BrandMark'
+import { SecretUnlockTitle } from '@/components/SecretUnlockTitle'
 import { MarketingSeo } from '@/components/MarketingSeo'
 import { SiteFooter } from '@/components/SiteFooter'
 import { APP_NAME_FULL, COMPANY_LEGAL, COMPANY_NAME, DESCRIPTION, SUPPORT_EMAIL, TAGLINE } from '@/lib/brand'
@@ -105,14 +106,7 @@ export default function MarketingPage() {
   return (
     <div className="relative min-h-[100dvh] overflow-x-hidden">
       <MarketingSeo />
-      <div className="pointer-events-none absolute inset-0 -z-10">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_90%_55%_at_50%_-15%,hsl(168_45%_70%/0.5),transparent_58%)]" />
-        <div className="absolute -left-32 top-32 h-[28rem] w-[28rem] rounded-full bg-[hsl(168_45%_70%/0.22)] blur-3xl" />
-        <div className="absolute right-[-10%] top-[20%] h-[22rem] w-[22rem] rounded-full bg-[hsl(200_50%_80%/0.28)] blur-3xl" />
-        <div className="absolute bottom-0 left-1/3 h-64 w-64 rounded-full bg-[hsl(155_40%_78%/0.2)] blur-3xl" />
-      </div>
-
-      <header className="sticky top-0 z-20 border-b border-border/30 bg-background/70 backdrop-blur-xl">
+      <header className="sticky top-0 z-20 border-b bg-background">
         <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between gap-4 px-5 sm:h-16 sm:px-8">
           <BrandMark to="/" />
           <nav className="hidden items-center gap-6 md:flex">
@@ -140,7 +134,7 @@ export default function MarketingPage() {
         <section className="relative mx-auto grid w-full max-w-6xl gap-12 px-5 pb-20 pt-12 sm:px-8 sm:pb-28 sm:pt-20 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:items-end lg:gap-16">
           <motion.div {...pageEnterSubtle} className="max-w-2xl">
             <p className="kp-section-label">Katana Personal</p>
-            <h1 className="font-display mt-3 text-5xl tracking-tight sm:text-6xl lg:text-7xl">Katana</h1>
+            <SecretUnlockTitle className="font-display mt-3 text-5xl tracking-tight sm:text-6xl lg:text-7xl" />
             <p className="mt-5 text-xl font-medium leading-snug text-foreground/90 sm:text-2xl">{TAGLINE}</p>
             <p className="mt-4 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
               {DESCRIPTION}
@@ -159,10 +153,9 @@ export default function MarketingPage() {
             className="relative hidden min-h-[22rem] lg:block"
             aria-hidden
           >
-            <div className="absolute inset-0 rounded-[2rem] bg-gradient-to-br from-[hsl(168_40%_88%/0.7)] via-[hsl(200_35%_92%/0.5)] to-transparent" />
-            <div className="absolute inset-6 overflow-hidden rounded-[1.5rem] border border-border/40 bg-card/40 shadow-[0_30px_80px_-40px_hsl(172_48%_20%/0.45)] backdrop-blur-sm">
+            <div className="absolute inset-6 overflow-hidden rounded-xl border bg-card shadow-sm">
               <div className="border-b border-border/30 px-6 py-4">
-                <p className="font-display text-2xl tracking-tight">Today</p>
+                <p className="font-display text-lg tracking-tight">Today</p>
                 <p className="mt-1 text-xs text-muted-foreground">Do this next</p>
               </div>
               <div className="space-y-4 p-6">
@@ -199,7 +192,7 @@ export default function MarketingPage() {
             >
               <motion.div variants={staggerItem} className="max-w-2xl">
                 <p className="kp-section-label">The loop</p>
-                <h2 className="font-display mt-3 text-3xl tracking-tight sm:text-4xl">
+                <h2 className="font-display mt-3 text-2xl tracking-tight sm:text-3xl">
                   Plan the day. Do the next. Share only if you want.
                 </h2>
                 <p className="mt-4 text-base leading-relaxed text-muted-foreground sm:text-lg">
@@ -213,11 +206,11 @@ export default function MarketingPage() {
                   const Icon = item.icon
                   return (
                     <motion.div key={item.title} variants={staggerItem} className="relative">
-                      <p className="font-display text-5xl text-primary/15">{String(i + 1).padStart(2, '0')}</p>
+                      <p className="text-xs font-medium text-muted-foreground">{String(i + 1).padStart(2, '0')}</p>
                       <span className="mt-2 flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
                         <Icon className="h-5 w-5" />
                       </span>
-                      <h3 className="font-display mt-4 text-2xl tracking-tight">{item.title}</h3>
+                      <h3 className="font-display mt-4 text-lg tracking-tight">{item.title}</h3>
                       <p className="mt-2 text-sm leading-relaxed text-muted-foreground sm:text-[0.95rem]">
                         {item.body}
                       </p>
@@ -233,7 +226,7 @@ export default function MarketingPage() {
         <section className="mx-auto grid w-full max-w-6xl gap-12 px-5 py-16 sm:px-8 sm:py-24 lg:grid-cols-2 lg:gap-16">
           <div>
             <p className="kp-section-label">What it is</p>
-            <h2 className="font-display mt-3 text-3xl tracking-tight sm:text-4xl">A calm daily OS</h2>
+            <h2 className="font-display mt-3 text-2xl tracking-tight sm:text-3xl">A calm daily OS</h2>
             <p className="mt-4 text-base leading-relaxed text-muted-foreground">
               {APP_NAME_FULL} is for people who want one clear next step, a guide that can act, and
               optional accountability — without turning life into a project-management dashboard.
@@ -245,7 +238,7 @@ export default function MarketingPage() {
           </div>
           <div>
             <p className="kp-section-label">What it isn’t</p>
-            <h2 className="font-display mt-3 text-3xl tracking-tight sm:text-4xl">Clear anti-positions</h2>
+            <h2 className="font-display mt-3 text-2xl tracking-tight sm:text-3xl">Clear anti-positions</h2>
             <ul className="mt-6 space-y-3">
               {NOT_THIS.map((line) => (
                 <li
@@ -264,7 +257,7 @@ export default function MarketingPage() {
           <div className="mx-auto w-full max-w-6xl px-5 sm:px-8">
             <div className="max-w-2xl">
               <p className="kp-section-label">Depth when you need it</p>
-              <h2 className="font-display mt-3 text-3xl tracking-tight sm:text-4xl">
+              <h2 className="font-display mt-3 text-2xl tracking-tight sm:text-3xl">
                 Everything else stays in service of Today
               </h2>
             </div>
@@ -276,7 +269,7 @@ export default function MarketingPage() {
                     <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
                       <Icon className="h-5 w-5" />
                     </span>
-                    <h3 className="font-display mt-4 text-xl tracking-tight">{item.title}</h3>
+                    <h3 className="font-display mt-4 text-lg tracking-tight">{item.title}</h3>
                     <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{item.body}</p>
                   </div>
                 )
@@ -293,7 +286,7 @@ export default function MarketingPage() {
         <section id="wellness" className="scroll-mt-20 mx-auto w-full max-w-6xl px-5 py-16 sm:px-8 sm:py-24">
           <div className="max-w-2xl">
             <p className="kp-section-label">Wellness &amp; daily life</p>
-            <h2 className="font-display mt-3 text-3xl tracking-tight sm:text-4xl">
+            <h2 className="font-display mt-3 text-2xl tracking-tight sm:text-3xl">
               A daily planner that keeps health in the loop
             </h2>
             <p className="mt-4 text-base leading-relaxed text-muted-foreground sm:text-lg">
@@ -318,7 +311,7 @@ export default function MarketingPage() {
               },
             ].map((item) => (
               <li key={item.title}>
-                <h3 className="font-display text-xl tracking-tight">{item.title}</h3>
+                <h3 className="font-display text-lg tracking-tight">{item.title}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{item.body}</p>
               </li>
             ))}
@@ -332,7 +325,7 @@ export default function MarketingPage() {
               <Lock className="h-6 w-6" />
             </span>
             <p className="kp-section-label mt-6">Privacy</p>
-            <h2 className="font-display mt-3 text-3xl tracking-tight sm:text-4xl">
+            <h2 className="font-display mt-3 text-2xl tracking-tight sm:text-3xl">
               Private on this device
             </h2>
             <p className="mt-4 text-base leading-relaxed text-muted-foreground">
@@ -351,7 +344,7 @@ export default function MarketingPage() {
               .
             </p>
           </div>
-          <div className="rounded-[1.75rem] border border-border/40 bg-gradient-to-br from-card/80 to-card/30 p-8 sm:p-10">
+          <div className="rounded-xl border bg-card p-8 shadow-sm sm:p-10">
             <ul className="space-y-5 text-sm leading-relaxed text-muted-foreground sm:text-base">
               <li>
                 <span className="font-semibold text-foreground">Local-first.</span> Tasks, calendar,
@@ -375,7 +368,7 @@ export default function MarketingPage() {
           <div className="mx-auto w-full max-w-6xl px-5 sm:px-8">
             <div className="max-w-2xl">
               <p className="kp-section-label">FAQ</p>
-              <h2 className="font-display mt-3 text-3xl tracking-tight sm:text-4xl">
+              <h2 className="font-display mt-3 text-2xl tracking-tight sm:text-3xl">
                 Common questions
               </h2>
               <p className="mt-4 text-base leading-relaxed text-muted-foreground">
@@ -385,7 +378,7 @@ export default function MarketingPage() {
             <dl className="mt-10 max-w-3xl space-y-8">
               {MARKETING_FAQS.map((item) => (
                 <div key={item.question}>
-                  <dt className="font-display text-xl tracking-tight">{item.question}</dt>
+                  <dt className="font-display text-lg tracking-tight">{item.question}</dt>
                   <dd className="mt-2 text-sm leading-relaxed text-muted-foreground sm:text-base">
                     {item.answer}
                   </dd>
@@ -401,7 +394,7 @@ export default function MarketingPage() {
             <div className="grid gap-10 lg:grid-cols-[1fr_1fr] lg:gap-16">
               <div>
                 <p className="kp-section-label">About</p>
-                <h2 className="font-display mt-3 text-3xl tracking-tight sm:text-4xl">
+                <h2 className="font-display mt-3 text-2xl tracking-tight sm:text-3xl">
                   Built by {COMPANY_NAME}
                 </h2>
                 <p className="mt-4 text-base leading-relaxed text-muted-foreground">
@@ -417,21 +410,21 @@ export default function MarketingPage() {
               </div>
               <div className="space-y-6">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  <p className="kp-section-label">
                     Company
                   </p>
-                  <p className="mt-1 font-display text-xl tracking-tight">{COMPANY_NAME}</p>
+                  <p className="mt-1 font-display text-lg tracking-tight">{COMPANY_NAME}</p>
                   <p className="mt-1 text-sm text-muted-foreground">{COMPANY_LEGAL}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  <p className="kp-section-label">
                     Product
                   </p>
-                  <p className="mt-1 font-display text-xl tracking-tight">{APP_NAME_FULL}</p>
+                  <p className="mt-1 font-display text-lg tracking-tight">{APP_NAME_FULL}</p>
                   <p className="mt-1 text-sm text-muted-foreground">iPhone · Available on the App Store</p>
                 </div>
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  <p className="kp-section-label">
                     Contact
                   </p>
                   <a
@@ -445,7 +438,7 @@ export default function MarketingPage() {
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  <p className="kp-section-label">
                     Status
                   </p>
                   <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
@@ -459,11 +452,10 @@ export default function MarketingPage() {
 
         {/* Final CTA */}
         <section id="get" className="scroll-mt-20 mx-auto w-full max-w-6xl px-5 py-16 sm:px-8 sm:py-24">
-          <div className="relative overflow-hidden rounded-[2rem] border border-border/40 bg-gradient-to-br from-primary/15 via-card/60 to-[hsl(200_50%_88%/0.35)] px-6 py-12 sm:px-12 sm:py-16">
-            <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-primary/10 blur-3xl" />
-            <div className="relative max-w-2xl">
+          <div className="rounded-xl border bg-card px-6 py-12 shadow-sm sm:px-12 sm:py-16">
+            <div className="max-w-2xl">
               <p className="kp-section-label">Get the app</p>
-              <h2 className="font-display mt-3 text-3xl tracking-tight sm:text-4xl">
+              <h2 className="font-display mt-3 text-2xl tracking-tight sm:text-3xl">
                 Your day, on this iPhone
               </h2>
               <p className="mt-4 text-base leading-relaxed text-muted-foreground sm:text-lg">

@@ -73,7 +73,7 @@ export function CircleManageDialog({
         <DialogHeader>
           <DialogTitle>Manage circle</DialogTitle>
         </DialogHeader>
-        <form onSubmit={(e) => void onSave(e)} className="space-y-4">
+        <form onSubmit={(e) => void onSave(e)} className="space-y-3">
           {canManage ? (
             <>
               <Input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Name" />
@@ -85,11 +85,11 @@ export function CircleManageDialog({
 
           <div>
             <p className="mb-2 text-sm font-medium">In this circle</p>
-            <ul className="max-h-48 space-y-2 overflow-y-auto">
+            <ul className="max-h-48 divide-y overflow-y-auto border-t border-border">
               {memberRows.map((row) => (
                 <li
                   key={row.uid}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-secondary/50 px-3 py-2"
+                  className="flex flex-wrap items-center justify-between gap-2 py-2"
                 >
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{row.name}</p>
@@ -143,13 +143,13 @@ export function CircleManageDialog({
                   )}
                 </p>
               ) : (
-                <ul className="max-h-48 space-y-2 overflow-y-auto">
+                <ul className="max-h-48 divide-y overflow-y-auto border-t border-border">
                   {inviteable.map((f) => {
                     const pending = pendingSet.has(f.uid)
                     return (
                       <li
                         key={f.uid}
-                        className="flex items-center justify-between gap-2 rounded-xl bg-secondary/50 px-3 py-2"
+                        className="flex items-center justify-between gap-2 py-2"
                       >
                         <span className="text-sm font-medium">{f.displayName}</span>
                         {pending ? (

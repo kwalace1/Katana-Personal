@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { burstConfetti } from '@/lib/celebrate'
 import { springSoft } from '@/lib/motion-ui'
 import type { DayCloseSummary } from '@/lib/ritual-path'
+import { formatWater, readWaterGoal } from '@/modules/health/water'
 
 export type { DayCloseSummary }
 
@@ -35,7 +36,7 @@ export function DayClosedMoment({
         : null
   const bits = [
     habitLine,
-    summary.waterGlasses > 0 ? `${summary.waterGlasses} glasses` : null,
+    summary.waterGlasses > 0 ? formatWater(summary.waterGlasses, readWaterGoal().unit) : null,
     summary.parked > 0 ? `${summary.parked} parked` : 'Inbox clear',
   ].filter(Boolean)
 
@@ -74,7 +75,7 @@ export function DayClosedMoment({
             <p className="text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-white/55">
               Signature · Day card
             </p>
-            <h2 id="day-closed-title" className="mt-1 font-display text-3xl tracking-tight sm:text-4xl">
+            <h2 id="day-closed-title" className="mt-1 font-display text-2xl tracking-tight sm:text-3xl">
               Day closed
             </h2>
             <p className="mt-1 text-sm text-white/60">{summary.dateLabel}</p>
@@ -89,7 +90,7 @@ export function DayClosedMoment({
               <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/70">
                 Day closed
               </p>
-              <p className="mt-2 font-display text-2xl tracking-tight sm:text-3xl">{summary.dateLabel}</p>
+              <p className="mt-2 font-display text-lg tracking-tight">{summary.dateLabel}</p>
               <p className="mt-1 text-sm text-white/75">One next step. Then rest.</p>
               {bits.length > 0 ? (
                 <p className="mt-4 text-sm font-medium text-white/95">{bits.join(' · ')}</p>
