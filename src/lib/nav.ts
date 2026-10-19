@@ -93,7 +93,9 @@ export const NAV_SECTIONS = [PLAN_SECTION, LIFE_SECTION, TOGETHER_SECTION] as co
 const ALL_ITEMS: readonly NavItem[] = [
   ...PRIMARY_NAV,
   SOCIAL_NAV,
-  ...NAV_SECTIONS.flatMap((section) => section.items),
+  ...PLAN_SECTION.items,
+  ...LIFE_SECTION.items,
+  ...TOGETHER_SECTION.items,
   SETTINGS_NAV,
 ]
 
