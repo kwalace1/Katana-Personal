@@ -1,5 +1,6 @@
 import { getSupabase } from '@/lib/supabase'
 import { WORKSPACE_COLLECTIONS, localDb } from '@/lib/local-db'
+import { waterMl } from '@/modules/health/water'
 
 const LAST_SYNC_KEY = 'katana-personal:workspace-last-sync'
 const MERGE_DONE_KEY = 'katana-personal:workspace-merge-done'
@@ -220,8 +221,8 @@ function dedupeWaterByDate(items: unknown[]): unknown[] {
       byDate.set(r.date, row)
       continue
     }
-    const eg = Number((existing as { glasses?: unknown }).glasses) || 0
-    const ng = Number(r.glasses) || 0
+    const eg = waterMl(existing as { glasses?: number; ml?: number })
+    const ng = waterMl(r as { glasses?: number; ml?: number })
     if (ng > eg || (ng === eg && rowStamp(row) >= rowStamp(existing))) {
       byDate.set(r.date, row)
     }

@@ -4,7 +4,6 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { QuantityInput, QUANTITY } from '@/components/ui/quantity-input'
-import { EmptyState } from '@/components/ui/empty-state'
 import { todayKey } from '@/lib/dates'
 import { burstConfetti } from '@/lib/celebrate'
 import { createTogetherPost } from '@/lib/social/feed'
@@ -436,11 +435,11 @@ export function LiftLogPanel({ userId, logDate, tick, refresh, onGoSplits }: Pro
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       {planned && !editingSessionId ? (
-        <div className="kp-surface bg-primary/[0.06] p-4 sm:p-5">
+        <div className="kp-surface bg-primary/[0.06] p-4">
           <p className="kp-section-label">Planned for {formatLiftDate(logDate)}</p>
-          <p className="mt-1 font-display text-xl tracking-tight">
+          <p className="mt-1 font-display text-lg tracking-tight">
             {planned.day.name}
             {planned.day.focus ? (
               <span className="ml-2 text-base font-sans font-normal text-muted-foreground">
@@ -454,7 +453,7 @@ export function LiftLogPanel({ userId, logDate, tick, refresh, onGoSplits }: Pro
 
       <form
         onSubmit={saveWorkout}
-        className={cn('kp-surface min-w-0 space-y-4 overflow-hidden p-4 sm:p-5', editingSessionId && 'ring-2 ring-primary/20')}
+        className={cn('kp-surface min-w-0 space-y-3 overflow-hidden p-4', editingSessionId && 'ring-2 ring-primary/20')}
       >
         <HealthCardHeader
           eyebrow={editingSessionId ? 'Editing workout' : 'Log workout'}
@@ -596,7 +595,7 @@ export function LiftLogPanel({ userId, logDate, tick, refresh, onGoSplits }: Pro
         <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
           <div>
             <p className="kp-section-label">History</p>
-            <h3 className="mt-1 font-display text-xl tracking-tight">Logged sessions</h3>
+            <h3 className="mt-1 font-display text-lg tracking-tight">Logged sessions</h3>
           </div>
           {sessions.length > 0 ? (
             <Button
@@ -619,7 +618,7 @@ export function LiftLogPanel({ userId, logDate, tick, refresh, onGoSplits }: Pro
           ) : null}
         </div>
         {creatingSplitFromLifts ? (
-          <div className="kp-surface mb-3 space-y-3 p-4 sm:p-5">
+          <div className="kp-surface mb-3 space-y-3 p-4">
             <HealthCardHeader
               eyebrow="From lifts"
               title="Build a cycle"
@@ -633,9 +632,9 @@ export function LiftLogPanel({ userId, logDate, tick, refresh, onGoSplits }: Pro
               aria-label="Split name"
             />
             {selectedSplitWorkouts.length ? (
-              <ul className="space-y-2">
+              <ul className="divide-y border-t border-border">
                 {selectedSplitWorkouts.map((workout, index) => (
-                  <li key={workout.id} className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-secondary/40 px-3.5 py-2.5">
+                  <li key={workout.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
                     <div>
                       <p className="text-sm font-medium">Day {index + 1}</p>
                       <p className="text-xs text-muted-foreground">
@@ -678,7 +677,7 @@ export function LiftLogPanel({ userId, logDate, tick, refresh, onGoSplits }: Pro
           </div>
         ) : null}
         {sessions.length === 0 ? (
-          <EmptyState title="No workouts yet" description="Log a multi-exercise session above." />
+          <p className="text-sm text-muted-foreground">No workouts yet.</p>
         ) : (
           <ul className="space-y-2">
             {sessions.map((session) => {
@@ -796,7 +795,7 @@ export function LiftLogPanel({ userId, logDate, tick, refresh, onGoSplits }: Pro
             <DialogTitle>Share {shareSession?.title}</DialogTitle>
           </DialogHeader>
           {cloudUser ? (
-            <div className="space-y-4">
+            <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
                 Post this lift to your Social feed, or send the full workout to circles and friends.
               </p>

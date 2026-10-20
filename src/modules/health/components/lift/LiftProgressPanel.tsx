@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { EmptyState } from '@/components/ui/empty-state'
 import { liftApi } from '../../lift-api'
 import type { LiftProgressMetric } from '../../types'
 import { formatLiftDate, LiftLineChart } from './LiftLineChart'
@@ -42,8 +41,8 @@ export function LiftProgressPanel({ userId, tick }: Props) {
   const metricLabel = METRICS.find((m) => m.value === metric)?.label || metric
 
   return (
-    <div className="space-y-5">
-      <div className="kp-surface space-y-5 p-4 sm:p-5">
+    <div className="space-y-3">
+      <div className="kp-surface space-y-3 p-4">
         <HealthCardHeader eyebrow="Performance" title={selected || 'No exercises yet'} />
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
@@ -106,14 +105,10 @@ export function LiftProgressPanel({ userId, tick }: Props) {
         <LiftLineChart data={data.map((d) => ({ date: d.date, value: d.value }))} label={metricLabel} />
       </div>
 
-      <div className="kp-surface p-4 sm:p-5">
+      <div className="kp-surface p-4">
         <HealthCardHeader eyebrow="Log" title="Exercise history" />
         {data.length === 0 ? (
-          <EmptyState
-            title="No progress yet"
-            description="Log an exercise in a workout to generate a graph."
-            className="mt-3"
-          />
+          <p className="mt-3 text-sm text-muted-foreground">No progress yet.</p>
         ) : (
           <div className="mt-4 overflow-x-auto">
             <table className="w-full min-w-[28rem] text-sm">

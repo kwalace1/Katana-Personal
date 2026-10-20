@@ -4,10 +4,11 @@ import { motion } from 'framer-motion'
 import { Check, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/PageHeader'
+import { navSectionLabel } from '@/lib/nav'
 import { Button } from '@/components/ui/button'
+import { FilterChip } from '@/components/ui/filter-chip'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { EmptyState } from '@/components/ui/empty-state'
 import { MoodSparkline } from '@/components/MiniBars'
 import { useAuth } from '@/contexts/AuthContext'
 import { pageEnterSubtle } from '@/lib/motion-ui'
@@ -147,18 +148,18 @@ export default function JournalPage() {
       <PageHeader
         title="Journal"
         description="How you’re doing today — a quick mood check-in, or a longer note when you want one."
-        eyebrow="Life"
+        eyebrow={navSectionLabel('/journal')}
         actions={
           moodSeries.length > 1 ? (
             <div className="hidden sm:block">
-              <p className="mb-1 text-[0.65rem] uppercase tracking-wide text-muted-foreground">Mood · 14 days</p>
+              <p className="mb-1 kp-section-label">Mood · 14 days</p>
               <MoodSparkline moods={moodSeries} />
             </div>
           ) : null
         }
       />
 
-      <div className="mb-4 flex flex-wrap items-center gap-3">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
         <Input
           type="date"
           value={activeDate}
@@ -181,7 +182,7 @@ export default function JournalPage() {
         </Button>
       </div>
 
-      <div className="mb-4 flex gap-1.5">
+      <div className="mb-3 flex gap-1.5">
         {weekBlips.map((blip) => (
           <button
             key={blip.date}
@@ -191,10 +192,8 @@ export default function JournalPage() {
               setParams({ date: blip.date })
             }}
             className={cn(
-              'flex min-h-11 flex-1 flex-col items-center justify-center gap-1 rounded-xl py-1.5 transition',
-              blip.selected
-                ? 'bg-primary/12 ring-1 ring-primary/30'
-                : 'bg-secondary/35 hover:bg-secondary/55',
+              'flex min-h-11 flex-1 flex-col items-center justify-center gap-1 py-1.5 transition',
+              blip.selected ? 'bg-primary/10' : 'hover:bg-secondary/50',
             )}
             aria-label={`${blip.date}${blip.mood ? `, ${moodLabel(blip.mood)}` : ', no check-in'}`}
           >
@@ -207,29 +206,25 @@ export default function JournalPage() {
         ))}
       </div>
 
-      <form onSubmit={onSave} className="kp-surface mb-8 space-y-5 p-5">
+      <form onSubmit={onSave} className="kp-surface mb-3 space-y-2 p-3">
         <div>
-          <p className="mb-1 text-sm font-medium">How are you doing today?</p>
-          <p className="mb-2 text-xs text-muted-foreground">Tap a mood to check in — no writing required.</p>
-          <div className="flex flex-wrap gap-2">
+          <p className="mb-1.5 text-xs font-medium text-muted-foreground">How are you doing today?</p>
+          <div className="flex flex-wrap gap-1.5">
             {MOODS.map((m) => (
-              <Button
+              <FilterChip
                 key={m.id}
-                type="button"
-                size="sm"
-                variant={mood === m.id && (Boolean(existing) || justSaved) ? 'default' : 'outline'}
-                className="rounded-full"
+                selected={mood === m.id && (Boolean(existing) || justSaved)}
                 onClick={() => checkInMood(m.id)}
               >
                 {m.label}
-              </Button>
+              </FilterChip>
             ))}
           </div>
         </div>
         <div>
-          <p className="mb-2 text-sm font-medium">Entry</p>
+          <p className="mb-1 text-xs font-medium text-muted-foreground">Entry</p>
           <Textarea
-            className="min-h-[160px]"
+            className="min-h-16"
             placeholder="What happened?"
             value={body}
             onChange={(e) => {
@@ -239,9 +234,10 @@ export default function JournalPage() {
           />
         </div>
         <div>
-          <p className="mb-2 text-sm font-medium">A quiet thought</p>
+          <p className="mb-1 text-xs font-medium text-muted-foreground">A quiet thought</p>
           <Textarea
-            className="min-h-[100px]"
+            rows={1}
+            className="min-h-9 resize-y py-1.5"
             placeholder="Anything you’d like to remember…"
             value={reflection}
             onChange={(e) => {
@@ -302,11 +298,11 @@ export default function JournalPage() {
         </div>
       </form>
 
-      <h2 className="mb-3 font-semibold">Earlier</h2>
+      <h2 className="mb-2 text-sm font-medium">Earlier</h2>
       {entries.length === 0 ? (
-        <EmptyState title="No entries yet" description="Write something for today when you’re ready." />
+        <p className="text-sm text-muted-foreground">No earlier entries yet.</p>
       ) : (
-        <ul className="space-y-3">
+        <ul className="kp-surface divide-y">
           {entries.map((entry) => (
             <li key={entry.id}>
               <button
@@ -316,8 +312,8 @@ export default function JournalPage() {
                   setParams({ date: entry.date })
                 }}
                 className={cn(
-                  'kp-surface w-full p-4 text-left transition hover:ring-1 hover:ring-primary/25',
-                  entry.date === activeDate && 'ring-1 ring-primary/30',
+                  'w-full p-3 text-left transition hover:bg-secondary/50',
+                  entry.date === activeDate && 'bg-primary/10',
                 )}
               >
                 <div className="flex items-center justify-between gap-2">

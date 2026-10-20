@@ -49,7 +49,7 @@ export function SettingsHub() {
 
   return (
     <motion.div {...pageEnterSubtle} className="kp-page max-w-2xl">
-      <PageHeader title="Settings" description="Your space, your rules." eyebrow="You" />
+      <PageHeader title="Settings" description="Your space, your rules." />
 
       <SettingsGroup>
         <Link

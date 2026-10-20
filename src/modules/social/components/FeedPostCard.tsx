@@ -1034,7 +1034,7 @@ export function FeedPostCard({
               Reports help keep Social safe. We’ll hide this post for you.
             </SheetDescription>
           </SheetHeader>
-          <form onSubmit={(e) => void onSubmitReport(e)} className="space-y-4 px-5 py-4">
+          <form onSubmit={(e) => void onSubmitReport(e)} className="space-y-3 px-5 py-4">
             <div className="flex flex-wrap gap-2">
               {REPORT_REASONS.map((r) => (
                 <button

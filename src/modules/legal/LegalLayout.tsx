@@ -19,7 +19,7 @@ export function LegalLayout({
       </header>
       <article className="flex-1 py-8">
         <p className="kp-section-label mb-2">Katana Personal</p>
-        <h1 className="font-display text-4xl tracking-tight">{title}</h1>
+        <h1 className="font-display text-2xl tracking-tight sm:text-3xl">{title}</h1>
         <p className="mt-2 text-sm text-muted-foreground">Last updated {updated}</p>
         <div className={`mt-8 ${legalProseClass}`}>{children}</div>
       </article>

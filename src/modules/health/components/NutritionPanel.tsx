@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { EmptyState } from '@/components/ui/empty-state'
 import { MealPhotoEstimateDialog } from '@/components/MealPhotoEstimateDialog'
 import { NutritionLabelScanDialog } from '@/components/NutritionLabelScanDialog'
 import { PlusPaywallSheet, usePlusStatus } from '@/components/PlusPaywall'
@@ -228,12 +227,12 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {planned ? (
-        <div className="kp-surface flex flex-wrap items-start justify-between gap-3 bg-primary/[0.06] p-4 sm:p-5">
+        <div className="kp-surface flex flex-wrap items-start justify-between gap-3 bg-primary/[0.06] p-4">
           <div>
             <p className="kp-section-label">Active diet plan</p>
-            <p className="mt-1 font-display text-xl tracking-tight">{planned.plan.name}</p>
+            <p className="mt-1 font-display text-lg tracking-tight">{planned.plan.name}</p>
             <p className="mt-0.5 text-sm text-muted-foreground">
               {planned.day.name} · {planned.plan.calories.toLocaleString()} kcal target · {formatMacros(planned.plan)}
             </p>
@@ -251,7 +250,7 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
         </div>
       ) : null}
 
-      <form onSubmit={save} className="kp-surface min-w-0 space-y-4 overflow-hidden p-4 sm:p-5">
+      <form onSubmit={save} className="kp-surface min-w-0 space-y-3 overflow-hidden p-4">
         <HealthCardHeader
           eyebrow="Nutrition"
           title="Log a meal"
@@ -379,7 +378,7 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
       <div className="kp-surface flex flex-wrap items-end justify-between gap-3 p-4">
         <div>
           <p className="text-xs text-muted-foreground">Today</p>
-          <p className="font-display text-2xl tracking-tight">
+          <p className="font-display text-lg tracking-tight">
             {Math.round(todayTotals.calories).toLocaleString()} kcal
             {planned ? (
               <span className="ml-1 text-lg font-sans font-medium text-muted-foreground">
@@ -397,12 +396,9 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
         <p className="text-xs text-muted-foreground">History</p>
         <h3 className="mb-3 font-display text-lg tracking-tight">Meal log</h3>
         {meals.length === 0 ? (
-          <EmptyState
-            title="No meals yet"
-            description="Add ingredients above or log a meal with rough macros."
-          />
+          <p className="text-sm text-muted-foreground">No meals yet.</p>
         ) : (
-          <div className="space-y-5">
+          <div className="space-y-3">
             {dates.map((dateISO) => {
               const dayMeals = meals.filter((m) => m.date === dateISO)
               const totals = healthApi.nutritionDayTotals(userId, dateISO)
@@ -481,7 +477,7 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
             <DialogTitle>Share {shareMeal?.meal}</DialogTitle>
           </DialogHeader>
           {cloudUser ? (
-            <div className="space-y-4">
+            <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
                 Friends receive the meal with ingredients and macros, and can copy it into their own log.
               </p>

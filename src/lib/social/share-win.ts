@@ -5,6 +5,7 @@ import { computeLocalStreaks } from '@/lib/social/streaks'
 import { healthApi } from '@/modules/health/api'
 import { liftApi } from '@/modules/health/lift-api'
 import type { WeightGoalMode } from '@/modules/health/types'
+import { formatWater, readWaterGoal } from '@/modules/health/water'
 
 const NEVER_KEY = 'katana-personal:share-win-never'
 const LAST_KEY = 'katana-personal:share-win-last'
@@ -170,7 +171,7 @@ export function buildDayCloseShareCard(input: {
         : null
   const bits = [
     habitPart,
-    input.waterGlasses > 0 ? `${input.waterGlasses} glasses` : null,
+    input.waterGlasses > 0 ? formatWater(input.waterGlasses, readWaterGoal().unit) : null,
     input.parked > 0 ? `${input.parked} parked for tomorrow` : 'Inbox clear',
   ].filter(Boolean)
   const note = input.noteSnippet?.trim()
@@ -406,7 +407,7 @@ export function buildGoalCompleteShareCard(input: {
   }
 }
 
-export function buildHydrationShareCard(glasses: number): ShareWinOffer {
+export function buildHydrationShareCard(amountLabel: string): ShareWinOffer {
   return {
     headline: 'Share your hydration?',
     defaultCaption: 'Hydration goal crushed for today.',
@@ -415,7 +416,7 @@ export function buildHydrationShareCard(glasses: number): ShareWinOffer {
       badge: 'Hydrated',
       title: 'Water goal',
       subtitle: 'Cheers — streak locked for today',
-      stats: `${glasses} glasses`,
+      stats: amountLabel,
     },
   }
 }

@@ -27,6 +27,7 @@ import { notesApi } from '@/modules/notes/api'
 import { goalsApi } from '@/modules/goals/api'
 import { journalApi } from '@/modules/journal/api'
 import { healthApi } from '@/modules/health/api'
+import { waterMl } from '@/modules/health/water'
 import {
   buildDayCloseShareCard,
   offerHabitCheckedInShare,
@@ -249,7 +250,7 @@ export default function DashboardPage() {
       parked: n,
       habitsDone,
       habitsDue: due.length,
-      waterGlasses: healthApi.getWater(userId).glasses,
+      waterGlasses: Math.round(waterMl(healthApi.getWater(userId))),
       noteSnippet: note || undefined,
       dateLabel: format(new Date(), 'EEEE · MMM d'),
     }
@@ -318,7 +319,7 @@ export default function DashboardPage() {
       />
 
       {onboardingDone && editingLayout && (
-        <section className="mb-6 kp-surface p-5 sm:p-6">
+        <section className="mb-4 kp-surface p-4">
           <p className="kp-section-label">Today layout</p>
           <p className="mt-1 text-sm text-muted-foreground">
             Turn sections on or off. Create and recent feed always stay.
@@ -408,13 +409,13 @@ export default function DashboardPage() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={springSoft}
-              className="relative mb-5 overflow-hidden kp-surface p-5"
+              className="relative mb-3 overflow-hidden kp-surface p-4"
             >
               <p className="kp-section-label">Do this next</p>
               {data.next ? (
                 <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
-                    <h2 className="font-display text-xl tracking-tight sm:text-2xl">{data.next.title}</h2>
+                    <h2 className="font-display text-lg tracking-tight">{data.next.title}</h2>
                     <p className="mt-1 text-sm text-foreground/85">{data.next.reason}</p>
                     {data.next.meta ? (
                       <p className="mt-1 text-xs text-muted-foreground">{data.next.meta}</p>
@@ -561,7 +562,7 @@ export default function DashboardPage() {
                 </div>
               ) : (
                 <div className="mt-2">
-                  <h2 className="font-display text-xl tracking-tight">Nothing urgent</h2>
+                  <h2 className="font-display text-lg tracking-tight">Nothing urgent</h2>
                   <p className="mt-1 text-sm text-muted-foreground">
                     Capture above, or open Tasks when you’re ready.
                   </p>
@@ -576,7 +577,7 @@ export default function DashboardPage() {
             (data.alsoTasks.length > 0 ||
               data.openHabits.length > 0 ||
               data.todayEvents.length > 0) && (
-              <section className="mb-5 kp-surface">
+              <section className="mb-3 kp-surface">
                 <button
                   type="button"
                   className="flex w-full items-center justify-between px-5 py-3.5 text-left"
@@ -590,11 +591,11 @@ export default function DashboardPage() {
                   </span>
                 </button>
                 {alsoOpen && (
-                  <div className="space-y-2 border-t border-border/40 px-4 pb-4 pt-2">
+                  <div className="divide-y border-t border-border">
                     {data.alsoTasks.map((task) => (
                       <div
                         key={task.id}
-                        className="flex items-center justify-between gap-2 rounded-xl bg-secondary/50 px-3 py-2.5"
+                        className="flex items-center justify-between gap-2 px-4 py-2.5"
                       >
                         <Link
                           to={`/tasks?id=${task.id}`}
@@ -620,7 +621,7 @@ export default function DashboardPage() {
                       .map((habit) => (
                         <div
                           key={habit.id}
-                          className="flex items-center justify-between gap-2 rounded-xl bg-secondary/50 px-3 py-2.5"
+                          className="flex items-center justify-between gap-2 px-4 py-2.5"
                         >
                           <span className="truncate text-sm">{habit.title}</span>
                           <Button
@@ -646,7 +647,7 @@ export default function DashboardPage() {
                         <Link
                           key={event.id}
                           to={`/calendar?date=${event.starts_at.slice(0, 10)}&id=${event.id}`}
-                          className="block rounded-xl bg-secondary/50 px-3 py-2.5 text-sm hover:bg-secondary/80"
+                          className="block px-4 py-2.5 text-sm hover:bg-secondary/50"
                         >
                           {event.title}
                           <span className="ml-2 text-xs text-muted-foreground">
@@ -660,7 +661,7 @@ export default function DashboardPage() {
             )}
 
           {isSectionVisible(prefs, 'for_you') && (
-            <section className="relative mb-5 overflow-hidden kp-surface p-5" aria-live="polite">
+            <section className="relative mb-3 overflow-hidden kp-surface p-4" aria-live="polite">
               <div className="mb-2 flex items-center justify-between gap-2">
                 <p className="kp-section-label">For you</p>
                 <Link to="/ask" className="text-xs font-medium text-primary hover:underline">
@@ -717,7 +718,7 @@ export default function DashboardPage() {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={springSoft}
-              className="relative mb-5 overflow-hidden kp-surface border border-primary/15 p-4 sm:p-5"
+              className="relative mb-3 overflow-hidden kp-surface border border-primary/15 p-4"
             >
               <div className="relative mb-2 flex items-center gap-2">
                 <Moon className="h-4 w-4 text-primary" />
@@ -761,7 +762,7 @@ export default function DashboardPage() {
             {isSectionVisible(prefs, 'coming_up') && data.events.length > 0 && (
               <section className="px-1 py-2 sm:px-0">
                 <div className="mb-2 flex items-baseline justify-between gap-2">
-                  <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  <h2 className="kp-section-label">
                     Coming up
                   </h2>
                   <Link to="/calendar" className="text-xs font-medium text-primary hover:underline">
@@ -790,7 +791,7 @@ export default function DashboardPage() {
             {isSectionVisible(prefs, 'goals') && data.goals.length > 0 && (
               <section className="px-1 py-2 sm:px-0">
                 <div className="mb-2 flex items-baseline justify-between gap-2">
-                  <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  <h2 className="kp-section-label">
                     Goals
                   </h2>
                   <Link to="/goals" className="text-xs font-medium text-primary hover:underline">
@@ -827,7 +828,7 @@ export default function DashboardPage() {
             {isSectionVisible(prefs, 'recent_notes') && data.notes.length > 0 && (
               <section className="px-1 py-2 sm:px-0 lg:col-span-2">
                 <div className="mb-2 flex items-baseline justify-between gap-2">
-                  <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  <h2 className="kp-section-label">
                     Recent notes
                   </h2>
                   <Link to="/notes" className="text-xs font-medium text-primary hover:underline">

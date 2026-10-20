@@ -5,7 +5,6 @@ import { CheckSquare, Dumbbell, LogOut, Salad, Trash2, Users } from 'lucide-reac
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
-import { EmptyState } from '@/components/ui/empty-state'
 import { TogetherSetup } from '@/components/TogetherSetup'
 import {
   Dialog,
@@ -15,6 +14,7 @@ import {
 } from '@/components/ui/dialog'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
+import { navItemLabel, navSectionLabel } from '@/lib/nav'
 import { pageEnterSubtle } from '@/lib/motion-ui'
 import { leaveSharedItem, listSharedItems, removeSharedItem, sharedItemHref } from '@/lib/social/shared'
 import { getCloudProfile } from '@/lib/social/friends'
@@ -232,9 +232,9 @@ export default function SharedPage() {
     return (
       <motion.div {...pageEnterSubtle} className="kp-page">
         <PageHeader
-          title="Plans"
+          title={navItemLabel('/shared') ?? 'Plans'}
           description="Friends send you tasks and goals here — Circles are separate group boards."
-          eyebrow="Together"
+          eyebrow={navSectionLabel('/shared')}
         />
         <TogetherSetup highlight="shared" compact />
       </motion.div>
@@ -244,33 +244,17 @@ export default function SharedPage() {
   return (
     <motion.div {...pageEnterSubtle} className="kp-page">
       <PageHeader
-        title="Plans"
+        title={navItemLabel('/shared') ?? 'Plans'}
         description="Friends send you tasks and goals here — Circles are separate group boards."
-        eyebrow="Together"
+        eyebrow={navSectionLabel('/shared')}
       />
       {items.length === 0 ? (
         <>
           <TogetherSetup highlight="shared" compact cloudConnected className="mb-4" />
-          <EmptyState
-            title="Nothing in your plans inbox"
-            description="Share a task with a friend from Tasks — they can copy it here. Circles are for streak boards, not this inbox."
-            action={
-              <div className="flex flex-wrap justify-center gap-2">
-                <Button asChild>
-                  <Link to="/tasks">Open Tasks → pick one → Share</Link>
-                </Button>
-                <Button asChild variant="outline">
-                  <Link to="/circles">Circle Schedule</Link>
-                </Button>
-                <Button asChild variant="outline">
-                  <Link to="/social?tab=friends">Find friends</Link>
-                </Button>
-              </div>
-            }
-          />
+          <p className="text-sm text-muted-foreground">Nothing shared yet. Share a task from Tasks.</p>
         </>
       ) : (
-        <ul className="space-y-2">
+        <ul className="kp-surface divide-y">
           {items.map((item) => {
             const mine = item.ownerId === cloudUser.uid
             const circleNames = Array.isArray(item.data?.sharedCircleNames)
@@ -280,11 +264,11 @@ export default function SharedPage() {
             <li key={item.id}>
               <button
                 type="button"
-                className="kp-surface flex w-full items-start justify-between gap-3 p-4 text-left transition hover:border-primary/30"
+                className="flex w-full items-start justify-between gap-3 p-4 text-left transition hover:bg-secondary/50"
                 onClick={() => setSelected(item)}
               >
                 <div className="min-w-0">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                  <p className="kp-section-label">
                     {item.kind} · {mine ? 'You shared' : 'Shared with you'}
                   </p>
                   <p className="font-medium">{item.title}</p>
@@ -312,9 +296,9 @@ export default function SharedPage() {
           {selected ? (
             <>
               <DialogHeader>
-                <DialogTitle className="font-display text-xl tracking-tight">{selected.title}</DialogTitle>
+                <DialogTitle className="font-display text-lg tracking-tight">{selected.title}</DialogTitle>
               </DialogHeader>
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">{selected.kind}</p>
+              <p className="kp-section-label">{selected.kind}</p>
               {Array.isArray(selected.data?.sharedCircleNames) &&
               (selected.data.sharedCircleNames as string[]).length > 0 ? (
                 <p className="text-sm text-muted-foreground">
@@ -323,7 +307,7 @@ export default function SharedPage() {
               ) : null}
               {selected.body ? <p className="text-sm text-muted-foreground">{selected.body}</p> : null}
               {readSharedSplit(selected) ? (
-                <div className="rounded-2xl bg-secondary/40 p-3">
+                <div className="border-t border-border pt-3">
                   <p className="mb-2 text-sm font-medium">Complete split</p>
                   <ul className="space-y-2 text-sm">
                     {readSharedSplit(selected)!.days.map((day, index) => (
@@ -345,7 +329,7 @@ export default function SharedPage() {
                 </div>
               ) : null}
               {readSharedWorkout(selected) ? (
-                <div className="rounded-2xl bg-secondary/40 p-3">
+                <div className="border-t border-border pt-3">
                   <p className="mb-2 text-sm font-medium">Complete workout</p>
                   <ul className="space-y-2 text-sm">
                     {readSharedWorkout(selected)!.exercises.map((exercise) => (
@@ -360,7 +344,7 @@ export default function SharedPage() {
                 </div>
               ) : null}
               {readSharedMeal(selected) ? (
-                <div className="rounded-2xl bg-secondary/40 p-3">
+                <div className="border-t border-border pt-3">
                   <p className="mb-2 text-sm font-medium">Meal with ingredients</p>
                   <p className="text-xs text-muted-foreground">
                     {Math.round(readSharedMeal(selected)!.calories)} kcal · P{readSharedMeal(selected)!.protein} C
@@ -382,7 +366,7 @@ export default function SharedPage() {
                 </div>
               ) : null}
               {readSharedDietPlan(selected) ? (
-                <div className="rounded-2xl bg-secondary/40 p-3">
+                <div className="border-t border-border pt-3">
                   <p className="mb-2 text-sm font-medium">Complete diet plan</p>
                   <p className="text-xs text-muted-foreground">
                     {readSharedDietPlan(selected)!.calories.toLocaleString()} kcal · P

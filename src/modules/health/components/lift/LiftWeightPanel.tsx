@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { QuantityInput, QUANTITY } from '@/components/ui/quantity-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { EmptyState } from '@/components/ui/empty-state'
 import { todayKey } from '@/lib/dates'
 import { burstConfetti } from '@/lib/celebrate'
 import { cn } from '@/lib/utils'
@@ -190,8 +189,8 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
   }
 
   return (
-    <div className="space-y-5">
-      <div className="kp-surface space-y-5 p-4 sm:p-5">
+    <div className="space-y-3">
+      <div className="kp-surface space-y-3 p-4">
         <HealthCardHeader
           eyebrow="Bodyweight trend"
           title={latestOverall ? `${latestOverall.weight} lb` : 'No entries yet'}
@@ -255,7 +254,7 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
       </div>
 
       <div className="grid min-w-0 gap-4 lg:grid-cols-2">
-        <form onSubmit={saveWeight} className="kp-surface min-w-0 space-y-4 overflow-hidden p-4 sm:p-5">
+        <form onSubmit={saveWeight} className="kp-surface min-w-0 space-y-3 overflow-hidden p-4">
           <HealthCardHeader eyebrow="Check-in" title="Log weight" />
           <div className="grid gap-3 sm:grid-cols-2 *:min-w-0">
             <div>
@@ -276,7 +275,7 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
           <Button type="submit">Save weight</Button>
         </form>
 
-        <form onSubmit={saveGoal} className="kp-surface min-w-0 space-y-4 overflow-hidden p-4 sm:p-5">
+        <form onSubmit={saveGoal} className="kp-surface min-w-0 space-y-3 overflow-hidden p-4">
           <HealthCardHeader eyebrow="Goal" title="Set direction" />
           <div>
             <HealthFieldLabel>Goal type</HealthFieldLabel>
@@ -325,20 +324,17 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
 
       <WeeklyTargetsCard plan={plan} />
 
-      <div className="kp-surface p-4 sm:p-5">
+      <div className="kp-surface p-4">
         <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
           <HealthCardHeader eyebrow="Log" title="Weight history" />
           <span className="text-xs text-muted-foreground">{selectedRangeLabel}</span>
         </div>
         {filtered.length === 0 ? (
-          <EmptyState
-            title={entries.length ? `No weigh-ins in the ${selectedRangeLabel.toLowerCase()}` : 'No weight logs'}
-            description={
-              entries.length
-                ? 'Try a wider range or log a new check-in.'
-                : 'Log a check-in to start the trend.'
-            }
-          />
+          <p className="text-sm text-muted-foreground">
+            {entries.length
+              ? `No weigh-ins in the ${selectedRangeLabel.toLowerCase()}.`
+              : 'No weight logs yet.'}
+          </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[22rem] text-sm">
@@ -392,13 +388,9 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
 function WeeklyTargetsCard({ plan }: { plan: WeightGoalPlan | null }) {
   if (!plan) {
     return (
-      <div className="kp-surface p-4 sm:p-5">
+      <div className="kp-surface p-4">
         <HealthCardHeader eyebrow="Weekly targets" title="Goal pace" />
-        <EmptyState
-          title="Set a start, goal, and date"
-          description="A 5 lb gain over 20 weeks becomes +0.25 lb each week."
-          className="mt-3"
-        />
+        <p className="mt-2 text-sm text-muted-foreground">Set a start weight, a goal, and a date above.</p>
       </div>
     )
   }
@@ -421,7 +413,7 @@ function WeeklyTargetsCard({ plan }: { plan: WeightGoalPlan | null }) {
       : `Starts ${formatLiftDate(plan.startDate)}`
 
   return (
-    <div className="kp-surface space-y-5 p-4 sm:p-5">
+    <div className="kp-surface space-y-3 p-4">
       <HealthCardHeader
         eyebrow="Weekly targets"
         title={`${formatSignedLb(plan.weeklyChange)} / week`}

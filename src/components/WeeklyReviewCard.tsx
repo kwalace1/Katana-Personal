@@ -26,20 +26,19 @@ export function WeeklyReviewCard({
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={springSoft}
-      className="relative mb-4 overflow-hidden kp-surface border border-primary/15 p-5 sm:p-6"
+      className="relative mb-4 kp-surface p-5"
     >
-      <div className="pointer-events-none absolute -left-8 bottom-0 h-40 w-40 rounded-full bg-primary/10 blur-3xl" />
       <div className="relative mb-2 flex items-center gap-2">
         <CalendarRange className="h-4 w-4 text-primary" />
         <p className="kp-section-label">Weekly review</p>
       </div>
-      <h2 className="relative font-display text-xl tracking-tight sm:text-2xl">
+      <h2 className="relative font-display text-lg tracking-tight">
         Look back, then look ahead
       </h2>
       <p className="relative mt-1 text-sm text-muted-foreground">{w.label}</p>
 
       <ul className="relative mt-4 space-y-2 text-sm">
-        <li className="rounded-2xl bg-secondary/55 px-3.5 py-2.5">
+        <li className="rounded-lg bg-secondary px-3.5 py-2.5">
           <span className="font-medium">{w.tasksCompleted}</span>
           <span className="text-muted-foreground">
             {' '}
@@ -51,7 +50,7 @@ export function WeeklyReviewCard({
             </span>
           ) : null}
         </li>
-        <li className="rounded-2xl bg-secondary/55 px-3.5 py-2.5">
+        <li className="rounded-lg bg-secondary px-3.5 py-2.5">
           <span className="font-medium">{w.habitCheckInDays}</span>
           <span className="text-muted-foreground">
             {' '}
@@ -63,7 +62,7 @@ export function WeeklyReviewCard({
             </span>
           ) : null}
         </li>
-        <li className="rounded-2xl bg-secondary/55 px-3.5 py-2.5">
+        <li className="rounded-lg bg-secondary px-3.5 py-2.5">
           <span className="font-medium">{w.workouts + w.lifts}</span>
           <span className="text-muted-foreground">
             {' '}

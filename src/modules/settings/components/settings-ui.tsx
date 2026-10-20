@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, type LucideIcon } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/layout/PageHeader'
+import { SETTINGS_NAV } from '@/lib/nav'
 import { pageEnterSubtle } from '@/lib/motion-ui'
 import { cn } from '@/lib/utils'
 
@@ -34,7 +35,7 @@ export function SettingsDetail({
           {backLabel}
         </Link>
       </Button>
-      <PageHeader title={title} description={description} eyebrow="Settings" />
+      <PageHeader title={title} description={description} eyebrow={SETTINGS_NAV.label} />
       {children}
     </motion.div>
   )
@@ -48,9 +49,9 @@ type SettingsGroupProps = {
 
 export function SettingsGroup({ title, children, className }: SettingsGroupProps) {
   return (
-    <section className={cn('mb-5', className)}>
-      {title ? <p className="kp-section-label mb-2 px-1 uppercase tracking-wide">{title}</p> : null}
-      <div className="kp-surface divide-y divide-white/25 overflow-hidden dark:divide-white/10">{children}</div>
+    <section className={cn('mb-3', className)}>
+      {title ? <p className="kp-section-label mb-2 px-1">{title}</p> : null}
+      <div className="kp-surface divide-y divide-border overflow-hidden">{children}</div>
     </section>
   )
 }
@@ -136,5 +137,5 @@ export function SettingsRow({
 }
 
 export function SettingsPanel({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={cn('kp-surface space-y-4 p-5', className)}>{children}</div>
+  return <div className={cn('kp-surface space-y-3 p-4', className)}>{children}</div>
 }

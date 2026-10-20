@@ -8,6 +8,7 @@ import {
   rememberBoundSession,
 } from '@/lib/cloud-workspace'
 import { ensureUserLoaded, initLocalDb, localDb } from '@/lib/local-db'
+import { isWebAppSecretUnlocked } from '@/lib/web-app-lock'
 import { localWorkspaceHasData } from '@/lib/workspace-sync'
 
 const LOCAL_SESSION_KEY = 'katana-personal:local-session'
@@ -18,6 +19,7 @@ const CAPTURED_KEY = 'katana-personal:captured-once'
 /** Returning users (data, prior capture, or restored session) should never be locked in First Minute. */
 export function inferOnboardingComplete(userId: string | null | undefined): boolean {
   try {
+    if (isWebAppSecretUnlocked()) return true
     if (localStorage.getItem(ONBOARDING_KEY) === '1') return true
     if (localStorage.getItem(CAPTURED_KEY) === '1') return true
   } catch {

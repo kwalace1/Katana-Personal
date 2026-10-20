@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Heart, Loader2, Newspaper, Users } from 'lucide-react'
+import { Heart, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { TogetherSetup } from '@/components/TogetherSetup'
 import { Button } from '@/components/ui/button'
@@ -434,53 +434,15 @@ export default function FeedPage() {
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : visiblePosts.length === 0 ? (
-            <div className="px-4 py-10 sm:px-5">
-              <EmptyState
-                icon={tab === 'circles' ? Users : Newspaper}
-                title={
-                  tab === 'circles'
-                    ? activeCircleName
-                      ? `No wins in ${activeCircleName} yet`
-                      : 'No Circle posts yet'
-                    : tab === 'mine'
-                      ? 'You haven’t shared a win yet'
-                      : 'No wins shared yet'
-                }
-                description={
-                  tab === 'circles'
-                    ? activeCircleName
-                      ? 'Share a win to this Circle, or switch filters above.'
-                      : 'When someone posts a win to a Circle, it shows up here.'
-                    : 'Finish something in Today — or share how you’re feeling — then post the win card.'
-                }
-                action={
-                  <div className="flex flex-wrap justify-center gap-2">
-                    <Button asChild>
-                      <Link to="/dashboard">Open Today</Link>
-                    </Button>
-                    {tab === 'feed' ? (
-                      <Button variant="outline" onClick={() => setTab('friends')}>
-                        Invite a friend
-                      </Button>
-                    ) : tab === 'circles' ? (
-                      <Button asChild variant="outline">
-                        <Link to="/circles">Open Circles</Link>
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setTab('feed')
-                          setFeelingOpen(true)
-                        }}
-                      >
-                        Share a feeling
-                      </Button>
-                    )}
-                  </div>
-                }
-              />
-            </div>
+            <p className="px-4 py-6 text-sm text-muted-foreground sm:px-5">
+              {tab === 'circles'
+                ? activeCircleName
+                  ? `No wins in ${activeCircleName} yet.`
+                  : 'No Circle posts yet.'
+                : tab === 'mine'
+                  ? 'You haven’t shared a win yet.'
+                  : 'No wins shared yet.'}
+            </p>
           ) : (
             <motion.div
               variants={staggerContainer}
@@ -568,8 +530,8 @@ function SocialHero({
   return (
     <header className="sticky top-0 z-20 border-b border-border/50 bg-background/90 backdrop-blur-md">
       <div className="px-4 pt-3 sm:px-5">
-        <h1 className="font-display text-xl tracking-tight sm:text-2xl">Social</h1>
-        <p className="text-xs text-muted-foreground">
+        <h1 className="font-display text-2xl tracking-tight">Social</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
           Cheer real wins — and how you’re feeling — not a general feed.
         </p>
       </div>

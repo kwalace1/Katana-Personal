@@ -41,7 +41,7 @@ export function CalendarGrid({
 }) {
   return (
     <div>
-      <div className="mb-1 grid grid-cols-7 gap-1 text-center text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">
+      <div className="mb-1 grid grid-cols-7 gap-1 text-center kp-section-label">
         {WEEKDAYS.map((d) => (
           <div key={d}>{d}</div>
         ))}
@@ -64,11 +64,9 @@ export function CalendarGrid({
                 tasks > 0 ? `, ${tasks} ${tasks === 1 ? 'task' : 'tasks'}` : ''
               }`}
               className={cn(
-                'flex flex-col rounded-xl p-1.5 text-left transition',
+                'flex flex-col p-1.5 text-left transition',
                 compact ? 'min-h-[4.25rem] sm:min-h-[4.75rem]' : 'min-h-[5.25rem] sm:min-h-[6.5rem]',
-                selected
-                  ? 'bg-primary/12 ring-1 ring-primary/30'
-                  : 'bg-secondary/30 hover:bg-secondary/55',
+                selected ? 'bg-primary/10' : 'hover:bg-secondary/50',
                 outside && 'opacity-40',
               )}
             >
@@ -137,10 +135,8 @@ export function DayWeekStrip({
             type="button"
             onClick={() => onSelectDay(day)}
             className={cn(
-              'rounded-xl px-1 py-2 text-center transition',
-              selected
-                ? 'bg-primary/12 ring-1 ring-primary/30'
-                : 'bg-secondary/30 hover:bg-secondary/55',
+              'px-1 py-2 text-center transition',
+              selected ? 'bg-primary/10' : 'hover:bg-secondary/50',
             )}
           >
             <p className="text-[0.65rem] font-semibold uppercase text-muted-foreground">

@@ -4,6 +4,7 @@ import { habitsApi } from '@/modules/habits/api'
 import { goalsApi } from '@/modules/goals/api'
 import { journalApi } from '@/modules/journal/api'
 import { healthApi } from '@/modules/health/api'
+import { formatWater, mlFromAmount, readWaterGoal, readWaterUnit, waterGoalMl, waterMl, waterUnitMeta } from '@/modules/health/water'
 import { liftApi } from '@/modules/health/lift-api'
 import { notesApi } from '@/modules/notes/api'
 import { parseCapture } from '@/lib/capture'
@@ -40,12 +41,23 @@ export interface LifeSnapshot {
   /** Recent journal excerpts for deeper Ask context */
   recentJournal: { date: string; mood: string | null; excerpt: string }[]
   waterGlasses: number
+  /** Milliliters logged today. Falls back to waterGlasses for older snapshots. */
+  waterMl?: number
   recentWorkouts: number
   recentLifts: number
   sleepHoursLast: number
   caloriesToday: number
   recentNotes: number
   week: WeekStats
+}
+
+function loggedWaterMl(snap: { waterMl?: number; waterGlasses: number }) {
+  return snap.waterMl ?? snap.waterGlasses
+}
+
+function waterProgressLabel(snap: { waterMl?: number; waterGlasses: number }) {
+  const goal = readWaterGoal()
+  return `${formatWater(loggedWaterMl(snap), goal.unit)} of ${formatWater(waterGoalMl(goal), goal.unit)}`
 }
 
 export interface AskReply {
@@ -88,7 +100,8 @@ export function buildSnapshot(userId: string, displayName = 'there'): LifeSnapsh
     journalToday: Boolean(journal),
     journalMood: journal?.mood ?? null,
     recentJournal,
-    waterGlasses: healthApi.getWater(userId).glasses,
+    waterGlasses: Math.round(waterMl(healthApi.getWater(userId))),
+    waterMl: waterMl(healthApi.getWater(userId)),
     recentWorkouts: healthApi
       .listWorkouts(userId)
       .filter((w) => w.date >= weekStart && !w.lift_session_id).length,
@@ -197,7 +210,7 @@ export function buildBriefingActions(snap: LifeSnapshot): AskAction[] {
       habitId: pendingHabit.id,
     })
   }
-  if (snap.waterGlasses < 6) {
+  if (loggedWaterMl(snap) < waterGoalMl()) {
     actions.push({ id: createId(), label: 'Log water', kind: 'log_water' })
   }
   if (!snap.journalToday) {
@@ -516,18 +529,18 @@ function answerHabits(snap: LifeSnapshot): AskReply {
 
 function answerHealth(snap: LifeSnapshot): AskReply {
   const bits = [
-    `Water today: ${snap.waterGlasses} glass${snap.waterGlasses === 1 ? '' : 'es'}.`,
+    `Water today: ${waterProgressLabel(snap)}.`,
     `Workouts this week: ${snap.recentWorkouts}. Lifts: ${snap.recentLifts}.`,
   ]
   if (snap.sleepHoursLast > 0) bits.push(`Last sleep logged: ${snap.sleepHoursLast}h.`)
   if (snap.caloriesToday > 0) bits.push(`Meals today: ${snap.caloriesToday} cal.`)
   bits.push(
-    snap.waterGlasses < 4 ? 'A glass of water would be a kind next step.' : 'Hydration looks solid.',
+    loggedWaterMl(snap) < waterGoalMl() ? 'Logging a bit more water would be a kind next step.' : 'Hydration looks solid.',
   )
   return {
     text: bits.join(' '),
     actions: [
-      { id: createId(), label: 'Log a glass of water', kind: 'log_water' },
+      { id: createId(), label: 'Log water', kind: 'log_water' },
       { id: createId(), label: 'Open health', kind: 'open_route', route: '/health' },
     ],
   }
@@ -562,7 +575,7 @@ function answerAboutMe(snap: LifeSnapshot): AskReply {
     parts.push('No active goals yet.')
   }
   parts.push(
-    `Health: ${snap.waterGlasses} glass${snap.waterGlasses === 1 ? '' : 'es'} of water today, ${snap.recentWorkouts} workout${snap.recentWorkouts === 1 ? '' : 's'} and ${snap.recentLifts} lift session${snap.recentLifts === 1 ? '' : 's'} this week${
+    `Health: ${waterProgressLabel(snap)} today, ${snap.recentWorkouts} workout${snap.recentWorkouts === 1 ? '' : 's'} and ${snap.recentLifts} lift session${snap.recentLifts === 1 ? '' : 's'} this week${
       snap.caloriesToday > 0 ? `, ${snap.caloriesToday} cal logged today` : ''
     }.`,
   )
@@ -691,9 +704,9 @@ function answerAttention(snap: LifeSnapshot): AskReply {
     actions.push({ id: createId(), label: 'Open tasks', kind: 'open_route', route: '/tasks' })
   }
 
-  if (snap.waterGlasses < 6) {
-    items.push(`Water is at ${snap.waterGlasses}/6 glasses for your Circles streak.`)
-    actions.push({ id: createId(), label: 'Log a glass of water', kind: 'log_water' })
+  if (loggedWaterMl(snap) < waterGoalMl()) {
+    items.push(`Water is at ${waterProgressLabel(snap)} for your Circles streak.`)
+    actions.push({ id: createId(), label: 'Log water', kind: 'log_water' })
   }
 
   if (!snap.journalToday) {
@@ -1011,9 +1024,10 @@ export function runAskAction(userId: string, action: AskAction): string {
     return 'Habit updated.'
   }
   if (action.kind === 'log_water') {
-    const current = healthApi.getWater(userId)
-    healthApi.setWater(userId, current.glasses + 1)
-    return 'Logged a glass of water.'
+    const unit = readWaterUnit()
+    const amount = waterUnitMeta(unit).defaultAmount
+    healthApi.addVolume(userId, amount, unit)
+    return `Logged ${formatWater(mlFromAmount(amount, unit), readWaterGoal().unit)}.`
   }
   if (action.kind === 'create_task' && action.title) {
     const lists = tasksApi.listLists(userId)
@@ -1132,7 +1146,7 @@ export function runAskAction(userId: string, action: AskAction): string {
       parked: unfinished.length,
       habitsDone,
       habitsDue: due.length,
-      waterGlasses: healthApi.getWater(userId).glasses,
+      waterGlasses: Math.round(waterMl(healthApi.getWater(userId))),
       noteSnippet: note || undefined,
       dateLabel: format(new Date(), 'EEEE · MMM d'),
     })

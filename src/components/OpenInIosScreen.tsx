@@ -18,7 +18,7 @@ export function OpenInIosScreen({
 
   return (
     <div className="flex min-h-[100dvh] flex-col items-center justify-center px-5 py-12">
-      <div className="kp-surface w-full max-w-md p-8">
+      <div className="kp-surface w-full max-w-md p-6">
         <BrandMark to="/" />
         <span className="mt-8 flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
           <Smartphone className="h-5 w-5" />

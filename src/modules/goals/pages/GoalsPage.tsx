@@ -3,11 +3,12 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Plus, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
+import { navSectionLabel } from '@/lib/nav'
 import { Button } from '@/components/ui/button'
+import { Segmented } from '@/components/ui/segmented'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { EmptyState } from '@/components/ui/empty-state'
 import { useAuth } from '@/contexts/AuthContext'
 import { pageEnterSubtle } from '@/lib/motion-ui'
 import { useLocalRefresh } from '@/hooks/useLocalRefresh'
@@ -102,70 +103,63 @@ export default function GoalsPage() {
   const visible = roots.filter((g) => (filter === 'all' ? true : g.horizon === filter))
 
   return (
-    <motion.div {...pageEnterSubtle} className="kp-page">
-      <PageHeader title="Goals" description="Where you’re headed — dated goals show on Calendar." eyebrow="Plan" />
+    <motion.div {...pageEnterSubtle} className="kp-page !py-4 sm:!py-5">
+      <PageHeader dense title="Goals" description="Where you’re headed — dated goals show on Calendar." eyebrow={navSectionLabel('/goals')} />
 
-      <form onSubmit={onCreate} className="kp-surface mb-6 grid gap-3 p-5 sm:grid-cols-2">
-        <Input
-          className="sm:col-span-2"
-          placeholder="Goal title"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-        />
-        <Textarea
-          className="sm:col-span-2"
-          placeholder="Why this matters"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-        />
-        <Select value={horizon} onValueChange={(v) => setHorizon(v as GoalHorizon)}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {HORIZONS.map((h) => (
-              <SelectItem key={h} value={h}>
-                {h}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Input
-          type="date"
-          value={targetDate}
-          onChange={(e) => setTargetDate(e.target.value)}
-          aria-label="Target date on calendar"
-        />
-        <p className="sm:col-span-2 text-xs text-muted-foreground">
-          Set a target date to show this goal on your calendar.
-        </p>
-        <Button type="submit" className="gap-2 sm:col-span-2">
-          <Plus className="h-4 w-4" />
-          Add goal
-        </Button>
+      <form onSubmit={onCreate} className="kp-surface mb-3 space-y-2 p-3">
+        <div className="flex gap-2">
+          <Input
+            className="h-9 flex-1"
+            placeholder="Goal title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+          <Button type="submit" size="sm" className="h-9 gap-1.5 px-3" aria-label="Add goal">
+            <Plus className="h-4 w-4" />
+            Add
+          </Button>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_9rem_11rem]">
+          <Input
+            className="h-9"
+            placeholder="Why this matters"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+          <Select value={horizon} onValueChange={(v) => setHorizon(v as GoalHorizon)}>
+            <SelectTrigger className="!h-9 w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {HORIZONS.map((h) => (
+                <SelectItem key={h} value={h}>
+                  {h}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input
+            className="h-9"
+            type="date"
+            value={targetDate}
+            onChange={(e) => setTargetDate(e.target.value)}
+            aria-label="Target date on calendar"
+          />
+        </div>
       </form>
 
-      <div className="mb-4 flex flex-wrap gap-2">
-        {(['all', ...HORIZONS] as const).map((h) => (
-          <Button key={h} size="sm" variant={filter === h ? 'default' : 'outline'} onClick={() => setFilter(h)}>
-            {h}
-          </Button>
-        ))}
-      </div>
+      <Segmented
+        className="mb-3"
+        value={filter}
+        onChange={setFilter}
+        options={(['all', ...HORIZONS] as const).map((h) => ({ id: h, label: h }))}
+      />
 
       {visible.length === 0 ? (
-        <EmptyState
-          title="No goals yet"
-          description="Pick one thing that matters this season."
-          action={
-            <Button asChild variant="outline">
-              <Link to="/ask?q=What%20goals%20am%20I%20falling%20behind%20on%3F">Ask about goals</Link>
-            </Button>
-          }
-        />
+        <p className="text-sm text-muted-foreground">No goals yet.</p>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
-          <ul className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-3 lg:grid-cols-[1fr_300px]">
+          <ul className="grid gap-2 sm:grid-cols-2">
             {visible.map((goal) => {
               const pct = Math.min(100, Math.round((goal.progress / Math.max(goal.target, 1)) * 100))
               return (
@@ -177,11 +171,11 @@ export default function GoalsPage() {
                       setParams({ id: goal.id })
                     }}
                     className={cn(
-                      'kp-surface w-full p-5 text-left transition',
+                      'kp-surface w-full p-3 text-left transition',
                       selectedId === goal.id && 'ring-2 ring-primary/30',
                     )}
                   >
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                    <p className="kp-section-label">
                       {goal.horizon}
                       {goal.target_date ? ` · ${goal.target_date.slice(0, 10)}` : ''}
                     </p>
@@ -189,7 +183,7 @@ export default function GoalsPage() {
                     {goal.description ? (
                       <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{goal.description}</p>
                     ) : null}
-                    <div className="mt-4">
+                    <div className="mt-2">
                       <div className="mb-1 flex justify-between text-sm">
                         <span>Progress</span>
                         <span className="text-muted-foreground">{pct}%</span>
@@ -205,7 +199,7 @@ export default function GoalsPage() {
           </ul>
 
           {selected ? (
-            <aside className="kp-surface h-fit space-y-4 p-5">
+            <aside className="kp-surface h-fit space-y-3 p-4">
               <div className="flex items-start justify-between gap-2">
                 <p className="kp-section-label">Edit</p>
                 <div className="flex gap-1">
@@ -244,6 +238,7 @@ export default function GoalsPage() {
                 onBlur={() => refresh()}
               />
               <Textarea
+                className="min-h-16"
                 value={descDraft}
                 onChange={(e) => {
                   const v = e.target.value
@@ -335,9 +330,9 @@ export default function GoalsPage() {
 
               <div>
                 <p className="mb-2 text-sm font-medium">Milestones</p>
-                <ul className="mb-2 space-y-1">
+                <ul className="mb-2 divide-y border-t border-border">
                   {milestones.map((m) => (
-                    <li key={m.id} className="flex items-center justify-between rounded-xl bg-secondary/60 px-3 py-2 text-sm">
+                    <li key={m.id} className="flex items-center justify-between py-2 text-sm">
                       <span>{m.title}</span>
                       <Button
                         size="icon"
@@ -381,9 +376,9 @@ export default function GoalsPage() {
 
               <div>
                 <p className="mb-2 text-sm font-medium">Linked tasks</p>
-                <ul className="mb-2 space-y-1">
+                <ul className="mb-2 divide-y border-t border-border">
                   {linkedTasks.map((t) => (
-                    <li key={t.id} className="flex items-center justify-between rounded-xl bg-secondary/60 px-3 py-2 text-sm">
+                    <li key={t.id} className="flex items-center justify-between py-2 text-sm">
                       <Link to={`/tasks?id=${t.id}`} className={cn('hover:underline', t.status === 'done' && 'line-through')}>
                         {t.title}
                       </Link>

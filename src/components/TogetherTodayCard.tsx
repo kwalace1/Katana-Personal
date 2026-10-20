@@ -115,7 +115,7 @@ export function TogetherTodayCard() {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={springSoft}
-      className="mb-6 overflow-hidden kp-surface border border-primary/15 p-5 sm:p-6"
+      className="mb-4 overflow-hidden kp-surface border border-primary/15 p-5"
     >
       <div className="mb-3 flex items-center justify-between gap-2">
         <p className="kp-section-label">Together</p>
@@ -129,7 +129,7 @@ export function TogetherTodayCard() {
 
       {mode.kind === 'offline' && (
         <div>
-          <p className="font-display text-xl tracking-tight">Friends & Circles</p>
+          <p className="font-display text-lg tracking-tight">Friends & Circles</p>
           <p className="mt-1 text-sm text-muted-foreground">
             Connect once to invite people you trust and cheer day signals together — only what you
             choose to share.
@@ -142,7 +142,7 @@ export function TogetherTodayCard() {
 
       {mode.kind === 'connect' && (
         <div>
-          <p className="font-display text-xl tracking-tight">Invite someone you trust</p>
+          <p className="font-display text-lg tracking-tight">Invite someone you trust</p>
           <p className="mt-1 text-sm text-muted-foreground">
             Accountability without dumping your private day in the cloud — share plans and cheer
             streaks when you want.
@@ -160,7 +160,7 @@ export function TogetherTodayCard() {
       {mode.kind === 'pending' && (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="font-display text-xl tracking-tight">
+            <p className="font-display text-lg tracking-tight">
               {mode.count === 1 ? 'Friend request waiting' : `${mode.count} friend requests`}
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -178,7 +178,7 @@ export function TogetherTodayCard() {
 
       {mode.kind === 'board' && (
         <div>
-          <p className="font-display text-xl tracking-tight">{mode.circleName}</p>
+          <p className="font-display text-lg tracking-tight">{mode.circleName}</p>
           <p className="mt-0.5 text-xs text-muted-foreground">
             {mode.challengeTitle
               ? `Challenge: ${mode.challengeTitle}`
@@ -222,7 +222,7 @@ export function TogetherTodayCard() {
 
       {mode.kind === 'empty' && (
         <div>
-          <p className="font-display text-xl tracking-tight">Accountability starts here</p>
+          <p className="font-display text-lg tracking-tight">Accountability starts here</p>
           <p className="mt-1 text-sm text-muted-foreground">
             Friends are people. Plans is an inbox you copy in. Circles are streak boards.
           </p>

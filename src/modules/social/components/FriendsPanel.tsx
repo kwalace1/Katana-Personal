@@ -209,11 +209,11 @@ export function FriendsPanel({ embedded }: Props) {
   const selfPhoto = photos[cloudUser.uid]
 
   return (
-    <div className={cn('space-y-5', embedded ? 'px-4 py-4 sm:px-5' : '')}>
+    <div className={cn('space-y-3', embedded ? 'px-4 py-4 sm:px-5' : '')}>
       {accepted.length === 0 && !hasInbox ? (
-        <section className="rounded-2xl border border-primary/25 bg-primary/[0.06] p-4 sm:p-5">
-          <p className="text-xs font-semibold uppercase tracking-wide text-primary">Start with one person</p>
-          <h2 className="mt-1 font-display text-xl tracking-tight">Send this to a friend</h2>
+        <section className="rounded-2xl border border-primary/25 bg-primary/[0.06] p-4 sm:p-4">
+          <p className="kp-section-label text-primary">Start with one person</p>
+          <h2 className="mt-1 font-display text-lg tracking-tight">Send this to a friend</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Share your link or QR — when they join, you can cheer each other on in Social.
           </p>
@@ -224,7 +224,7 @@ export function FriendsPanel({ embedded }: Props) {
               src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(getAddMeUrl(cloudProfile.friendCode))}`}
             />
             <div className="min-w-0 flex-1 space-y-2">
-              <p className="font-display text-3xl tracking-widest">{cloudProfile.friendCode}</p>
+              <p className="font-display text-2xl tracking-widest">{cloudProfile.friendCode}</p>
               <div className="flex flex-wrap gap-2">
                 <Button
                   size="sm"
@@ -263,11 +263,11 @@ export function FriendsPanel({ embedded }: Props) {
 
       {accepted.length > 0 || hasInbox ? (
       <section className="rounded-2xl border border-border/50 bg-card/50 p-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Your code</p>
+        <p className="kp-section-label">Your code</p>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <Link
             to={profilePath(cloudUser.uid)}
-            className="font-display text-3xl tracking-widest hover:text-primary"
+            className="font-display text-2xl tracking-widest hover:text-primary"
           >
             {cloudProfile.friendCode}
           </Link>
@@ -343,7 +343,7 @@ export function FriendsPanel({ embedded }: Props) {
           <p className="text-sm text-muted-foreground">
             People you may know — open a profile or send a request.
           </p>
-          <ul className="space-y-2">
+          <ul className="kp-surface divide-y overflow-hidden">
             {suggestions.map((s) => {
               const p = profiles[s.uid]
               const subtitle =
@@ -355,7 +355,7 @@ export function FriendsPanel({ embedded }: Props) {
               return (
                 <li
                   key={s.uid}
-                  className="flex items-center justify-between gap-3 rounded-2xl border border-border/50 bg-card/50 p-3"
+                  className="flex items-center justify-between gap-3 px-3 py-3"
                 >
                   <Link to={profilePath(s.uid)} className="flex min-w-0 flex-1 items-center gap-3">
                     <FeedAvatar name={p?.displayName || 'Someone'} photoURL={photos[s.uid]} />
@@ -398,19 +398,19 @@ export function FriendsPanel({ embedded }: Props) {
       {hasInbox ? (
         <section id="invites" className="scroll-mt-24 space-y-2">
           <h2 className="font-semibold">Invites</h2>
-          <ul className="space-y-2">
+          <ul className="kp-surface divide-y overflow-hidden">
             {incoming.map((f) => {
               const other = f.a === cloudUser.uid ? f.b : f.a
               const p = profiles[other]
               return (
                 <li
                   key={f.id}
-                  className="flex items-center justify-between gap-3 rounded-2xl border border-border/50 bg-card/50 p-3"
+                  className="flex items-center justify-between gap-3 px-3 py-3"
                 >
                   <Link to={profilePath(other)} className="flex min-w-0 items-center gap-3">
                     <FeedAvatar name={p?.displayName || 'Someone'} photoURL={photos[other]} />
                     <div className="min-w-0">
-                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      <p className="kp-section-label">
                         Friend request
                       </p>
                       <p className="truncate font-medium hover:underline">{p?.displayName || 'Someone'}</p>
@@ -448,10 +448,10 @@ export function FriendsPanel({ embedded }: Props) {
               return (
                 <li
                   key={inv.token}
-                  className="flex items-center justify-between gap-3 rounded-2xl border border-border/50 bg-card/50 p-3"
+                  className="flex items-center justify-between gap-3 px-3 py-3"
                 >
                   <div className="min-w-0">
-                    <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    <p className="flex items-center gap-1.5 kp-section-label">
                       <Trophy className="h-3 w-3" />
                       Circle invite
                     </p>
@@ -501,14 +501,14 @@ export function FriendsPanel({ embedded }: Props) {
       {outgoing.length > 0 ? (
         <section className="space-y-2">
           <h2 className="font-semibold">Waiting</h2>
-          <ul className="space-y-2">
+          <ul className="kp-surface divide-y overflow-hidden">
             {outgoing.map((f) => {
               const other = f.a === cloudUser.uid ? f.b : f.a
               const p = profiles[other]
               return (
                 <li
                   key={f.id}
-                  className="flex items-center justify-between gap-3 rounded-2xl border border-border/50 bg-card/50 p-3"
+                  className="flex items-center justify-between gap-3 px-3 py-3"
                 >
                   <Link to={profilePath(other)} className="flex min-w-0 items-center gap-3">
                     <FeedAvatar name={p?.displayName || 'Pending'} photoURL={photos[other]} />
@@ -537,19 +537,16 @@ export function FriendsPanel({ embedded }: Props) {
           Your people
         </h2>
         {accepted.length === 0 ? (
-          <EmptyState
-            title="Waiting on your first friend"
-            description="Use the invite link above — or enter their code below once they have one."
-          />
+          <p className="text-sm text-muted-foreground">No friends yet. Share your code above.</p>
         ) : (
-          <ul className="space-y-2">
+          <ul className="kp-surface divide-y overflow-hidden">
             {accepted.map((f) => {
               const other = f.a === cloudUser.uid ? f.b : f.a
               const p = profiles[other]
               return (
                 <li
                   key={f.id}
-                  className="flex items-center justify-between gap-3 rounded-2xl border border-border/50 bg-card/50 p-3"
+                  className="flex items-center justify-between gap-3 px-3 py-3"
                 >
                   <Link to={profilePath(other)} className="flex min-w-0 flex-1 items-center gap-3">
                     <FeedAvatar name={p?.displayName || 'Friend'} photoURL={photos[other]} />

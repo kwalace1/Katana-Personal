@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Eye, FolderPlus, Pin, Plus, Save, Search, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/PageHeader'
+import { navSectionLabel } from '@/lib/nav'
 import { Button } from '@/components/ui/button'
+import { FilterChip } from '@/components/ui/filter-chip'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { EmptyState } from '@/components/ui/empty-state'
 import { useAuth } from '@/contexts/AuthContext'
 import { pageEnterSubtle } from '@/lib/motion-ui'
 import { formatShortDate } from '@/lib/dates'
@@ -31,12 +32,14 @@ function NoteEditor({
   userId,
   onSaved,
   onDeleted,
+  onTitleChange,
 }: {
   note: Note
   folders: NoteFolder[]
   userId: string
   onSaved: (folderId: string | null) => void
   onDeleted: () => void
+  onTitleChange?: (title: string) => void
 }) {
   const [title, setTitle] = useState(note.title)
   const [body, setBody] = useState(note.body)
@@ -48,6 +51,8 @@ function NoteEditor({
   draftRef.current = { title, body, tagInput, folderId, dirty, noteId: note.id }
   const onSavedRef = useRef(onSaved)
   onSavedRef.current = onSaved
+  const onTitleChangeRef = useRef(onTitleChange)
+  onTitleChangeRef.current = onTitleChange
 
   useEffect(() => {
     setTitle(note.title === 'Untitled' ? '' : note.title)
@@ -99,22 +104,32 @@ function NoteEditor({
     }
   }, [note.id, userId])
 
+  useEffect(() => {
+    onTitleChangeRef.current?.(title)
+  }, [title])
+
   return (
-    <div className="kp-surface space-y-3 p-5">
-      <Input
-        value={title}
-        placeholder="Note title"
-        autoComplete="off"
-        autoCorrect="on"
-        spellCheck
-        aria-label="Note title"
-        onChange={(e) => {
-          setTitle(e.target.value)
-          setDirty(true)
-        }}
-        className="h-auto min-h-11 w-full border-0 bg-transparent px-0 text-xl font-semibold shadow-none focus-visible:ring-0"
-      />
-      <div className="flex flex-wrap items-center justify-end gap-1">
+    <div className="kp-surface space-y-3 p-4">
+      <div className="space-y-2">
+        <label className="block space-y-1">
+          <span className="text-xs font-medium text-muted-foreground">Title</span>
+          <Input
+            value={title}
+            placeholder="Note title"
+            autoComplete="off"
+            autoCorrect="on"
+            spellCheck
+            aria-label="Note title"
+            onChange={(e) => {
+              const next = e.target.value
+              setTitle(next)
+              setDirty(true)
+              onTitleChangeRef.current?.(next)
+            }}
+            className="h-9 w-full text-foreground"
+          />
+        </label>
+        <div className="flex flex-wrap items-center gap-1">
           <ShareWithFriendsButton
             kind="note"
             title={noteTitleFromInput(title)}
@@ -152,12 +167,13 @@ function NoteEditor({
             <Trash2 className="h-4 w-4" />
           </Button>
         </div>
+      </div>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <label className="flex min-w-0 flex-1 items-center gap-2">
           <span className="shrink-0 text-xs font-medium text-muted-foreground">Category</span>
           <select
-            className="h-10 min-w-0 flex-1 rounded-xl border border-input bg-background px-3 text-sm"
+            className="h-9 min-w-0 flex-1 rounded-lg border border-input bg-card px-3 text-sm"
             value={folderId}
             onChange={(e) => {
               setFolderId(e.target.value)
@@ -197,12 +213,12 @@ function NoteEditor({
 
       {preview ? (
         <div
-          className="prose-sm min-h-[360px] rounded-xl bg-secondary/40 p-4 text-sm leading-relaxed"
+          className="prose-sm min-h-40 rounded-lg bg-secondary/40 p-3 text-sm leading-relaxed"
           dangerouslySetInnerHTML={{ __html: renderSimpleMarkdown(body || '_Nothing yet_') }}
         />
       ) : (
         <Textarea
-          className="min-h-[360px] resize-y"
+          className="min-h-40 resize-y"
           placeholder="Start writing…"
           value={body}
           onChange={(e) => {
@@ -225,6 +241,7 @@ export default function NotesPage() {
   const [folderId, setFolderId] = useState<string | 'all' | 'none'>('all')
   const [tagFilter, setTagFilter] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(params.get('id'))
+  const [draftTitle, setDraftTitle] = useState<string | null>(null)
   const [newFolder, setNewFolder] = useState('')
 
   const folders = useMemo(() => {
@@ -268,11 +285,12 @@ export default function NotesPage() {
   }
 
   return (
-    <motion.div {...pageEnterSubtle} className="kp-page">
+    <motion.div {...pageEnterSubtle} className="kp-page !py-4 sm:!py-5">
       <PageHeader
+        dense
         title="Notes"
         description="Write freely — including spaces in the title — then save into a category."
-        eyebrow="Life"
+        eyebrow={navSectionLabel('/notes')}
         actions={
           <Button className="gap-2" onClick={createNote}>
             <Plus className="h-4 w-4" />
@@ -281,23 +299,17 @@ export default function NotesPage() {
         }
       />
 
-      <div className="mb-4 flex flex-wrap gap-2">
-        <Button size="sm" variant={folderId === 'all' ? 'default' : 'outline'} className="rounded-full" onClick={() => setFolderId('all')}>
+      <div className="mb-2 flex flex-wrap items-center gap-1.5">
+        <FilterChip selected={folderId === 'all'} onClick={() => setFolderId('all')}>
           All
-        </Button>
-        <Button size="sm" variant={folderId === 'none' ? 'default' : 'outline'} className="rounded-full" onClick={() => setFolderId('none')}>
+        </FilterChip>
+        <FilterChip selected={folderId === 'none'} onClick={() => setFolderId('none')}>
           Unfiled
-        </Button>
+        </FilterChip>
         {folders.map((f) => (
-          <Button
-            key={f.id}
-            size="sm"
-            variant={folderId === f.id ? 'default' : 'outline'}
-            className="rounded-full"
-            onClick={() => setFolderId(f.id)}
-          >
+          <FilterChip key={f.id} selected={folderId === f.id} onClick={() => setFolderId(f.id)}>
             {f.name}
-          </Button>
+          </FilterChip>
         ))}
         <form
           className="flex gap-1"
@@ -317,7 +329,7 @@ export default function NotesPage() {
         </form>
       </div>
 
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
         <div className="relative min-w-[220px] flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input className="pl-9" placeholder="Find a note…" value={query} onChange={(e) => setQuery(e.target.value)} />
@@ -342,21 +354,10 @@ export default function NotesPage() {
       </div>
 
       {notes.length === 0 ? (
-        <EmptyState
-          title="No notes yet"
-          description="Capture from Today with a quick thought, or start a note here. Use Save when you’re ready."
-          action={
-            <div className="flex flex-wrap justify-center gap-2">
-              <Button onClick={createNote}>Start writing</Button>
-              <Button asChild variant="outline">
-                <Link to="/dashboard">Back to Today</Link>
-              </Button>
-            </div>
-          }
-        />
+        <p className="text-sm text-muted-foreground">No notes yet.</p>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
-          <ul className="kp-surface max-h-[32vh] space-y-1 overflow-auto p-2 lg:max-h-[70vh]">
+        <div className="grid gap-3 lg:grid-cols-[240px_1fr]">
+          <ul className="kp-surface max-h-[32vh] divide-y self-start overflow-auto lg:max-h-[70vh]">
             {notes.map((note) => (
               <li key={note.id}>
                 <button
@@ -366,13 +367,15 @@ export default function NotesPage() {
                     setParams({ id: note.id })
                   }}
                   className={cn(
-                    'w-full rounded-xl px-3 py-2.5 text-left transition',
+                    'w-full px-3 py-2.5 text-left transition',
                     selected?.id === note.id ? 'bg-primary text-primary-foreground' : 'hover:bg-secondary',
                   )}
                 >
                   <p className="flex items-center gap-1 truncate text-sm font-medium">
                     {note.pinned ? <Pin className="h-3 w-3 shrink-0" /> : null}
-                    {note.title}
+                    {note.id === selected?.id && draftTitle !== null
+                      ? noteTitleFromInput(draftTitle)
+                      : note.title}
                   </p>
                   <p
                     className={cn(
@@ -401,9 +404,11 @@ export default function NotesPage() {
               }}
               onDeleted={() => {
                 setSelectedId(null)
+                setDraftTitle(null)
                 setParams({})
                 refresh()
               }}
+              onTitleChange={setDraftTitle}
             />
           ) : null}
         </div>

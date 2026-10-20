@@ -51,7 +51,7 @@ export function PwaInstallNudge() {
 
   return (
     <div className="fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom))] left-3 right-3 z-40 mx-auto max-w-md md:bottom-6 md:left-auto md:right-6">
-      <div className="kp-surface flex items-start gap-3 border border-primary/20 p-4 shadow-lg">
+      <div className="kp-surface flex items-start gap-3 border border-primary/20 p-5 shadow-lg">
         <Smartphone className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold">Add Katana to your Home Screen</p>

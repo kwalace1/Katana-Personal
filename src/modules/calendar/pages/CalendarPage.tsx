@@ -107,7 +107,7 @@ function AgendaChip({
       <div className="flex items-start justify-between gap-2">
         <span className={cn('font-medium leading-snug', compact && 'line-clamp-2')}>{item.title}</span>
         {!compact ? (
-          <span className="shrink-0 text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">
+          <span className="shrink-0 kp-section-label">
             {item.sourceLabel}
           </span>
         ) : null}
@@ -426,7 +426,6 @@ export default function CalendarPage() {
       <PageHeader
         title="Calendar"
         description="Events, tasks, goals, and habits — one calendar."
-        eyebrow="Plan"
         actions={
           <div className="flex items-center gap-2">
             <Button size="sm" className="gap-1.5" onClick={() => openAdd(selectedDay)}>
@@ -466,7 +465,7 @@ export default function CalendarPage() {
             </button>
           ))}
         </div>
-        <p className="font-display text-lg tracking-tight sm:text-xl">
+        <p className="font-display text-lg tracking-tight">
           {view === 'month'
             ? format(cursor, 'MMMM yyyy')
             : view === 'week'
@@ -541,7 +540,7 @@ export default function CalendarPage() {
       </p>
 
       {view !== 'day' ? (
-        <div className="kp-surface mb-4 p-3 sm:p-4">
+        <div className="kp-surface mb-4 p-4">
           <CalendarGrid
             days={days}
             selectedDay={selectedDay}
@@ -561,14 +560,14 @@ export default function CalendarPage() {
         />
       )}
 
-      <div className="mb-6 grid gap-4 lg:grid-cols-[1fr_320px]">
-        <div className="kp-surface p-4 sm:p-5">
+      <div className="mb-3 grid gap-4 lg:grid-cols-[1fr_320px]">
+        <div className="kp-surface p-4">
           <div className="flex items-start justify-between gap-2">
             <div>
               <p className="kp-section-label">
                 {isToday(selectedDay) ? 'Today' : format(selectedDay, 'EEEE')}
               </p>
-              <h2 className="mt-1 font-display text-2xl tracking-tight">
+              <h2 className="mt-1 font-display text-lg tracking-tight">
                 {format(selectedDay, 'MMMM d')}
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -778,7 +777,7 @@ export default function CalendarPage() {
           ) : selectedAgenda ? (
             <aside className="kp-surface h-fit space-y-3 p-4">
               <p className="kp-section-label">{selectedAgenda.sourceLabel}</p>
-              <h3 className="font-display text-xl">{selectedAgenda.title}</h3>
+              <h3 className="font-display text-lg">{selectedAgenda.title}</h3>
               <p className="text-sm text-muted-foreground">
                 {selectedAgenda.all_day
                   ? 'All day'
@@ -796,9 +795,9 @@ export default function CalendarPage() {
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="font-display text-xl">Add to calendar</DialogTitle>
+            <DialogTitle className="font-display text-lg">Add to calendar</DialogTitle>
           </DialogHeader>
-          <form onSubmit={onCreate} className="space-y-4">
+          <form onSubmit={onCreate} className="space-y-3">
             <div className="flex flex-wrap gap-2">
               {(
                 [

@@ -1,28 +1,6 @@
 import { NavLink, useNavigate, Link, useLocation } from 'react-router-dom'
-import {
-  CalendarDays,
-  CheckSquare,
-  FileText,
-  Flame,
-  HeartPulse,
-  Sun,
-  NotebookPen,
-  Target,
-  BookOpen,
-  LogOut,
-  Settings,
-  Sparkles,
-  Search,
-  Plus,
-  Newspaper,
-  Trophy,
-  Share2,
-  Menu,
-  ChevronDown,
-  ChevronRight,
-  ListTodo,
-  Users,
-} from 'lucide-react'
+import { LogOut, Search, Plus, Menu, ChevronDown, ChevronRight } from 'lucide-react'
+import { LIFE_SECTION, PLAN_SECTION, PRIMARY_NAV, SETTINGS_NAV, SOCIAL_NAV, TOGETHER_SECTION } from '@/lib/nav'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
@@ -44,41 +22,6 @@ import { SocialInboxProvider, useSharedSocialInbox } from '@/contexts/SocialInbo
 import { useKeepInputVisible } from '@/hooks/useKeepInputVisible'
 import { resolveProfilePhotoUrl } from '@/lib/social/friends'
 import { FeedAvatar, profilePath } from '@/modules/social/components/feed-ui'
-
-export const PRIMARY = [
-  { to: '/dashboard', label: 'Today', icon: Sun },
-  { to: '/ask', label: 'Ask', icon: Sparkles },
-  { to: '/calendar', label: 'Calendar', icon: CalendarDays },
-] as const
-
-export const TOGETHER_PRIMARY = [
-  { to: '/social', label: 'Social', icon: Newspaper },
-] as const
-
-export const PLAN = [
-  { to: '/tasks', label: 'Tasks', icon: CheckSquare },
-  { to: '/goals', label: 'Goals', icon: Target },
-  { to: '/habits', label: 'Habits', icon: Flame },
-  { to: '/notes', label: 'Notes', icon: NotebookPen },
-  { to: '/documents', label: 'Files', icon: FileText },
-] as const
-
-export const LIFE = [
-  { to: '/health', label: 'Health & Wellness', icon: HeartPulse },
-  { to: '/journal', label: 'Journal', icon: BookOpen },
-] as const
-
-export const SOCIAL = [
-  { to: '/social', label: 'Social', icon: Newspaper },
-  { to: '/shared', label: 'Plans', icon: Share2 },
-  { to: '/circles', label: 'Circles', icon: Trophy },
-] as const
-
-/** Together section under the top-level Social link (no duplicate Social row). */
-export const TOGETHER_MORE = [
-  { to: '/shared', label: 'Plans', icon: Share2 },
-  { to: '/circles', label: 'Circles', icon: Trophy },
-] as const
 
 const NAV_SECTION_KEYS = {
   plan: 'katana-personal:nav-plan',
@@ -241,14 +184,14 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   const socialPrimary = onboardingDone
     ? [
         {
-          to: '/social' as const,
-          label: pendingFriends > 0 ? `Social (${pendingFriends})` : 'Social',
-          icon: Newspaper,
+          to: SOCIAL_NAV.to,
+          label: pendingFriends > 0 ? `${SOCIAL_NAV.label} (${pendingFriends})` : SOCIAL_NAV.label,
+          icon: SOCIAL_NAV.icon,
         },
       ]
     : []
 
-  const primaryItems = onboardingDone ? PRIMARY : PRIMARY.filter((item) => item.to === '/dashboard')
+  const primaryItems = onboardingDone ? PRIMARY_NAV : PRIMARY_NAV.filter((item) => item.to === '/dashboard')
 
   const nav = (
     <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-2.5 py-2" aria-label="Main">
@@ -257,27 +200,27 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
       {onboardingDone ? (
         <div className="mt-1 space-y-0.5">
           <NavExpandable
-            label="Plan"
-            icon={ListTodo}
+            label={PLAN_SECTION.label}
+            icon={PLAN_SECTION.icon}
             open={planOpen}
             onToggle={() => toggleSection('plan', planOpen, setPlanOpen)}
-            items={PLAN}
+            items={PLAN_SECTION.items}
             onNavigate={closeNav}
           />
           <NavExpandable
-            label="Life"
-            icon={HeartPulse}
+            label={LIFE_SECTION.label}
+            icon={LIFE_SECTION.icon}
             open={lifeOpen}
             onToggle={() => toggleSection('life', lifeOpen, setLifeOpen)}
-            items={LIFE}
+            items={LIFE_SECTION.items}
             onNavigate={closeNav}
           />
           <NavExpandable
-            label="Together"
-            icon={Users}
+            label={TOGETHER_SECTION.label}
+            icon={TOGETHER_SECTION.icon}
             open={togetherOpen}
             onToggle={() => toggleSection('together', togetherOpen, setTogetherOpen)}
-            items={TOGETHER_MORE}
+            items={TOGETHER_SECTION.items}
             onNavigate={closeNav}
           />
         </div>
@@ -297,8 +240,8 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
             )
           }
         >
-          <Settings className="h-[1.05rem] w-[1.05rem] shrink-0 opacity-80" />
-          Settings
+          <SETTINGS_NAV.icon className="h-[1.05rem] w-[1.05rem] shrink-0 opacity-80" />
+          {SETTINGS_NAV.label}
         </NavLink>
       </div>
     </nav>
@@ -371,7 +314,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-20 px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] md:hidden">
-          <div className="kp-glass-chrome flex items-center justify-between rounded-full border px-1.5 py-1.5">
+          <div className="kp-glass-chrome flex items-center justify-between rounded-xl border px-1.5 py-1.5">
           <div className="flex items-center gap-0.5">
             <Button
               variant="ghost"

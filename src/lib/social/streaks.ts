@@ -1,6 +1,7 @@
 import { getSupabase } from '@/lib/supabase'
 import { habitsApi } from '@/modules/habits/api'
 import { healthApi } from '@/modules/health/api'
+import { waterGoalMl, waterMl } from '@/modules/health/water'
 import { liftApi } from '@/modules/health/lift-api'
 import { todayKey, addDays } from '@/lib/dates'
 import { getCloudProfile, listFriendProfiles } from './friends'
@@ -99,7 +100,7 @@ export function computeLocalStreaks(
   localUserId: string,
 ): Omit<StreakSnapshot, 'uid' | 'displayName' | 'visible' | 'updatedAt'> {
   const today = todayKey()
-  const waterStreak = consecutiveDays((date) => healthApi.getWater(localUserId, date).glasses >= 6)
+  const waterStreak = consecutiveDays((date) => waterMl(healthApi.getWater(localUserId, date)) >= waterGoalMl())
   const sleepStreak = consecutiveDays((date) => {
     const logs = healthApi.listSleep(localUserId).filter((s) => s.date === date)
     return logs.some((s) => s.hours >= 7)
@@ -136,7 +137,7 @@ export function computeLocalStreaks(
     workoutStreak,
     liftStreak,
     habitStreakBest,
-    waterGlassesToday: healthApi.getWater(localUserId).glasses,
+    waterGlassesToday: Math.round(waterMl(healthApi.getWater(localUserId))),
     sleepHoursLast: healthApi.listSleep(localUserId)[0]?.hours ?? 0,
     habitsDoneToday,
     habitsDueToday: habitsDue.length,

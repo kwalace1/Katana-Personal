@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { BrandMark } from '@/components/BrandMark'
+import { SecretUnlockTitle } from '@/components/SecretUnlockTitle'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
 import { parseBackup, restoreBackup } from '@/lib/backup'
@@ -240,21 +241,6 @@ export default function LandingPage() {
 
   return (
     <div className="relative flex min-h-[100dvh] flex-col overflow-hidden">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,hsl(168_45%_70%/0.45),transparent_55%)]" />
-        <div className="absolute -left-24 top-24 h-80 w-80 rounded-full bg-[hsl(168_45%_70%/0.28)] blur-3xl" />
-        <div className="absolute bottom-0 right-0 h-72 w-72 rounded-full bg-[hsl(200_50%_80%/0.28)] blur-3xl" />
-        {!standalone ? (
-          <div
-            className="absolute inset-x-0 top-0 h-[70vh] opacity-[0.12]"
-            style={{
-              backgroundImage:
-                'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%232F6F68\' fill-opacity=\'0.35\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")',
-            }}
-          />
-        ) : null}
-      </div>
-
       <div className="relative mx-auto flex w-full max-w-lg flex-1 flex-col px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1.25rem,env(safe-area-inset-top))]">
         <header className="flex items-center justify-between py-2">
           <BrandMark to="/" />
@@ -276,7 +262,7 @@ export default function LandingPage() {
         <motion.div {...pageEnterSubtle} className="flex flex-1 flex-col py-6 sm:py-10">
           {/* Hero — brand first */}
           <div className={cn('flex flex-col', standalone ? 'justify-center flex-1' : 'min-h-0 sm:min-h-[58vh] justify-center py-4')}>
-            <h1 className="font-display text-5xl tracking-tight sm:text-6xl">Katana</h1>
+            <SecretUnlockTitle className="font-display text-5xl tracking-tight sm:text-6xl" />
             <p className="mt-4 max-w-md text-base leading-relaxed text-muted-foreground sm:text-lg">
               {standalone
                 ? 'Your day, on this phone.'
@@ -318,7 +304,7 @@ export default function LandingPage() {
                   <motion.div
                     key={item.title}
                     variants={staggerItem}
-                    className="flex gap-4 rounded-2xl bg-card/50 px-4 py-4 backdrop-blur-sm"
+                    className="flex gap-4 rounded-xl border bg-card px-4 py-4"
                   >
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
                       <Icon className="h-5 w-5" />
@@ -336,7 +322,7 @@ export default function LandingPage() {
           {/* Entrance forms */}
           <div ref={formRef} id="open" className={cn('scroll-mt-6', !standalone && 'border-t border-border/40 pt-8')}>
             {!standalone ? (
-              <p className="mb-4 font-display text-2xl tracking-tight">Open Katana</p>
+              <p className="mb-4 font-display text-lg tracking-tight">Open Katana</p>
             ) : null}
 
             <div className="kp-glass-chrome flex gap-1 rounded-full border p-1">

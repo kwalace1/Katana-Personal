@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ArrowLeft, Camera, Loader2, Newspaper, Pencil } from 'lucide-react'
+import { ArrowLeft, Camera, Loader2, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
 import { TogetherSetup } from '@/components/TogetherSetup'
 import { Button } from '@/components/ui/button'
@@ -210,7 +210,7 @@ export default function FeedProfilePage() {
             </Link>
           </Button>
           <div className="min-w-0">
-            <h1 className="truncate font-display text-xl tracking-tight">{displayName}</h1>
+            <h1 className="truncate font-display text-2xl tracking-tight">{displayName}</h1>
             <p className="text-xs text-muted-foreground">{subtitle}</p>
           </div>
         </div>
@@ -287,24 +287,9 @@ export default function FeedProfilePage() {
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       ) : visiblePosts.length === 0 ? (
-        <div className="px-4 py-10 sm:px-5">
-          <EmptyState
-            icon={Newspaper}
-            title={isSelf ? 'No posts yet' : 'Nothing to show'}
-            description={
-              isSelf
-                ? 'Wins you share from Today, habits, health, and day close show up here.'
-                : 'You only see posts shared with you.'
-            }
-            action={
-              isSelf ? (
-                <Button asChild>
-                  <Link to="/social">Go to Social</Link>
-                </Button>
-              ) : undefined
-            }
-          />
-        </div>
+        <p className="px-4 py-6 text-sm text-muted-foreground sm:px-5">
+          {isSelf ? 'No posts yet.' : 'Nothing shared with you yet.'}
+        </p>
       ) : (
         <motion.div variants={staggerContainer} initial="hidden" animate="show">
           {visiblePosts.map((post) => (
@@ -358,7 +343,7 @@ export default function FeedProfilePage() {
             <SheetTitle>Edit profile</SheetTitle>
             <SheetDescription>Name, bio, and photo — how friends see you on Social.</SheetDescription>
           </SheetHeader>
-          <form onSubmit={(e) => void saveProfile(e)} className="space-y-4 px-1 pb-6 pt-2">
+          <form onSubmit={(e) => void saveProfile(e)} className="space-y-3 px-1 pb-6 pt-2">
             <div>
               <label htmlFor="display-name" className="text-sm font-medium">
                 Name

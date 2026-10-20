@@ -117,9 +117,8 @@ export function FirstRitual({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={springSoft}
-      className="relative mb-6 overflow-hidden kp-surface border border-primary/15 p-6 sm:p-8"
+      className="relative mb-4 kp-surface p-4"
     >
-      <div className="pointer-events-none absolute -right-10 -top-12 h-48 w-48 rounded-full bg-primary/15 blur-3xl" />
       <div className="relative mb-4">
         <p className="kp-section-label">First minute</p>
         <p className="mt-1 text-xs text-muted-foreground">
@@ -133,7 +132,7 @@ export function FirstRitual({
 
       {step === 'welcome' && (
         <div className="relative">
-          <h2 className="font-display text-2xl tracking-tight sm:text-3xl">
+          <h2 className="font-display text-lg tracking-tight">
             {needsName
               ? 'What should we call you?'
               : `Welcome${profile?.display_name ? `, ${profile.display_name}` : ''}`}
@@ -177,7 +176,7 @@ export function FirstRitual({
       )}
       {step === 'capture' && (
         <div className="relative">
-          <h2 className="font-display text-2xl tracking-tight sm:text-3xl">Capture something</h2>
+          <h2 className="font-display text-lg tracking-tight">Capture something</h2>
           <p className="mt-2 text-sm text-muted-foreground">
             Get it out of your head — we’ll put it on Today.
           </p>
@@ -218,7 +217,7 @@ export function FirstRitual({
           <p className="mt-1 text-xs text-muted-foreground">Your one commitment — not the whole list.</p>
           {nextItem ? (
             <>
-              <h2 className="mt-2 font-display text-2xl tracking-tight sm:text-3xl">
+              <h2 className="mt-2 font-display text-lg tracking-tight">
                 {nextItem.item.title}
               </h2>
               <p className="mt-1.5 text-sm text-muted-foreground">
@@ -267,12 +266,12 @@ export function FirstRitual({
             </>
           ) : didNext ? (
             <>
-              <h2 className="mt-2 font-display text-2xl tracking-tight">That’s the loop</h2>
+              <h2 className="mt-2 font-display text-lg tracking-tight">That’s the loop</h2>
               <p className="mt-1.5 text-sm text-muted-foreground">Next — Ask can act.</p>
             </>
           ) : (
             <>
-              <h2 className="mt-2 font-display text-2xl tracking-tight">You’re set</h2>
+              <h2 className="mt-2 font-display text-lg tracking-tight">You’re set</h2>
               <p className="mt-1.5 text-sm text-muted-foreground">
                 Nothing urgent right now — protect the calm, then ask what’s next.
               </p>
@@ -287,7 +286,7 @@ export function FirstRitual({
 
       {step === 'ask' && (
         <div className="relative">
-          <h2 className="font-display text-2xl tracking-tight sm:text-3xl">Ask can act</h2>
+          <h2 className="font-display text-lg tracking-tight">Ask can act</h2>
           <p className="mt-2 text-sm text-muted-foreground">
             Your day guide already knows your plate — try the focus question, then confirm a chip.
           </p>
@@ -307,7 +306,7 @@ export function FirstRitual({
 
       {step === 'invite' && (
         <div className="relative">
-          <h2 className="font-display text-2xl tracking-tight sm:text-3xl">One tap to Together</h2>
+          <h2 className="font-display text-lg tracking-tight">One tap to Together</h2>
           <p className="mt-2 text-sm text-muted-foreground">
             Invite a friend or open Social — private life stays on this device.
           </p>

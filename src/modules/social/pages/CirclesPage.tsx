@@ -38,6 +38,7 @@ import {
 } from '@/components/ui/dialog'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
 import { canUsePlusFeature } from '@/lib/plus'
+import { navItemLabel, navSectionLabel } from '@/lib/nav'
 import { pageEnterSubtle, springSoft } from '@/lib/motion-ui'
 import { loadCirclesBoard, listFriendActivity, type ActivityFeedItem } from '@/lib/social/streaks'
 import {
@@ -56,6 +57,7 @@ import { createCircleInvite, inviteFriendToCircle, listOutgoingPendingForCircle 
 import { listFriendProfiles, getCloudProfiles, friendshipRelation, requestFriend, acceptFriend, listFriendships } from '@/lib/social/friends'
 import type { CircleChallengeMetric, CircleGroup, CloudProfile, Friendship, StreakSnapshot } from '@/lib/social/types'
 import { cn } from '@/lib/utils'
+import { formatWater } from '@/modules/health/water'
 import { copyToClipboard } from '@/lib/clipboard'
 import { CircleSchedule } from '../components/CircleSchedule'
 import { CircleBoardExtras } from '../components/CircleBoardExtras'
@@ -588,9 +590,9 @@ export default function CirclesPage() {
     return (
       <motion.div {...pageEnterSubtle} className="kp-page">
         <PageHeader
-          title="Circles"
+          title={navItemLabel('/circles') ?? 'Circles'}
           description="Group streak boards — not a plans inbox."
-          eyebrow="Together"
+          eyebrow={navSectionLabel('/circles')}
         />
         <TogetherSetup highlight="circles" compact />
       </motion.div>
@@ -612,14 +614,13 @@ export default function CirclesPage() {
           All circles
         </button>
 
-        <section className="relative mb-6 overflow-hidden kp-surface p-6 sm:p-8">
+        <section className="relative mb-4 overflow-hidden kp-surface p-4">
           <div
             className={cn(
               'pointer-events-none absolute inset-0 bg-gradient-to-br opacity-90',
               metricDef.accent,
             )}
           />
-          <div className="pointer-events-none absolute -right-8 -top-10 h-40 w-40 rounded-full bg-primary/15 blur-3xl" />
           <div className="relative">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -627,7 +628,7 @@ export default function CirclesPage() {
                   <Trophy className="h-3.5 w-3.5" />
                   Circle
                 </p>
-                <h1 className="font-display mt-2 text-3xl tracking-tight sm:text-4xl">{active.name}</h1>
+                <h1 className="font-display mt-2 text-2xl tracking-tight sm:text-3xl">{active.name}</h1>
                 <p className="mt-1.5 text-sm text-muted-foreground">
                   {active.memberIds.length} member{active.memberIds.length === 1 ? '' : 's'}
                   {detailTab === 'board' && yourRank > 0
@@ -673,7 +674,7 @@ export default function CirclesPage() {
         </section>
 
         {active.memberIds.length <= 1 && iCanManage ? (
-          <div className="mb-6 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
+          <div className="mb-3 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
             <p className="font-medium">Only you are in this circle</p>
             <p className="mt-0.5 text-muted-foreground">
               Invite friends from Manage — they join after they accept. Circles are group streak boards,
@@ -691,7 +692,7 @@ export default function CirclesPage() {
         ) : null}
 
         {active.memberIds.length > 1 ? (
-          <section className="mb-6 kp-surface p-4 sm:p-5">
+          <section className="mb-4 kp-surface p-4">
             <div className="mb-3 flex items-center gap-2">
               <Users className="h-4 w-4 text-primary" />
               <div>
@@ -701,14 +702,14 @@ export default function CirclesPage() {
                 </p>
               </div>
             </div>
-            <ul className="space-y-2">
+            <ul className="divide-y border-t border-border">
               {active.memberIds.map((uid) => {
                 const rel = friendshipRelation(cloudUser.uid, uid, friendships)
                 const role = circleRole(active, uid)
                 return (
                   <li
                     key={uid}
-                    className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-secondary/50 px-3 py-2.5"
+                    className="flex flex-wrap items-center justify-between gap-2 py-2.5"
                   >
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium">{displayNameFor(uid)}</p>
@@ -760,9 +761,9 @@ export default function CirclesPage() {
         ) : null}
 
         {activeChallenge ? (
-          <div className="mb-6 overflow-hidden rounded-2xl border border-primary/25 bg-primary/5 px-4 py-4 sm:px-5">
+          <div className="mb-3 overflow-hidden rounded-2xl border border-primary/25 bg-primary/5 px-4 py-4 sm:px-5">
             <p className="kp-section-label">Active challenge</p>
-            <p className="mt-1 font-display text-xl tracking-tight">{activeChallenge.title}</p>
+            <p className="mt-1 font-display text-lg tracking-tight">{activeChallenge.title}</p>
             <p className="mt-1 text-sm text-muted-foreground">
               {METRICS.find((m) => m.id === activeChallenge.metric)?.label ?? 'Streak'} · ends{' '}
               {new Date(activeChallenge.endsAt).toLocaleDateString(undefined, {
@@ -799,7 +800,7 @@ export default function CirclesPage() {
             </div>
           </div>
         ) : (
-          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-secondary/50 px-4 py-3.5">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-secondary/50 px-4 py-3.5">
             <div className="min-w-0">
               <p className="text-sm font-semibold">Start a 7-day challenge</p>
               <p className="text-xs text-muted-foreground">
@@ -821,7 +822,7 @@ export default function CirclesPage() {
           </div>
         )}
 
-        <div className="mb-6 flex gap-2">
+        <div className="mb-3 flex gap-2">
           <Button
             size="sm"
             variant={detailTab === 'board' ? 'default' : 'outline'}
@@ -853,7 +854,7 @@ export default function CirclesPage() {
         ) : (
           <>
         {/* Metric chips */}
-        <div className="mb-6 flex gap-2 overflow-x-auto pb-1">
+        <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
           {METRICS.map(({ id, short, icon: Icon }) => (
             <Button
               key={id}
@@ -875,10 +876,10 @@ export default function CirclesPage() {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={springSoft}
-            className="mb-6"
+            className="mb-3"
           >
             <p className="kp-section-label mb-4">{metricDef.label} leaderboard</p>
-            <div className="mb-6 grid grid-cols-3 items-end gap-2 sm:gap-4">
+            <div className="mb-3 grid grid-cols-3 items-end gap-2 sm:gap-4">
               {[1, 0, 2].map((podiumIndex) => {
                 const entry = podium[podiumIndex]
                 const place = podiumIndex + 1
@@ -912,7 +913,7 @@ export default function CirclesPage() {
                     {place === 1 ? (
                       <Crown className="mb-1 h-4 w-4 text-amber-500" />
                     ) : (
-                      <span className="mb-1 text-[0.65rem] font-bold uppercase tracking-wider text-muted-foreground">
+                      <span className="mb-1 kp-section-label">
                         #{place}
                       </span>
                     )}
@@ -967,7 +968,7 @@ export default function CirclesPage() {
                             <p className="text-xs text-muted-foreground">
                             {score} day{score === 1 ? '' : 's'}
                             {metric === 'water' && row.waterGlassesToday
-                              ? ` · ${row.waterGlassesToday} glass${row.waterGlassesToday === 1 ? '' : 'es'} today`
+                              ? ` · ${formatWater(row.waterGlassesToday, 'ml')} today`
                               : ''}
                             {metric === 'sleep' && row.sleepHoursLast
                               ? ` · last ${row.sleepHoursLast}h`
@@ -995,15 +996,11 @@ export default function CirclesPage() {
             </ol>
           </motion.section>
         ) : (
-          <EmptyState
-            className="mb-6"
-            title="No streak data yet"
-            description="Turn on sharing in Settings, log water, habits, lifts, or meals, then Sync."
-          />
+          <p className="mb-3 text-sm text-muted-foreground">No streak data yet.</p>
         )}
 
         {/* Timeline + posts + water check-in */}
-        <div className="mb-8">
+        <div className="mb-4">
           <CircleBoardExtras
             circleId={active.id}
             selfUid={cloudUser.uid}
@@ -1135,9 +1132,9 @@ export default function CirclesPage() {
   return (
     <motion.div {...pageEnterSubtle} className="kp-page">
       <PageHeader
-        title="Circles"
+        title={navItemLabel('/circles') ?? 'Circles'}
         description="Group streak boards — not a plans inbox. Pick a crew and stay accountable."
-        eyebrow="Together"
+        eyebrow={navSectionLabel('/circles')}
         actions={
           <Button className="gap-1.5" onClick={() => setCreateOpen(true)}>
             <Plus className="h-4 w-4" />
@@ -1146,7 +1143,7 @@ export default function CirclesPage() {
         }
       />
 
-      <p className="mb-5 text-sm text-muted-foreground">
+      <p className="mb-3 text-sm text-muted-foreground">
         Streak sharing is opt-in in{' '}
         <Link to="/settings" className="text-primary underline">
           Settings
@@ -1177,18 +1174,7 @@ export default function CirclesPage() {
       ) : circles.length === 0 ? (
         <>
           <TogetherSetup highlight="circles" compact cloudConnected={Boolean(cloudUser)} className="mb-4" />
-          <EmptyState
-            title="You’re not in any circles right now"
-            description="Create a group streak board for gym buddies or roommates, or ask a friend for an invite."
-            action={
-              <div className="flex flex-wrap justify-center gap-2">
-                <Button onClick={() => setCreateOpen(true)}>Create a circle</Button>
-                <Button asChild variant="outline">
-                  <Link to="/social?tab=friends">Invite a friend first</Link>
-                </Button>
-              </div>
-            }
-          />
+          <p className="text-sm text-muted-foreground">You’re not in a circle yet.</p>
         </>
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2">
@@ -1211,16 +1197,15 @@ export default function CirclesPage() {
                 <button
                   type="button"
                   onClick={() => enterCircle(c.id)}
-                  className="kp-surface group relative w-full overflow-hidden p-5 text-left transition hover:border-primary/30 hover:shadow-[0_12px_40px_-24px_hsl(172_40%_20%/0.45)]"
+                  className="kp-surface group relative w-full p-4 text-left transition hover:border-primary/30"
                 >
-                  <div className="pointer-events-none absolute -right-6 -top-8 h-28 w-28 rounded-full bg-primary/10 blur-2xl transition group-hover:bg-primary/20" />
                   <div className="relative flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="kp-section-label mb-1.5 flex items-center gap-1">
                         <Trophy className="h-3 w-3" />
                         Circle
                       </p>
-                      <h2 className="font-display truncate text-2xl tracking-tight">{c.name}</h2>
+                      <h2 className="font-display truncate text-lg tracking-tight">{c.name}</h2>
                       <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
                         <Users className="h-3.5 w-3.5" />
                         {c.memberIds.length} member{c.memberIds.length === 1 ? '' : 's'}
@@ -1273,9 +1258,9 @@ export default function CirclesPage() {
       >
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="font-display text-xl">New circle</DialogTitle>
+            <DialogTitle className="font-display text-lg">New circle</DialogTitle>
           </DialogHeader>
-          <form onSubmit={(e) => void onCreate(e)} className="space-y-4">
+          <form onSubmit={(e) => void onCreate(e)} className="space-y-3">
             <Input
               autoFocus
               placeholder="Name (e.g. Gym crew)"

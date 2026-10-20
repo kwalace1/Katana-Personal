@@ -3,10 +3,12 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronDown, FolderPlus, Plus, Trash2, X } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
+import { navSectionLabel } from '@/lib/nav'
 import { Button } from '@/components/ui/button'
+import { FilterChip } from '@/components/ui/filter-chip'
+import { Segmented } from '@/components/ui/segmented'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { EmptyState } from '@/components/ui/empty-state'
 import { CompleteToggle } from '@/components/CompleteToggle'
 import { Switch } from '@/components/ui/switch'
 import { useAuth } from '@/contexts/AuthContext'
@@ -65,7 +67,7 @@ function ReminderTimesPicker({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <p className="text-xs font-medium text-muted-foreground">Reminders through the day</p>
       {times.length === 0 ? (
         <p className="text-xs text-muted-foreground">No pings yet. Add a time, or tap a preset.</p>
@@ -93,19 +95,16 @@ function ReminderTimesPicker({
         {REMINDER_PRESETS.map((preset) => {
           const on = times.includes(preset.time)
           return (
-            <Button
+            <FilterChip
               key={preset.time}
-              type="button"
-              size="sm"
-              variant={on ? 'default' : 'outline'}
-              className="rounded-full"
+              selected={on}
               onClick={() => {
                 if (on) onTimes(times.filter((t) => t !== preset.time))
                 else onTimes(normalizeReminderTimes([...times, preset.time]))
               }}
             >
               {preset.label}
-            </Button>
+            </FilterChip>
           )
         })}
       </div>
@@ -164,21 +163,8 @@ function SchedulePicker({
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap gap-2">
-        {SCHEDULE_CHIPS.map((chip) => (
-          <Button
-            key={chip.id}
-            type="button"
-            size="sm"
-            variant={schedule === chip.id ? 'default' : 'outline'}
-            className="rounded-full"
-            onClick={() => onSchedule(chip.id)}
-          >
-            {chip.label}
-          </Button>
-        ))}
-      </div>
+    <div className="space-y-2">
+      <Segmented options={SCHEDULE_CHIPS} value={schedule} onChange={onSchedule} />
 
       {schedule === 'custom' ? (
         <div className="space-y-1.5">
@@ -187,18 +173,15 @@ function SchedulePicker({
             {WEEKDAY_OPTIONS.map((opt) => {
               const on = customDays.includes(opt.day)
               return (
-                <Button
+                <FilterChip
                   key={opt.day}
-                  type="button"
-                  size="sm"
-                  variant={on ? 'default' : 'outline'}
-                  className="min-w-[2.75rem] rounded-full px-2"
+                  selected={on}
+                  className="min-w-[2.75rem] justify-center px-2"
                   onClick={() => toggleDay(opt.day)}
-                  aria-pressed={on}
                   title={opt.label}
                 >
                   {opt.short}
-                </Button>
+                </FilterChip>
               )
             })}
           </div>
@@ -229,8 +212,8 @@ function SchedulePicker({
 function Heatmap({ userId, habitId }: { userId: string; habitId: string }) {
   const cells = habitsApi.heatmap(userId, habitId, 84)
   return (
-    <div className="mt-3">
-      <p className="mb-1.5 text-[0.65rem] uppercase tracking-wide text-muted-foreground">Last 12 weeks</p>
+    <div>
+      <p className="mb-1.5 kp-section-label">Last 12 weeks</p>
       <div className="grid grid-flow-col grid-rows-7 gap-0.5" style={{ width: 'fit-content' }}>
         {cells.map((c) => (
           <div
@@ -309,43 +292,33 @@ export default function HabitsPage() {
   })
 
   return (
-    <motion.div {...pageEnterSubtle} className="kp-page">
+    <motion.div {...pageEnterSubtle} className="kp-page !py-4 sm:!py-5">
       <PageHeader
+        dense
         title="Habits"
         description="Pick the days that fit — and as many reminder times as you want."
-        eyebrow="Life"
+        eyebrow={navSectionLabel('/habits')}
       />
 
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <Button
-          size="sm"
-          variant={folderId === 'all' ? 'default' : 'outline'}
-          className="rounded-full"
-          onClick={() => setFolderId('all')}
-        >
+      <div className="mb-2 flex flex-wrap items-center gap-1.5">
+        <FilterChip selected={folderId === 'all'} onClick={() => setFolderId('all')}>
           All folders
-        </Button>
-        <Button
-          size="sm"
-          variant={folderId === 'none' ? 'default' : 'outline'}
-          className="rounded-full"
-          onClick={() => setFolderId('none')}
-        >
+        </FilterChip>
+        <FilterChip selected={folderId === 'none'} onClick={() => setFolderId('none')}>
           Unfiled
-        </Button>
+        </FilterChip>
         {folders.map((folder: HabitFolder) => (
           <div key={folder.id} className="flex items-center">
-            <Button
-              size="sm"
-              variant={folderId === folder.id ? 'default' : 'outline'}
-              className="rounded-full gap-1.5 pr-1"
+            <FilterChip
+              selected={folderId === folder.id}
+              className="gap-1.5 pr-1"
               onClick={() => setFolderId(folder.id)}
             >
               {folder.name}
               <span className="text-[0.65rem] opacity-70">
                 {habitsApi.habitsInFolder(userId, folder.id).length}
               </span>
-            </Button>
+            </FilterChip>
             <Button
               type="button"
               size="icon"
@@ -392,15 +365,15 @@ export default function HabitsPage() {
         </form>
       </div>
 
-      <form onSubmit={onCreate} className="kp-surface mb-6 space-y-3 p-4 sm:p-5">
+      <form onSubmit={onCreate} className="kp-surface mb-3 space-y-2 p-3">
         <div className="flex gap-2">
           <Input
             placeholder="A habit worth keeping…"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="flex-1"
+            className="h-9 flex-1"
           />
-          <Button type="submit" size="icon" aria-label="Add">
+          <Button type="submit" size="icon" className="h-9 w-9" aria-label="Add">
             <Plus className="h-4 w-4" />
           </Button>
         </div>
@@ -414,30 +387,23 @@ export default function HabitsPage() {
         />
       </form>
 
-      <div className="mb-4 flex gap-2">
-        <Button size="sm" variant={filter === 'due' ? 'default' : 'outline'} className="rounded-full" onClick={() => setFilter('due')}>
-          Due today
-        </Button>
-        <Button size="sm" variant={filter === 'all' ? 'default' : 'outline'} className="rounded-full" onClick={() => setFilter('all')}>
-          All
-        </Button>
-      </div>
+      <Segmented
+        className="mb-3"
+        value={filter}
+        onChange={setFilter}
+        options={[
+          { id: 'due', label: 'Due today' },
+          { id: 'all', label: 'All' },
+        ]}
+      />
 
       {habits.length === 0 ? (
-        <EmptyState
-          title="No habits yet"
-          description="Start with one small thing. That’s enough."
-          action={
-            <Button asChild variant="outline">
-              <Link to="/ask?q=What%20habits%20should%20I%20check%20in%3F">Ask about habits</Link>
-            </Button>
-          }
-        />
+        <p className="text-sm text-muted-foreground">No habits yet.</p>
       ) : visible.length === 0 ? (
-        <EmptyState title="Nothing due today" description="Enjoy the quiet, or switch to All." />
+        <p className="text-sm text-muted-foreground">Nothing due today. Switch to All to see the rest.</p>
       ) : (
         <div>
-          <ul className="space-y-2">
+          <ul className="space-y-1.5">
             {visible.map((habit) => {
               const done = habitsApi.isDoneToday(userId, habit.id)
               const streak = habitsApi.streak(userId, habit.id)
@@ -449,7 +415,7 @@ export default function HabitsPage() {
                   key={habit.id}
                   className={cn('kp-surface overflow-hidden p-0', expanded && 'ring-2 ring-primary/30')}
                 >
-                  <div className="flex items-center gap-3 p-4">
+                  <div className="flex items-center gap-3 px-3 py-2.5">
                     <CompleteToggle
                       done={done}
                       openLabel="To do"
@@ -507,9 +473,6 @@ export default function HabitsPage() {
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
-                  <div className="px-4 pb-3">
-                    <Heatmap userId={userId} habitId={habit.id} />
-                  </div>
                   <AnimatePresence initial={false}>
                     {expanded ? (
                       <motion.div
@@ -519,7 +482,8 @@ export default function HabitsPage() {
                         transition={{ duration: 0.2 }}
                         className="border-t border-border/60"
                       >
-                        <div className="space-y-3 p-4">
+                        <div className="space-y-3 p-3">
+                          <Heatmap userId={userId} habitId={habit.id} />
                           <div className="flex items-center justify-between gap-2">
                             <p className="text-xs font-medium text-muted-foreground">Edit habit</p>
                             <ShareWithFriendsButton
@@ -615,11 +579,11 @@ export default function HabitsPage() {
                                 No tasks on this habit yet. Add one below.
                               </p>
                             ) : (
-                              <ul className="space-y-1.5">
+                              <ul className="divide-y border-t border-border">
                                 {linkedTasks.map((task) => (
                                   <li
                                     key={task.id}
-                                    className="flex items-center gap-2 rounded-xl bg-secondary/40 px-2.5 py-2"
+                                    className="flex items-center gap-2 py-2"
                                   >
                                     <CompleteToggle
                                       done={task.status === 'done'}

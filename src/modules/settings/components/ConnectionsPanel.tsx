@@ -252,14 +252,12 @@ export function ConnectionsPanel({ userId, tick = 0 }: Props) {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-2xl border border-border/60 bg-secondary/30 px-4 py-3 text-sm text-muted-foreground">
-        <p>
-          Events and tasks sync onto this device. Katana uses them for Today and Ask — nothing is uploaded
-          unless you enable cloud backup. Weather on Today and cardio uses free Open-Meteo with your
-          location (no key).
-        </p>
-      </div>
+    <div className="space-y-3">
+      <p className="text-sm text-muted-foreground">
+        Events and tasks sync onto this device. Katana uses them for Today and Ask — nothing is uploaded
+        unless you enable cloud backup. Weather on Today and cardio uses free Open-Meteo with your
+        location (no key).
+      </p>
 
       <form onSubmit={(e) => void onConnectIcs(e)} className="kp-surface space-y-3 p-4">
         <div className="flex items-start gap-3">

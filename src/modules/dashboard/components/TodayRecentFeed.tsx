@@ -48,13 +48,13 @@ export function TodayRecentFeed() {
   const selfName = cloudProfile?.displayName || 'You'
 
   return (
-    <section className="mb-5">
+    <section className="mb-3">
       <div className="mb-2 flex items-baseline justify-between gap-2 px-0.5">
         <div>
           <p className="kp-section-label">Social</p>
           <h2 className="font-display text-lg tracking-tight">Recent</h2>
         </div>
-        <Button asChild variant="ghost" size="sm" className="text-primary">
+        <Button asChild variant="ghost" size="sm">
           <Link to="/social">Open Social</Link>
         </Button>
       </div>
@@ -110,7 +110,7 @@ export function TodayRecentFeed() {
                     </div>
                     <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">{preview}</p>
                     {post.card ? (
-                      <p className="mt-1.5 inline-flex rounded-full bg-secondary/80 px-2.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">
+                      <p className="mt-1.5 inline-flex rounded-full bg-secondary/80 px-2.5 py-0.5 kp-section-label">
                         {post.card.badge || post.card.kind} · {post.card.title}
                       </p>
                     ) : null}
