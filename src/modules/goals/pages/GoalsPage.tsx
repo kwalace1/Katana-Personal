@@ -55,6 +55,7 @@ export default function GoalsPage() {
 
   const roots = useMemo(() => goals.filter((g) => !g.parent_id), [goals])
 
+  const [creating, setCreating] = useState(false)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [horizon, setHorizon] = useState<GoalHorizon>('monthly')
@@ -95,69 +96,113 @@ export default function GoalsPage() {
     setTitle('')
     setDescription('')
     setTargetDate('')
+    setHorizon('monthly')
+    setCreating(false)
     setSelectedId(goal.id)
     setParams({ id: goal.id })
     refresh()
   }
 
+  function cancelCreate() {
+    setTitle('')
+    setDescription('')
+    setTargetDate('')
+    setHorizon('monthly')
+    setCreating(false)
+  }
+
   const visible = roots.filter((g) => (filter === 'all' ? true : g.horizon === filter))
+  const horizonCount = new Set(roots.map((goal) => goal.horizon)).size
 
   return (
     <motion.div {...pageEnterSubtle} className="kp-page !py-4 sm:!py-5">
-      <PageHeader dense title="Goals" description="Where you’re headed — dated goals show on Calendar." eyebrow={navSectionLabel('/goals')} />
-
-      <form onSubmit={onCreate} className="kp-surface mb-3 space-y-2 p-3">
-        <div className="flex gap-2">
-          <Input
-            className="h-9 flex-1"
-            placeholder="Goal title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-          />
-          <Button type="submit" size="sm" className="h-9 gap-1.5 px-3" aria-label="Add goal">
-            <Plus className="h-4 w-4" />
-            Add
-          </Button>
-        </div>
-        <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_9rem_11rem]">
-          <Input
-            className="h-9"
-            placeholder="Why this matters"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-          />
-          <Select value={horizon} onValueChange={(v) => setHorizon(v as GoalHorizon)}>
-            <SelectTrigger className="!h-9 w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {HORIZONS.map((h) => (
-                <SelectItem key={h} value={h}>
-                  {h}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Input
-            className="h-9"
-            type="date"
-            value={targetDate}
-            onChange={(e) => setTargetDate(e.target.value)}
-            aria-label="Target date on calendar"
-          />
-        </div>
-      </form>
-
-      <Segmented
-        className="mb-3"
-        value={filter}
-        onChange={setFilter}
-        options={(['all', ...HORIZONS] as const).map((h) => ({ id: h, label: h }))}
+      <PageHeader
+        dense
+        title="Goals"
+        description="Where you’re headed — dated goals show on Calendar."
+        eyebrow={navSectionLabel('/goals')}
+        actions={
+          roots.length > 0 && !creating ? (
+            <Button type="button" size="sm" className="gap-1.5" onClick={() => setCreating(true)}>
+              <Plus className="h-4 w-4" />
+              Add goal
+            </Button>
+          ) : null
+        }
       />
 
-      {visible.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No goals yet.</p>
-      ) : (
+      {creating ? (
+        <form onSubmit={onCreate} className="kp-surface mb-3 space-y-2 p-3">
+          <div className="flex gap-2">
+            <Input
+              className="h-9 flex-1"
+              placeholder="Goal title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              autoFocus
+            />
+            <Button type="submit" size="sm" className="h-9 gap-1.5 px-3" disabled={!title.trim()}>
+              <Plus className="h-4 w-4" />
+              Add goal
+            </Button>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_9rem_11rem]">
+            <Input
+              className="h-9"
+              placeholder="Why this matters"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+            <Select value={horizon} onValueChange={(v) => setHorizon(v as GoalHorizon)}>
+              <SelectTrigger className="!h-9 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {HORIZONS.map((h) => (
+                  <SelectItem key={h} value={h}>
+                    {h}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              className="h-9"
+              type="date"
+              value={targetDate}
+              onChange={(e) => setTargetDate(e.target.value)}
+              aria-label="Target date on calendar"
+            />
+          </div>
+          <Button type="button" variant="ghost" size="sm" onClick={cancelCreate}>
+            Cancel
+          </Button>
+        </form>
+      ) : null}
+
+      {roots.length === 0 && !creating ? (
+        <div className="py-8 text-center">
+          <p className="text-sm text-muted-foreground">No goals yet.</p>
+          <Button type="button" size="sm" className="mt-3 gap-1.5" onClick={() => setCreating(true)}>
+            <Plus className="h-4 w-4" />
+            Add goal
+          </Button>
+        </div>
+      ) : null}
+
+      {roots.length > 0 ? (
+        <>
+          {horizonCount > 1 ? (
+            <Segmented
+              className="mb-3"
+              value={filter}
+              onChange={setFilter}
+              options={(['all', ...HORIZONS] as const).map((h) => ({ id: h, label: h }))}
+            />
+          ) : null}
+
+          {visible.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No {filter} goals.</p>
+          ) : (
         <div className="grid gap-3 lg:grid-cols-[1fr_300px]">
           <ul className="grid gap-2 sm:grid-cols-2">
             {visible.map((goal) => {
@@ -167,6 +212,11 @@ export default function GoalsPage() {
                   <button
                     type="button"
                     onClick={() => {
+                      if (selectedId === goal.id) {
+                        setSelectedId(null)
+                        setParams({})
+                        return
+                      }
                       setSelectedId(goal.id)
                       setParams({ id: goal.id })
                     }}
@@ -420,7 +470,9 @@ export default function GoalsPage() {
             </aside>
           ) : null}
         </div>
-      )}
+          )}
+        </>
+      ) : null}
     </motion.div>
   )
 }

@@ -206,11 +206,6 @@ function NoteEditor({
           {dirty ? 'Save' : 'Saved'}
         </Button>
       </div>
-      <p className="text-xs text-muted-foreground">
-        {dirty ? 'Unsaved changes · Save keeps the title, category, and body together.' : 'Saved'}
-        {preview ? ' · preview' : ' · # headings, **bold**, - lists'}
-      </p>
-
       {preview ? (
         <div
           className="prose-sm min-h-40 rounded-lg bg-secondary/40 p-3 text-sm leading-relaxed"
@@ -219,7 +214,7 @@ function NoteEditor({
       ) : (
         <Textarea
           className="min-h-40 resize-y"
-          placeholder="Start writing…"
+          placeholder="Write…"
           value={body}
           onChange={(e) => {
             setBody(e.target.value)
@@ -243,6 +238,7 @@ export default function NotesPage() {
   const [selectedId, setSelectedId] = useState<string | null>(params.get('id'))
   const [draftTitle, setDraftTitle] = useState<string | null>(null)
   const [newFolder, setNewFolder] = useState('')
+  const [addingFolder, setAddingFolder] = useState(false)
 
   const folders = useMemo(() => {
     void tick
@@ -252,6 +248,11 @@ export default function NotesPage() {
   const allTags = useMemo(() => {
     void tick
     return notesApi.allTags(userId)
+  }, [userId, tick])
+
+  const noteCount = useMemo(() => {
+    void tick
+    return notesApi.search(userId, '').length
   }, [userId, tick])
 
   const notes = useMemo(() => {
@@ -269,8 +270,8 @@ export default function NotesPage() {
   }, [params])
 
   const selected: Note | null = useMemo(() => {
-    if (!selectedId) return notes[0] ?? null
-    return notes.find((n) => n.id === selectedId) || notesApi.getNote(userId, selectedId) || notes[0] || null
+    if (!selectedId) return null
+    return notes.find((n) => n.id === selectedId) || notesApi.getNote(userId, selectedId) || null
   }, [notes, selectedId, userId])
 
   function createNote() {
@@ -289,80 +290,113 @@ export default function NotesPage() {
       <PageHeader
         dense
         title="Notes"
-        description="Write freely — including spaces in the title — then save into a category."
         eyebrow={navSectionLabel('/notes')}
         actions={
-          <Button className="gap-2" onClick={createNote}>
-            <Plus className="h-4 w-4" />
-            New note
-          </Button>
+          noteCount > 0 ? (
+            <Button className="gap-2" onClick={createNote}>
+              <Plus className="h-4 w-4" />
+              New note
+            </Button>
+          ) : null
         }
       />
 
-      <div className="mb-2 flex flex-wrap items-center gap-1.5">
-        <FilterChip selected={folderId === 'all'} onClick={() => setFolderId('all')}>
-          All
-        </FilterChip>
-        <FilterChip selected={folderId === 'none'} onClick={() => setFolderId('none')}>
-          Unfiled
-        </FilterChip>
-        {folders.map((f) => (
-          <FilterChip key={f.id} selected={folderId === f.id} onClick={() => setFolderId(f.id)}>
-            {f.name}
+      {noteCount > 0 || folders.length > 0 ? (
+        <div className="mb-2 flex flex-wrap items-center gap-1.5">
+          <FilterChip selected={folderId === 'all'} onClick={() => setFolderId('all')}>
+            All
           </FilterChip>
-        ))}
-        <form
-          className="flex gap-1"
-          onSubmit={(e) => {
-            e.preventDefault()
-            if (!newFolder.trim()) return
-            const f = notesApi.createFolder(userId, newFolder)
-            setNewFolder('')
-            setFolderId(f.id)
-            refresh()
-          }}
-        >
-          <Input className="h-8 w-28" placeholder="Category" value={newFolder} onChange={(e) => setNewFolder(e.target.value)} />
-          <Button type="submit" size="sm" variant="ghost" aria-label="Add category">
-            <FolderPlus className="h-4 w-4" />
-          </Button>
-        </form>
-      </div>
-
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[220px] flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input className="pl-9" placeholder="Find a note…" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <FilterChip selected={folderId === 'none'} onClick={() => setFolderId('none')}>
+            Unfiled
+          </FilterChip>
+          {folders.map((f) => (
+            <FilterChip key={f.id} selected={folderId === f.id} onClick={() => setFolderId(f.id)}>
+              {f.name}
+            </FilterChip>
+          ))}
+          {addingFolder ? (
+            <form
+              className="flex gap-1"
+              onSubmit={(e) => {
+                e.preventDefault()
+                if (!newFolder.trim()) return
+                const f = notesApi.createFolder(userId, newFolder)
+                setNewFolder('')
+                setAddingFolder(false)
+                setFolderId(f.id)
+                refresh()
+              }}
+            >
+              <Input
+                className="h-8 w-28"
+                placeholder="Category"
+                value={newFolder}
+                autoFocus
+                onChange={(e) => setNewFolder(e.target.value)}
+              />
+              <Button type="submit" size="sm" variant="ghost" aria-label="Add category">
+                <FolderPlus className="h-4 w-4" />
+              </Button>
+            </form>
+          ) : (
+            <Button type="button" size="sm" variant="ghost" className="gap-1.5" onClick={() => setAddingFolder(true)}>
+              <FolderPlus className="h-4 w-4" />
+              Category
+            </Button>
+          )}
         </div>
-        {allTags.length > 0 ? (
-          <div className="flex flex-wrap gap-1.5">
-            {allTags.map((tag) => (
-              <button
-                key={tag}
-                type="button"
-                onClick={() => setTagFilter((t) => (t === tag ? null : tag))}
-                className={cn(
-                  'kp-chip text-xs',
-                  tagFilter === tag && 'bg-primary text-primary-foreground',
-                )}
-              >
-                {tag}
-              </button>
-            ))}
-          </div>
-        ) : null}
-      </div>
+      ) : null}
 
-      {notes.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No notes yet.</p>
+      {noteCount > 0 ? (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[220px] flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input className="pl-9" placeholder="Find a note…" value={query} onChange={(e) => setQuery(e.target.value)} />
+          </div>
+          {allTags.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5">
+              {allTags.map((tag) => (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => setTagFilter((t) => (t === tag ? null : tag))}
+                  className={cn(
+                    'kp-chip text-xs',
+                    tagFilter === tag && 'bg-primary text-primary-foreground',
+                  )}
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {noteCount === 0 ? (
+        <div>
+          <p className="text-sm text-muted-foreground">No notes yet.</p>
+          <Button type="button" size="sm" className="mt-3 gap-1.5" onClick={createNote}>
+            <Plus className="h-4 w-4" />
+            New note
+          </Button>
+        </div>
+      ) : notes.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No matching notes.</p>
       ) : (
-        <div className="grid gap-3 lg:grid-cols-[240px_1fr]">
+        <div className={cn('grid gap-3', selected && 'lg:grid-cols-[240px_1fr]')}>
           <ul className="kp-surface max-h-[32vh] divide-y self-start overflow-auto lg:max-h-[70vh]">
             {notes.map((note) => (
               <li key={note.id}>
                 <button
                   type="button"
                   onClick={() => {
+                    if (selected?.id === note.id) {
+                      setSelectedId(null)
+                      setDraftTitle(null)
+                      setParams({})
+                      return
+                    }
                     setSelectedId(note.id)
                     setParams({ id: note.id })
                   }}

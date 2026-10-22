@@ -1,7 +1,7 @@
 import { NavLink, useNavigate, Link, useLocation } from 'react-router-dom'
 import { LogOut, Search, Plus, Menu, ChevronDown, ChevronRight } from 'lucide-react'
-import { LIFE_SECTION, PLAN_SECTION, PRIMARY_NAV, SETTINGS_NAV, SOCIAL_NAV, TOGETHER_SECTION } from '@/lib/nav'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { NAV_SECTIONS, PRIMARY_NAV, SETTINGS_NAV } from '@/lib/nav'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
@@ -23,33 +23,9 @@ import { useKeepInputVisible } from '@/hooks/useKeepInputVisible'
 import { resolveProfilePhotoUrl } from '@/lib/social/friends'
 import { FeedAvatar, profilePath } from '@/modules/social/components/feed-ui'
 
-const NAV_SECTION_KEYS = {
-  plan: 'katana-personal:nav-plan',
-  life: 'katana-personal:nav-life',
-  together: 'katana-personal:nav-together',
-} as const
 const DRAWER_WIDTH = 280
 const EDGE_OPEN_PX = 28
 const SWIPE_OPEN_PX = 56
-
-function readNavOpen(key: string, fallback = false) {
-  try {
-    const raw = localStorage.getItem(key)
-    if (raw === '1') return true
-    if (raw === '0') return false
-  } catch {
-    // ignore
-  }
-  return fallback
-}
-
-function writeNavOpen(key: string, open: boolean) {
-  try {
-    localStorage.setItem(key, open ? '1' : '0')
-  } catch {
-    // ignore
-  }
-}
 
 function NavGroup({
   label,
@@ -91,37 +67,99 @@ function NavGroup({
   )
 }
 
-function NavExpandable({
+function previewLabel(labels: readonly string[], count: number) {
+  if (count >= labels.length) return labels.join(' · ')
+  return `${labels.slice(0, count).join(' · ')} +${labels.length - count}`
+}
+
+function fitPreviewCount(labels: readonly string[], width: number, measure: (text: string) => number) {
+  if (labels.length === 0) return 0
+  if (measure(labels.join(' · ')) <= width) return labels.length
+  for (let count = labels.length - 1; count >= 1; count -= 1) {
+    if (measure(previewLabel(labels, count)) <= width) return count
+  }
+  return 1
+}
+
+function NavSection({
   label,
-  icon: Icon,
-  open,
-  onToggle,
   items,
   onNavigate,
 }: {
   label: string
-  icon: React.ComponentType<{ className?: string }>
-  open: boolean
-  onToggle: () => void
-  items: readonly { to: string; label: string; icon: React.ComponentType<{ className?: string }> }[]
+  items: readonly { to: string; label: string }[]
   onNavigate?: () => void
 }) {
+  const location = useLocation()
+  const [open, setOpen] = useState(false)
+  const previewRef = useRef<HTMLSpanElement>(null)
+  const [visibleCount, setVisibleCount] = useState(items.length)
+  const labelsKey = items.map((item) => item.label).join('\0')
+
+  useLayoutEffect(() => {
+    if (open) return
+    const el = previewRef.current
+    if (!el) return
+
+    const measureFit = () => {
+      const width = el.clientWidth
+      if (width <= 0) return
+      const labels = labelsKey ? labelsKey.split('\0') : []
+      const style = getComputedStyle(el)
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+      ctx.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`
+      const count = fitPreviewCount(labels, width - 4, (text) => ctx.measureText(text).width)
+      setVisibleCount((current) => (current === count ? current : count))
+    }
+
+    measureFit()
+    const observer = new ResizeObserver(measureFit)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [labelsKey, open])
+
+  const labels = labelsKey ? labelsKey.split('\0') : []
+
   return (
-    <div className="pt-0.5">
+    <div>
       <button
         type="button"
-        onClick={onToggle}
-        className="kp-nav-idle flex min-h-11 w-full items-center gap-3 px-3 py-2 text-[0.925rem] font-medium"
+        onClick={() => setOpen((current) => !current)}
+        className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left transition hover:bg-secondary/50"
         aria-expanded={open}
       >
-        <Icon className="h-[1.05rem] w-[1.05rem] shrink-0 opacity-80" />
-        <span className="flex-1 text-left">{label}</span>
-        <ChevronDown className={cn('h-4 w-4 shrink-0 transition', open && 'rotate-180')} />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold tracking-tight">{label}</span>
+          {open ? null : (
+            <span ref={previewRef} className="mt-0.5 block truncate text-xs text-muted-foreground">
+              {previewLabel(labels, visibleCount)}
+            </span>
+          )}
+        </span>
+        <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition', open && 'rotate-180')} />
       </button>
       {open ? (
-        <div className="mt-0.5 space-y-1 border-l border-border/50 pl-1">
-          <NavGroup items={items} onNavigate={onNavigate} />
-        </div>
+        <ul className="space-y-0.5 px-2 pb-1">
+          {items.map((item) => {
+            const active = location.pathname === item.to.split('?')[0]
+            return (
+              <li key={item.to}>
+                <NavLink
+                  to={item.to}
+                  onClick={onNavigate}
+                  className={cn(
+                    'block rounded-lg px-3 py-1.5 text-xs leading-snug transition-colors',
+                    active ? 'font-medium text-foreground' : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {item.label}
+                </NavLink>
+              </li>
+            )
+          })}
+        </ul>
       ) : null}
     </div>
   )
@@ -141,9 +179,6 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate()
   const [navOpen, setNavOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
-  const [planOpen, setPlanOpen] = useState(() => readNavOpen(NAV_SECTION_KEYS.plan))
-  const [lifeOpen, setLifeOpen] = useState(() => readNavOpen(NAV_SECTION_KEYS.life))
-  const [togetherOpen, setTogetherOpen] = useState(() => readNavOpen(NAV_SECTION_KEYS.together))
   const [photoURL, setPhotoURL] = useState<string | null>(null)
   const { pendingCount: pendingFriends } = useSharedSocialInbox()
   useNotificationToasts()
@@ -169,60 +204,31 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   const closeNav = useCallback(() => setNavOpen(false), [])
   const openNav = useCallback(() => setNavOpen(true), [])
 
-  function toggleSection(section: keyof typeof NAV_SECTION_KEYS, open: boolean, setOpen: (v: boolean) => void) {
-    const next = !open
-    writeNavOpen(NAV_SECTION_KEYS[section], next)
-    setOpen(next)
-  }
-
   async function handleSignOut() {
     await signOutCloud()
     await signOut()
     navigate('/')
   }
 
-  const socialPrimary = onboardingDone
-    ? [
-        {
-          to: SOCIAL_NAV.to,
-          label: pendingFriends > 0 ? `${SOCIAL_NAV.label} (${pendingFriends})` : SOCIAL_NAV.label,
-          icon: SOCIAL_NAV.icon,
-        },
-      ]
-    : []
-
   const primaryItems = onboardingDone ? PRIMARY_NAV : PRIMARY_NAV.filter((item) => item.to === '/dashboard')
 
   const nav = (
     <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-2.5 py-2" aria-label="Main">
       <NavGroup items={primaryItems} onNavigate={closeNav} />
-      {socialPrimary.length > 0 ? <NavGroup items={socialPrimary} onNavigate={closeNav} /> : null}
       {onboardingDone ? (
-        <div className="mt-1 space-y-0.5">
-          <NavExpandable
-            label={PLAN_SECTION.label}
-            icon={PLAN_SECTION.icon}
-            open={planOpen}
-            onToggle={() => toggleSection('plan', planOpen, setPlanOpen)}
-            items={PLAN_SECTION.items}
-            onNavigate={closeNav}
-          />
-          <NavExpandable
-            label={LIFE_SECTION.label}
-            icon={LIFE_SECTION.icon}
-            open={lifeOpen}
-            onToggle={() => toggleSection('life', lifeOpen, setLifeOpen)}
-            items={LIFE_SECTION.items}
-            onNavigate={closeNav}
-          />
-          <NavExpandable
-            label={TOGETHER_SECTION.label}
-            icon={TOGETHER_SECTION.icon}
-            open={togetherOpen}
-            onToggle={() => toggleSection('together', togetherOpen, setTogetherOpen)}
-            items={TOGETHER_SECTION.items}
-            onNavigate={closeNav}
-          />
+        <div className="mt-2 space-y-1 border-t border-border/70 pt-2">
+          {NAV_SECTIONS.map((section) => (
+            <NavSection
+              key={section.id}
+              label={section.label}
+              items={section.items.map((item) =>
+                item.id === 'social' && pendingFriends > 0
+                  ? { ...item, label: `${item.label} (${pendingFriends})` }
+                  : item,
+              )}
+              onNavigate={closeNav}
+            />
+          ))}
         </div>
       ) : (
         <p className="px-3 pb-1 text-[0.7rem] text-muted-foreground">

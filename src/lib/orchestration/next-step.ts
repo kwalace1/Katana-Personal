@@ -81,20 +81,29 @@ function habitActions(habit: Habit): AskAction[] {
   ]
 }
 
+/** The one action that fits a workout next step. Runs and jogs log as cardio; gym and lifting log as a lift. */
+export function workoutLogTarget(label: string): { label: string; route: string } {
+  if (/\b(run|jog|cardio)\b/i.test(label)) {
+    return { label: 'Log cardio', route: '/health?area=fitness&tab=workouts' }
+  }
+  return { label: 'Log lift', route: '/health?area=fitness&tab=lift' }
+}
+
 function workoutActions(plan: WorkoutPlan, events: CalendarEvent[], now: Date): AskAction[] {
   const slot = pickWorkoutSlot(events, plan.label, now)
+  const log = workoutLogTarget(plan.label)
   const actions: AskAction[] = [
-    scheduleWorkoutAction(slot, `Schedule “${plan.label}”`),
-    { id: createId(), label: 'Log a workout', kind: 'open_route', route: '/health' },
+    { id: createId(), label: log.label, kind: 'open_route', route: log.route },
   ]
   if (plan.habitId) {
-    actions.unshift({
+    actions.push({
       id: createId(),
       label: `Check in “${plan.label}”`,
       kind: 'toggle_habit',
       habitId: plan.habitId,
     })
   }
+  actions.push(scheduleWorkoutAction(slot, `Schedule “${plan.label}”`))
   return actions
 }
 
@@ -120,20 +129,10 @@ function goalActions(goal: Goal, now: Date): AskAction[] {
   return actions
 }
 
-function buildWorkoutReason(plan: WorkoutPlan, gapMinutes: number, nextEvent: CalendarEvent | null): string {
-  const parts: string[] = [
-    `You planned ${plan.weeklyTarget} workouts this week — ${plan.completedThisWeek} done.`,
-  ]
-  if (nextEvent) {
-    parts.push(
-      `Next event ${formatTime(nextEvent.starts_at)} (~${Math.round(gapMinutes)} min free). Estimated workout: ${WORKOUT_ESTIMATE_MIN} minutes.`,
-    )
-  } else if (gapMinutes >= MIN_GAP_FOR_WORKOUT) {
-    parts.push(`You have ~${Math.round(gapMinutes)} minutes open. Estimated workout: ${WORKOUT_ESTIMATE_MIN} minutes.`)
-  } else {
-    parts.push(`A ${WORKOUT_ESTIMATE_MIN}-minute session keeps you on pace.`)
-  }
-  return parts.join(' ')
+function buildWorkoutReason(plan: WorkoutPlan, nextEvent: CalendarEvent | null): string {
+  const pace = `You planned ${plan.weeklyTarget} workouts this week — ${plan.completedThisWeek} done.`
+  if (!nextEvent) return pace
+  return `${pace} Before ${nextEvent.title} at ${formatTime(nextEvent.starts_at)}.`
 }
 
 function goalWithinHorizon(goal: Goal, now: Date): boolean {
@@ -210,9 +209,8 @@ export function pickNextStep(input: PickNextStepInput): NextStep | null {
       kind: 'workout',
       title: workoutPlan.label,
       reason: sleep?.shortSleep
-        ? `${buildWorkoutReason(workoutPlan, gap.minutes, gap.nextEvent)} Sleep was light (${sleep.lastNightHours}h) — consider a shorter session.`
-        : buildWorkoutReason(workoutPlan, gap.minutes, gap.nextEvent),
-      meta: 'Movement · On pace for the week',
+        ? `${buildWorkoutReason(workoutPlan, gap.nextEvent)} Sleep was light — keep it easy.`
+        : buildWorkoutReason(workoutPlan, gap.nextEvent),
       estimatedMinutes: WORKOUT_ESTIMATE_MIN,
       actions: workoutActions(workoutPlan, snap.todayEvents, now),
       habitId: workoutPlan.habitId,

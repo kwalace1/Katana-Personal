@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { FileUp, Search, Trash2 } from 'lucide-react'
+import { Plus, Search, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { navItemLabel, navSectionLabel } from '@/lib/nav'
@@ -50,13 +50,16 @@ export default function DocumentsPage() {
   const { tick, refresh } = useLocalRefresh()
   const [params, setParams] = useSearchParams()
 
-  const docs = useMemo(() => {
+  const allDocs = useMemo(() => {
     void tick
-    const all = documentsApi.list(userId)
+    return documentsApi.list(userId)
+  }, [userId, tick])
+
+  const docs = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return all
-    return all.filter((d) => d.name.toLowerCase().includes(q))
-  }, [userId, query, tick])
+    if (!q) return allDocs
+    return allDocs.filter((d) => d.name.toLowerCase().includes(q))
+  }, [allDocs, query])
 
   useEffect(() => {
     const id = params.get('id')
@@ -108,61 +111,53 @@ export default function DocumentsPage() {
       preview.mime_type.includes('json') ||
       preview.mime_type.includes('pdf'))
 
+  const addButton = (
+    <Button className="gap-2" disabled={busy} onClick={() => inputRef.current?.click()}>
+      <Plus className="h-4 w-4" />
+      {busy ? 'Adding…' : 'Add files'}
+    </Button>
+  )
+
   return (
-    <motion.div {...pageEnterSubtle} className="kp-page">
+    <motion.div
+      {...pageEnterSubtle}
+      className={cn('kp-page', dragOver && 'ring-2 ring-primary ring-offset-2')}
+      onDragOver={(e) => {
+        e.preventDefault()
+        setDragOver(true)
+      }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={(e) => {
+        e.preventDefault()
+        setDragOver(false)
+        void onFiles(e.dataTransfer.files)
+      }}
+    >
+      <input
+        ref={inputRef}
+        type="file"
+        className="hidden"
+        multiple
+        onChange={(e) => void onFiles(e.target.files)}
+      />
       <PageHeader
+        dense
         title={navItemLabel('/documents') ?? 'Files'}
-        description="Local files on this device — include them when you Save a copy."
         eyebrow={navSectionLabel('/documents')}
-        actions={
-          <>
-            <input
-              ref={inputRef}
-              type="file"
-              className="hidden"
-              multiple
-              onChange={(e) => void onFiles(e.target.files)}
-            />
-            <Button className="gap-2" disabled={busy} onClick={() => inputRef.current?.click()}>
-              <FileUp className="h-4 w-4" />
-              {busy ? 'Adding…' : 'Add files'}
-            </Button>
-          </>
-        }
+        actions={allDocs.length > 0 ? addButton : null}
       />
 
-      <p className="mb-4 text-sm text-muted-foreground">
-        Files stay in this browser. Clear site data and they’re gone — use Settings → Save a copy, or cloud sync when connected.
-      </p>
-      <div className="relative mb-4">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          className="pl-9"
-          placeholder="Search files…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-      </div>
-
-      <div
-        className={cn(
-          'mb-3 rounded-lg border border-dashed border-border/70 bg-secondary/30 px-4 py-5 text-center transition',
-          dragOver && 'border-primary bg-primary/5',
-        )}
-        onDragOver={(e) => {
-          e.preventDefault()
-          setDragOver(true)
-        }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={(e) => {
-          e.preventDefault()
-          setDragOver(false)
-          void onFiles(e.dataTransfer.files)
-        }}
-      >
-        <p className="text-sm text-muted-foreground">Drop files here, or use Add files.</p>
-        <p className="mt-1 text-xs text-muted-foreground">Stays on this device · up to 4 MB each</p>
-      </div>
+      {allDocs.length > 0 ? (
+        <div className="relative mb-4">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            className="pl-9"
+            placeholder="Search files…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
+      ) : null}
 
       {busy ? <LoadingState message="Adding files…" className="mb-4" fullPage={false} /> : null}
       {error ? (
@@ -171,8 +166,13 @@ export default function DocumentsPage() {
         </div>
       ) : null}
 
-      {docs.length === 0 && !busy ? (
-        <p className="text-sm text-muted-foreground">No files yet.</p>
+      {allDocs.length === 0 && !busy ? (
+        <div>
+          <p className="text-sm text-muted-foreground">No files yet.</p>
+          <div className="mt-3">{addButton}</div>
+        </div>
+      ) : docs.length === 0 && !busy ? (
+        <p className="text-sm text-muted-foreground">No matching files.</p>
       ) : (
         <div className="space-y-3">
           {grouped.map(([group, items]) => (

@@ -11,6 +11,19 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { parseCapture, commitCapture } from '@/lib/capture'
 import { todayKey } from '@/lib/dates'
@@ -42,6 +55,15 @@ const PLACEHOLDERS: Record<CreateKind, string> = {
   goal: 'What you’re aiming for…',
 }
 
+const HINTS: Record<CreateKind, string> = {
+  task: 'Tomorrow, Friday, 3pm, and ! for priority all work.',
+  event: 'Tomorrow, Friday, and 3pm all work.',
+  note: 'A title is enough. Open it afterward to write more.',
+  habit: 'Starts as a daily habit.',
+  journal: 'One line lands in today’s journal.',
+  goal: 'Name what you’re aiming for.',
+}
+
 type Props = {
   userId: string
   onCreated: () => void
@@ -51,6 +73,9 @@ export function TodayQuickCreate({ userId, onCreated }: Props) {
   const navigate = useNavigate()
   const [kind, setKind] = useState<CreateKind>('task')
   const [title, setTitle] = useState('')
+  const [open, setOpen] = useState(false)
+
+  const kindMeta = KINDS.find((item) => item.id === kind) ?? KINDS[0]
 
   const preview = useMemo(() => {
     const t = title.trim()
@@ -61,6 +86,17 @@ export function TodayQuickCreate({ userId, onCreated }: Props) {
     }
     return null
   }, [kind, title])
+
+  function openComposer(next: CreateKind) {
+    setKind(next)
+    setTitle('')
+    window.setTimeout(() => setOpen(true), 0)
+  }
+
+  function onOpenChange(next: boolean) {
+    setOpen(next)
+    if (!next) setTitle('')
+  }
 
   function onSubmit(e: FormEvent) {
     e.preventDefault()
@@ -93,6 +129,7 @@ export function TodayQuickCreate({ userId, onCreated }: Props) {
         },
       })
       setTitle('')
+      setOpen(false)
       onCreated()
       return
     }
@@ -101,6 +138,7 @@ export function TodayQuickCreate({ userId, onCreated }: Props) {
       const habit = habitsApi.create(userId, { title: t, schedule: 'daily' })
       toast.success('Habit added')
       setTitle('')
+      setOpen(false)
       onCreated()
       navigate(`/habits?id=${habit.id}`)
       return
@@ -110,6 +148,7 @@ export function TodayQuickCreate({ userId, onCreated }: Props) {
       journalApi.upsert(userId, { mood: 'okay', body: t })
       toast.success('Journal updated')
       setTitle('')
+      setOpen(false)
       onCreated()
       navigate(`/journal?date=${todayKey()}`)
       return
@@ -119,53 +158,58 @@ export function TodayQuickCreate({ userId, onCreated }: Props) {
       const goal = goalsApi.create(userId, { title: t })
       toast.success('Goal added')
       setTitle('')
+      setOpen(false)
       onCreated()
       navigate(`/goals?id=${goal.id}`)
     }
   }
 
   return (
-    <form onSubmit={onSubmit} className="mb-3 kp-surface p-4">
-      <p className="kp-section-label">Create</p>
-      <p className="mt-1 font-display text-lg tracking-tight">What do you want to create?</p>
-
-      <div className="mt-3 flex flex-wrap gap-1.5">
-        {KINDS.map(({ id, label, Icon }) => (
-          <Button
-            key={id}
-            type="button"
-            size="sm"
-            variant={kind === id ? 'default' : 'secondary'}
-            onClick={() => setKind(id)}
-          >
-            <Icon className="h-3.5 w-3.5" />
-            {label}
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button type="button" variant="ghost" size="icon" aria-label="Create">
+            <Plus className="h-4 w-4" />
           </Button>
-        ))}
-      </div>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          {KINDS.map(({ id, label, Icon }) => (
+            <DropdownMenuItem
+              key={id}
+              className="min-h-11 gap-2"
+              onSelect={() => openComposer(id)}
+            >
+              <Icon className="h-4 w-4" />
+              {label}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
 
-      <div className="mt-3 flex gap-2">
-        <Input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder={PLACEHOLDERS[kind]}
-          aria-label={`New ${kind}`}
-          className="min-h-11 flex-1"
-        />
-        <Button type="submit" size="icon" className="h-11 w-11 shrink-0" aria-label="Create" disabled={!title.trim()}>
-          <Plus className="h-4 w-4" />
-        </Button>
-      </div>
-
-      {preview && title.trim() ? (
-        <p className="mt-2 border-t border-border pt-2 text-xs font-medium text-primary">
-          Will create: {preview}
-        </p>
-      ) : kind === 'task' || kind === 'event' ? (
-        <p className="mt-2 px-0.5 text-[0.7rem] text-muted-foreground">
-          Tip: tomorrow · fri · 3pm · ! priority
-        </p>
-      ) : null}
-    </form>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent size="sm">
+          <DialogHeader>
+            <DialogTitle>New {kindMeta.label.toLowerCase()}</DialogTitle>
+            <DialogDescription>{HINTS[kind]}</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={onSubmit} className="space-y-3">
+            <Input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder={PLACEHOLDERS[kind]}
+              aria-label={`New ${kind}`}
+              className="min-h-11"
+              autoFocus
+            />
+            {preview && title.trim() ? (
+              <p className="text-xs font-medium text-primary">Will create: {preview}</p>
+            ) : null}
+            <Button type="submit" className="w-full" disabled={!title.trim()}>
+              Create
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }

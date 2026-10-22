@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Check, Trash2 } from 'lucide-react'
+import { Check, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { navSectionLabel } from '@/lib/nav'
@@ -51,6 +51,7 @@ export default function JournalPage() {
   const [params, setParams] = useSearchParams()
 
   const [activeDate, setActiveDate] = useState(params.get('date') || todayKey())
+  const [composing, setComposing] = useState(() => Boolean(params.get('date')))
 
   useEffect(() => {
     const d = params.get('date')
@@ -122,6 +123,13 @@ export default function JournalPage() {
     setJustSaved(true)
   }
 
+  function startEntry() {
+    const date = todayKey()
+    setActiveDate(date)
+    setParams({ date })
+    setComposing(true)
+  }
+
   function onSave(e: FormEvent) {
     e.preventDefault()
     const wasNew = !existing
@@ -146,66 +154,72 @@ export default function JournalPage() {
   return (
     <motion.div {...pageEnterSubtle} className="kp-page">
       <PageHeader
+        dense
         title="Journal"
-        description="How you’re doing today — a quick mood check-in, or a longer note when you want one."
         eyebrow={navSectionLabel('/journal')}
         actions={
-          moodSeries.length > 1 ? (
-            <div className="hidden sm:block">
-              <p className="mb-1 kp-section-label">Mood · 14 days</p>
-              <MoodSparkline moods={moodSeries} />
-            </div>
+          entries.length > 0 && !composing ? (
+            <Button className="gap-2" onClick={startEntry}>
+              <Plus className="h-4 w-4" />
+              New entry
+            </Button>
           ) : null
         }
       />
 
-      <div className="mb-2 flex flex-wrap items-center gap-2">
-        <Input
-          type="date"
-          value={activeDate}
-          onChange={(e) => {
-            setActiveDate(e.target.value)
-            setParams({ date: e.target.value })
-          }}
-          className="w-auto"
-        />
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => {
-            const t = todayKey()
-            setActiveDate(t)
-            setParams({ date: t })
-          }}
-        >
-          Today
-        </Button>
-      </div>
-
-      <div className="mb-3 flex gap-1.5">
-        {weekBlips.map((blip) => (
-          <button
-            key={blip.date}
-            type="button"
-            onClick={() => {
-              setActiveDate(blip.date)
-              setParams({ date: blip.date })
-            }}
-            className={cn(
-              'flex min-h-11 flex-1 flex-col items-center justify-center gap-1 py-1.5 transition',
-              blip.selected ? 'bg-primary/10' : 'hover:bg-secondary/50',
-            )}
-            aria-label={`${blip.date}${blip.mood ? `, ${moodLabel(blip.mood)}` : ', no check-in'}`}
-          >
-            <span className="text-[0.65rem] font-semibold uppercase text-muted-foreground">{blip.label}</span>
-            <span
-              className={cn('h-2.5 w-2.5 rounded-full', !blip.mood && 'bg-border')}
-              style={blip.mood ? { background: moodColor(blip.mood) } : undefined}
+      {entries.length > 0 || composing ? (
+        <>
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <Input
+              type="date"
+              value={activeDate}
+              onChange={(e) => {
+                setActiveDate(e.target.value)
+                setParams({ date: e.target.value })
+              }}
+              className="w-auto"
             />
-          </button>
-        ))}
-      </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                const t = todayKey()
+                setActiveDate(t)
+                setParams({ date: t })
+              }}
+            >
+              Today
+            </Button>
+            {moodSeries.length > 1 ? <MoodSparkline moods={moodSeries} /> : null}
+          </div>
 
+          <div className="mb-3 flex gap-1.5">
+            {weekBlips.map((blip) => (
+              <button
+                key={blip.date}
+                type="button"
+                onClick={() => {
+                  setActiveDate(blip.date)
+                  setParams({ date: blip.date })
+                }}
+                className={cn(
+                  'flex min-h-11 flex-1 flex-col items-center justify-center gap-1 py-1.5 transition',
+                  blip.selected ? 'bg-primary/10' : 'hover:bg-secondary/50',
+                )}
+                aria-label={`${blip.date}${blip.mood ? `, ${moodLabel(blip.mood)}` : ', no check-in'}`}
+              >
+                <span className="text-[0.65rem] font-semibold uppercase text-muted-foreground">{blip.label}</span>
+                <span
+                  className={cn('h-2.5 w-2.5 rounded-full', !blip.mood && 'bg-border')}
+                  style={blip.mood ? { background: moodColor(blip.mood) } : undefined}
+                />
+              </button>
+            ))}
+          </div>
+        </>
+      ) : null}
+
+      {composing ? (
       <form onSubmit={onSave} className="kp-surface mb-3 space-y-2 p-3">
         <div>
           <p className="mb-1.5 text-xs font-medium text-muted-foreground">How are you doing today?</p>
@@ -247,6 +261,16 @@ export default function JournalPage() {
           />
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => {
+              setComposing(false)
+              setParams({})
+            }}
+          >
+            Close
+          </Button>
           <Button type="submit" disabled={!dirty && Boolean(existing)} className="gap-1.5">
             {justSaved && !dirty ? (
               <>
@@ -292,24 +316,32 @@ export default function JournalPage() {
               ) : null}
             </>
           ) : null}
-          {justSaved && !dirty ? (
-            <p className="text-xs text-muted-foreground">Only your mood is shared — never the entry text.</p>
-          ) : null}
         </div>
       </form>
+      ) : null}
 
-      <h2 className="mb-2 text-sm font-medium">Earlier</h2>
-      {entries.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No earlier entries yet.</p>
-      ) : (
+      {entries.length === 0 && !composing ? (
+        <div>
+          <p className="text-sm text-muted-foreground">No entries yet.</p>
+          <Button type="button" size="sm" className="mt-3 gap-1.5" onClick={startEntry}>
+            <Plus className="h-4 w-4" />
+            New entry
+          </Button>
+        </div>
+      ) : entries.length > 0 ? (
         <ul className="kp-surface divide-y">
           {entries.map((entry) => (
             <li key={entry.id}>
               <button
                 type="button"
                 onClick={() => {
+                  if (composing && entry.date === activeDate) {
+                    setComposing(false)
+                    return
+                  }
                   setActiveDate(entry.date)
                   setParams({ date: entry.date })
+                  setComposing(true)
                 }}
                 className={cn(
                   'w-full p-3 text-left transition hover:bg-secondary/50',
@@ -340,7 +372,7 @@ export default function JournalPage() {
             </li>
           ))}
         </ul>
-      )}
+      ) : null}
     </motion.div>
   )
 }

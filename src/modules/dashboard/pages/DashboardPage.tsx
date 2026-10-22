@@ -6,17 +6,30 @@ import {
   ArrowRight,
   AlertCircle,
   Moon,
+  MoreHorizontal,
   ChevronDown,
-  ChevronUp,
-  LayoutGrid,
+  ChevronRight,
 } from 'lucide-react'
-import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
-import { Switch } from '@/components/ui/switch'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
-import { format, formatTime, formatShortDate, formatShortWhen, todayKey, addDays } from '@/lib/dates'
+import { format, formatTime, formatShortDate, todayKey, addDays } from '@/lib/dates'
 import { pageEnterSubtle, springSoft } from '@/lib/motion-ui'
 import { useLocalRefresh } from '@/hooks/useLocalRefresh'
 import { DayClosedMoment } from '@/components/DayClosedMoment'
@@ -44,13 +57,13 @@ import {
 import { TogetherTodayCard } from '@/components/TogetherTodayCard'
 import { WeeklyReviewCard } from '@/components/WeeklyReviewCard'
 import { offerPwaNudge } from '@/components/PwaInstallNudge'
-import { shouldOfferWeekReview } from '@/lib/week-review'
 import {
   TODAY_SECTIONS,
   isSectionVisible,
   toggleSection,
 } from '@/modules/dashboard/today-layout'
 import { FirstRitual } from '@/modules/dashboard/components/FirstRitual'
+import { TodayDayList } from '@/modules/dashboard/components/TodayDayList'
 import { TodayQuickCreate } from '@/modules/dashboard/components/TodayQuickCreate'
 import { TodayRecentFeed } from '@/modules/dashboard/components/TodayRecentFeed'
 import { WeatherGlance } from '@/components/WeatherGlance'
@@ -64,9 +77,65 @@ import {
   nextStepTrackingId,
   computeWeights,
 } from '@/lib/orchestration/feedback'
-import { pickNextStep, type NextStepKind } from '@/lib/orchestration/next-step'
+import { pickNextStep, workoutLogTarget, type NextStep, type NextStepKind } from '@/lib/orchestration/next-step'
 
 const CLOSE_KEY = 'katana-personal:day-close'
+
+type NextControl = {
+  key: string
+  label: string
+  to?: string
+  onClick?: () => void
+}
+
+function NextStepActions({ primary, more }: { primary: NextControl; more: NextControl[] }) {
+  const label = (
+    <>
+      {primary.label}
+      <ArrowRight className="h-4 w-4" />
+    </>
+  )
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {primary.to ? (
+        <Button asChild className="gap-2">
+          <Link to={primary.to} onClick={primary.onClick}>
+            {label}
+          </Link>
+        </Button>
+      ) : (
+        <Button className="gap-2" onClick={primary.onClick}>
+          {label}
+        </Button>
+      )}
+      {more.length > 0 ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="gap-1.5">
+              More
+              <ChevronDown className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-56">
+            {more.map((item) =>
+              item.to ? (
+                <DropdownMenuItem key={item.key} asChild>
+                  <Link to={item.to} onClick={item.onClick}>
+                    {item.label}
+                  </Link>
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem key={item.key} onSelect={() => item.onClick?.()}>
+                  {item.label}
+                </DropdownMenuItem>
+              ),
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
+    </div>
+  )
+}
 
 function closedToday(): boolean {
   return localStorage.getItem(CLOSE_KEY) === todayKey()
@@ -81,12 +150,10 @@ export default function DashboardPage() {
   const { cloudEnabled, cloudUser } = useCloudAuth()
   const userId = user!.id
   const { tick, refresh } = useLocalRefresh()
-  const [alsoOpen, setAlsoOpen] = useState(false)
   const [closeNote, setCloseNote] = useState('')
+  const [closeOpen, setCloseOpen] = useState(false)
   const [dayClosed, setDayClosed] = useState(closedToday)
-  const [weekCardVisible, setWeekCardVisible] = useState(() => shouldOfferWeekReview())
   const [spentBriefing, setSpentBriefing] = useState<Record<string, true>>({})
-  const [editingLayout, setEditingLayout] = useState(false)
   const [togetherCue, setTogetherCue] = useState<{ label: string; to: string } | null>(null)
   const [closeMoment, setCloseMoment] = useState<{ open: boolean; summary: DayCloseSummary | null }>({
     open: false,
@@ -185,8 +252,6 @@ export default function DashboardPage() {
         dayClosed: dayClosed,
       }),
     )
-    const nextTaskId = next?.kind === 'task' ? next.taskId : undefined
-    const alsoTasks = priority.filter((t) => t.id !== nextTaskId).slice(0, 5)
 
     return {
       snap,
@@ -202,7 +267,6 @@ export default function DashboardPage() {
       notes: notesApi.recent(userId),
       goals: goalsApi.active(userId),
       next,
-      alsoTasks,
       unfinishedToday: tasksApi.todayTasks(userId),
     }
   }, [userId, tick, profile?.display_name, prefs, dayClosed])
@@ -257,6 +321,7 @@ export default function DashboardPage() {
     markClosed()
     setDayClosed(true)
     setCloseNote('')
+    setCloseOpen(false)
     setCloseMoment({ open: true, summary })
     refresh()
   }
@@ -285,69 +350,224 @@ export default function DashboardPage() {
     offerPwaNudge()
   }
 
+  const dayList = useMemo(() => {
+    const nextTaskId = data.next?.kind === 'task' ? data.next.taskId : undefined
+    const nextHabitId = data.next?.habitId
+    const nextEventId = data.next?.eventId
+    const seen = new Set<string>()
+    const tasks: { id: string; title: string; detail?: string; trailing?: string }[] = []
+    for (const task of [...data.unfinishedToday, ...data.priority]) {
+      if (seen.has(task.id) || task.id === nextTaskId) continue
+      seen.add(task.id)
+      const dueToday = task.due_at?.slice(0, 10) === todayKey()
+      const parsed = task.due_at ? new Date(task.due_at) : null
+      const hasTime = Boolean(parsed && (parsed.getHours() !== 0 || parsed.getMinutes() !== 0))
+      tasks.push({
+        id: task.id,
+        title: task.title,
+        detail: task.priority === 'high' ? 'Priority' : undefined,
+        trailing:
+          dueToday && hasTime && task.due_at
+            ? formatTime(task.due_at)
+            : !dueToday && task.due_at
+              ? formatShortDate(task.due_at)
+              : undefined,
+      })
+    }
+    return {
+      tasks,
+      habits: data.openHabits
+        .filter((habit) => habit.id !== nextHabitId)
+        .map((habit) => ({
+          id: habit.id,
+          title: habit.title,
+          detail: data.atRisk.some((item) => item.id === habit.id) ? 'Streak at risk' : undefined,
+        })),
+      events: data.todayEvents
+        .filter((event) => event.id !== nextEventId)
+        .map((event) => ({
+          id: event.id,
+          title: event.title,
+          trailing: event.all_day ? 'All day' : formatTime(event.starts_at),
+          to: `/calendar?date=${event.starts_at.slice(0, 10)}&id=${event.id}`,
+        })),
+    }
+  }, [data])
+
+  function nextControls(next: NextStep): NextControl[] {
+    if (next.kind === 'task' && next.taskId) {
+      const taskId = next.taskId
+      return [
+        {
+          key: 'done',
+          label: 'Mark done',
+          onClick: () => {
+            const task = tasksApi.getTask(userId, taskId)
+            if (!task) return
+            tasksApi.completeTask(userId, task.id)
+            offerTaskCompleteShare(task.title)
+            logCompleted('task')
+            toast.success('Done')
+            refresh()
+          },
+        },
+        { key: 'open', label: 'Open', to: `/tasks?id=${taskId}` },
+      ]
+    }
+
+    if (next.kind === 'event' && next.eventId) {
+      const date =
+        data.todayEvents.find((event) => event.id === next.eventId)?.starts_at.slice(0, 10) ?? todayKey()
+      return [{ key: 'open', label: 'Open event', to: `/calendar?date=${date}&id=${next.eventId}` }]
+    }
+
+    if (next.kind === 'habit' && next.habitId) {
+      const habitId = next.habitId
+      return [
+        {
+          key: 'check',
+          label: 'Check in',
+          onClick: () => {
+            const habit = habitsApi.get(userId, habitId)
+            if (!habit) return
+            habitsApi.toggleToday(userId, habit.id)
+            offerHabitCheckedInShare(habit.title, habitsApi.streak(userId, habit.id))
+            logCompleted('habit')
+            toast.success('Checked in')
+            cheerTogether()
+            refresh()
+          },
+        },
+      ]
+    }
+
+    if (next.kind === 'workout') {
+      const log = workoutLogTarget(next.title)
+      const controls: NextControl[] = [{ key: 'log', label: log.label, to: log.route }]
+      if (next.habitId) {
+        const habitId = next.habitId
+        controls.push({
+          key: 'check',
+          label: 'Check in',
+          onClick: () => {
+            const habit = habitsApi.get(userId, habitId)
+            if (!habit) return
+            habitsApi.toggleToday(userId, habit.id)
+            logCompleted('workout')
+            toast.success('Checked in')
+            cheerTogether()
+            refresh()
+          },
+        })
+      }
+      for (const action of next.actions.filter((item) => item.kind === 'schedule_workout')) {
+        controls.push({
+          key: action.id,
+          label: action.label,
+          onClick: () => {
+            const result = runAskAction(userId, action)
+            if (result) {
+              toast.success(result)
+              refresh()
+            }
+          },
+        })
+      }
+      return controls
+    }
+
+    if (next.kind === 'recovery') {
+      return [
+        {
+          key: 'sleep',
+          label: 'Log sleep',
+          to: '/health?area=wellness&tab=sleep',
+          onClick: () => logCompleted('recovery'),
+        },
+        { key: 'journal', label: 'Open journal', to: '/journal' },
+      ]
+    }
+
+    if (next.kind === 'goal' && next.goalId) {
+      const extras = next.actions
+        .filter((action) => action.kind === 'adjust_goal')
+        .map((action) => ({
+          key: action.id,
+          label: action.label,
+          onClick: () => {
+            const result = runAskAction(userId, action)
+            if (result) {
+              toast.success(result)
+              refresh()
+            }
+          },
+        }))
+      return [{ key: 'open', label: 'Open goal', to: `/goals?id=${next.goalId}` }, ...extras]
+    }
+
+    if (next.kind === 'wind_down') {
+      return [
+        { key: 'close', label: 'Close day', onClick: parkUnfinished },
+        { key: 'journal', label: 'Journal', to: '/journal' },
+      ]
+    }
+
+    return []
+  }
+
+  const stepControls = data.next ? nextControls(data.next) : []
+  const primaryStep = stepControls[0]
+
   return (
     <motion.div {...pageEnterSubtle} className="kp-page">
-      <PageHeader
-        eyebrow={format(new Date(), 'EEEE · MMMM d')}
-        title={`${greeting}, ${profile?.display_name || 'there'}`}
-        description={
-          onboardingDone
-            ? 'Create something, cheer a win, do the next step.'
-            : 'One quiet minute to start the day.'
-        }
-        actions={
-          onboardingDone ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                variant={editingLayout ? 'default' : 'outline'}
-                className="gap-2"
-                onClick={() => setEditingLayout((v) => !v)}
-              >
-                <LayoutGrid className="h-4 w-4" />
-                {editingLayout ? 'Done' : 'Edit layout'}
-              </Button>
-              <Button asChild variant="outline" className="gap-2">
-                <Link to="/ask">
-                  <Sparkles className="h-4 w-4" />
-                  Ask
-                </Link>
-              </Button>
-            </div>
-          ) : null
-        }
-      />
-
-      {onboardingDone && editingLayout && (
-        <section className="mb-4 kp-surface p-4">
-          <p className="kp-section-label">Today layout</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Turn sections on or off. Create and recent feed always stay.
+      <div className="mx-auto max-w-xl">
+      <header className="mb-6 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <div className="order-2 min-w-0 sm:order-1">
+          <p className="kp-section-label uppercase tracking-wide">
+            {format(new Date(), 'EEEE, MMMM d')}
           </p>
-          <ul className="mt-4 space-y-1">
-            {TODAY_SECTIONS.map((section) => {
-              const on = isSectionVisible(prefs, section.id)
-              return (
-                <li
-                  key={section.id}
-                  className="flex items-center justify-between gap-3 rounded-xl px-2 py-2.5"
-                >
-                  <label htmlFor={`today-section-${section.id}`} className="text-sm font-medium">
-                    {section.label}
-                  </label>
-                  <Switch
-                    id={`today-section-${section.id}`}
-                    checked={on}
-                    onCheckedChange={() => {
-                      updatePreferences({ todayLayout: toggleSection(prefs, section.id) })
-                    }}
-                  />
-                </li>
-              )
-            })}
-          </ul>
-        </section>
-      )}
+          <h1 className="mt-1 font-display text-2xl tracking-tight kp-text-balance">
+            {greeting}, {profile?.display_name || 'there'}
+          </h1>
+        </div>
+        {onboardingDone ? (
+          <div className="order-1 -mr-2 flex shrink-0 items-center justify-end sm:order-2 sm:mr-0">
+            <Button asChild variant="ghost" size="icon" aria-label="Ask">
+              <Link to="/ask">
+                <Sparkles className="h-4 w-4" />
+              </Link>
+            </Button>
+            <TodayQuickCreate userId={userId} onCreated={refresh} />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" variant="ghost" size="icon" aria-label="Today options">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>Show on Today</DropdownMenuLabel>
+                {TODAY_SECTIONS.map((section) => {
+                  const on = isSectionVisible(prefs, section.id)
+                  return (
+                    <DropdownMenuCheckboxItem
+                      key={section.id}
+                      checked={on}
+                      className="min-h-11"
+                      onCheckedChange={(checked) => {
+                        if ((checked === true) === on) return
+                        updatePreferences({ todayLayout: toggleSection(prefs, section.id) })
+                      }}
+                      onSelect={(event) => event.preventDefault()}
+                    >
+                      {section.label}
+                    </DropdownMenuCheckboxItem>
+                  )
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        ) : null}
+      </header>
 
       {!onboardingDone ? (
         <FirstRitual
@@ -360,21 +580,9 @@ export default function DashboardPage() {
         />
       ) : null}
 
-      {onboardingDone && weekCardVisible && (
-        <WeeklyReviewCard
-          snap={data.snap}
-          onDone={() => {
-            setWeekCardVisible(false)
-            toast.success('Week reviewed — back to today')
-          }}
-        />
-      )}
-
       {onboardingDone ? (
         <>
-          <TodayQuickCreate userId={userId} onCreated={refresh} />
-          <WeatherGlance variant="today" />
-          <TodayRecentFeed />
+          <WeatherGlance variant="today" quiet />
 
           {data.overdue.length > 0 && (
             <section className="mb-4 flex items-start gap-3 rounded-2xl border border-destructive/25 bg-destructive/5 px-4 py-3">
@@ -396,22 +604,15 @@ export default function DashboardPage() {
             </section>
           )}
 
-          {data.atRisk.length > 0 && (
-            <p className="mb-4 text-sm text-amber-700 dark:text-amber-400">
-              Streak at risk: {data.atRisk.map((h) => h.title).join(', ')} — check in before the day
-              ends.
-            </p>
-          )}
-
           {isSectionVisible(prefs, 'do_this_next') && (
             <motion.section
               layout
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={springSoft}
-              className="relative mb-3 overflow-hidden kp-surface p-4"
+              className="relative mb-6 overflow-hidden kp-surface p-4"
             >
-              <p className="kp-section-label">Do this next</p>
+              <p className="kp-section-label uppercase tracking-wide">Next step</p>
               {data.next ? (
                 <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
@@ -421,244 +622,59 @@ export default function DashboardPage() {
                       <p className="mt-1 text-xs text-muted-foreground">{data.next.meta}</p>
                     ) : null}
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {data.next.kind === 'task' && data.next.taskId ? (
-                      <>
-                        <Button
-                          className="gap-2"
-                          onClick={() => {
-                            const task = tasksApi.getTask(userId, data.next!.taskId!)
-                            if (!task) return
-                            tasksApi.completeTask(userId, task.id)
-                            offerTaskCompleteShare(task.title)
-                            logCompleted('task')
-                            toast.success('Done')
-                            refresh()
-                          }}
-                        >
-                          Mark done
-                          <ArrowRight className="h-4 w-4" />
-                        </Button>
-                        <Button asChild variant="outline">
-                          <Link to={`/tasks?id=${data.next.taskId}`}>Open</Link>
-                        </Button>
-                      </>
-                    ) : null}
-                    {data.next.kind === 'event' && data.next.eventId ? (
-                      <Button asChild className="gap-2">
-                        <Link
-                          to={`/calendar?date=${
-                            data.todayEvents.find((e) => e.id === data.next!.eventId)?.starts_at.slice(0, 10) ??
-                            todayKey()
-                          }&id=${data.next.eventId}`}
-                        >
-                          Open event
-                          <ArrowRight className="h-4 w-4" />
-                        </Link>
-                      </Button>
-                    ) : null}
-                    {data.next.kind === 'habit' && data.next.habitId ? (
-                      <Button
-                        className="gap-2"
-                        onClick={() => {
-                          const habit = habitsApi.get(userId, data.next!.habitId!)
-                          if (!habit) return
-                          habitsApi.toggleToday(userId, habit.id)
-                          offerHabitCheckedInShare(habit.title, habitsApi.streak(userId, habit.id))
-                          logCompleted('habit')
-                          toast.success('Checked in')
-                          cheerTogether()
-                          refresh()
-                        }}
-                      >
-                        Check in
-                        <ArrowRight className="h-4 w-4" />
-                      </Button>
-                    ) : null}
-                    {data.next.kind === 'workout' ? (
-                      <>
-                        {data.next.habitId ? (
-                          <Button
-                            className="gap-2"
-                            onClick={() => {
-                              const habit = habitsApi.get(userId, data.next!.habitId!)
-                              if (!habit) return
-                              habitsApi.toggleToday(userId, habit.id)
-                              logCompleted('workout')
-                              toast.success('Checked in')
-                              cheerTogether()
-                              refresh()
-                            }}
-                          >
-                            Check in
-                            <ArrowRight className="h-4 w-4" />
-                          </Button>
-                        ) : null}
-                        {data.next.actions
-                          .filter((a) => a.kind === 'schedule_workout')
-                          .map((action) => (
-                            <Button
-                              key={action.id}
-                              className="gap-2"
-                              variant={data.next!.habitId ? 'outline' : 'default'}
-                              onClick={() => {
-                                const result = runAskAction(userId, action)
-                                if (result) {
-                                  toast.success(result)
-                                  refresh()
-                                }
-                              }}
-                            >
-                              {action.label}
-                              <ArrowRight className="h-4 w-4" />
-                            </Button>
-                          ))}
-                        <Button asChild variant="outline" className="gap-2">
-                          <Link to="/health">
-                            Log workout
-                            <ArrowRight className="h-4 w-4" />
-                          </Link>
-                        </Button>
-                      </>
-                    ) : null}
-                    {data.next.kind === 'recovery' ? (
-                      <>
-                        <Button asChild className="gap-2">
-                          <Link
-                            to="/health"
-                            onClick={() => {
-                              logCompleted('recovery')
-                            }}
-                          >
-                            Log sleep
-                            <ArrowRight className="h-4 w-4" />
-                          </Link>
-                        </Button>
-                        <Button asChild variant="outline" className="gap-2">
-                          <Link to="/journal">Open journal</Link>
-                        </Button>
-                      </>
-                    ) : null}
-                    {data.next.kind === 'goal' && data.next.goalId ? (
-                      <Button asChild className="gap-2">
-                        <Link to={`/goals?id=${data.next.goalId}`}>
-                          Open goal
-                          <ArrowRight className="h-4 w-4" />
-                        </Link>
-                      </Button>
-                    ) : null}
-                    {data.next.kind === 'wind_down' ? (
-                      <>
-                        <Button className="gap-2" onClick={parkUnfinished}>
-                          Close day
-                          <Moon className="h-4 w-4" />
-                        </Button>
-                        <Button asChild variant="outline">
-                          <Link to="/journal">Journal</Link>
-                        </Button>
-                      </>
-                    ) : null}
-                  </div>
+                  {primaryStep ? (
+                    <NextStepActions primary={primaryStep} more={stepControls.slice(1)} />
+                  ) : null}
                 </div>
               ) : (
                 <div className="mt-2">
                   <h2 className="font-display text-lg tracking-tight">Nothing urgent</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Capture above, or open Tasks when you’re ready.
-                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">Nothing urgent right now.</p>
                 </div>
               )}
             </motion.section>
           )}
 
-          {isSectionVisible(prefs, 'together') && <TogetherTodayCard />}
+          {isSectionVisible(prefs, 'also_today') && (
+            <TodayDayList
+              tasks={dayList.tasks}
+              habits={dayList.habits}
+              events={dayList.events}
+              onCompleteTask={(id) => {
+                const task = tasksApi.getTask(userId, id)
+                if (!task) return
+                tasksApi.completeTask(userId, id)
+                offerTaskCompleteShare(task.title)
+                if (data.next?.kind === 'task' && data.next.taskId === id) logCompleted('task')
+                refresh()
+              }}
+              onCheckHabit={(id) => {
+                const habit = habitsApi.get(userId, id)
+                if (!habit) return
+                habitsApi.toggleToday(userId, id)
+                offerHabitCheckedInShare(habit.title, habitsApi.streak(userId, id))
+                if (data.next && data.next.habitId === id) {
+                  logCompleted(data.next.kind === 'workout' ? 'workout' : 'habit')
+                }
+                cheerTogether()
+                refresh()
+              }}
+            />
+          )}
 
-          {isSectionVisible(prefs, 'also_today') &&
-            (data.alsoTasks.length > 0 ||
-              data.openHabits.length > 0 ||
-              data.todayEvents.length > 0) && (
-              <section className="mb-3 kp-surface">
-                <button
-                  type="button"
-                  className="flex w-full items-center justify-between px-5 py-3.5 text-left"
-                  onClick={() => setAlsoOpen((v) => !v)}
-                  aria-expanded={alsoOpen}
-                >
-                  <span className="text-sm font-semibold tracking-tight">Also today</span>
-                  <span className="flex items-center gap-2 text-xs text-muted-foreground">
-                    {data.alsoTasks.length + data.openHabits.length} more
-                    {alsoOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  </span>
-                </button>
-                {alsoOpen && (
-                  <div className="divide-y border-t border-border">
-                    {data.alsoTasks.map((task) => (
-                      <div
-                        key={task.id}
-                        className="flex items-center justify-between gap-2 px-4 py-2.5"
-                      >
-                        <Link
-                          to={`/tasks?id=${task.id}`}
-                          className="min-w-0 truncate text-sm hover:underline"
-                        >
-                          {task.title}
-                        </Link>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => {
-                            tasksApi.completeTask(userId, task.id)
-                            offerTaskCompleteShare(task.title)
-                            refresh()
-                          }}
-                        >
-                          Done
-                        </Button>
-                      </div>
-                    ))}
-                    {data.openHabits
-                      .filter((h) => h.id !== data.next?.habitId)
-                      .map((habit) => (
-                        <div
-                          key={habit.id}
-                          className="flex items-center justify-between gap-2 px-4 py-2.5"
-                        >
-                          <span className="truncate text-sm">{habit.title}</span>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => {
-                              habitsApi.toggleToday(userId, habit.id)
-                              offerHabitCheckedInShare(
-                                habit.title,
-                                habitsApi.streak(userId, habit.id),
-                              )
-                              cheerTogether()
-                              refresh()
-                            }}
-                          >
-                            Check in
-                          </Button>
-                        </div>
-                      ))}
-                    {data.todayEvents
-                      .filter((e) => e.id !== data.next?.eventId)
-                      .map((event) => (
-                        <Link
-                          key={event.id}
-                          to={`/calendar?date=${event.starts_at.slice(0, 10)}&id=${event.id}`}
-                          className="block px-4 py-2.5 text-sm hover:bg-secondary/50"
-                        >
-                          {event.title}
-                          <span className="ml-2 text-xs text-muted-foreground">
-                            {!event.all_day ? formatTime(event.starts_at) : 'All day'}
-                          </span>
-                        </Link>
-                      ))}
-                  </div>
-                )}
-              </section>
-            )}
+          {data.atRisk.length > 0 && !isSectionVisible(prefs, 'also_today') && (
+            <p className="mb-4 text-sm text-amber-700 dark:text-amber-400">
+              Streak at risk: {data.atRisk.map((h) => h.title).join(', ')} — check in before the day
+              ends.
+            </p>
+          )}
+
+          <WeeklyReviewCard
+            snap={data.snap}
+            onDone={() => toast.success('Week reviewed')}
+          />
+
+          {isSectionVisible(prefs, 'together') && <TogetherTodayCard />}
 
           {isSectionVisible(prefs, 'for_you') && (
             <section className="relative mb-3 overflow-hidden kp-surface p-4" aria-live="polite">
@@ -713,35 +729,7 @@ export default function DashboardPage() {
             </section>
           )}
 
-          {showEveningClose && (
-            <motion.section
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={springSoft}
-              className="relative mb-3 overflow-hidden kp-surface border border-primary/15 p-4"
-            >
-              <div className="relative mb-2 flex items-center gap-2">
-                <Moon className="h-4 w-4 text-primary" />
-                <p className="kp-section-label">Evening close</p>
-              </div>
-              <p className="relative font-display text-lg tracking-tight">Close the day</p>
-              <p className="relative mt-1 text-sm text-muted-foreground">
-                Park unfinished work, note one line, rest.
-                {data.openHabits.length > 0
-                  ? ` · ${data.openHabits.length} habit${data.openHabits.length === 1 ? '' : 's'} open`
-                  : ''}
-              </p>
-              <Input
-                className="relative mt-3 min-h-11"
-                value={closeNote}
-                onChange={(e) => setCloseNote(e.target.value)}
-                placeholder="One line for your journal (optional)"
-              />
-              <Button className="relative mt-3 min-h-11 w-full sm:w-auto" onClick={parkUnfinished}>
-                Park unfinished & close day
-              </Button>
-            </motion.section>
-          )}
+          <TodayRecentFeed hideEmpty />
 
           <DayClosedMoment
             open={closeMoment.open}
@@ -849,8 +837,46 @@ export default function DashboardPage() {
               </section>
             )}
           </div>
+
+          {showEveningClose && (
+            <>
+              <button
+                type="button"
+                className="mt-2 flex w-full items-center gap-3 px-0.5 py-3 text-left"
+                onClick={() => setCloseOpen(true)}
+              >
+                <Moon className="h-4 w-4 shrink-0 text-primary" />
+                <span className="flex-1 text-sm font-medium">Close your day</span>
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              </button>
+              <Dialog open={closeOpen} onOpenChange={setCloseOpen}>
+                <DialogContent size="sm">
+                  <DialogHeader>
+                    <DialogTitle>Close your day</DialogTitle>
+                    <DialogDescription>
+                      Park unfinished work onto tomorrow
+                      {data.openHabits.length > 0
+                        ? `, with ${data.openHabits.length} habit${data.openHabits.length === 1 ? '' : 's'} still open`
+                        : ''}
+                      . One line for your journal is optional.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <Input
+                    className="min-h-11"
+                    value={closeNote}
+                    onChange={(e) => setCloseNote(e.target.value)}
+                    placeholder="One line for your journal (optional)"
+                  />
+                  <Button className="w-full" onClick={parkUnfinished}>
+                    Park unfinished and close day
+                  </Button>
+                </DialogContent>
+              </Dialog>
+            </>
+          )}
         </>
       ) : null}
+      </div>
     </motion.div>
   )
 }

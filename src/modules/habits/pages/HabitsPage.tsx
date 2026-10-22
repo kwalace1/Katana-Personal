@@ -248,11 +248,12 @@ export default function HabitsPage() {
 
   const dueIds = useMemo(() => new Set(habitsApi.dueToday(userId).map((h) => h.id)), [userId, tick])
 
+  const [creating, setCreating] = useState(false)
   const [title, setTitle] = useState('')
   const [schedule, setSchedule] = useState<HabitSchedule>('daily')
   const [customDays, setCustomDays] = useState<Weekday[]>([1, 2, 3, 4, 5])
   const [onceDate, setOnceDate] = useState(todayKey())
-  const [filter, setFilter] = useState<'all' | 'due'>('due')
+  const [filter, setFilter] = useState<'all' | 'due'>('all')
   const [folderId, setFolderId] = useState<string | 'all' | 'none'>('all')
   const [newFolderName, setNewFolderName] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(params.get('id'))
@@ -279,9 +280,19 @@ export default function HabitsPage() {
     setSchedule('daily')
     setCustomDays([1, 2, 3, 4, 5])
     setOnceDate(todayKey())
+    setCreating(false)
+    setFilter('all')
     setSelectedId(habit.id)
     setParams({ id: habit.id })
     refresh()
+  }
+
+  function cancelCreate() {
+    setTitle('')
+    setSchedule('daily')
+    setCustomDays([1, 2, 3, 4, 5])
+    setOnceDate(todayKey())
+    setCreating(false)
   }
 
   const visible = habits.filter((h) => {
@@ -298,8 +309,17 @@ export default function HabitsPage() {
         title="Habits"
         description="Pick the days that fit — and as many reminder times as you want."
         eyebrow={navSectionLabel('/habits')}
+        actions={
+          habits.length > 0 && !creating ? (
+            <Button type="button" size="sm" className="gap-1.5" onClick={() => setCreating(true)}>
+              <Plus className="h-4 w-4" />
+              Add habit
+            </Button>
+          ) : null
+        }
       />
 
+      {habits.length > 0 ? (
       <div className="mb-2 flex flex-wrap items-center gap-1.5">
         <FilterChip selected={folderId === 'all'} onClick={() => setFolderId('all')}>
           All folders
@@ -364,29 +384,49 @@ export default function HabitsPage() {
           </Button>
         </form>
       </div>
+      ) : null}
 
-      <form onSubmit={onCreate} className="kp-surface mb-3 space-y-2 p-3">
-        <div className="flex gap-2">
-          <Input
-            placeholder="A habit worth keeping…"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="h-9 flex-1"
+      {creating ? (
+        <form onSubmit={onCreate} className="kp-surface mb-3 space-y-2 p-3">
+          <div className="flex gap-2">
+            <Input
+              placeholder="A habit worth keeping…"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="h-9 flex-1"
+              autoFocus
+            />
+            <Button type="submit" size="sm" className="h-9 gap-1.5 px-3" disabled={!title.trim()}>
+              <Plus className="h-4 w-4" />
+              Add habit
+            </Button>
+          </div>
+          <SchedulePicker
+            schedule={schedule}
+            customDays={customDays}
+            onceDate={onceDate}
+            onSchedule={setSchedule}
+            onCustomDays={setCustomDays}
+            onOnceDate={setOnceDate}
           />
-          <Button type="submit" size="icon" className="h-9 w-9" aria-label="Add">
+          <Button type="button" variant="ghost" size="sm" onClick={cancelCreate}>
+            Cancel
+          </Button>
+        </form>
+      ) : null}
+
+      {habits.length === 0 && !creating ? (
+        <div className="py-8 text-center">
+          <p className="text-sm text-muted-foreground">No habits yet.</p>
+          <Button type="button" size="sm" className="mt-3 gap-1.5" onClick={() => setCreating(true)}>
             <Plus className="h-4 w-4" />
+            Add habit
           </Button>
         </div>
-        <SchedulePicker
-          schedule={schedule}
-          customDays={customDays}
-          onceDate={onceDate}
-          onSchedule={setSchedule}
-          onCustomDays={setCustomDays}
-          onOnceDate={setOnceDate}
-        />
-      </form>
+      ) : null}
 
+      {habits.length > 0 ? (
+        <>
       <Segmented
         className="mb-3"
         value={filter}
@@ -397,9 +437,7 @@ export default function HabitsPage() {
         ]}
       />
 
-      {habits.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No habits yet.</p>
-      ) : visible.length === 0 ? (
+      {visible.length === 0 ? (
         <p className="text-sm text-muted-foreground">Nothing due today. Switch to All to see the rest.</p>
       ) : (
         <div>
@@ -660,6 +698,8 @@ export default function HabitsPage() {
           </ul>
         </div>
       )}
+        </>
+      ) : null}
     </motion.div>
   )
 }
