@@ -13,7 +13,6 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { BrandMark } from '@/components/BrandMark'
-import { SecretUnlockTitle } from '@/components/SecretUnlockTitle'
 import { MarketingSeo } from '@/components/MarketingSeo'
 import { SiteFooter } from '@/components/SiteFooter'
 import { APP_NAME_FULL, COMPANY_LEGAL, COMPANY_NAME, DESCRIPTION, SUPPORT_EMAIL, TAGLINE } from '@/lib/brand'
@@ -134,7 +133,7 @@ export default function MarketingPage() {
         <section className="relative mx-auto grid w-full max-w-6xl gap-12 px-5 pb-20 pt-12 sm:px-8 sm:pb-28 sm:pt-20 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:items-end lg:gap-16">
           <motion.div {...pageEnterSubtle} className="max-w-2xl">
             <p className="kp-section-label">Katana Personal</p>
-            <SecretUnlockTitle className="font-display mt-3 text-5xl tracking-tight sm:text-6xl lg:text-7xl" />
+            <h1 className="font-display mt-3 text-5xl tracking-tight sm:text-6xl lg:text-7xl">Katana</h1>
             <p className="mt-5 text-xl font-medium leading-snug text-foreground/90 sm:text-2xl">{TAGLINE}</p>
             <p className="mt-4 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
               {DESCRIPTION}

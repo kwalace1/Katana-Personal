@@ -145,8 +145,8 @@ export function TodayQuickCreate({ userId, onCreated }: Props) {
     }
 
     if (kind === 'journal') {
-      journalApi.upsert(userId, { mood: 'okay', body: t })
-      toast.success('Journal updated')
+      journalApi.create(userId, { mood: 'okay', body: t })
+      toast.success('Journal entry saved')
       setTitle('')
       setOpen(false)
       onCreated()

@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Plus, Search, Trash2 } from 'lucide-react'
+import { FileUp, Plus, Search, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { navItemLabel, navSectionLabel } from '@/lib/nav'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
 import { LoadingState } from '@/components/ui/loading-state'
 import { ErrorState } from '@/components/ui/error-state'
@@ -167,12 +168,30 @@ export default function DocumentsPage() {
       ) : null}
 
       {allDocs.length === 0 && !busy ? (
-        <div>
-          <p className="text-sm text-muted-foreground">No files yet.</p>
-          <div className="mt-3">{addButton}</div>
-        </div>
+        <EmptyState
+          plain
+          icon={FileUp}
+          title="Add a file"
+          description="Keep documents on this device, ready when you need them."
+          action={
+            <Button className="gap-2" disabled={busy} onClick={() => inputRef.current?.click()}>
+              <Plus className="h-4 w-4" />
+              Add your first file
+            </Button>
+          }
+        />
       ) : docs.length === 0 && !busy ? (
-        <p className="text-sm text-muted-foreground">No matching files.</p>
+        <EmptyState
+          compact
+          plain
+          title="No matching files"
+          description="Try a different search."
+          action={
+            <Button type="button" variant="outline" onClick={() => setQuery('')}>
+              Clear search
+            </Button>
+          }
+        />
       ) : (
         <div className="space-y-3">
           {grouped.map(([group, items]) => (

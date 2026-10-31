@@ -537,7 +537,12 @@ export function FriendsPanel({ embedded }: Props) {
           Your people
         </h2>
         {accepted.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No friends yet. Share your code above.</p>
+          <EmptyState
+            compact
+            plain
+            title="No friends yet"
+            description="Share your code above, or enter a friend’s code."
+          />
         ) : (
           <ul className="kp-surface divide-y overflow-hidden">
             {accepted.map((f) => {

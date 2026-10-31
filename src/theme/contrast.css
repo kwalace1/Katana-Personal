@@ -1,0 +1,82 @@
+/*
+ * High contrast keeps each palette's hues. Token overrides for text,
+ * borders, and focus are written by renderContrastStyle. This file
+ * covers focus, overlays, and opacity utilities that would otherwise
+ * wash out the tuned tokens.
+ */
+html[data-contrast='high'] {
+  --kp-selected-wash: 0.22;
+}
+
+html[data-contrast='high'] .kp-glass-control-active,
+html[data-contrast='high'] .kp-day-selected {
+  box-shadow: inset 0 0 0 1px hsl(var(--primary));
+}
+
+html[data-contrast='high'] :focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+html[data-contrast='high'] .kp-type-mark {
+  box-shadow: 0 0 0 1px hsl(var(--foreground) / 0.72);
+}
+
+html[data-contrast='high'] .kp-outside-day {
+  opacity: 1;
+  color: hsl(var(--muted-foreground));
+}
+
+html[data-contrast='high'] .kp-day-selected.kp-outside-day {
+  color: inherit;
+}
+
+html[data-contrast='high'] [data-slot='dialog-overlay'],
+html[data-contrast='high'] [data-slot='alert-dialog-overlay'],
+html[data-contrast='high'] [data-slot='drawer-overlay'],
+html[data-contrast='high'] [data-slot='sheet-overlay'] {
+  background-color: hsl(var(--kp-overlay) / 0.72);
+}
+
+html[data-contrast='high'] [data-slot='menu-scrim'] {
+  background-color: hsl(var(--kp-overlay) / 0.55);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+html[data-contrast='high'] [data-slot='switch'][data-state='unchecked'] {
+  background-color: hsl(var(--input));
+}
+
+html[data-contrast='high'] .kp-nav-idle svg,
+html[data-contrast='high'] .kp-glass-control svg,
+html[data-contrast='high'] [data-slot='select-trigger'] svg,
+html[data-contrast='high'] [data-slot='command-input-wrapper'] svg {
+  opacity: 1;
+}
+
+html[data-contrast='high'] .kp-chart-bar {
+  background-color: hsl(var(--primary));
+}
+
+html[data-contrast='high'] .kp-chart-target {
+  opacity: 1;
+}
+
+html[data-contrast='high'] .kp-chart-empty {
+  border-color: hsl(var(--border));
+}
+
+/* Tailwind opacity modifiers stay in the class string and would undo the tuned tokens. */
+html[data-contrast='high'] [class*='border-border/'],
+html[data-contrast='high'] [class*='divide-border/'] > :not([hidden]) ~ :not([hidden]) {
+  border-color: hsl(var(--border));
+}
+
+html[data-contrast='high'] [class*='border-foreground/'] {
+  border-color: hsl(var(--foreground));
+}
+
+html[data-contrast='high'] [class*='text-muted-foreground/'] {
+  color: hsl(var(--muted-foreground));
+}

@@ -4,6 +4,7 @@ import { NAV_SECTIONS, PRIMARY_NAV, SETTINGS_NAV } from '@/lib/nav'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
+import { menuScrimClass } from '@/theme/tokens'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
 import { SimpleThemeToggle } from '@/components/SimpleThemeToggle'
@@ -499,7 +500,11 @@ function MobileNavDrawer({
           <motion.div
             role="presentation"
             aria-hidden
-            className="fixed inset-0 z-40 touch-manipulation bg-black/25 backdrop-blur-md md:hidden"
+            data-slot="menu-scrim"
+            className={cn(
+              'fixed inset-0 z-40 touch-manipulation backdrop-blur-md md:hidden',
+              menuScrimClass,
+            )}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}

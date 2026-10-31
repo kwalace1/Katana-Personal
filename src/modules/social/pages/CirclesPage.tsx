@@ -996,7 +996,9 @@ export default function CirclesPage() {
             </ol>
           </motion.section>
         ) : (
-          <p className="mb-3 text-sm text-muted-foreground">No streak data yet.</p>
+          <p className="mb-3 text-sm text-muted-foreground">
+            Streaks show up after a few logged days.
+          </p>
         )}
 
         {/* Timeline + posts + water check-in */}
@@ -1174,7 +1176,18 @@ export default function CirclesPage() {
       ) : circles.length === 0 ? (
         <>
           <TogetherSetup highlight="circles" compact cloudConnected={Boolean(cloudUser)} className="mb-4" />
-          <p className="text-sm text-muted-foreground">You’re not in a circle yet.</p>
+          <EmptyState
+            compact
+            plain
+            title="You're not in a circle yet"
+            description="A circle is a small group for wins, plans, and streaks."
+            action={
+              <Button className="gap-1.5" onClick={() => setCreateOpen(true)}>
+                <Plus className="h-4 w-4" />
+                Start a circle
+              </Button>
+            }
+          />
         </>
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2">

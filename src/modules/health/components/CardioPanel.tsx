@@ -1,7 +1,8 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
-import { MapPin, Pause, Play, Square, Trash2 } from 'lucide-react'
+import { ChevronDown, Pause, Play, Square, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
 import { Segmented } from '@/components/ui/segmented'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -16,12 +17,13 @@ import {
   isStreakMilestone,
   offerShareWin,
 } from '@/lib/social/share-win'
-import { formatCardioDuration, healthApi } from '../api'
+import { durationTotalSeconds, formatCardioDuration, healthApi } from '../api'
 import {
   CARDIO_ACTIVITIES,
   cardioElapsedSeconds,
   discardCardioTrack,
   finishCardioTrack,
+  getCardioTrack,
   pauseCardioTrack,
   resumeCardioTrack,
   setCardioTrackKind,
@@ -31,6 +33,17 @@ import { useCardioTrack } from '../useCardioTrack'
 import { formatLiftDate } from './lift/LiftLineChart'
 import { CardioMap } from './CardioMap'
 import { WeatherGlance } from '@/components/WeatherGlance'
+import type { Workout } from '../types'
+
+function cardioSeconds(entry: Workout): number {
+  const fromParts = durationTotalSeconds({
+    hours: entry.duration_hours,
+    minutes: entry.duration_mins,
+    seconds: entry.duration_secs,
+  })
+  if (fromParts > 0) return fromParts
+  return Math.round((entry.duration_minutes || 0) * 60)
+}
 
 type Props = {
   userId: string
@@ -56,6 +69,9 @@ export function CardioPanel({ userId, logDate, tick, refresh }: Props) {
   const [notes, setNotes] = useState('')
   const [openId, setOpenId] = useState<string | null>(null)
   const [now, setNow] = useState(() => Date.now())
+  const [view, setView] = useState<'home' | 'track' | 'log'>(() =>
+    getCardioTrack().status === 'idle' ? 'home' : 'track',
+  )
 
   const track = useCardioTrack()
   const status = track.status
@@ -111,6 +127,7 @@ export function CardioPanel({ userId, logDate, tick, refresh }: Props) {
     }
     toast.success(`Saved ${snapshot.kind.toLowerCase()} · ${formatDistance(dist)}`)
     burstConfetti()
+    setView('home')
     refresh()
   }
 
@@ -172,20 +189,50 @@ export function CardioPanel({ userId, logDate, tick, refresh }: Props) {
     setSeconds('')
     setCalories('')
     setNotes('')
+    setView('home')
     refresh()
   }
 
+  const tracking = status !== 'idle'
+
   return (
     <div className="space-y-3">
-      <div className="kp-surface space-y-3 overflow-hidden p-4">
-        <div>
-          <p className="text-xs text-muted-foreground">Live map</p>
-          <h3 className="font-display text-lg tracking-tight">Record a route</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            GPS stays on this device. Keep Katana in the background (lock the phone is fine) — we’ll
-            keep dropping points. Don’t swipe the app away. Tap the live bar to finish.
-          </p>
+      {view === 'home' ? (
+        <div className="space-y-5">
+          <div>
+            <h3 className="font-display text-lg tracking-tight">Track an activity</h3>
+            <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+              {tracking
+                ? `${trackKind} is ${status === 'paused' ? 'paused' : 'recording'} · ${formatClock(elapsed)}${distance > 0 ? ` · ${formatDistance(distance)}` : ''}`
+                : 'Record a GPS route for a run, walk, ride, or row. The route stays on this device.'}
+            </p>
+            <Button type="button" size="sm" className="mt-3" onClick={() => setView('track')}>
+              {tracking ? 'Return to session' : 'Start tracking'}
+            </Button>
+          </div>
+          <div>
+            <h3 className="font-display text-lg tracking-tight">Log an activity</h3>
+            <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+              Add a workout you already finished, with duration and notes.
+            </p>
+            <Button type="button" size="sm" variant="outline" className="mt-3" onClick={() => setView('log')}>
+              Add activity
+            </Button>
+          </div>
         </div>
+      ) : null}
+
+      {view === 'track' ? (
+      <div className="kp-surface space-y-3 overflow-hidden p-4">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="font-display text-lg tracking-tight">Record a route</h3>
+          <Button type="button" size="sm" variant="ghost" className="shrink-0" onClick={() => setView('home')}>
+            Back
+          </Button>
+        </div>
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          GPS stays on this device. Locking the phone is fine. Don’t swipe the app away.
+        </p>
         <WeatherGlance variant="cardio" />
         <Segmented
           value={trackKind}
@@ -195,12 +242,7 @@ export function CardioPanel({ userId, logDate, tick, refresh }: Props) {
         />
         {status !== 'idle' || path.length > 0 ? (
           <CardioMap path={path} follow={status === 'live'} className="h-56 w-full" />
-        ) : (
-          <div className="flex h-40 items-center justify-center border-y border-border text-sm text-muted-foreground">
-            <MapPin className="mr-2 h-4 w-4" />
-            Start to drop a live map
-          </div>
-        )}
+        ) : null}
         <div className="grid grid-cols-3 divide-x border-y border-border text-center">
           <div className="px-2 py-3">
             <p className="kp-section-label">Time</p>
@@ -255,14 +297,18 @@ export function CardioPanel({ userId, logDate, tick, refresh }: Props) {
           ) : null}
         </div>
         {!gpsOk ? (
-          <p className="text-xs text-muted-foreground">Location isn’t available in this browser — log manually below.</p>
+          <p className="text-xs text-muted-foreground">Location isn’t available in this browser — log the activity instead.</p>
         ) : null}
       </div>
+      ) : null}
 
+      {view === 'log' ? (
       <form onSubmit={save} className="kp-surface min-w-0 space-y-3 overflow-hidden p-4">
-        <div>
-          <p className="text-xs text-muted-foreground">Cardio</p>
+        <div className="flex items-center justify-between gap-2">
           <h3 className="font-display text-lg tracking-tight">Log activity</h3>
+          <Button type="button" size="sm" variant="ghost" onClick={() => setView('home')}>
+            Back
+          </Button>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 *:min-w-0">
           <Input
@@ -325,36 +371,52 @@ export function CardioPanel({ userId, logDate, tick, refresh }: Props) {
         />
         <Button type="submit">Save activity</Button>
       </form>
+      ) : null}
 
-      <div className="kp-surface p-4">
-        <p className="text-xs text-muted-foreground">History</p>
-        <h3 className="mb-3 font-display text-lg tracking-tight">Cardio log</h3>
+      {view === 'home' ? (
+      <div>
+        <h3 className="mb-3 font-display text-lg tracking-tight">Cardio history</h3>
         {entries.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No cardio yet.</p>
+          <EmptyState
+            compact
+            plain
+            title="No cardio yet"
+            description="Saved activities show up here."
+          />
         ) : (
-          <ul className="space-y-2">
-            {entries.map((entry) => (
-              <li key={entry.id} className="rounded-xl border border-border/50 p-3">
+          <ul className="divide-y border-y border-border">
+            {entries.map((entry) => {
+              const open = openId === entry.id
+              const seconds = cardioSeconds(entry)
+              const distance = entry.distance_m && entry.distance_m > 0 ? entry.distance_m : 0
+              const pace = distance > 0 ? formatPace(distance, seconds) : ''
+              const hasPath = Boolean(entry.path && entry.path.length > 1)
+              return (
+              <li key={entry.id} className="py-3">
                 <div className="flex items-start justify-between gap-2">
                   <button
                     type="button"
-                    className="min-w-0 flex-1 text-left"
+                    aria-expanded={open}
+                    className="flex min-w-0 flex-1 items-start gap-2 text-left"
                     onClick={() => setOpenId((id) => (id === entry.id ? null : entry.id))}
                   >
-                    <p className="font-medium">{entry.activity}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatLiftDate(entry.date)} · {formatCardioDuration(entry)}
-                      {entry.distance_m ? ` · ${formatDistance(entry.distance_m)}` : ''}
-                      {entry.calories != null && entry.calories > 0
-                        ? ` · ${Math.round(entry.calories)} cal`
-                        : ''}
-                    </p>
-                    {entry.notes ? <p className="mt-1 text-sm text-muted-foreground">{entry.notes}</p> : null}
+                    <ChevronDown
+                      className={`mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`}
+                    />
+                    <span className="min-w-0">
+                      <span className="block font-medium">{entry.activity}</span>
+                      <span className="mt-0.5 block text-xs text-muted-foreground">
+                        {formatLiftDate(entry.date)} · {formatCardioDuration(entry)}
+                        {distance ? ` · ${formatDistance(distance)}` : ''}
+                      </span>
+                    </span>
                   </button>
                   <Button
                     size="icon"
                     variant="ghost"
+                    aria-label={`Delete ${entry.activity}`}
                     onClick={() => {
+                      if (openId === entry.id) setOpenId(null)
                       healthApi.removeWorkout(userId, entry.id)
                       refresh()
                       toast.message('Cardio activity deleted')
@@ -363,14 +425,47 @@ export function CardioPanel({ userId, logDate, tick, refresh }: Props) {
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
-                {openId === entry.id && entry.path && entry.path.length > 1 ? (
-                  <CardioMap path={entry.path} className="mt-3 h-44 w-full" />
+                {open ? (
+                  <div className="pl-6">
+                    <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+                      <div>
+                        <dt className="text-xs text-muted-foreground">Duration</dt>
+                        <dd>{formatCardioDuration(entry)}</dd>
+                      </div>
+                      {distance ? (
+                        <div>
+                          <dt className="text-xs text-muted-foreground">Distance</dt>
+                          <dd>{formatDistance(distance)}</dd>
+                        </div>
+                      ) : null}
+                      {pace && pace !== '—' ? (
+                        <div>
+                          <dt className="text-xs text-muted-foreground">Pace</dt>
+                          <dd>{pace}</dd>
+                        </div>
+                      ) : null}
+                      {entry.calories != null && entry.calories > 0 ? (
+                        <div>
+                          <dt className="text-xs text-muted-foreground">Calories</dt>
+                          <dd>{Math.round(entry.calories)} cal</dd>
+                        </div>
+                      ) : null}
+                    </dl>
+                    {entry.notes ? (
+                      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{entry.notes}</p>
+                    ) : null}
+                    {hasPath && entry.path ? (
+                      <CardioMap path={entry.path} className="mt-3 h-44 w-full" />
+                    ) : null}
+                  </div>
                 ) : null}
               </li>
-            ))}
+              )
+            })}
           </ul>
         )}
       </div>
+      ) : null}
     </div>
   )
 }

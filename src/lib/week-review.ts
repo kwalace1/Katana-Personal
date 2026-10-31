@@ -57,7 +57,9 @@ export function buildWeekStats(userId: string, date = new Date()): WeekStats {
     .filter((w) => inWeek(w.date) && !w.lift_session_id).length
   const lifts = liftApi.listSessions(userId).filter((s) => inWeek(s.date)).length
 
-  const journalDays = journalApi.list(userId).filter((e) => inWeek(e.date)).length
+  const journalDays = new Set(
+    journalApi.list(userId).filter((e) => inWeek(e.date)).map((e) => e.date),
+  ).size
 
   const open = tasksApi.listTasks(userId).filter((t) => t.status !== 'done')
   const priority = tasksApi.priorityTasks(userId, 1)[0]

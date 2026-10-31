@@ -26,6 +26,8 @@ import { pageEnterSubtle } from '@/lib/motion-ui'
 import { parseAskPersonality, ASK_PERSONALITIES } from '@/modules/assistant/personality'
 import { SettingsGroup, SettingsRow } from '../components/settings-ui'
 import { useLocalRefresh } from '@/hooks/useLocalRefresh'
+import { readThemePreferences } from '@/theme/preferences'
+import { themeLabel } from '@/theme/families'
 
 export function SettingsHub() {
   const { user, profile } = useAuth()
@@ -70,7 +72,7 @@ export function SettingsHub() {
       </SettingsGroup>
 
       <SettingsGroup title="General">
-        <SettingsRow to="/settings/appearance" icon={Palette} label="Appearance" value="Accent & theme" />
+        <SettingsRow to="/settings/appearance" icon={Palette} label="Appearance" value={themeLabel(readThemePreferences().family)} />
         <SettingsRow to="/settings/notifications" icon={Bell} label="Notifications" value="Reminders & nudges" />
         <SettingsRow to="/settings/ask" icon={Sparkles} label="Ask coach voice" value={askVoice} />
       </SettingsGroup>

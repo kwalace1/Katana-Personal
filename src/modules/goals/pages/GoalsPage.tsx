@@ -1,10 +1,12 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Target, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
+import { CalendarReturnLink, withCalendarOrigin } from '@/components/CalendarReturnLink'
 import { navSectionLabel } from '@/lib/nav'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
 import { Segmented } from '@/components/ui/segmented'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -99,7 +101,7 @@ export default function GoalsPage() {
     setHorizon('monthly')
     setCreating(false)
     setSelectedId(goal.id)
-    setParams({ id: goal.id })
+    setParams(withCalendarOrigin(params, { id: goal.id }))
     refresh()
   }
 
@@ -116,6 +118,7 @@ export default function GoalsPage() {
 
   return (
     <motion.div {...pageEnterSubtle} className="kp-page !py-4 sm:!py-5">
+      <CalendarReturnLink />
       <PageHeader
         dense
         title="Goals"
@@ -180,13 +183,18 @@ export default function GoalsPage() {
       ) : null}
 
       {roots.length === 0 && !creating ? (
-        <div className="py-8 text-center">
-          <p className="text-sm text-muted-foreground">No goals yet.</p>
-          <Button type="button" size="sm" className="mt-3 gap-1.5" onClick={() => setCreating(true)}>
-            <Plus className="h-4 w-4" />
-            Add goal
-          </Button>
-        </div>
+        <EmptyState
+          plain
+          icon={Target}
+          title="Set a goal"
+          description="Name something you want to move toward, and track it from here."
+          action={
+            <Button type="button" className="gap-1.5" onClick={() => setCreating(true)}>
+              <Plus className="h-4 w-4" />
+              Create your first goal
+            </Button>
+          }
+        />
       ) : null}
 
       {roots.length > 0 ? (
@@ -200,8 +208,18 @@ export default function GoalsPage() {
             />
           ) : null}
 
-          {visible.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No {filter} goals.</p>
+          {visible.length === 0 && filter !== 'all' ? (
+            <EmptyState
+              compact
+              plain
+              title={`No ${filter} goals`}
+              description="Try another time horizon."
+              action={
+                <Button type="button" variant="outline" onClick={() => setFilter('all')}>
+                  Show all
+                </Button>
+              }
+            />
           ) : (
         <div className="grid gap-3 lg:grid-cols-[1fr_300px]">
           <ul className="grid gap-2 sm:grid-cols-2">
@@ -214,11 +232,11 @@ export default function GoalsPage() {
                     onClick={() => {
                       if (selectedId === goal.id) {
                         setSelectedId(null)
-                        setParams({})
+                        setParams(withCalendarOrigin(params))
                         return
                       }
                       setSelectedId(goal.id)
-                      setParams({ id: goal.id })
+                      setParams(withCalendarOrigin(params, { id: goal.id }))
                     }}
                     className={cn(
                       'kp-surface w-full p-3 text-left transition',
@@ -270,7 +288,7 @@ export default function GoalsPage() {
                     onClick={() => {
                       goalsApi.remove(userId, selected.id)
                       setSelectedId(null)
-                      setParams({})
+                      setParams(withCalendarOrigin(params))
                       refresh()
                     }}
                   >

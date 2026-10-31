@@ -1,24 +1,84 @@
-import { format, formatTime, isSameDay, isToday, todayKey } from '@/lib/dates'
+import { format, isSameDay, isToday, todayKey } from '@/lib/dates'
 import { cn } from '@/lib/utils'
-import { agendaForDay, type AgendaItem } from '../agenda'
+import { agendaForDay, type AgendaItem, type AgendaKind } from '../agenda'
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
-export function dayTaskCount(items: AgendaItem[]) {
-  return items.filter((item) => item.kind === 'task').length
+const KIND_LABEL: Record<AgendaKind, [string, string]> = {
+  event: ['event', 'events'],
+  task: ['task', 'tasks'],
+  goal: ['goal', 'goals'],
+  habit: ['habit', 'habits'],
+  circle: ['circle event', 'circle events'],
 }
 
-function uniqueDots(items: AgendaItem[], max = 3) {
-  const seen = new Set<string>()
-  const dots: { color: string; key: string }[] = []
-  for (const item of items) {
-    const key = `${item.kind}-${item.color}`
-    if (seen.has(key)) continue
-    seen.add(key)
-    dots.push({ color: item.color, key })
-    if (dots.length >= max) break
+function describeDay(day: Date, items: AgendaItem[]) {
+  const parts = (Object.keys(KIND_LABEL) as AgendaKind[])
+    .map((kind) => {
+      const count = items.filter((item) => item.kind === kind).length
+      if (count === 0) return null
+      const [one, many] = KIND_LABEL[kind]
+      return `${count} ${count === 1 ? one : many}`
+    })
+    .filter((part): part is string => Boolean(part))
+  const date = format(day, 'EEEE, MMMM d')
+  return parts.length > 0 ? `${date}, ${parts.join(', ')}` : date
+}
+
+type DayMark = { key: string; color: string; kind: AgendaKind }
+
+/**
+ * At most two type marks. Habits stay behind other types so a daily habit does not cover an event.
+ * +N is the number of items whose type is not one of those marks, so extra items of a shown type are not counted again.
+ */
+function dayMarks(items: AgendaItem[]): { shown: DayMark[]; overflow: number } {
+  const seen = new Set<AgendaKind>()
+  const marks: DayMark[] = []
+  const ordered = [...items].sort((a, b) => {
+    const rank = (kind: AgendaKind) => (kind === 'habit' ? 1 : 0)
+    return rank(a.kind) - rank(b.kind) || a.starts_at.localeCompare(b.starts_at)
+  })
+  for (const item of ordered) {
+    if (seen.has(item.kind)) continue
+    seen.add(item.kind)
+    marks.push({ key: item.kind, color: item.color, kind: item.kind })
   }
-  return dots
+  const shown = marks.slice(0, 2)
+  const shownKinds = new Set(shown.map((mark) => mark.kind))
+  return {
+    shown,
+    overflow: items.filter((item) => !shownKinds.has(item.kind)).length,
+  }
+}
+
+function DayMarkGlyph({ mark }: { mark: DayMark }) {
+  const base = 'kp-type-mark inline-block h-1.5 w-1.5 shrink-0'
+  if (mark.kind === 'task') {
+    return <span className={cn(base, 'rounded-[1px]')} style={{ background: mark.color }} />
+  }
+  if (mark.kind === 'goal') {
+    return <span className={cn(base, 'rotate-45 rounded-[1px]')} style={{ background: mark.color }} />
+  }
+  if (mark.kind === 'habit') {
+    return <span className={cn(base, 'rounded-full border border-current')} style={{ color: mark.color }} />
+  }
+  if (mark.kind === 'circle') {
+    return <span className={cn(base, 'rounded-full border-2')} style={{ borderColor: mark.color }} />
+  }
+  return <span className={cn(base, 'rounded-full')} style={{ background: mark.color }} />
+}
+
+function DayIndicators({ items }: { items: AgendaItem[] }) {
+  const { shown, overflow } = dayMarks(items)
+  if (shown.length === 0) return <span className="mt-1 block h-4" aria-hidden="true" />
+  return (
+    <span className="mt-1 flex h-4 items-center gap-0.5" aria-hidden="true">
+      {shown.map((mark) => (
+        <DayMarkGlyph key={mark.key} mark={mark} />
+      ))}
+      {overflow > 0 ? <span className="text-[0.65rem] leading-none text-muted-foreground">+{overflow}</span> : null}
+    </span>
+  )
 }
 
 export function CalendarGrid({
@@ -41,7 +101,7 @@ export function CalendarGrid({
 }) {
   return (
     <div>
-      <div className="mb-1 grid grid-cols-7 gap-1 text-center kp-section-label">
+      <div className="mb-1 grid grid-cols-7 gap-1 text-center text-[0.65rem] font-medium text-muted-foreground">
         {WEEKDAYS.map((d) => (
           <div key={d}>{d}</div>
         ))}
@@ -49,25 +109,20 @@ export function CalendarGrid({
       <div className="grid grid-cols-7 gap-1">
         {days.map((day) => {
           const dayItems = agendaForDay(agenda, day)
-          const tasks = dayTaskCount(dayItems)
-          const timedTask = dayItems.find((item) => item.kind === 'task' && !item.all_day)
           const selected = isSameDay(day, selectedDay)
           const outside = muteOutsideMonth && day.getMonth() !== viewMonth.getMonth()
-          const dots = uniqueDots(dayItems)
           return (
             <button
               key={todayKey(day)}
               type="button"
               onClick={() => onSelectDay(day)}
               aria-pressed={selected}
-              aria-label={`${format(day, 'EEEE, MMMM d')}${
-                tasks > 0 ? `, ${tasks} ${tasks === 1 ? 'task' : 'tasks'}` : ''
-              }`}
+              aria-label={describeDay(day, dayItems)}
               className={cn(
-                'flex flex-col p-1.5 text-left transition',
-                compact ? 'min-h-[4.25rem] sm:min-h-[4.75rem]' : 'min-h-[5.25rem] sm:min-h-[6.5rem]',
-                selected ? 'bg-primary/10' : 'hover:bg-secondary/50',
-                outside && 'opacity-40',
+                'flex flex-col text-left transition',
+                compact ? 'min-h-11 p-1 sm:min-h-14' : 'min-h-16 p-1.5 sm:min-h-24',
+                selected ? 'kp-day-selected bg-primary/10' : 'hover:bg-secondary/50',
+                outside && 'kp-outside-day opacity-40',
               )}
             >
               <span
@@ -79,31 +134,7 @@ export function CalendarGrid({
               >
                 {format(day, 'd')}
               </span>
-              {timedTask && tasks === 1 ? (
-                <span className="mt-1 text-[0.65rem] font-semibold leading-tight text-primary">
-                  {formatTime(timedTask.starts_at)}
-                </span>
-              ) : tasks > 0 ? (
-                <span className="mt-1 text-[0.65rem] font-semibold leading-tight text-primary">
-                  {tasks}
-                  <span className="hidden sm:inline"> {tasks === 1 ? 'task' : 'tasks'}</span>
-                </span>
-              ) : dayItems.length > 0 ? (
-                <span className="mt-1 text-[0.65rem] leading-tight text-muted-foreground">
-                  {dayItems.length}
-                </span>
-              ) : null}
-              {dots.length > 0 ? (
-                <span className="mt-auto flex gap-0.5 pt-1">
-                  {dots.map((dot) => (
-                    <span
-                      key={dot.key}
-                      className="h-1.5 w-1.5 rounded-full"
-                      style={{ background: dot.color }}
-                    />
-                  ))}
-                </span>
-              ) : null}
+              <DayIndicators items={dayItems} />
             </button>
           )
         })}
@@ -112,55 +143,3 @@ export function CalendarGrid({
   )
 }
 
-export function DayWeekStrip({
-  days,
-  selectedDay,
-  agenda,
-  onSelectDay,
-}: {
-  days: Date[]
-  selectedDay: Date
-  agenda: AgendaItem[]
-  onSelectDay: (day: Date) => void
-}) {
-  return (
-    <div className="mb-4 grid grid-cols-7 gap-1">
-      {days.map((day) => {
-        const dayItems = agendaForDay(agenda, day)
-        const tasks = dayTaskCount(dayItems)
-        const selected = isSameDay(day, selectedDay)
-        return (
-          <button
-            key={todayKey(day)}
-            type="button"
-            onClick={() => onSelectDay(day)}
-            className={cn(
-              'px-1 py-2 text-center transition',
-              selected ? 'bg-primary/10' : 'hover:bg-secondary/50',
-            )}
-          >
-            <p className="text-[0.65rem] font-semibold uppercase text-muted-foreground">
-              {format(day, 'EEE')}
-            </p>
-            <p
-              className={cn(
-                'mx-auto flex h-8 w-8 items-center justify-center rounded-full font-display text-lg leading-none',
-                selected && 'bg-primary text-primary-foreground',
-                isToday(day) && !selected && 'text-primary',
-              )}
-            >
-              {format(day, 'd')}
-            </p>
-            {tasks > 0 ? (
-              <p className="mt-1 text-[0.65rem] font-semibold text-primary">{tasks}</p>
-            ) : dayItems.length > 0 ? (
-              <p className="mt-1 text-[0.65rem] text-muted-foreground">{dayItems.length}</p>
-            ) : (
-              <p className="mt-1 text-[0.65rem] text-transparent">0</p>
-            )}
-          </button>
-        )
-      })}
-    </div>
-  )
-}

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { localDb } from '@/lib/local-db'
-import { noteTitleFromInput, notesApi } from './api'
+import { notePreviewText, noteTitleFromInput, notesApi } from './api'
 
 const USER = 'test-notes'
 
@@ -16,6 +16,13 @@ describe('notes titles', () => {
     expect(note.title).toBe('Weekly plan')
     const updated = notesApi.updateNote(USER, note.id, { title: 'Call the dentist Monday' })
     expect(updated?.title).toBe('Call the dentist Monday')
+  })
+
+  it('previews note text without markup', () => {
+    expect(notePreviewText('')).toBe('')
+    expect(notePreviewText('   \n')).toBe('')
+    expect(notePreviewText('# Grocery\n\n**Milk** and `eggs`')).toBe('Grocery Milk and eggs')
+    expect(notePreviewText('- One\n- Two')).toBe('One Two')
   })
 
   it('does not keep a title that is only spaces', () => {

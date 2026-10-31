@@ -1,10 +1,12 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronDown, FolderPlus, Plus, Trash2, X } from 'lucide-react'
+import { ChevronDown, FolderPlus, Plus, Repeat, Trash2, X } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
+import { CalendarReturnLink, withCalendarOrigin } from '@/components/CalendarReturnLink'
 import { navSectionLabel } from '@/lib/nav'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { Segmented } from '@/components/ui/segmented'
 import { Input } from '@/components/ui/input'
@@ -230,6 +232,61 @@ function Heatmap({ userId, habitId }: { userId: string; habitId: string }) {
   )
 }
 
+function HabitListEmpty({
+  dueOnly,
+  folderName,
+  onShowAll,
+  onClearFolder,
+}: {
+  dueOnly: boolean
+  folderName: string | null
+  onShowAll: () => void
+  onClearFolder: () => void
+}) {
+  if (dueOnly) {
+    return (
+      <EmptyState
+        compact
+        plain
+        title="Nothing due today"
+        description={
+          folderName
+            ? `Nothing in ${folderName} is due today.`
+            : 'The rest of your habits are on other days.'
+        }
+        action={
+          <Button type="button" variant="outline" onClick={onShowAll}>
+            Show all
+          </Button>
+        }
+        secondaryAction={
+          folderName ? (
+            <Button type="button" variant="ghost" onClick={onClearFolder}>
+              All folders
+            </Button>
+          ) : null
+        }
+      />
+    )
+  }
+  if (folderName) {
+    return (
+      <EmptyState
+        compact
+        plain
+        title={`Nothing in ${folderName}`}
+        description="Habits you file here will show up in this folder."
+        action={
+          <Button type="button" variant="outline" onClick={onClearFolder}>
+            All folders
+          </Button>
+        }
+      />
+    )
+  }
+  return null
+}
+
 export default function HabitsPage() {
   const { user } = useAuth()
   const userId = user!.id
@@ -283,7 +340,7 @@ export default function HabitsPage() {
     setCreating(false)
     setFilter('all')
     setSelectedId(habit.id)
-    setParams({ id: habit.id })
+    setParams(withCalendarOrigin(params, { id: habit.id }))
     refresh()
   }
 
@@ -304,6 +361,7 @@ export default function HabitsPage() {
 
   return (
     <motion.div {...pageEnterSubtle} className="kp-page !py-4 sm:!py-5">
+      <CalendarReturnLink />
       <PageHeader
         dense
         title="Habits"
@@ -416,13 +474,18 @@ export default function HabitsPage() {
       ) : null}
 
       {habits.length === 0 && !creating ? (
-        <div className="py-8 text-center">
-          <p className="text-sm text-muted-foreground">No habits yet.</p>
-          <Button type="button" size="sm" className="mt-3 gap-1.5" onClick={() => setCreating(true)}>
-            <Plus className="h-4 w-4" />
-            Add habit
-          </Button>
-        </div>
+        <EmptyState
+          plain
+          icon={Repeat}
+          title="Start a habit"
+          description="Pick something small you can return to."
+          action={
+            <Button type="button" className="gap-1.5" onClick={() => setCreating(true)}>
+              <Plus className="h-4 w-4" />
+              Create your first habit
+            </Button>
+          }
+        />
       ) : null}
 
       {habits.length > 0 ? (
@@ -438,7 +501,18 @@ export default function HabitsPage() {
       />
 
       {visible.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Nothing due today. Switch to All to see the rest.</p>
+        <HabitListEmpty
+          dueOnly={filter === 'due'}
+          folderName={
+            folderId === 'none'
+              ? 'Unfiled'
+              : folderId === 'all'
+                ? null
+                : folders.find((folder) => folder.id === folderId)?.name ?? 'this folder'
+          }
+          onShowAll={() => setFilter('all')}
+          onClearFolder={() => setFolderId('all')}
+        />
       ) : (
         <div>
           <ul className="space-y-1.5">
@@ -475,10 +549,10 @@ export default function HabitsPage() {
                       onClick={() => {
                         if (expanded) {
                           setSelectedId(null)
-                          setParams({})
+                          setParams(withCalendarOrigin(params))
                         } else {
                           setSelectedId(habit.id)
-                          setParams({ id: habit.id })
+                          setParams(withCalendarOrigin(params, { id: habit.id }))
                         }
                       }}
                     >

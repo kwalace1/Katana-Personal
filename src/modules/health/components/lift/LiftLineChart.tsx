@@ -10,8 +10,8 @@ export function LiftLineChart({
 }) {
   if (data.length === 0) {
     return (
-      <div className="flex h-40 items-center justify-center rounded-xl border border-dashed border-border/60 text-sm text-muted-foreground">
-        No data yet for this selection.
+      <div className="kp-chart-empty flex h-40 items-center justify-center rounded-xl border border-dashed border-border/60 px-4 text-center text-sm text-muted-foreground">
+        This chart fills in after you log data for this selection.
       </div>
     )
   }

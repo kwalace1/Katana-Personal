@@ -48,7 +48,7 @@ export function WeeklyReviewCard({
         >
           <Stat value={w.tasksCompleted} label="Tasks finished" />
           <Stat value={w.habitCheckInDays} label="Habit days" />
-          <Stat value={sessions} label="Sessions" />
+          <Stat value={sessions} label="Workouts" />
         </button>
 
         {open ? (
@@ -83,8 +83,8 @@ export function WeeklyReviewCard({
                 <span className="font-medium">{sessions}</span>
                 <span className="text-muted-foreground">
                   {' '}
-                  movement session{sessions === 1 ? '' : 's'} ({w.workouts} workout
-                  {w.workouts === 1 ? '' : 's'}, {w.lifts} lift{w.lifts === 1 ? '' : 's'})
+                  workout{sessions === 1 ? '' : 's'} · {w.workouts} cardio, {w.lifts} lift
+                  {w.lifts === 1 ? '' : 's'}
                 </span>
                 {snap.behindGoals.length > 0 ? (
                   <span className="mt-0.5 block text-xs text-muted-foreground">

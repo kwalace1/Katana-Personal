@@ -179,6 +179,64 @@
         } else {
           document.documentElement.classList.remove('dark')
         }
+        let family = 'classic'
+        let contrastPref = 'system'
+        let rotation = 'off'
+        try {
+          const extra = JSON.parse(localStorage.getItem('katana-personal:theme') || 'null')
+          const allowed = ['classic', 'sunrise', 'sunset', 'ocean', 'forest', 'spring', 'summer', 'autumn', 'winter']
+          const defaults = { morning: 'sunrise', day: 'ocean', evening: 'sunset', night: 'forest' }
+          if (extra && allowed.indexOf(extra.family) !== -1) family = extra.family
+          if (extra && extra.rotation === 'seasonal') {
+            rotation = 'seasonal'
+            const month = new Date().getMonth()
+            const north = extra.hemisphere !== 'southern'
+            const season = month >= 2 && month <= 4 ? (north ? 'spring' : 'autumn')
+              : month >= 5 && month <= 7 ? (north ? 'summer' : 'winter')
+              : month >= 8 && month <= 10 ? (north ? 'autumn' : 'spring')
+              : (north ? 'winter' : 'summer')
+            const seasons = extra.seasons && typeof extra.seasons === 'object' ? extra.seasons : {}
+            const seasonDefaults = { spring: 'spring', summer: 'summer', autumn: 'autumn', winter: 'winter' }
+            family = allowed.indexOf(seasons[season]) !== -1 ? seasons[season] : seasonDefaults[season]
+          } else if (extra && extra.rotation === 'time-of-day') {
+            rotation = 'time-of-day'
+            const minutes = new Date().getHours() * 60 + new Date().getMinutes()
+            const schedule = extra.schedule && typeof extra.schedule === 'object' ? extra.schedule : {}
+            let changes = [
+              { minutes: 300, theme: allowed.indexOf(schedule.morning) !== -1 ? schedule.morning : defaults.morning },
+              { minutes: 660, theme: allowed.indexOf(schedule.day) !== -1 ? schedule.day : defaults.day },
+              { minutes: 1020, theme: allowed.indexOf(schedule.evening) !== -1 ? schedule.evening : defaults.evening },
+              { minutes: 1260, theme: allowed.indexOf(schedule.night) !== -1 ? schedule.night : defaults.night }
+            ]
+            if (extra.scheduleKind === 'custom' && Array.isArray(extra.customSchedule)) {
+              const custom = []
+              const seen = {}
+              for (let i = 0; i < extra.customSchedule.length; i++) {
+                const item = extra.customSchedule[i]
+                if (!item || allowed.indexOf(item.theme) === -1) continue
+                if (typeof item.minutes !== 'number' || item.minutes % 1 !== 0 || item.minutes < 0 || item.minutes > 1439) continue
+                if (seen[item.minutes]) continue
+                seen[item.minutes] = true
+                custom.push({ minutes: item.minutes, theme: item.theme })
+              }
+              custom.sort(function (a, b) { return a.minutes - b.minutes })
+              if (custom.length >= 2) changes = custom
+            }
+            let active = changes[changes.length - 1]
+            for (let i = 0; i < changes.length; i++) {
+              if (changes[i].minutes <= minutes) active = changes[i]
+            }
+            family = active.theme
+          }
+          if (extra && (extra.contrast === 'standard' || extra.contrast === 'high' || extra.contrast === 'system')) {
+            contrastPref = extra.contrast
+          }
+        } catch (err) {}
+        const moreContrast = window.matchMedia('(prefers-contrast: more)').matches
+        document.documentElement.dataset.theme = family
+        document.documentElement.dataset.contrast =
+          contrastPref === 'high' || (contrastPref === 'system' && moreContrast) ? 'high' : 'standard'
+        document.documentElement.dataset.rotation = rotation
       } catch (e) {}
     </script>
   </head>

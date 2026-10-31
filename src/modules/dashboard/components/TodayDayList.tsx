@@ -60,7 +60,7 @@ export function TodayDayList({ tasks, habits, events, onCompleteTask, onCheckHab
         ) : null}
       </div>
       {shown.length === 0 ? (
-        <p className="px-0.5 text-sm text-muted-foreground">Nothing scheduled today.</p>
+        <p className="px-0.5 text-sm text-muted-foreground">Your day is clear.</p>
       ) : (
         <div className="kp-surface divide-y">
           {shown.map((row) => {

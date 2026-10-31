@@ -15,6 +15,8 @@ import { initNativeShell } from '@/lib/native/init'
 import { isWebAppLocked } from '@/lib/web-app-lock'
 import 'sonner/dist/styles.css'
 import './index.css'
+import './theme/families.css'
+import './theme/contrast.css'
 
 const queryClient = new QueryClient({
   defaultOptions: {

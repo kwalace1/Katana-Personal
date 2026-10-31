@@ -11,11 +11,13 @@ import {
 } from '@dnd-kit/core'
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { ChevronDown, GripVertical, Plus, Trash2 } from 'lucide-react'
+import { ChevronDown, GripVertical, ListTodo, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/PageHeader'
+import { CalendarReturnLink, withCalendarOrigin } from '@/components/CalendarReturnLink'
 import { navSectionLabel } from '@/lib/nav'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { Segmented } from '@/components/ui/segmented'
 import { Input } from '@/components/ui/input'
@@ -369,6 +371,97 @@ function SortableTask({
   )
 }
 
+function TaskFilterEmpty({
+  filter,
+  listName,
+  listIsEmpty,
+  hasCompleted,
+  onCreate,
+  onFilter,
+}: {
+  filter: 'open' | 'done' | 'all' | 'overdue'
+  listName: string | null
+  listIsEmpty: boolean
+  hasCompleted: boolean
+  onCreate: () => void
+  onFilter: (next: 'open' | 'done' | 'all' | 'overdue') => void
+}) {
+  if (listIsEmpty) {
+    return (
+      <EmptyState
+        compact
+        plain
+        title={listName ? `Nothing in ${listName}` : 'Nothing here'}
+        description="Tasks you add to this list will show up here."
+        action={
+          <Button type="button" className="gap-1.5" onClick={onCreate}>
+            <Plus className="h-4 w-4" />
+            Add a task
+          </Button>
+        }
+      />
+    )
+  }
+  if (filter === 'open' && hasCompleted) {
+    return (
+      <EmptyState
+        compact
+        plain
+        title="You're caught up"
+        description="Nothing is open right now."
+        action={
+          <Button type="button" variant="outline" onClick={() => onFilter('done')}>
+            Show completed
+          </Button>
+        }
+      />
+    )
+  }
+  if (filter === 'overdue') {
+    return (
+      <EmptyState
+        compact
+        plain
+        title="Nothing overdue"
+        description="Due dates that slip will show up here."
+        action={
+          <Button type="button" variant="outline" onClick={() => onFilter('open')}>
+            Show open
+          </Button>
+        }
+      />
+    )
+  }
+  if (filter === 'done') {
+    return (
+      <EmptyState
+        compact
+        plain
+        title="Nothing completed yet"
+        description="Finished tasks collect here."
+        action={
+          <Button type="button" variant="outline" onClick={() => onFilter('open')}>
+            Show open
+          </Button>
+        }
+      />
+    )
+  }
+  return (
+    <EmptyState
+      compact
+      plain
+      title="Nothing matches"
+      description="Try another filter."
+      action={
+        <Button type="button" variant="outline" onClick={() => onFilter('all')}>
+          Show all
+        </Button>
+      }
+    />
+  )
+}
+
 export default function TasksPage() {
   const { user } = useAuth()
   const userId = user!.id
@@ -537,6 +630,7 @@ export default function TasksPage() {
 
   return (
     <motion.div {...pageEnterSubtle} className="kp-page">
+      <CalendarReturnLink />
       <PageHeader
         dense
         title="Tasks"
@@ -820,17 +914,27 @@ export default function TasksPage() {
 
       <div>
         {tasks.length === 0 && !creating ? (
-          <div>
-            <p className="text-sm text-muted-foreground">No tasks yet.</p>
-            <Button type="button" size="sm" className="mt-3 gap-1.5" onClick={() => setCreating(true)}>
-              <Plus className="h-4 w-4" />
-              New task
-            </Button>
-          </div>
+          <EmptyState
+            plain
+            icon={ListTodo}
+            title="Start with one task"
+            description="Get things out of your head and into a plan you can manage."
+            action={
+              <Button type="button" className="gap-1.5" onClick={() => setCreating(true)}>
+                <Plus className="h-4 w-4" />
+                Create your first task
+              </Button>
+            }
+          />
         ) : visible.length === 0 && !creating ? (
-          <p className="text-sm text-muted-foreground">
-            {selectedList ? `Nothing in ${selectedList.name}.` : 'Nothing here.'}
-          </p>
+          <TaskFilterEmpty
+            filter={filter}
+            listName={selectedList?.name ?? null}
+            listIsEmpty={listed.length === 0}
+            hasCompleted={listed.some((task) => task.status === 'done')}
+            onCreate={() => setCreating(true)}
+            onFilter={setFilter}
+          />
         ) : visible.length === 0 ? null : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
             <SortableContext items={openIds} strategy={verticalListSortingStrategy}>
@@ -859,7 +963,11 @@ export default function TasksPage() {
                           className="min-w-0 flex-1 text-left"
                           onClick={() => {
                             setSelectedId((id) => (id === task.id ? null : task.id))
-                            setParams(selectedId === task.id ? {} : { id: task.id })
+                            setParams(
+                              selectedId === task.id
+                                ? withCalendarOrigin(params)
+                                : withCalendarOrigin(params, { id: task.id }),
+                            )
                           }}
                         >
                           <div className="flex items-start justify-between gap-2">
@@ -918,10 +1026,10 @@ export default function TasksPage() {
                       onSelect={() => {
                         if (selectedId === task.id) {
                           setSelectedId(null)
-                          setParams({})
+                          setParams(withCalendarOrigin(params))
                         } else {
                           setSelectedId(task.id)
-                          setParams({ id: task.id })
+                          setParams(withCalendarOrigin(params, { id: task.id }))
                         }
                       }}
                       onToggle={() => {

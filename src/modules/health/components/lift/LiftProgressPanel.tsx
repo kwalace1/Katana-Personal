@@ -1,13 +1,41 @@
 import { useMemo, useState } from 'react'
+import { Dumbbell, Plus } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { cn } from '@/lib/utils'
 import { liftApi } from '../../lift-api'
-import type { LiftProgressMetric } from '../../types'
+import type { LiftProgressMetric, LiftProgressPoint } from '../../types'
 import { formatLiftDate, LiftLineChart } from './LiftLineChart'
 import { HealthCardHeader, HealthFieldLabel, HealthStat, healthTableCell, healthTableHead } from '../health-ui'
 
 type Props = {
   userId: string
   tick: number
+  onGoLift?: () => void
+}
+
+function formatProgressValue(value: number) {
+  return `${Math.round(value).toLocaleString()} lb`
+}
+
+function formatProgressChange(value: number) {
+  return `${value >= 0 ? '+' : ''}${Math.round(value)} lb`
+}
+
+function comparableChange(data: LiftProgressPoint[]): number | null {
+  if (data.length < 2) return null
+  const first = data[0]
+  const latest = data[data.length - 1]
+  if (!first || !latest || !Number.isFinite(first.value) || !Number.isFinite(latest.value)) return null
+  return latest.value - first.value
+}
+
+function statColumns(count: number) {
+  if (count >= 4) return 'sm:grid-cols-4'
+  if (count === 3) return 'sm:grid-cols-3'
+  if (count === 2) return 'sm:grid-cols-2'
+  return undefined
 }
 
 const METRICS: { value: LiftProgressMetric; label: string }[] = [
@@ -16,7 +44,7 @@ const METRICS: { value: LiftProgressMetric; label: string }[] = [
   { value: 'volume', label: 'Session volume' },
 ]
 
-export function LiftProgressPanel({ userId, tick }: Props) {
+export function LiftProgressPanel({ userId, tick, onGoLift }: Props) {
   const names = useMemo(() => {
     void tick
     return liftApi.getLoggedExerciseNames(userId)
@@ -35,36 +63,63 @@ export function LiftProgressPanel({ userId, tick }: Props) {
   }, [userId, selected, metric, tick])
 
   const latest = data[data.length - 1]
-  const first = data[0]
-  const change = data.length > 1 ? latest.value - first.value : null
   const best = data.length ? Math.max(...data.map((d) => d.value)) : null
+  const change = comparableChange(data)
   const metricLabel = METRICS.find((m) => m.value === metric)?.label || metric
+  const stats = [
+    data.length > 0
+      ? { label: 'Logged sessions', value: String(data.length), hint: 'For this exercise' }
+      : null,
+    latest && Number.isFinite(latest.value)
+      ? { label: 'Latest', value: formatProgressValue(latest.value), hint: formatLiftDate(latest.date) }
+      : null,
+    change != null
+      ? { label: 'Change', value: formatProgressChange(change), hint: 'First to latest' }
+      : null,
+    best != null && Number.isFinite(best)
+      ? { label: 'Best', value: formatProgressValue(best), hint: metricLabel }
+      : null,
+  ].filter((stat): stat is { label: string; value: string; hint: string } => stat != null)
+
+  if (names.length === 0) {
+    return (
+      <EmptyState
+        compact
+        plain
+        icon={Dumbbell}
+        title="No workouts yet"
+        description="Charts appear after you log a session."
+        action={
+          onGoLift ? (
+            <Button type="button" className="gap-1.5" onClick={onGoLift}>
+              <Plus className="h-4 w-4" />
+              Log a session
+            </Button>
+          ) : undefined
+        }
+      />
+    )
+  }
 
   return (
     <div className="space-y-3">
       <div className="kp-surface space-y-3 p-4">
-        <HealthCardHeader eyebrow="Performance" title={selected || 'No exercises yet'} />
+        <HealthCardHeader eyebrow="Performance" title={selected} />
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <HealthFieldLabel>Exercise</HealthFieldLabel>
-            {names.length === 0 ? (
-              <p className="rounded-md border border-border/50 px-3 py-2 text-sm text-muted-foreground">
-                Log a workout first
-              </p>
-            ) : (
-              <Select value={selected} onValueChange={setExercise}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Exercise" />
-                </SelectTrigger>
-                <SelectContent>
-                  {names.map((n) => (
-                    <SelectItem key={n} value={n}>
-                      {n}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+            <Select value={selected} onValueChange={setExercise}>
+              <SelectTrigger>
+                <SelectValue placeholder="Exercise" />
+              </SelectTrigger>
+              <SelectContent>
+                {names.map((n) => (
+                  <SelectItem key={n} value={n}>
+                    {n}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div>
             <HealthFieldLabel>Metric</HealthFieldLabel>
@@ -83,33 +138,22 @@ export function LiftProgressPanel({ userId, tick }: Props) {
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-4">
-          <HealthStat label="Logged sessions" value={String(data.length)} hint="For this exercise" />
-          <HealthStat
-            label="Latest"
-            value={latest ? `${Math.round(latest.value).toLocaleString()} lb` : '—'}
-            hint={latest ? formatLiftDate(latest.date) : 'No data'}
-          />
-          <HealthStat
-            label="Change"
-            value={change != null ? `${change >= 0 ? '+' : ''}${Math.round(change)} lb` : '—'}
-            hint={data.length > 1 ? 'First to latest' : 'Need 2 sessions'}
-          />
-          <HealthStat
-            label="Best"
-            value={best != null ? `${Math.round(best).toLocaleString()} lb` : '—'}
-            hint={metricLabel}
-          />
-        </div>
+        {stats.length > 0 ? (
+          <div className={cn('grid gap-3', statColumns(stats.length))}>
+            {stats.map((stat) => (
+              <HealthStat key={stat.label} label={stat.label} value={stat.value} hint={stat.hint} />
+            ))}
+          </div>
+        ) : null}
 
-        <LiftLineChart data={data.map((d) => ({ date: d.date, value: d.value }))} label={metricLabel} />
+        {data.length > 0 ? (
+          <LiftLineChart data={data.map((d) => ({ date: d.date, value: d.value }))} label={metricLabel} />
+        ) : null}
       </div>
 
-      <div className="kp-surface p-4">
-        <HealthCardHeader eyebrow="Log" title="Exercise history" />
-        {data.length === 0 ? (
-          <p className="mt-3 text-sm text-muted-foreground">No progress yet.</p>
-        ) : (
+      {data.length > 0 ? (
+        <div className="kp-surface p-4">
+          <HealthCardHeader eyebrow="Log" title="Exercise history" />
           <div className="mt-4 overflow-x-auto">
             <table className="w-full min-w-[28rem] text-sm">
               <thead>
@@ -132,8 +176,8 @@ export function LiftProgressPanel({ userId, tick }: Props) {
               </tbody>
             </table>
           </div>
-        )}
-      </div>
+        </div>
+      ) : null}
     </div>
   )
 }

@@ -5,7 +5,12 @@ import type { Goal } from '@/modules/goals/types'
 import type { Habit } from '@/modules/habits/types'
 import { reminderTimesOf } from '@/modules/habits/types'
 import type { CircleEvent } from '@/lib/social/types'
-import { categoryColor, categoryLabel, circleCategoryColor } from './categories'
+import { calendarItemColor, categoryLabel, circleCategoryColor } from './categories'
+import {
+  resolveCalendarItemColors,
+  runWithCalendarItemColors,
+  type CalendarItemColors,
+} from './item-colors'
 
 export type AgendaKind = 'event' | 'task' | 'goal' | 'habit' | 'circle'
 
@@ -113,8 +118,8 @@ export function eventToAgenda(event: CalendarEvent): AgendaItem {
     starts_at: event.starts_at,
     ends_at: event.ends_at,
     all_day: event.all_day,
-    color: categoryColor(event.category, event.color),
-    sourceLabel: 'Event',
+    color: calendarItemColor('event'),
+    sourceLabel: categoryLabel(event.category),
     href: `/calendar?date=${event.starts_at.slice(0, 10)}&id=${event.id}`,
   }
 }
@@ -131,9 +136,9 @@ function taskOccurrenceToAgenda(task: Task, due: Date, listName?: string): Agend
     starts_at: start.toISOString(),
     ends_at: end.toISOString(),
     all_day: !timed,
-    color: categoryColor(task.category),
+    color: calendarItemColor('task'),
     sourceLabel: listName || categoryLabel(task.category) || 'Task',
-    href: `/tasks?id=${task.id}`,
+    href: `/tasks?id=${task.id}&from=calendar&date=${dayKey}`,
     done: false,
   }
 }
@@ -170,9 +175,9 @@ export function goalToAgenda(goal: Goal): AgendaItem | null {
     starts_at: startOfDay(day).toISOString(),
     ends_at: endOfDay(day).toISOString(),
     all_day: true,
-    color: '#059669',
+    color: calendarItemColor('goal'),
     sourceLabel: 'Goal',
-    href: `/goals?id=${goal.id}`,
+    href: `/goals?id=${goal.id}&from=calendar&date=${goal.target_date.slice(0, 10)}`,
   }
 }
 
@@ -225,9 +230,9 @@ export function habitsToAgendaInRange(
         starts_at: start.toISOString(),
         ends_at: end.toISOString(),
         all_day: allDay,
-        color: done ? '#94a3b8' : '#7c3aed',
+        color: calendarItemColor('habit'),
         sourceLabel: 'Habit',
-        href: `/habits?id=${habit.id}`,
+        href: `/habits?id=${habit.id}&from=calendar&date=${key}`,
         done,
       })
     }
@@ -271,7 +276,10 @@ export function buildAgenda(input: {
   lists?: { id: string; name: string }[]
   filter?: AgendaFilter
   circleIdsEnabled?: Set<string> | null
+  colors?: CalendarItemColors
 }): AgendaItem[] {
+  const colors = input.colors ?? resolveCalendarItemColors()
+  return runWithCalendarItemColors(colors, () => {
   const filter = input.filter ?? DEFAULT_AGENDA_FILTER
   const listName = (id: string | null) =>
     id ? input.lists?.find((l) => l.id === id)?.name : undefined
@@ -315,6 +323,7 @@ export function buildAgenda(input: {
   }
 
   return items.sort((a, b) => a.starts_at.localeCompare(b.starts_at))
+  })
 }
 
 export function agendaForDay(items: AgendaItem[], day: Date): AgendaItem[] {

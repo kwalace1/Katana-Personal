@@ -42,23 +42,33 @@ export function resolveAccentHue(prefs?: Record<string, unknown>): number | null
   return readStoredAccentHue()
 }
 
-export function applyAccentHue(hue: number, dark: boolean) {
-  const root = document.documentElement
+/** Classic accent tokens for one hue. Lightness matches the stock teal templates. */
+export function accentTokens(hue: number, dark: boolean) {
   const h = normalizeHue(hue) ?? DEFAULT_ACCENT_HUE
   if (dark) {
-    root.style.setProperty('--primary', `${h} 42% 48%`)
-    root.style.setProperty('--primary-foreground', '200 25% 8%')
-    root.style.setProperty('--accent', `${h} 18% 14%`)
-    root.style.setProperty('--accent-foreground', `${h} 40% 78%`)
-    root.style.setProperty('--ring', `${h} 42% 48%`)
-    root.style.setProperty('--kp-glow', `${h} 30% 28%`)
-  } else {
-    root.style.setProperty('--primary', `${h} 48% 28%`)
-    root.style.setProperty('--primary-foreground', '0 0% 100%')
-    root.style.setProperty('--accent', `${h} 32% 92%`)
-    root.style.setProperty('--accent-foreground', `${h} 48% 22%`)
-    root.style.setProperty('--ring', `${h} 48% 28%`)
-    root.style.setProperty('--kp-glow', `${h} 40% 70%`)
+    return {
+      '--primary': `${h} 42% 48%`,
+      '--primary-foreground': '200 25% 8%',
+      '--accent': `${h} 18% 14%`,
+      '--accent-foreground': `${h} 40% 78%`,
+      '--ring': `${h} 42% 48%`,
+      '--kp-glow': `${h} 30% 28%`,
+    }
+  }
+  return {
+    '--primary': `${h} 48% 28%`,
+    '--primary-foreground': '0 0% 100%',
+    '--accent': `${h} 32% 92%`,
+    '--accent-foreground': `${h} 48% 22%`,
+    '--ring': `${h} 48% 28%`,
+    '--kp-glow': `${h} 40% 70%`,
+  }
+}
+
+export function applyAccentHue(hue: number, dark: boolean) {
+  const root = document.documentElement
+  for (const [prop, value] of Object.entries(accentTokens(hue, dark))) {
+    root.style.setProperty(prop, value)
   }
 }
 

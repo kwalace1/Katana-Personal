@@ -1,19 +1,19 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Check, Plus, Trash2 } from 'lucide-react'
+import { NotebookPen, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { navSectionLabel } from '@/lib/nav'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { MoodSparkline } from '@/components/MiniBars'
 import { useAuth } from '@/contexts/AuthContext'
 import { pageEnterSubtle } from '@/lib/motion-ui'
 import { useLocalRefresh } from '@/hooks/useLocalRefresh'
-import { format, parseISO, todayKey, addDays } from '@/lib/dates'
+import { format, parseISO, todayKey, addDays, startOfWeek } from '@/lib/dates'
 import { cn } from '@/lib/utils'
 import { journalApi } from '../api'
 import { ShareWithFriendsButton } from '@/components/ShareWithFriendsButton'
@@ -28,12 +28,16 @@ const MOODS: { id: Mood; label: string; color: string }[] = [
   { id: 'rough', label: 'Rough', color: '#f43f5e' },
 ]
 
-const MOOD_SCORE: Record<Mood, number> = {
-  rough: 0,
-  low: 1,
-  okay: 2,
-  good: 3,
-  great: 4,
+function weekDayLabel(date: string, moods: Mood[]): string {
+  let when = date
+  try {
+    when = format(parseISO(date), 'EEEE, MMMM d')
+  } catch {
+    when = date
+  }
+  if (moods.length === 0) return `${when}, no entries`
+  const names = moods.map((mood) => moodLabel(mood)).join(', ')
+  return `${when}, ${moods.length === 1 ? '1 entry' : `${moods.length} entries`}: ${names}`
 }
 
 function moodLabel(mood: Mood): string {
@@ -44,6 +48,17 @@ function moodColor(mood: Mood): string {
   return MOODS.find((m) => m.id === mood)?.color ?? '#94a3b8'
 }
 
+type JournalDraft = {
+  date: string
+  mood: Mood
+  body: string
+  reflection: string
+}
+
+function sameDraft(a: JournalDraft, b: JournalDraft) {
+  return a.date === b.date && a.mood === b.mood && a.body === b.body && a.reflection === b.reflection
+}
+
 export default function JournalPage() {
   const { user } = useAuth()
   const userId = user!.id
@@ -51,61 +66,53 @@ export default function JournalPage() {
   const [params, setParams] = useSearchParams()
 
   const [activeDate, setActiveDate] = useState(params.get('date') || todayKey())
-  const [composing, setComposing] = useState(() => Boolean(params.get('date')))
+  const [composing, setComposing] = useState(false)
 
   useEffect(() => {
     const d = params.get('date')
     if (d) setActiveDate(d)
   }, [params])
 
-  const existing = useMemo(() => {
-    void tick
-    return journalApi.forDate(userId, activeDate)
-  }, [userId, activeDate, tick])
-
   const entries = useMemo(() => {
     void tick
     return journalApi.list(userId)
   }, [userId, tick])
 
-  const moodSeries = useMemo(() => {
-    const last14 = [...entries].reverse().slice(-14)
-    return last14.map((e) => MOOD_SCORE[e.mood])
-  }, [entries])
-
-  const weekBlips = useMemo(() => {
-    const byDate = new Map(entries.map((e) => [e.date, e.mood] as const))
-    const today = parseISO(todayKey())
+  const weekDays = useMemo(() => {
+    let anchor = parseISO(todayKey())
+    const parsed = parseISO(activeDate)
+    if (!Number.isNaN(parsed.getTime())) anchor = parsed
+    const start = startOfWeek(anchor, { weekStartsOn: 0 })
+    const moodsByDate = new Map<string, Mood[]>()
+    for (const entry of [...entries].reverse()) {
+      const moods = moodsByDate.get(entry.date) ?? []
+      moods.push(entry.mood)
+      moodsByDate.set(entry.date, moods)
+    }
     return Array.from({ length: 7 }, (_, i) => {
-      const day = addDays(today, i - 6)
+      const day = addDays(start, i)
       const date = todayKey(day)
+      const moods = moodsByDate.get(date) ?? []
       return {
         date,
-        label: format(day, 'EEEEE'),
-        mood: byDate.get(date) ?? null,
+        weekday: format(day, 'EEEEE'),
+        dayNum: format(day, 'd'),
+        moods,
         selected: date === activeDate,
       }
     })
   }, [entries, activeDate])
 
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [mood, setMood] = useState<Mood>('good')
   const [body, setBody] = useState('')
   const [reflection, setReflection] = useState('')
-  const [dirty, setDirty] = useState(false)
-  const [justSaved, setJustSaved] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const baselineRef = useRef<JournalDraft | null>(null)
+  const savingRef = useRef(false)
 
-  useEffect(() => {
-    setMood(existing?.mood || 'good')
-    setBody(existing?.body || '')
-    setReflection(existing?.reflection || '')
-    setDirty(false)
-    setJustSaved(false)
-  }, [existing, activeDate])
-
-  function markDirty() {
-    setDirty(true)
-    setJustSaved(false)
-  }
+  const editing = entries.find((entry) => entry.id === editingId) ?? null
+  const draft: JournalDraft = { date: activeDate, mood, body, reflection }
 
   const dateLabel = (() => {
     try {
@@ -115,40 +122,136 @@ export default function JournalPage() {
     }
   })()
 
-  function checkInMood(next: Mood) {
-    setMood(next)
-    journalApi.upsert(userId, { date: activeDate, mood: next, body, reflection })
-    refresh()
-    setDirty(false)
-    setJustSaved(true)
+  function selectDate(date: string, entryCount: number) {
+    setActiveDate(date)
+    setParams(editingId ? { date, id: editingId } : { date })
+    if (entryCount === 0) return
+    requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>(`[data-journal-date="${date}"]`)?.scrollIntoView({ block: 'nearest' })
+    })
   }
 
-  function startEntry() {
-    const date = todayKey()
+  function rememberDraft(next: JournalDraft) {
+    baselineRef.current = next
+  }
+
+  function confirmDiscard() {
+    const baseline = baselineRef.current
+    if (!composing || !baseline || sameDraft(baseline, draft)) return true
+    return window.confirm('Discard unsaved changes?')
+  }
+
+  function closeEditor(date = baselineRef.current?.date ?? activeDate) {
+    baselineRef.current = null
+    setEditingId(null)
+    setComposing(false)
     setActiveDate(date)
     setParams({ date })
+  }
+
+  function scrollEditorIntoView() {
+    requestAnimationFrame(() => {
+      document.getElementById('journal-editor')?.scrollIntoView({ block: 'start' })
+    })
+  }
+
+  function scrollEntryIntoView(id: string) {
+    requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>(`[data-journal-id="${id}"]`)?.scrollIntoView({ block: 'nearest' })
+    })
+  }
+
+  function beginNew(date = todayKey()) {
+    if (!confirmDiscard()) return
+    const next = { date, mood: 'good' as const, body: '', reflection: '' }
+    setEditingId(null)
+    setActiveDate(date)
+    setMood(next.mood)
+    setBody(next.body)
+    setReflection(next.reflection)
+    rememberDraft(next)
+    setParams({ date })
     setComposing(true)
+    scrollEditorIntoView()
+  }
+
+  function openEntry(entryId: string) {
+    if (composing && editingId === entryId) {
+      if (!confirmDiscard()) return
+      closeEditor()
+      return
+    }
+    const entry = entries.find((item) => item.id === entryId)
+    if (!entry) return
+    if (!confirmDiscard()) return
+    const next = {
+      date: entry.date,
+      mood: entry.mood,
+      body: entry.body,
+      reflection: entry.reflection,
+    }
+    setEditingId(entry.id)
+    setActiveDate(next.date)
+    setMood(next.mood)
+    setBody(next.body)
+    setReflection(next.reflection)
+    rememberDraft(next)
+    setParams({ date: entry.date, id: entry.id })
+    setComposing(true)
+    scrollEditorIntoView()
   }
 
   function onSave(e: FormEvent) {
     e.preventDefault()
-    const wasNew = !existing
-    journalApi.upsert(userId, { date: activeDate, mood, body, reflection })
-    refresh()
-    setDirty(false)
-    setJustSaved(true)
-    toast.success(existing ? 'Entry updated' : 'Entry saved')
-    if (wasNew) {
+    if (savingRef.current) return
+    savingRef.current = true
+    setSaving(true)
+    const input = { date: activeDate, mood, body, reflection }
+    try {
+      if (editing) {
+        const updated = journalApi.update(userId, editing.id, input)
+        if (!updated) {
+          toast.error('Couldn’t save this entry')
+          return
+        }
+        refresh()
+        closeEditor(updated.date)
+        toast.success('Entry saved')
+        scrollEntryIntoView(updated.id)
+        return
+      }
+      const created = journalApi.create(userId, input)
+      refresh()
+      closeEditor(created.date)
+      toast.success('Entry saved')
+      scrollEntryIntoView(created.id)
       const snippet = (body.trim() || reflection.trim()).slice(0, 180)
       offerJournalShare({
         dateLabel,
         moodLabel: moodLabel(mood),
         snippet: snippet || undefined,
       })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Couldn’t save this entry')
+    } finally {
+      savingRef.current = false
+      setSaving(false)
     }
   }
 
-  const canShare = Boolean(existing) || justSaved
+  function onDelete() {
+    if (!editing || savingRef.current) return
+    const removed = journalApi.remove(userId, editing.id)
+    if (!removed) {
+      toast.error('Couldn’t delete this entry')
+      return
+    }
+    refresh()
+    closeEditor(activeDate)
+    toast.message('Entry deleted')
+  }
+
+  const canShare = Boolean(editing)
   const shareMoodLabel = moodLabel(mood)
 
   return (
@@ -158,8 +261,8 @@ export default function JournalPage() {
         title="Journal"
         eyebrow={navSectionLabel('/journal')}
         actions={
-          entries.length > 0 && !composing ? (
-            <Button className="gap-2" onClick={startEntry}>
+          entries.length > 0 || composing ? (
+            <Button className="gap-2" onClick={() => beginNew(activeDate)}>
               <Plus className="h-4 w-4" />
               New entry
             </Button>
@@ -174,45 +277,58 @@ export default function JournalPage() {
               type="date"
               value={activeDate}
               onChange={(e) => {
-                setActiveDate(e.target.value)
-                setParams({ date: e.target.value })
+                const next = e.target.value
+                if (!next) return
+                selectDate(next, entries.filter((entry) => entry.date === next).length)
               }}
               className="w-auto"
             />
             <Button
               size="sm"
               variant="outline"
-              onClick={() => {
-                const t = todayKey()
-                setActiveDate(t)
-                setParams({ date: t })
-              }}
+              onClick={() => selectDate(todayKey(), entries.filter((entry) => entry.date === todayKey()).length)}
             >
               Today
             </Button>
-            {moodSeries.length > 1 ? <MoodSparkline moods={moodSeries} /> : null}
           </div>
 
-          <div className="mb-3 flex gap-1.5">
-            {weekBlips.map((blip) => (
+          <div className="mb-4 grid grid-cols-7 gap-0.5" role="group" aria-label="Week">
+            {weekDays.map((day) => (
               <button
-                key={blip.date}
+                key={day.date}
                 type="button"
-                onClick={() => {
-                  setActiveDate(blip.date)
-                  setParams({ date: blip.date })
-                }}
+                onClick={() => selectDate(day.date, day.moods.length)}
+                aria-pressed={day.selected}
+                aria-label={weekDayLabel(day.date, day.moods)}
                 className={cn(
-                  'flex min-h-11 flex-1 flex-col items-center justify-center gap-1 py-1.5 transition',
-                  blip.selected ? 'bg-primary/10' : 'hover:bg-secondary/50',
+                  'flex min-h-11 flex-col items-center gap-1 rounded-lg px-0.5 py-1.5 transition',
+                  day.selected ? 'kp-day-selected bg-primary/10' : 'hover:bg-secondary/50',
                 )}
-                aria-label={`${blip.date}${blip.mood ? `, ${moodLabel(blip.mood)}` : ', no check-in'}`}
               >
-                <span className="text-[0.65rem] font-semibold uppercase text-muted-foreground">{blip.label}</span>
+                <span className="text-[0.65rem] font-semibold uppercase leading-none text-muted-foreground">
+                  {day.weekday}
+                </span>
                 <span
-                  className={cn('h-2.5 w-2.5 rounded-full', !blip.mood && 'bg-border')}
-                  style={blip.mood ? { background: moodColor(blip.mood) } : undefined}
-                />
+                  className={cn(
+                    'text-sm tabular-nums leading-none',
+                    day.selected ? 'font-semibold text-foreground' : 'text-foreground',
+                  )}
+                >
+                  {day.dayNum}
+                </span>
+                <span className="flex min-h-2 w-full flex-wrap items-center justify-center gap-0.5">
+                  {day.moods.length === 0 ? (
+                    <span className="h-2 w-2 rounded-full border border-border" aria-hidden />
+                  ) : (
+                    day.moods.map((moodId, index) => (
+                      <span
+                        key={`${day.date}-${index}`}
+                        className="kp-type-mark h-2 w-2 shrink-0 rounded-full"
+                        style={{ background: moodColor(moodId) }}
+                      />
+                    ))
+                  )}
+                </span>
               </button>
             ))}
           </div>
@@ -220,15 +336,15 @@ export default function JournalPage() {
       ) : null}
 
       {composing ? (
-      <form onSubmit={onSave} className="kp-surface mb-3 space-y-2 p-3">
+      <form id="journal-editor" onSubmit={onSave} className="kp-surface mb-3 scroll-mt-24 space-y-2 p-3">
         <div>
           <p className="mb-1.5 text-xs font-medium text-muted-foreground">How are you doing today?</p>
           <div className="flex flex-wrap gap-1.5">
             {MOODS.map((m) => (
               <FilterChip
                 key={m.id}
-                selected={mood === m.id && (Boolean(existing) || justSaved)}
-                onClick={() => checkInMood(m.id)}
+                selected={mood === m.id}
+                onClick={() => setMood(m.id)}
               >
                 {m.label}
               </FilterChip>
@@ -241,10 +357,7 @@ export default function JournalPage() {
             className="min-h-16"
             placeholder="What happened?"
             value={body}
-            onChange={(e) => {
-              setBody(e.target.value)
-              markDirty()
-            }}
+            onChange={(e) => setBody(e.target.value)}
           />
         </div>
         <div>
@@ -254,36 +367,23 @@ export default function JournalPage() {
             className="min-h-9 resize-y py-1.5"
             placeholder="Anything you’d like to remember…"
             value={reflection}
-            onChange={(e) => {
-              setReflection(e.target.value)
-              markDirty()
-            }}
+            onChange={(e) => setReflection(e.target.value)}
           />
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button
             type="button"
             variant="ghost"
+            disabled={saving}
             onClick={() => {
-              setComposing(false)
-              setParams({})
+              if (!confirmDiscard()) return
+              closeEditor()
             }}
           >
             Close
           </Button>
-          <Button type="submit" disabled={!dirty && Boolean(existing)} className="gap-1.5">
-            {justSaved && !dirty ? (
-              <>
-                <Check className="h-4 w-4" />
-                Saved
-              </>
-            ) : existing && !dirty ? (
-              'Saved'
-            ) : existing ? (
-              'Update'
-            ) : (
-              'Save'
-            )}
+          <Button type="submit" disabled={saving}>
+            Save
           </Button>
           {canShare ? (
             <>
@@ -291,24 +391,16 @@ export default function JournalPage() {
                 kind="journal"
                 title={`Mood · ${dateLabel}`}
                 body={`${shareMoodLabel} — shared from Journal`}
-                data={{ date: activeDate, mood, moodLabel: shareMoodLabel, localEntryId: existing?.id }}
+                data={{ date: activeDate, mood, moodLabel: shareMoodLabel, localEntryId: editing?.id }}
                 label="Share mood"
               />
-              {existing ? (
+              {editing ? (
                 <Button
                   type="button"
                   variant="outline"
                   className="gap-2"
-                  onClick={() => {
-                    journalApi.remove(userId, existing.id)
-                    setBody('')
-                    setReflection('')
-                    setMood('good')
-                    setDirty(false)
-                    setJustSaved(false)
-                    refresh()
-                    toast.message('Entry deleted')
-                  }}
+                  disabled={saving}
+                  onClick={onDelete}
                 >
                   <Trash2 className="h-4 w-4" />
                   Delete
@@ -321,38 +413,41 @@ export default function JournalPage() {
       ) : null}
 
       {entries.length === 0 && !composing ? (
-        <div>
-          <p className="text-sm text-muted-foreground">No entries yet.</p>
-          <Button type="button" size="sm" className="mt-3 gap-1.5" onClick={startEntry}>
-            <Plus className="h-4 w-4" />
-            New entry
-          </Button>
-        </div>
+        <EmptyState
+          plain
+          icon={NotebookPen}
+          title="Write a first entry"
+          description="A few lines about today is enough."
+          action={
+            <Button type="button" className="gap-1.5" onClick={() => beginNew()}>
+              <Plus className="h-4 w-4" />
+              Write an entry
+            </Button>
+          }
+        />
       ) : entries.length > 0 ? (
-        <ul className="kp-surface divide-y">
-          {entries.map((entry) => (
+        <ul className="space-y-2">
+          {entries.map((entry) => {
+            const selected = composing && editingId === entry.id
+            return (
             <li key={entry.id}>
               <button
                 type="button"
-                onClick={() => {
-                  if (composing && entry.date === activeDate) {
-                    setComposing(false)
-                    return
-                  }
-                  setActiveDate(entry.date)
-                  setParams({ date: entry.date })
-                  setComposing(true)
-                }}
+                onClick={() => openEntry(entry.id)}
+                data-journal-id={entry.id}
+                data-journal-date={entry.date}
+                aria-current={selected ? 'true' : undefined}
                 className={cn(
-                  'w-full p-3 text-left transition hover:bg-secondary/50',
-                  entry.date === activeDate && 'bg-primary/10',
+                  'kp-surface-soft w-full scroll-mt-24 p-3 text-left transition hover:bg-secondary/50',
+                  selected && 'border-primary bg-primary/10',
                 )}
               >
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm font-medium">
                     {(() => {
                       try {
-                        return format(parseISO(entry.date), 'EEE · MMM d')
+                        const when = parseISO(entry.created_at)
+                        return `${format(parseISO(entry.date), 'EEE · MMM d')} · ${format(when, 'h:mm a')}`
                       } catch {
                         return entry.date
                       }
@@ -370,7 +465,8 @@ export default function JournalPage() {
                 ) : null}
               </button>
             </li>
-          ))}
+            )
+          })}
         </ul>
       ) : null}
     </motion.div>

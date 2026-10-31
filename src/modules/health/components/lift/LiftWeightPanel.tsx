@@ -1,7 +1,8 @@
 import { FormEvent, useMemo, useState } from 'react'
-import { Trash2 } from 'lucide-react'
+import { Plus, Scale, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
 import { QuantityInput, QUANTITY } from '@/components/ui/quantity-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -114,6 +115,7 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
   const [startDate, setStartDate] = useState(goal?.start_date || (hasSavedGoal ? firstOverall?.date : todayKey()) || todayKey())
   const [targetWeight, setTargetWeight] = useState(goal?.target_weight ? String(goal.target_weight) : '')
   const [targetDate, setTargetDate] = useState(goal?.target_date || '')
+  const [view, setView] = useState<'summary' | 'log' | 'goal'>('summary')
 
   const filtered = useMemo(() => {
     const start = rangeCutoff(range)
@@ -157,6 +159,7 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
     }
     setWeight('')
     setTime(localTimeHHMM())
+    setView('summary')
     refresh()
   }
 
@@ -185,77 +188,203 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
     })
     resetWeightProgressMilestones(userId)
     toast.success('Goal saved')
+    setView('summary')
     refresh()
   }
 
+  const stats = [
+    filtered.length > 1 && average != null
+      ? {
+          label: 'Average',
+          value: `${average.toFixed(1)} lb`,
+          hint: `${filtered.length} check-in${filtered.length === 1 ? '' : 's'}`,
+        }
+      : null,
+    rangeChange != null && Number.isFinite(rangeChange)
+      ? {
+          label: 'Change',
+          value: `${rangeChange >= 0 ? '+' : ''}${rangeChange.toFixed(1)} lb`,
+          hint: 'First to latest',
+        }
+      : null,
+    filtered.length > 1 && rangeHigh != null
+      ? { label: 'High', value: `${rangeHigh} lb`, hint: selectedRangeLabel }
+      : null,
+    filtered.length > 1 && rangeLow != null
+      ? { label: 'Low', value: `${rangeLow} lb`, hint: selectedRangeLabel }
+      : null,
+  ].filter((stat): stat is { label: string; value: string; hint: string } => stat != null)
+
   return (
     <div className="space-y-3">
-      <div className="kp-surface space-y-3 p-4">
-        <HealthCardHeader
-          eyebrow="Bodyweight trend"
-          title={latestOverall ? `${latestOverall.weight} lb` : 'No entries yet'}
-          actions={<HealthSegmented options={TREND_RANGES} value={range} onChange={setRange} />}
+      {view === 'summary' && entries.length === 0 ? (
+        <EmptyState
+          compact
+          plain
+          icon={Scale}
+          title="Log a weigh-in"
+          description="A starting number is enough. Trends show up after a few entries."
+          action={
+            <Button type="button" className="gap-1.5" onClick={() => setView('log')}>
+              <Plus className="h-4 w-4" />
+              Log weight
+            </Button>
+          }
+          secondaryAction={
+            <Button type="button" variant="outline" onClick={() => setView('goal')}>
+              {hasSavedGoal ? 'Edit goal' : 'Set goal'}
+            </Button>
+          }
         />
+      ) : null}
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <HealthStat
-            label="Average"
-            value={average == null ? '—' : `${average.toFixed(1)} lb`}
-            hint={filtered.length ? `${filtered.length} check-in${filtered.length === 1 ? '' : 's'}` : 'No data'}
-          />
-          <HealthStat
-            label="Change"
-            value={rangeChange == null ? '—' : `${rangeChange >= 0 ? '+' : ''}${rangeChange.toFixed(1)} lb`}
-            hint={filtered.length > 1 ? 'First to latest' : 'Need 2 weigh-ins'}
-          />
-          <HealthStat
-            label="High"
-            value={rangeHigh == null ? '—' : `${rangeHigh} lb`}
-            hint={filtered.length ? selectedRangeLabel : 'No data'}
-          />
-          <HealthStat
-            label="Low"
-            value={rangeLow == null ? '—' : `${rangeLow} lb`}
-            hint={filtered.length ? selectedRangeLabel : 'No data'}
-          />
-        </div>
-
-        <LiftLineChart
-          data={filtered.map((e) => ({
-            date: e.date,
-            value: e.weight,
-            target: plan ? weeklyTargetOnDate(plan, e.date) : undefined,
-          }))}
-          label="Body weight"
-        />
-        {plan && filtered.length ? (
-          <p className="text-xs text-muted-foreground">
-            Dashed line is the weekly-average goal pace. Daily weigh-ins will fluctuate around it.
-          </p>
-        ) : null}
-
-        {progress.goal != null ? (
-          <div>
-            <div className="mb-1.5 flex justify-between text-sm">
-              <span className="text-muted-foreground">
-                Progress toward {formatLb(progress.goal)} lb
-                {plan ? ` · ${formatSignedLb(plan.weeklyChange)} / week` : ''}
-              </span>
-              <strong>{Math.round(progress.percent)}%</strong>
-            </div>
-            <div className="h-2 overflow-hidden rounded-full bg-secondary">
-              <div
-                className="h-full rounded-full bg-primary transition-all"
-                style={{ width: `${progress.percent}%` }}
-              />
-            </div>
+      {view === 'summary' && entries.length > 0 ? (
+        <>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" size="sm" className="gap-1.5" onClick={() => setView('log')}>
+              <Plus className="h-4 w-4" />
+              Log weight
+            </Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => setView('goal')}>
+              {hasSavedGoal ? 'Edit goal' : 'Set goal'}
+            </Button>
           </div>
-        ) : null}
-      </div>
 
-      <div className="grid min-w-0 gap-4 lg:grid-cols-2">
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="font-display text-lg tracking-tight">
+                  {latestOverall ? `${latestOverall.weight} lb` : ''}
+                </h3>
+                {latestOverall ? (
+                  <p className="mt-0.5 text-sm text-muted-foreground">{formatLiftDate(latestOverall.date)}</p>
+                ) : null}
+              </div>
+              <HealthSegmented options={TREND_RANGES} value={range} onChange={setRange} />
+            </div>
+
+            {stats.length > 0 ? (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {stats.map((stat) => (
+                  <HealthStat key={stat.label} label={stat.label} value={stat.value} hint={stat.hint} />
+                ))}
+              </div>
+            ) : null}
+
+            {filtered.length > 0 ? (
+              <LiftLineChart
+                data={filtered.map((e) => ({
+                  date: e.date,
+                  value: e.weight,
+                  target: plan ? weeklyTargetOnDate(plan, e.date) : undefined,
+                }))}
+                label="Body weight"
+              />
+            ) : null}
+            {plan && filtered.length > 0 ? (
+              <p className="text-xs text-muted-foreground">
+                Dashed line is the weekly-average goal pace. Daily weigh-ins will fluctuate around it.
+              </p>
+            ) : null}
+
+            {progress.goal != null ? (
+              <div>
+                <div className="mb-1.5 flex justify-between text-sm">
+                  <span className="text-muted-foreground">
+                    Progress toward {formatLb(progress.goal)} lb
+                    {plan ? ` · ${formatSignedLb(plan.weeklyChange)} / week` : ''}
+                  </span>
+                  <strong>{Math.round(progress.percent)}%</strong>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-secondary">
+                  <div
+                    className="h-full rounded-full bg-primary transition-all"
+                    style={{ width: `${progress.percent}%` }}
+                  />
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          {plan ? <WeeklyTargetsCard plan={plan} /> : null}
+
+          <div>
+            <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+              <h3 className="font-display text-lg tracking-tight">Weight history</h3>
+              <span className="text-xs text-muted-foreground">{selectedRangeLabel}</span>
+            </div>
+            {filtered.length === 0 ? (
+              <EmptyState
+                compact
+                plain
+                title={`No weigh-ins in the ${selectedRangeLabel.toLowerCase()}`}
+                description="Try a wider range."
+                action={
+                  range !== 'all' ? (
+                    <Button type="button" variant="outline" onClick={() => setRange('all')}>
+                      Show all time
+                    </Button>
+                  ) : undefined
+                }
+              />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[22rem] text-sm">
+                  <thead>
+                    <tr className={healthTableHead}>
+                      <th className="pb-2 pr-3">Date</th>
+                      <th className="pb-2 pr-3">Time</th>
+                      <th className="pb-2 pr-3">Weight</th>
+                      <th className="pb-2 pr-3">Change</th>
+                      <th className="pb-2" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...filtered].reverse().map((entry, idx, arr) => {
+                      const older = arr[idx + 1]
+                      const delta = older ? entry.weight - older.weight : null
+                      return (
+                        <tr key={entry.id} className="border-b border-border/40">
+                          <td className={healthTableCell}>{formatLiftDate(entry.date)}</td>
+                          <td className={`${healthTableCell} text-muted-foreground`}>
+                            {entry.time ? formatMealTime(entry.time) : '—'}
+                          </td>
+                          <td className={healthTableCell}>{entry.weight} lb</td>
+                          <td className={`${healthTableCell} text-muted-foreground`}>
+                            {delta == null ? '—' : `${delta >= 0 ? '+' : ''}${delta.toFixed(1)}`}
+                          </td>
+                          <td className="py-2 text-right">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              aria-label={`Delete ${entry.weight} lb on ${formatLiftDate(entry.date)}`}
+                              onClick={() => {
+                                liftApi.removeBodyWeight(userId, entry.id)
+                                refresh()
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
+      ) : null}
+
+      {view === 'log' ? (
         <form onSubmit={saveWeight} className="kp-surface min-w-0 space-y-3 overflow-hidden p-4">
-          <HealthCardHeader eyebrow="Check-in" title="Log weight" />
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="font-display text-lg tracking-tight">Log weight</h3>
+            <Button type="button" size="sm" variant="ghost" onClick={() => setView('summary')}>
+              Cancel
+            </Button>
+          </div>
           <div className="grid gap-3 sm:grid-cols-2 *:min-w-0">
             <div>
               <HealthFieldLabel>Date</HealthFieldLabel>
@@ -274,9 +403,16 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
           />
           <Button type="submit">Save weight</Button>
         </form>
+      ) : null}
 
+      {view === 'goal' ? (
         <form onSubmit={saveGoal} className="kp-surface min-w-0 space-y-3 overflow-hidden p-4">
-          <HealthCardHeader eyebrow="Goal" title="Set direction" />
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="font-display text-lg tracking-tight">{hasSavedGoal ? 'Edit goal' : 'Set goal'}</h3>
+            <Button type="button" size="sm" variant="ghost" onClick={() => setView('summary')}>
+              Cancel
+            </Button>
+          </div>
           <div>
             <HealthFieldLabel>Goal type</HealthFieldLabel>
             <Select value={mode} onValueChange={(v) => setMode(v as WeightGoalMode)}>
@@ -320,67 +456,7 @@ export function LiftWeightPanel({ userId, logDate, tick, refresh }: Props) {
               : 'Targets are weekly averages, paced evenly from your start weight to the goal date.'}
           </p>
         </form>
-      </div>
-
-      <WeeklyTargetsCard plan={plan} />
-
-      <div className="kp-surface p-4">
-        <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-          <HealthCardHeader eyebrow="Log" title="Weight history" />
-          <span className="text-xs text-muted-foreground">{selectedRangeLabel}</span>
-        </div>
-        {filtered.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            {entries.length
-              ? `No weigh-ins in the ${selectedRangeLabel.toLowerCase()}.`
-              : 'No weight logs yet.'}
-          </p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[22rem] text-sm">
-              <thead>
-                <tr className={healthTableHead}>
-                  <th className="pb-2 pr-3">Date</th>
-                  <th className="pb-2 pr-3">Time</th>
-                  <th className="pb-2 pr-3">Weight</th>
-                  <th className="pb-2 pr-3">Change</th>
-                  <th className="pb-2" />
-                </tr>
-              </thead>
-              <tbody>
-                {[...filtered].reverse().map((entry, idx, arr) => {
-                  const older = arr[idx + 1]
-                  const delta = older ? entry.weight - older.weight : null
-                  return (
-                    <tr key={entry.id} className="border-b border-border/40">
-                      <td className={healthTableCell}>{formatLiftDate(entry.date)}</td>
-                      <td className={`${healthTableCell} text-muted-foreground`}>
-                        {entry.time ? formatMealTime(entry.time) : '—'}
-                      </td>
-                      <td className={healthTableCell}>{entry.weight} lb</td>
-                      <td className={`${healthTableCell} text-muted-foreground`}>
-                        {delta == null ? '—' : `${delta >= 0 ? '+' : ''}${delta.toFixed(1)}`}
-                      </td>
-                      <td className="py-2 text-right">
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => {
-                            liftApi.removeBodyWeight(userId, entry.id)
-                            refresh()
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      ) : null}
     </div>
   )
 }

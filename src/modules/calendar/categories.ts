@@ -1,3 +1,9 @@
+import { CALENDAR_ITEM_COLORS, type CalendarItemType } from '@/theme/functional'
+import { currentCalendarItemColors } from './item-colors'
+
+export type { CalendarItemType } from '@/theme/functional'
+export { CALENDAR_ITEM_COLORS }
+
 export type EventCategory = 'personal' | 'work' | 'health' | 'errand' | 'social' | 'other'
 
 /**
@@ -45,4 +51,9 @@ export function circleCategoryColor(category: EventCategory | string | undefined
 
 export function categoryLabel(category: EventCategory | string | undefined) {
   return EVENT_CATEGORIES.find((c) => c.id === category)?.label ?? 'Personal'
+}
+
+/** Calendar paint colors. Item type decides the color; category and stored per-event colors do not. */
+export function calendarItemColor(kind: CalendarItemType) {
+  return currentCalendarItemColors()[kind]
 }

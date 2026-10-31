@@ -287,9 +287,16 @@ export default function FeedProfilePage() {
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       ) : visiblePosts.length === 0 ? (
-        <p className="px-4 py-6 text-sm text-muted-foreground sm:px-5">
-          {isSelf ? 'No posts yet.' : 'Nothing shared with you yet.'}
-        </p>
+        <EmptyState
+          compact
+          plain
+          title={isSelf ? 'No posts yet' : 'Nothing shared with you yet'}
+          description={
+            isSelf
+              ? 'Wins you share will show up on your profile.'
+              : 'Posts this person shares with you will show up here.'
+          }
+        />
       ) : (
         <motion.div variants={staggerContainer} initial="hidden" animate="show">
           {visiblePosts.map((post) => (

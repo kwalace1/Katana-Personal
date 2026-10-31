@@ -302,7 +302,7 @@ export default function DashboardPage() {
     }
     const note = closeNote.trim()
     if (note) {
-      journalApi.upsert(userId, {
+      journalApi.create(userId, {
         mood: 'okay',
         body: note,
         reflection: 'Evening close',
@@ -629,7 +629,9 @@ export default function DashboardPage() {
               ) : (
                 <div className="mt-2">
                   <h2 className="font-display text-lg tracking-tight">Nothing urgent</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">Nothing urgent right now.</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Open tasks and due habits will show up here.
+                  </p>
                 </div>
               )}
             </motion.section>

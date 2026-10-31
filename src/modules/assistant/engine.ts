@@ -1117,12 +1117,12 @@ export function runAskAction(userId: string, action: AskAction): string {
       : 'Nothing to park.'
   }
   if (action.kind === 'upsert_journal') {
-    journalApi.upsert(userId, {
+    journalApi.create(userId, {
       mood: 'okay',
       body: action.body?.trim() || 'Noted from Ask.',
       reflection: 'Ask',
     })
-    return 'Journal updated.'
+    return 'Added to your journal.'
   }
   if (action.kind === 'close_day') {
     const tomorrow = addDays(new Date(), 1)
@@ -1133,7 +1133,7 @@ export function runAskAction(userId: string, action: AskAction): string {
     }
     const note = action.body?.trim()
     if (note) {
-      journalApi.upsert(userId, {
+      journalApi.create(userId, {
         mood: 'okay',
         body: note,
         reflection: 'Evening close',

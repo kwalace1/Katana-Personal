@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { BrandMark } from '@/components/BrandMark'
-import { SecretUnlockTitle } from '@/components/SecretUnlockTitle'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
 import { parseBackup, restoreBackup } from '@/lib/backup'
@@ -262,7 +261,7 @@ export default function LandingPage() {
         <motion.div {...pageEnterSubtle} className="flex flex-1 flex-col py-6 sm:py-10">
           {/* Hero — brand first */}
           <div className={cn('flex flex-col', standalone ? 'justify-center flex-1' : 'min-h-0 sm:min-h-[58vh] justify-center py-4')}>
-            <SecretUnlockTitle className="font-display text-5xl tracking-tight sm:text-6xl" />
+            <h1 className="font-display text-5xl tracking-tight sm:text-6xl">Katana</h1>
             <p className="mt-4 max-w-md text-base leading-relaxed text-muted-foreground sm:text-lg">
               {standalone
                 ? 'Your day, on this phone.'

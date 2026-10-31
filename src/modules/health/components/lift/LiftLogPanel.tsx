@@ -1,7 +1,8 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, Pencil, Plus, Share2, Trash2 } from 'lucide-react'
+import { ChevronDown, Pencil, Plus, Share2, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
 import { QuantityInput, QUANTITY } from '@/components/ui/quantity-input'
 import { todayKey } from '@/lib/dates'
@@ -467,39 +468,33 @@ export function LiftLogPanel({ userId, logDate, tick, refresh, onGoSplits }: Pro
         onSubmit={saveWorkout}
         className={cn('kp-surface min-w-0 space-y-3 overflow-hidden p-4', editingSessionId && 'ring-2 ring-primary/20')}
       >
-        <HealthCardHeader
-          eyebrow={editingSessionId ? 'Editing workout' : 'Log workout'}
-          title={editingSessionId ? 'Update session' : 'New session'}
-          description={
-            hasDraft || draftBanner
+        <div className="flex items-center justify-between gap-2">
+          <p className="kp-section-label">{editingSessionId ? 'Editing workout' : 'Log workout'}</p>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="shrink-0 gap-1"
+            aria-label={editingSessionId ? 'Cancel edit' : hasDraft ? 'Discard draft' : 'Close'}
+            onClick={() => {
+              if (!editingSessionId && hasDraft) toast.message('Draft discarded')
+              resetForm(true)
+            }}
+          >
+            {editingSessionId ? 'Cancel edit' : hasDraft ? 'Discard draft' : 'Close'}
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        <div>
+          <h3 className="font-display text-lg tracking-tight">
+            {editingSessionId ? 'Update session' : 'New session'}
+          </h3>
+          <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+            {hasDraft || draftBanner
               ? 'Autosaved on this device — safe if you leave mid-workout.'
-              : 'Name the session, then add exercises and working sets.'
-          }
-          actions={
-            editingSessionId ? (
-              <Button type="button" size="sm" variant="ghost" className="text-muted-foreground" onClick={() => resetForm(true)}>
-                Cancel edit
-              </Button>
-            ) : hasDraft ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="text-muted-foreground"
-                onClick={() => {
-                  resetForm(true)
-                  toast.message('Draft discarded')
-                }}
-              >
-                Discard draft
-              </Button>
-            ) : (
-              <Button type="button" size="sm" variant="ghost" className="text-muted-foreground" onClick={() => resetForm(true)}>
-                Close
-              </Button>
-            )
-          }
-        />
+              : 'Name the session, then add exercises and working sets.'}
+          </p>
+        </div>
         <div className="grid gap-3 sm:grid-cols-2 *:min-w-0">
           <div>
             <HealthFieldLabel>Workout name</HealthFieldLabel>
@@ -668,13 +663,13 @@ export function LiftLogPanel({ userId, logDate, tick, refresh, onGoSplits }: Pro
                     <Share2 className="mr-1 h-3.5 w-3.5" />
                     Share
                   </Button>
-                  <Button type="button" size="sm" variant="ghost" onClick={() => openComposer('blank')}>
-                    Log another
-                  </Button>
                 </div>
               </div>
             )
           })}
+          <Button type="button" size="sm" className="!mt-3" onClick={() => openComposer('blank')}>
+            Log a session
+          </Button>
         </div>
       ) : planned ? (
         <div className="kp-surface p-4">
@@ -724,10 +719,7 @@ export function LiftLogPanel({ userId, logDate, tick, refresh, onGoSplits }: Pro
       {sessions.length > 0 ? (
       <div>
         <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-          <div>
-            <p className="kp-section-label">History</p>
-            <h3 className="mt-1 font-display text-lg tracking-tight">Logged sessions</h3>
-          </div>
+          <h3 className="font-display text-lg tracking-tight">Logged sessions</h3>
           {sessions.length > 0 ? (
             <Button
               type="button"
@@ -808,7 +800,12 @@ export function LiftLogPanel({ userId, logDate, tick, refresh, onGoSplits }: Pro
           </div>
         ) : null}
         {sessions.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No workouts yet.</p>
+          <EmptyState
+            compact
+            plain
+            title="No sessions yet"
+            description="Workouts you log will show up here."
+          />
         ) : (
           <ul className="space-y-2">
             {sessions.map((session) => {
