@@ -32,6 +32,29 @@
     --kp-glass-edge: 0 0% 100%;
     --kp-specular: 0 0% 100%;
     --kp-lens: 172 40% 55%;
+    /* Semantic aliases. They point at the variables above, so Classic Light is unchanged. */
+    --kp-app-background: var(--background);
+    --kp-surface-primary: var(--card);
+    --kp-surface-secondary: var(--secondary);
+    --kp-surface-elevated: var(--popover);
+    --kp-text: var(--foreground);
+    --kp-text-secondary: var(--secondary-foreground);
+    --kp-text-muted: var(--muted-foreground);
+    --kp-border: var(--border);
+    --kp-action: var(--primary);
+    --kp-action-text: var(--primary-foreground);
+    --kp-action-secondary: var(--secondary);
+    --kp-selected: var(--primary);
+    --kp-focus: var(--ring);
+    --kp-input: var(--card);
+    --kp-hover: var(--secondary);
+    --kp-overlay: 0 0% 0%;
+    --kp-canvas-wash: 172 24% 90%;
+    --kp-canvas-wash-alpha: 0.55;
+    --kp-canvas-wash-size: 16rem;
+    --kp-surface-shadow: 0 1px 2px hsl(215 20% 12% / 0.04);
+    --kp-control-background: var(--card);
+    --kp-selected-wash: 0.1;
     /* Updated by src/lib/native/keyboard.ts when the soft keyboard covers the viewport (web/PWA). */
     --keyboard-inset: 0px;
   }
@@ -63,6 +86,12 @@
     --kp-glass-edge: 168 25% 75%;
     --kp-specular: 168 35% 85%;
     --kp-lens: 168 40% 45%;
+    --kp-canvas-wash: 172 18% 14%;
+    --kp-canvas-wash-alpha: 0.65;
+    --kp-canvas-wash-size: 14rem;
+    --kp-surface-shadow: 0 1px 2px hsl(0 0% 0% / 0.28);
+    --kp-control-background: var(--secondary);
+    --kp-selected-wash: 0.16;
   }
 }
 
@@ -90,18 +119,18 @@
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
-    background-color: hsl(var(--background));
-    background-image: linear-gradient(180deg, hsl(172 24% 90% / 0.55), transparent 16rem);
+    background-color: hsl(var(--kp-app-background));
+    background-image: linear-gradient(
+      180deg,
+      hsl(var(--kp-canvas-wash) / var(--kp-canvas-wash-alpha)),
+      transparent var(--kp-canvas-wash-size)
+    );
   }
 
   @media (hover: hover) and (pointer: fine) {
     body {
       background-attachment: fixed;
     }
-  }
-
-  .dark body {
-    background-image: linear-gradient(180deg, hsl(172 18% 14% / 0.65), transparent 14rem);
   }
 
   h1,
@@ -127,41 +156,30 @@
   .kp-surface {
     position: relative;
     border-radius: var(--radius);
-    border: 1px solid hsl(var(--border));
-    background: hsl(var(--card));
-    box-shadow: 0 1px 2px hsl(215 20% 12% / 0.04);
-  }
-
-  .dark .kp-surface {
-    border-color: hsl(var(--border));
-    background: hsl(var(--card));
-    box-shadow: 0 1px 2px hsl(0 0% 0% / 0.28);
+    border: 1px solid hsl(var(--kp-border));
+    background: hsl(var(--kp-surface-primary));
+    box-shadow: var(--kp-surface-shadow);
   }
 
   .kp-surface-soft {
     border-radius: var(--radius);
-    border: 1px solid hsl(var(--border));
-    background: hsl(var(--secondary));
+    border: 1px solid hsl(var(--kp-border));
+    background: hsl(var(--kp-surface-secondary));
   }
 
   /* Sidebars, sheets, and sticky bars. */
   .kp-glass-chrome {
-    border-color: hsl(var(--border));
-    background: hsl(var(--card) / 0.92);
+    border-color: hsl(var(--kp-border));
+    background: hsl(var(--kp-surface-primary) / 0.92);
     -webkit-backdrop-filter: blur(16px);
     backdrop-filter: blur(16px);
-  }
-
-  .dark .kp-glass-chrome {
-    border-color: hsl(var(--border));
-    background: hsl(var(--card) / 0.92);
   }
 
   /* Selected nav, segmented tabs, outline buttons. */
   .kp-glass-control {
     border-radius: 0.625rem;
-    border: 1px solid hsl(var(--border));
-    background: hsl(var(--card));
+    border: 1px solid hsl(var(--kp-border));
+    background: hsl(var(--kp-control-background));
     transition:
       background 160ms ease,
       border-color 160ms ease,
@@ -169,46 +187,32 @@
   }
 
   .kp-glass-control:hover {
-    border-color: hsl(var(--border));
-    background: hsl(var(--secondary));
+    border-color: hsl(var(--kp-border));
+    background: hsl(var(--kp-hover));
   }
 
   .kp-glass-control:active {
     transform: scale(0.98);
   }
 
-  .dark .kp-glass-control {
-    border-color: hsl(var(--border));
-    background: hsl(var(--secondary));
-  }
-
   .kp-glass-control-active {
     border-color: transparent;
-    color: hsl(var(--primary));
-    background: hsl(var(--primary) / 0.1);
-  }
-
-  .dark .kp-glass-control-active {
-    border-color: transparent;
-    background: hsl(var(--primary) / 0.16);
+    color: hsl(var(--kp-action));
+    background: hsl(var(--kp-selected) / var(--kp-selected-wash));
   }
 
   .kp-nav-idle {
     border-radius: 0.625rem;
     border: 1px solid transparent;
-    color: hsl(var(--muted-foreground));
+    color: hsl(var(--kp-text-muted));
     transition:
       background 160ms ease,
       color 160ms ease;
   }
 
   .kp-nav-idle:hover {
-    color: hsl(var(--foreground));
-    background: hsl(var(--secondary));
-  }
-
-  .dark .kp-nav-idle:hover {
-    background: hsl(var(--secondary));
+    color: hsl(var(--kp-text));
+    background: hsl(var(--kp-hover));
   }
 
   .kp-page {
@@ -217,8 +221,13 @@
 
   .kp-chip {
     @apply inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium text-muted-foreground;
-    border: 1px solid hsl(var(--border));
-    background: hsl(var(--secondary));
+    border: 1px solid hsl(var(--kp-border));
+    background: hsl(var(--kp-surface-secondary));
+  }
+
+  /* Keeps fixed calendar type colors separable from the surface behind them. */
+  .kp-type-mark {
+    box-shadow: 0 0 0 1px hsl(var(--foreground) / 0.35);
   }
 
   .kp-section-label {
@@ -229,7 +238,7 @@
     .kp-glass-chrome {
       -webkit-backdrop-filter: none;
       backdrop-filter: none;
-      background: hsl(var(--card));
+      background: hsl(var(--kp-surface-primary));
     }
   }
 }

@@ -5,6 +5,7 @@ import { XIcon } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 import { cn } from '@/lib/utils'
+import { overlayScrimClass } from '@/theme/tokens'
 
 const SheetContext = React.createContext<{ open: boolean }>({ open: false })
 
@@ -42,7 +43,8 @@ function SheetOverlay({
     <SheetPrimitive.Overlay
       data-slot="sheet-overlay"
       className={cn(
-        'fixed inset-0 z-50 bg-black/50',
+        'fixed inset-0 z-50',
+        overlayScrimClass,
         className,
       )}
       asChild

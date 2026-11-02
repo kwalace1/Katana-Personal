@@ -11,11 +11,13 @@ import {
 } from '@dnd-kit/core'
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { ChevronDown, GripVertical, Plus, Trash2 } from 'lucide-react'
+import { ChevronDown, GripVertical, ListTodo, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/PageHeader'
+import { CalendarReturnLink, withCalendarOrigin } from '@/components/CalendarReturnLink'
 import { navSectionLabel } from '@/lib/nav'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
 import { FilterChip } from '@/components/ui/filter-chip'
 import { Segmented } from '@/components/ui/segmented'
 import { Input } from '@/components/ui/input'
@@ -94,9 +96,7 @@ function TaskEditFields({
           <Button asChild size="sm" variant="outline" className="w-full">
             <Link to={`/calendar?date=${task.due_at.slice(0, 10)}`}>View on calendar</Link>
           </Button>
-        ) : (
-          <p className="text-xs text-muted-foreground">Set a due date to show this on Calendar.</p>
-        )}
+        ) : null}
       </div>
       {task.status === 'done' || task.completed_at ? (
         <div className="space-y-1.5">
@@ -222,9 +222,6 @@ function TaskEditFields({
             ))}
           </SelectContent>
         </Select>
-        <p className="text-xs text-muted-foreground">
-          Colors match Calendar (and Circles when you share).
-        </p>
       </div>
       <div className="space-y-1.5">
         <p className="text-xs font-medium text-muted-foreground">Linked goal</p>
@@ -248,13 +245,7 @@ function TaskEditFields({
           </SelectContent>
         </Select>
       </div>
-      <div className="space-y-1.5 rounded-xl border border-primary/20 bg-primary/5 p-3">
-        <p className="text-xs font-medium text-muted-foreground">Share with a circle or friends</p>
-        <p className="text-xs text-muted-foreground">
-          {task.due_at
-            ? 'Sharing to a circle also adds this dated task to the circle calendar.'
-            : 'Set a due date first if you want it on the circle calendar.'}
-        </p>
+      <div className="space-y-1.5">
         <ShareWithFriendsButton
           kind="task"
           title={task.title}
@@ -358,7 +349,6 @@ function SortableTask({
             {task.recurrence !== 'none'
               ? ` · ${task.recurrence === 'daily' ? 'every day' : task.recurrence === 'weekly' ? 'every week' : 'every month'}`
               : ''}
-            <span className="text-primary/80"> · {expanded ? 'Hide edit' : 'Tap to edit'}</span>
           </p>
         </button>
         <Button size="icon" variant="ghost" onClick={onDelete} aria-label="Delete task">
@@ -378,6 +368,97 @@ function SortableTask({
         ) : null}
       </AnimatePresence>
     </li>
+  )
+}
+
+function TaskFilterEmpty({
+  filter,
+  listName,
+  listIsEmpty,
+  hasCompleted,
+  onCreate,
+  onFilter,
+}: {
+  filter: 'open' | 'done' | 'all' | 'overdue'
+  listName: string | null
+  listIsEmpty: boolean
+  hasCompleted: boolean
+  onCreate: () => void
+  onFilter: (next: 'open' | 'done' | 'all' | 'overdue') => void
+}) {
+  if (listIsEmpty) {
+    return (
+      <EmptyState
+        compact
+        plain
+        title={listName ? `Nothing in ${listName}` : 'Nothing here'}
+        description="Tasks you add to this list will show up here."
+        action={
+          <Button type="button" className="gap-1.5" onClick={onCreate}>
+            <Plus className="h-4 w-4" />
+            Add a task
+          </Button>
+        }
+      />
+    )
+  }
+  if (filter === 'open' && hasCompleted) {
+    return (
+      <EmptyState
+        compact
+        plain
+        title="You're caught up"
+        description="Nothing is open right now."
+        action={
+          <Button type="button" variant="outline" onClick={() => onFilter('done')}>
+            Show completed
+          </Button>
+        }
+      />
+    )
+  }
+  if (filter === 'overdue') {
+    return (
+      <EmptyState
+        compact
+        plain
+        title="Nothing overdue"
+        description="Due dates that slip will show up here."
+        action={
+          <Button type="button" variant="outline" onClick={() => onFilter('open')}>
+            Show open
+          </Button>
+        }
+      />
+    )
+  }
+  if (filter === 'done') {
+    return (
+      <EmptyState
+        compact
+        plain
+        title="Nothing completed yet"
+        description="Finished tasks collect here."
+        action={
+          <Button type="button" variant="outline" onClick={() => onFilter('open')}>
+            Show open
+          </Button>
+        }
+      />
+    )
+  }
+  return (
+    <EmptyState
+      compact
+      plain
+      title="Nothing matches"
+      description="Try another filter."
+      action={
+        <Button type="button" variant="outline" onClick={() => onFilter('all')}>
+          Show all
+        </Button>
+      }
+    />
   )
 }
 
@@ -428,6 +509,8 @@ export default function TasksPage() {
   })
   const [createFolderId, setCreateFolderId] = useState<string>('')
   const [newListName, setNewListName] = useState('')
+  const [addingFolder, setAddingFolder] = useState(false)
+  const [creating, setCreating] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(params.get('id'))
 
   useEffect(() => {
@@ -504,10 +587,21 @@ export default function TasksPage() {
     setShareFriends({})
     setShareCircles({})
     setShareAudience({ friendIds: [], circles: [], hasAny: false })
-    setSelectedId(task.id)
-    setParams({ id: task.id })
+    setCreating(false)
     offerTaskCreatedShare(task.title)
     refresh()
+  }
+
+  function closeCreate() {
+    setTitle('')
+    setDueAt('')
+    setRecurrence('none')
+    setPriority('medium')
+    setCategory('personal')
+    setShareFriends({})
+    setShareCircles({})
+    setShareAudience({ friendIds: [], circles: [], hasAny: false })
+    setCreating(false)
   }
 
   const overdue = tasks.filter((t) => t.status !== 'done' && t.due_at && t.due_at.slice(0, 10) < todayKey())
@@ -536,8 +630,22 @@ export default function TasksPage() {
 
   return (
     <motion.div {...pageEnterSubtle} className="kp-page">
-      <PageHeader title="Tasks" description="What needs attention — dated tasks show on Calendar." eyebrow={navSectionLabel('/tasks')} />
+      <CalendarReturnLink />
+      <PageHeader
+        dense
+        title="Tasks"
+        eyebrow={navSectionLabel('/tasks')}
+        actions={
+          tasks.length > 0 && !creating ? (
+            <Button className="gap-2" onClick={() => setCreating(true)}>
+              <Plus className="h-4 w-4" />
+              New task
+            </Button>
+          ) : null
+        }
+      />
 
+      {tasks.length > 0 || lists.length > 1 || addingFolder ? (
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <FilterChip selected={listId === 'all'} onClick={() => setListId('all')}>
           All folders
@@ -587,32 +695,49 @@ export default function TasksPage() {
             ) : null}
           </div>
         ))}
-        <form
-          className="flex gap-1"
-          onSubmit={(e) => {
-            e.preventDefault()
-            if (!newListName.trim()) return
-            const list = tasksApi.createList(userId, newListName)
-            setNewListName('')
-            setListId(list.id)
-            setCreateFolderId(list.id)
-            setFilter('all')
-            refresh()
-          }}
-        >
-          <Input
-            className="h-8 w-28"
-            placeholder="New folder"
-            value={newListName}
-            onChange={(e) => setNewListName(e.target.value)}
-          />
-          <Button type="submit" size="sm" variant="ghost" aria-label="Add folder">
+        {addingFolder ? (
+          <form
+            className="flex gap-1"
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (!newListName.trim()) return
+              const list = tasksApi.createList(userId, newListName)
+              setNewListName('')
+              setAddingFolder(false)
+              setListId(list.id)
+              setCreateFolderId(list.id)
+              setFilter('all')
+              refresh()
+            }}
+          >
+            <Input
+              className="h-8 w-28"
+              placeholder="New folder"
+              value={newListName}
+              autoFocus
+              onChange={(e) => setNewListName(e.target.value)}
+            />
+            <Button type="submit" size="sm" variant="ghost" aria-label="Add folder">
+              <Plus className="h-4 w-4" />
+            </Button>
+          </form>
+        ) : (
+          <Button type="button" size="sm" variant="ghost" className="gap-1.5" onClick={() => setAddingFolder(true)}>
             <Plus className="h-4 w-4" />
+            Folder
           </Button>
-        </form>
+        )}
       </div>
+      ) : null}
 
+      {creating ? (
       <form onSubmit={onCreate} className="kp-surface mb-3 space-y-2 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-medium">New task</p>
+          <Button type="button" size="sm" variant="ghost" onClick={closeCreate}>
+            Close
+          </Button>
+        </div>
         <div className="flex gap-2">
           <Input
             placeholder="Add something…"
@@ -769,30 +894,48 @@ export default function TasksPage() {
               <Link to="/settings">Connect to share</Link>
             </Button>
           )}
-          {dueAt ? (
-            <p className="text-xs text-muted-foreground">Shows on your calendar.</p>
-          ) : null}
         </div>
       </form>
+      ) : null}
 
-      <Segmented
-        className="mb-3"
-        value={filter}
-        onChange={setFilter}
-        options={[
-          { id: 'open', label: 'Open' },
-          { id: 'overdue', label: overdue.length ? `Overdue (${overdue.length})` : 'Overdue' },
-          { id: 'done', label: 'Done' },
-          { id: 'all', label: 'All' },
-        ]}
-      />
+      {tasks.length > 0 ? (
+        <Segmented
+          className="mb-3"
+          value={filter}
+          onChange={setFilter}
+          options={[
+            { id: 'open', label: 'Open' },
+            { id: 'overdue', label: overdue.length ? `Overdue (${overdue.length})` : 'Overdue' },
+            { id: 'done', label: 'Done' },
+            { id: 'all', label: 'All' },
+          ]}
+        />
+      ) : null}
 
       <div>
-        {visible.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            {selectedList ? `Nothing in ${selectedList.name}.` : 'Nothing here yet.'}
-          </p>
-        ) : (
+        {tasks.length === 0 && !creating ? (
+          <EmptyState
+            plain
+            icon={ListTodo}
+            title="Start with one task"
+            description="Get things out of your head and into a plan you can manage."
+            action={
+              <Button type="button" className="gap-1.5" onClick={() => setCreating(true)}>
+                <Plus className="h-4 w-4" />
+                Create your first task
+              </Button>
+            }
+          />
+        ) : visible.length === 0 && !creating ? (
+          <TaskFilterEmpty
+            filter={filter}
+            listName={selectedList?.name ?? null}
+            listIsEmpty={listed.length === 0}
+            hasCompleted={listed.some((task) => task.status === 'done')}
+            onCreate={() => setCreating(true)}
+            onFilter={setFilter}
+          />
+        ) : visible.length === 0 ? null : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
             <SortableContext items={openIds} strategy={verticalListSortingStrategy}>
               <ul className="space-y-2">
@@ -820,7 +963,11 @@ export default function TasksPage() {
                           className="min-w-0 flex-1 text-left"
                           onClick={() => {
                             setSelectedId((id) => (id === task.id ? null : task.id))
-                            setParams(selectedId === task.id ? {} : { id: task.id })
+                            setParams(
+                              selectedId === task.id
+                                ? withCalendarOrigin(params)
+                                : withCalendarOrigin(params, { id: task.id }),
+                            )
                           }}
                         >
                           <div className="flex items-start justify-between gap-2">
@@ -834,10 +981,6 @@ export default function TasksPage() {
                           </div>
                           <p className="text-xs text-muted-foreground">
                             {task.completed_at ? `Completed ${formatShortDate(task.completed_at)}` : 'Completed'}
-                            <span className="text-primary/80">
-                              {' '}
-                              · {selectedId === task.id ? 'Hide edit' : 'Tap to edit'}
-                            </span>
                           </p>
                         </button>
                         <Button
@@ -883,10 +1026,10 @@ export default function TasksPage() {
                       onSelect={() => {
                         if (selectedId === task.id) {
                           setSelectedId(null)
-                          setParams({})
+                          setParams(withCalendarOrigin(params))
                         } else {
                           setSelectedId(task.id)
-                          setParams({ id: task.id })
+                          setParams(withCalendarOrigin(params, { id: task.id }))
                         }
                       }}
                       onToggle={() => {

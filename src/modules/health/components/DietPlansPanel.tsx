@@ -2,6 +2,7 @@ import { FormEvent, useMemo, useState } from 'react'
 import { Lock, Plus, Share2, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -433,10 +434,14 @@ export function DietPlansPanel({ userId, tick, refresh }: Props) {
       </form>
 
       <div>
-        <p className="kp-section-label">Library</p>
-        <h3 className="mb-3 mt-1 font-display text-lg tracking-tight">Saved plans</h3>
+        <h3 className="mb-3 font-display text-lg tracking-tight">Saved plans</h3>
         {plans.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No diet plans yet.</p>
+          <EmptyState
+            compact
+            plain
+            title="No saved plans"
+            description="Save the plan above and it will show up here."
+          />
         ) : (
           <ul className="space-y-3">
             {plans.map((plan) => (

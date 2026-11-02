@@ -378,7 +378,16 @@ export default function FeedPage() {
                   ))}
                 </div>
                 {circleQuery.trim() && filteredCircleOptions.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No circles match that name.</p>
+                  <p className="text-xs text-muted-foreground">
+                    No circles match that name.{' '}
+                    <button
+                      type="button"
+                      className="font-medium text-foreground underline"
+                      onClick={() => setCircleQuery('')}
+                    >
+                      Clear
+                    </button>
+                  </p>
                 ) : null}
               </div>
             ) : null}
@@ -434,15 +443,25 @@ export default function FeedPage() {
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : visiblePosts.length === 0 ? (
-            <p className="px-4 py-6 text-sm text-muted-foreground sm:px-5">
-              {tab === 'circles'
-                ? activeCircleName
-                  ? `No wins in ${activeCircleName} yet.`
-                  : 'No Circle posts yet.'
-                : tab === 'mine'
-                  ? 'You haven’t shared a win yet.'
-                  : 'No wins shared yet.'}
-            </p>
+            <EmptyState
+              compact
+              plain
+              className="px-4 sm:px-5"
+              title={
+                tab === 'circles'
+                  ? activeCircleName
+                    ? `No wins in ${activeCircleName} yet`
+                    : 'No Circle posts yet'
+                  : tab === 'mine'
+                    ? 'You haven’t shared a win yet'
+                    : 'No wins shared yet'
+              }
+              description={
+                tab === 'mine'
+                  ? 'Finished tasks and habits can be shared when Katana offers.'
+                  : 'Posts shared here will show up in this list.'
+              }
+            />
           ) : (
             <motion.div
               variants={staggerContainer}

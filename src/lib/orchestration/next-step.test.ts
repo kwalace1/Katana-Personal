@@ -171,6 +171,8 @@ describe('pickNextStep', () => {
     expect(step?.title).toBe('Go to the gym')
     expect(step?.reason).toMatch(/4 workouts/)
     expect(step?.reason).toMatch(/7:30|19:30|Dinner/)
+    expect(step?.reason).not.toMatch(/minutes open|Estimated workout/)
+    expect(step?.actions[0]?.label).toBe('Log lift')
   })
 
   it('suggests wind-down after 9pm when nothing urgent', () => {

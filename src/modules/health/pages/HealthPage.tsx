@@ -1,19 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import {
-  Dumbbell,
-  Footprints,
-  Moon,
-  Pill,
-  Salad,
-} from 'lucide-react'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { navItemLabel, navSectionLabel } from '@/lib/nav'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { cn } from '@/lib/utils'
 import { MiniBars } from '@/components/MiniBars'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCloudAuth } from '@/contexts/CloudAuthContext'
@@ -43,14 +37,6 @@ const AREA_DESCRIPTIONS = {
   wellness: 'Sleep, meals, weight, and the other signals Today uses — water included.',
 } as const
 
-const QUICK = [
-  { id: 'lift', label: 'Log lift', icon: Dumbbell },
-  { id: 'workouts', label: 'Cardio', icon: Footprints },
-  { id: 'nutrition', label: 'Meal', icon: Salad },
-  { id: 'vitamins', label: 'Vitamins', icon: Pill },
-  { id: 'sleep', label: 'Sleep', icon: Moon },
-] as const
-
 const FITNESS_TABS = [
   { id: 'lift', label: 'Lift' },
   { id: 'splits', label: 'Splits' },
@@ -63,7 +49,6 @@ const WELLNESS_TABS = [
   { id: 'weight', label: 'Weight' },
   { id: 'sleep', label: 'Sleep' },
   { id: 'nutrition', label: 'Diet' },
-  { id: 'vitamins', label: 'Vitamins' },
   { id: 'supplements', label: 'Supplements' },
 ] as const
 
@@ -77,6 +62,7 @@ function areaForTab(tab: HealthTab): HealthArea {
 }
 
 function parseHealthTab(value: string | null): HealthTab {
+  if (value === 'vitamins') return 'supplements'
   const all = [...FITNESS_TABS, ...WELLNESS_TABS] as readonly { id: HealthTab }[]
   return all.some((item) => item.id === value) ? (value as HealthTab) : 'overview'
 }
@@ -93,6 +79,10 @@ export default function HealthPage() {
     requestedArea === 'fitness' || requestedArea === 'wellness'
       ? requestedArea
       : areaForTab(healthTab)
+  const sectionTabs = healthArea === 'fitness' ? FITNESS_TABS : WELLNESS_TABS
+  const activeSection = sectionTabs.some((item) => item.id === healthTab)
+    ? healthTab
+    : sectionTabs[0].id
 
   function setHealthTab(next: string) {
     const tab = parseHealthTab(next)
@@ -109,6 +99,21 @@ export default function HealthPage() {
     params.set('tab', nextTab)
     setSearchParams(params, { replace: true })
   }
+
+  useEffect(() => {
+    if (searchParams.get('tab') === 'vitamins') {
+      const params = new URLSearchParams(searchParams)
+      params.set('tab', 'supplements')
+      params.set('area', 'wellness')
+      setSearchParams(params, { replace: true })
+      return
+    }
+    if (sectionTabs.some((item) => item.id === healthTab)) return
+    const params = new URLSearchParams(searchParams)
+    params.set('tab', sectionTabs[0].id)
+    params.set('area', healthArea)
+    setSearchParams(params, { replace: true })
+  }, [healthArea, healthTab, searchParams, sectionTabs, setSearchParams])
 
   useEffect(() => {
     if (!cloudUser) return
@@ -171,15 +176,45 @@ export default function HealthPage() {
     return `${formatWater(waterGoalMl - waterAmountMl, waterGoal.unit)} left to lock your hydration streak.`
   })()
 
-  const waterSeries = useMemo(
-    () => healthApi.waterSeries(userId, range).map((d) => amountFromMl(d.ml, waterGoal.unit)),
-    [userId, range, tick, waterGoal.unit],
-  )
-  const sleepSeries = useMemo(() => healthApi.sleepSeries(userId, range).map((d) => d.hours), [userId, range, tick])
-  const workoutSeries = useMemo(
-    () => healthApi.workoutMinutesSeries(userId, range).map((d) => d.minutes),
-    [userId, range, tick],
-  )
+  const waterHistory = useMemo(() => {
+    void tick
+    return healthApi.waterSeries(userId, 30)
+  }, [userId, tick])
+  const sleepHistory = useMemo(() => {
+    void tick
+    return healthApi.sleepSeries(userId, 30)
+  }, [userId, tick])
+  const workoutHistory = useMemo(() => {
+    void tick
+    return healthApi.workoutMinutesSeries(userId, 30)
+  }, [userId, tick])
+  const waterSeries = useMemo(() => {
+    const rows = range === 30 ? waterHistory : waterHistory.slice(-7)
+    return rows.map((day) => amountFromMl(day.ml, waterGoal.unit))
+  }, [waterHistory, range, waterGoal.unit])
+  const sleepSeries = useMemo(() => {
+    const rows = range === 30 ? sleepHistory : sleepHistory.slice(-7)
+    return rows.map((day) => day.hours)
+  }, [sleepHistory, range])
+  const workoutSeries = useMemo(() => {
+    const rows = range === 30 ? workoutHistory : workoutHistory.slice(-7)
+    return rows.map((day) => day.minutes)
+  }, [workoutHistory, range])
+  const hasWaterHistory = waterHistory.some((day) => day.ml > 0)
+  const hasSleepHistory = sleepHistory.some((day) => day.hours > 0)
+  const hasMoveHistory = workoutHistory.some((day) => day.minutes > 0)
+  const showWeek = hasWaterHistory || hasSleepHistory || hasMoveHistory
+  const weekCharts = [
+    waterSeries.some((value) => value > 0)
+      ? { key: 'water', values: waterSeries, label: `Water · ${range}d`, maxHint: waterGoal.amount }
+      : null,
+    sleepSeries.some((value) => value > 0)
+      ? { key: 'sleep', values: sleepSeries, label: `Sleep hrs · ${range}d`, maxHint: 10 }
+      : null,
+    workoutSeries.some((value) => value > 0)
+      ? { key: 'move', values: workoutSeries, label: `Move min · ${range}d`, maxHint: 60 }
+      : null,
+  ].filter((chart): chart is { key: string; values: number[]; label: string; maxHint: number } => chart != null)
 
   return (
     <motion.div {...pageEnterSubtle} className="kp-page">
@@ -205,35 +240,55 @@ export default function HealthPage() {
         ) : null}
       </div>
 
-      <HealthSegmented
-        full
-        size="lg"
-        className="mb-4"
-        value={healthArea}
-        onChange={setHealthArea}
-        options={[
-          { id: 'fitness', label: 'Fitness' },
-          { id: 'wellness', label: 'Wellness' },
-        ]}
-      />
+      <div className="mb-4 space-y-2">
+        <HealthSegmented
+          full
+          size="lg"
+          className="sm:max-w-xs"
+          value={healthArea}
+          onChange={setHealthArea}
+          options={[
+            { id: 'fitness', label: 'Fitness' },
+            { id: 'wellness', label: 'Wellness' },
+          ]}
+        />
+        <nav aria-label="Section" className="flex w-full min-w-0 flex-wrap">
+          {sectionTabs.map((item) => {
+            const selected = item.id === activeSection
+            return (
+              <button
+                key={item.id}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => setHealthTab(item.id)}
+                className={cn(
+                  'min-h-11 whitespace-nowrap border-b-2 px-1 text-sm font-medium transition-colors',
+                  selected
+                    ? 'border-primary text-foreground'
+                    : 'border-transparent text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {item.label}
+              </button>
+            )
+          })}
+        </nav>
+      </div>
 
-      <Tabs value={healthTab} onValueChange={setHealthTab}>
-        <TabsList fluid className="mb-1 w-full max-w-full">
-          {(healthArea === 'fitness' ? FITNESS_TABS : WELLNESS_TABS).map((item) => (
-            <TabsTrigger key={item.id} value={item.id}>
-              {item.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-
-        <TabsContent value="overview" className="space-y-3">
+      {activeSection === 'overview' ? (
+        <div className="space-y-3">
           <div ref={waterBoxRef} className="kp-surface p-4">
             <p className="kp-section-label">
               Water · {logDate === todayKey() ? 'today' : logDate}
               {waterGoalMet ? ' · goal hit' : ''}
             </p>
             <div className="mt-2">
-              <WaterGoalBar loggedMl={waterAmountMl} goal={waterGoal} onGoalChange={setWaterGoal} />
+              <WaterGoalBar
+                loggedMl={waterAmountMl}
+                goal={waterGoal}
+                onGoalChange={setWaterGoal}
+                goalEditor="action"
+              />
             </div>
             <p className="mt-2 text-sm text-muted-foreground">{waterStatusCopy}</p>
             <div className="mt-3 border-t border-border pt-3">
@@ -241,63 +296,47 @@ export default function HealthPage() {
             </div>
           </div>
 
-          <div>
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm font-medium">This week at a glance</p>
-              <HealthSegmented
-                value={String(range) as '7' | '30'}
-                onChange={(id) => setRange(Number(id) as 7 | 30)}
-                options={[
-                  { id: '7', label: '7d' },
-                  { id: '30', label: '30d' },
-                ]}
-              />
-            </div>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="kp-surface p-4">
-                <MiniBars values={waterSeries} label={`Water · ${range}d`} maxHint={waterGoal.amount} />
+          {showWeek ? (
+            <div>
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-medium">This week at a glance</p>
+                <HealthSegmented
+                  value={String(range) as '7' | '30'}
+                  onChange={(id) => setRange(Number(id) as 7 | 30)}
+                  options={[
+                    { id: '7', label: '7d' },
+                    { id: '30', label: '30d' },
+                  ]}
+                />
               </div>
-              <div className="kp-surface p-4">
-                <MiniBars values={sleepSeries} label={`Sleep hrs · ${range}d`} maxHint={10} />
-              </div>
-              <div className="kp-surface p-4">
-                <MiniBars values={workoutSeries} label={`Move min · ${range}d`} maxHint={60} />
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <p className="mb-2 text-sm font-medium">Log something</p>
-            <div className="flex flex-wrap gap-2">
-              {QUICK.map(({ id, label, icon: Icon }) => (
-                <Button
-                  key={id}
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  className="gap-1.5"
-                  onClick={() => setHealthTab(id)}
+              {weekCharts.length > 0 ? (
+                <div
+                  className={cn(
+                    'grid gap-3',
+                    weekCharts.length === 2 && 'grid-cols-2',
+                    weekCharts.length >= 3 && 'grid-cols-3',
+                  )}
                 >
-                  <Icon className="h-3.5 w-3.5" />
-                  {label}
-                </Button>
-              ))}
+                  {weekCharts.map((chart) => (
+                    <MiniBars key={chart.key} values={chart.values} label={chart.label} maxHint={chart.maxHint} />
+                  ))}
+                </div>
+              ) : (
+                <EmptyState
+                  compact
+                  plain
+                  title="Nothing logged in this range"
+                  description={`Sleep, meals, and workouts from the last ${range} days will show up here.`}
+                />
+              )}
             </div>
-          </div>
+          ) : null}
 
-          <LiftTrackingPanel
-            userId={userId}
-            logDate={logDate}
-            tick={tick}
-            refresh={refresh}
-            panel="overview"
-            onGoLift={() => setHealthTab('lift')}
-            onGoSplits={() => setHealthTab('splits')}
-          />
-        </TabsContent>
+        </div>
+      ) : null}
 
-        {/* Lift log only mounts on Lift — draft still autosaves to this device */}
-        <TabsContent value="lift" className="space-y-3">
+      {activeSection === 'lift' ? (
+        <div className="space-y-3">
           <LiftTrackingPanel
             userId={userId}
             logDate={logDate}
@@ -307,9 +346,11 @@ export default function HealthPage() {
             onGoLift={() => setHealthTab('lift')}
             onGoSplits={() => setHealthTab('splits')}
           />
-        </TabsContent>
+        </div>
+      ) : null}
 
-        <TabsContent value="splits" className="space-y-3">
+      {activeSection === 'splits' ? (
+        <div className="space-y-3">
           <LiftTrackingPanel
             userId={userId}
             logDate={logDate}
@@ -319,21 +360,36 @@ export default function HealthPage() {
             onGoLift={() => setHealthTab('lift')}
             onGoSplits={() => setHealthTab('splits')}
           />
-        </TabsContent>
+        </div>
+      ) : null}
 
-        <TabsContent value="progress" className="space-y-3">
-          <LiftTrackingPanel userId={userId} logDate={logDate} tick={tick} refresh={refresh} panel="progress" />
-        </TabsContent>
+      {activeSection === 'progress' ? (
+        <div className="space-y-3">
+          <LiftTrackingPanel
+            userId={userId}
+            logDate={logDate}
+            tick={tick}
+            refresh={refresh}
+            panel="progress"
+            onGoLift={() => setHealthTab('lift')}
+          />
+        </div>
+      ) : null}
 
-        <TabsContent value="weight" className="space-y-3">
+      {activeSection === 'weight' ? (
+        <div className="space-y-3">
           <LiftTrackingPanel userId={userId} logDate={logDate} tick={tick} refresh={refresh} panel="weight" />
-        </TabsContent>
+        </div>
+      ) : null}
 
-        <TabsContent value="workouts" className="space-y-3">
+      {activeSection === 'workouts' ? (
+        <div className="space-y-3">
           <CardioPanel userId={userId} logDate={logDate} tick={tick} refresh={refresh} />
-        </TabsContent>
+        </div>
+      ) : null}
 
-        <TabsContent value="nutrition" className="space-y-3">
+      {activeSection === 'nutrition' ? (
+        <div className="space-y-3">
           <HealthSegmented
             full
             size="lg"
@@ -349,29 +405,17 @@ export default function HealthPage() {
           ) : (
             <NutritionPanel userId={userId} logDate={logDate} tick={tick} refresh={refresh} />
           )}
-        </TabsContent>
+        </div>
+      ) : null}
 
-        <TabsContent value="vitamins" className="space-y-3">
-          <VitaminsPanel
-            userId={userId}
-            logDate={logDate}
-            tick={tick}
-            refresh={refresh}
-            kind="vitamin"
-          />
-        </TabsContent>
+      {activeSection === 'supplements' ? (
+        <div className="space-y-3">
+          <VitaminsPanel userId={userId} logDate={logDate} tick={tick} refresh={refresh} />
+        </div>
+      ) : null}
 
-        <TabsContent value="supplements" className="space-y-3">
-          <VitaminsPanel
-            userId={userId}
-            logDate={logDate}
-            tick={tick}
-            refresh={refresh}
-            kind="supplement"
-          />
-        </TabsContent>
-
-        <TabsContent value="sleep" className="space-y-3">
+      {activeSection === 'sleep' ? (
+        <div className="space-y-3">
           <SleepPanel
             userId={userId}
             logDate={logDate}
@@ -388,8 +432,8 @@ export default function HealthPage() {
               })
             }}
           />
-        </TabsContent>
-      </Tabs>
+        </div>
+      ) : null}
     </motion.div>
   )
 }

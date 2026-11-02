@@ -16,6 +16,8 @@ import {
 type Props = {
   variant?: 'today' | 'cardio'
   className?: string
+  /** On Today, skip the location prompt and only show a line once weather is known. */
+  quiet?: boolean
 }
 
 type Phase = 'loading' | 'ready' | 'needs_allow' | 'denied' | 'error'
@@ -26,7 +28,7 @@ type Phase = 'loading' | 'ready' | 'needs_allow' | 'denied' | 'error'
  * often fails / hangs and then looks “blocked” with nowhere to turn it on
  * (PWAs are not a “Katana” app in Settings).
  */
-export function WeatherGlance({ variant = 'today', className }: Props) {
+export function WeatherGlance({ variant = 'today', className, quiet = false }: Props) {
   const [snap, setSnap] = useState<WeatherSnapshot | null>(() => readWeatherCache())
   const [error, setError] = useState<string | null>(null)
   const [phase, setPhase] = useState<Phase>(() => (readWeatherCache() ? 'ready' : 'needs_allow'))
@@ -123,6 +125,19 @@ export function WeatherGlance({ variant = 'today', className }: Props) {
       document.removeEventListener('visibilitychange', onVisibility)
     }
   }, [])
+
+  if (variant === 'today' && quiet && !(phase === 'ready' && snap)) return null
+
+  if (variant === 'today' && quiet && snap) {
+    return (
+      <p className={cn('mb-4 flex items-center gap-2 text-sm text-muted-foreground', className)}>
+        <CloudSun className="h-4 w-4 shrink-0 text-primary" />
+        <span className="truncate">
+          {formatTemp(snap)} · {snap.label}
+        </span>
+      </p>
+    )
+  }
 
   if (variant === 'today') {
     return (

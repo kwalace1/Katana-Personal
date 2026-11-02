@@ -1,7 +1,8 @@
 import { FormEvent, useMemo, useState } from 'react'
-import { ImagePlus, ScanText, Share2, Trash2 } from 'lucide-react'
+import { ImagePlus, Plus, ScanText, Share2, Trash2, Utensils } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -35,7 +36,6 @@ import { cloneIngredients, ingredientFromEstimate, ingredientFromLabel, sumMacro
 import type { MealCategory, MealIngredient, NutritionLog } from '../types'
 import { formatLiftDate } from './lift/LiftLineChart'
 import { MealIngredientPicker } from './MealIngredientPicker'
-import { HealthCardHeader } from './health-ui'
 
 type Props = {
   userId: string
@@ -91,6 +91,7 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
     hasAny: false,
   })
   const [sharing, setSharing] = useState(false)
+  const [view, setView] = useState<'summary' | 'log'>('summary')
 
   function applyIngredientTotals(next: MealIngredient[]) {
     setIngredients(next)
@@ -161,6 +162,7 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
     setNotes('')
     setIngredients([])
     setTime(localTimeHHMM())
+    setView('summary')
     refresh()
   }
 
@@ -228,7 +230,7 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
 
   return (
     <div className="space-y-3">
-      {planned ? (
+      {view === 'summary' && planned ? (
         <div className="kp-surface flex flex-wrap items-start justify-between gap-3 bg-primary/[0.06] p-4">
           <div>
             <p className="kp-section-label">Active diet plan</p>
@@ -250,12 +252,131 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
         </div>
       ) : null}
 
-      <form onSubmit={save} className="kp-surface min-w-0 space-y-3 overflow-hidden p-4">
-        <HealthCardHeader
-          eyebrow="Nutrition"
+      {view === 'summary' && meals.length === 0 ? (
+        <EmptyState
+          compact
+          plain
+          icon={Utensils}
           title="Log a meal"
-          description="Add ingredients, scan a Nutrition Facts label, or snap a meal for an estimate."
+          description="What you eat shows up in your diet history."
+          action={
+            <Button type="button" className="gap-1.5" onClick={() => setView('log')}>
+              <Plus className="h-4 w-4" />
+              Log a meal
+            </Button>
+          }
         />
+      ) : null}
+
+      {view === 'summary' && meals.length > 0 ? (
+        <>
+          <Button type="button" size="sm" className="gap-1.5" onClick={() => setView('log')}>
+            <Plus className="h-4 w-4" />
+            Log meal
+          </Button>
+
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <h3 className="font-display text-lg tracking-tight">
+              {Math.round(todayTotals.calories).toLocaleString()} kcal
+              {planned ? (
+                <span className="ml-1 font-sans font-medium text-muted-foreground">
+                  / {planned.plan.calories.toLocaleString()}
+                </span>
+              ) : null}
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              Today · {formatMacros(todayTotals)} · {todayTotals.count} meal{todayTotals.count === 1 ? '' : 's'}
+            </p>
+          </div>
+
+          <div>
+            <h3 className="mb-3 font-display text-lg tracking-tight">Meal log</h3>
+            <div className="space-y-3">
+              {dates.map((dateISO) => {
+                const dayMeals = meals.filter((m) => m.date === dateISO)
+                const totals = healthApi.nutritionDayTotals(userId, dateISO)
+                return (
+                  <div key={dateISO}>
+                    <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+                      <p className="font-medium">{formatLiftDate(dateISO)}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {Math.round(totals.calories).toLocaleString()} kcal · {formatMacros(totals)}
+                      </p>
+                    </div>
+                    <ul className="divide-y border-t border-border">
+                      {dayMeals.map((entry) => (
+                        <li key={entry.id} className="py-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="font-medium">{entry.meal}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {formatMealCategory(entry.category)}
+                                {entry.time ? ` · ${formatMealTime(entry.time)}` : ''} ·{' '}
+                                {Math.round(Number(entry.calories) || 0).toLocaleString()} kcal ·{' '}
+                                {formatMacros(entry)}
+                              </p>
+                              {entry.ingredients?.length ? (
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  {entry.ingredients
+                                    .map((item) => `${item.name}${item.grams ? ` (${item.grams}g)` : ''}`)
+                                    .join(' · ')}
+                                </p>
+                              ) : null}
+                              {entry.notes ? (
+                                <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">{entry.notes}</p>
+                              ) : null}
+                            </div>
+                            <div className="flex shrink-0 gap-1">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                aria-label={`Share ${entry.meal}`}
+                                onClick={() => {
+                                  if (!cloudUser) {
+                                    toast.message('Connect Social in Settings to share a meal')
+                                    return
+                                  }
+                                  setShareMeal(entry)
+                                }}
+                              >
+                                <Share2 className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                aria-label={`Delete ${entry.meal}`}
+                                onClick={() => {
+                                  healthApi.removeNutrition(userId, entry.id)
+                                  refresh()
+                                  toast.message('Meal deleted')
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </>
+      ) : null}
+
+      {view === 'log' ? (
+      <form onSubmit={save} className="kp-surface min-w-0 space-y-3 overflow-hidden p-4">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="font-display text-lg tracking-tight">Log a meal</h3>
+          <Button type="button" size="sm" variant="ghost" onClick={() => setView('summary')}>
+            Cancel
+          </Button>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Add ingredients, scan a Nutrition Facts label, or snap a meal for an estimate.
+        </p>
 
         <div className="flex flex-wrap gap-2">
           <Button
@@ -374,102 +495,7 @@ export function NutritionPanel({ userId, logDate, tick, refresh }: Props) {
         />
         <Button type="submit">Save meal</Button>
       </form>
-
-      <div className="kp-surface flex flex-wrap items-end justify-between gap-3 p-4">
-        <div>
-          <p className="text-xs text-muted-foreground">Today</p>
-          <p className="font-display text-lg tracking-tight">
-            {Math.round(todayTotals.calories).toLocaleString()} kcal
-            {planned ? (
-              <span className="ml-1 text-lg font-sans font-medium text-muted-foreground">
-                / {planned.plan.calories.toLocaleString()}
-              </span>
-            ) : null}
-          </p>
-        </div>
-        <p className="text-sm font-semibold text-muted-foreground">
-          {formatMacros(todayTotals)} · {todayTotals.count} meal{todayTotals.count === 1 ? '' : 's'}
-        </p>
-      </div>
-
-      <div className="kp-surface p-4">
-        <p className="text-xs text-muted-foreground">History</p>
-        <h3 className="mb-3 font-display text-lg tracking-tight">Meal log</h3>
-        {meals.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No meals yet.</p>
-        ) : (
-          <div className="space-y-3">
-            {dates.map((dateISO) => {
-              const dayMeals = meals.filter((m) => m.date === dateISO)
-              const totals = healthApi.nutritionDayTotals(userId, dateISO)
-              return (
-                <div key={dateISO}>
-                  <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-                    <p className="font-medium">{formatLiftDate(dateISO)}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {Math.round(totals.calories).toLocaleString()} kcal · {formatMacros(totals)}
-                    </p>
-                  </div>
-                  <ul className="space-y-2">
-                    {dayMeals.map((entry) => (
-                      <li key={entry.id} className="rounded-xl border border-border/50 p-3">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="font-medium">{entry.meal}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {formatMealCategory(entry.category)}
-                              {entry.time ? ` · ${formatMealTime(entry.time)}` : ''} ·{' '}
-                              {Math.round(Number(entry.calories) || 0).toLocaleString()} kcal ·{' '}
-                              {formatMacros(entry)}
-                            </p>
-                            {entry.ingredients?.length ? (
-                              <p className="mt-1 text-xs text-muted-foreground">
-                                {entry.ingredients
-                                  .map((item) => `${item.name}${item.grams ? ` (${item.grams}g)` : ''}`)
-                                  .join(' · ')}
-                              </p>
-                            ) : null}
-                            {entry.notes ? (
-                              <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">{entry.notes}</p>
-                            ) : null}
-                          </div>
-                          <div className="flex shrink-0 gap-1">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              aria-label="Share meal"
-                              onClick={() => {
-                                if (!cloudUser) {
-                                  toast.message('Connect Social in Settings to share a meal')
-                                  return
-                                }
-                                setShareMeal(entry)
-                              }}
-                            >
-                              <Share2 className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => {
-                                healthApi.removeNutrition(userId, entry.id)
-                                refresh()
-                                toast.message('Meal deleted')
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
+      ) : null}
 
       <Dialog open={Boolean(shareMeal)} onOpenChange={(open) => !open && setShareMeal(null)}>
         <DialogContent className="max-h-[85vh] max-w-md overflow-y-auto">

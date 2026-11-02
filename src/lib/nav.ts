@@ -83,6 +83,7 @@ export const TOGETHER_SECTION = {
   label: 'Together',
   icon: Users,
   items: [
+    SOCIAL_NAV,
     { id: 'plans', to: '/shared', label: 'Plans', icon: Share2 },
     { id: 'circles', to: '/circles', label: 'Circles', icon: Trophy },
   ],
@@ -92,7 +93,6 @@ export const NAV_SECTIONS = [PLAN_SECTION, LIFE_SECTION, TOGETHER_SECTION] as co
 
 const ALL_ITEMS: readonly NavItem[] = [
   ...PRIMARY_NAV,
-  SOCIAL_NAV,
   ...PLAN_SECTION.items,
   ...LIFE_SECTION.items,
   ...TOGETHER_SECTION.items,
@@ -103,7 +103,7 @@ function pathOnly(path: string) {
   return path.split('?')[0] || '/'
 }
 
-/** Sidebar section for a route. Top-level pages (Today, Ask, Calendar, Social) have none. */
+/** Sidebar section for a route. Today, Ask, and Calendar have none. */
 export function navSectionLabel(path: string): string | undefined {
   const base = pathOnly(path)
   if (base !== SETTINGS_NAV.to && base.startsWith(`${SETTINGS_NAV.to}/`)) return SETTINGS_NAV.label

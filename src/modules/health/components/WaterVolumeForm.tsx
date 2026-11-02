@@ -35,14 +35,19 @@ export function WaterGoalBar({
   loggedMl,
   goal,
   onGoalChange,
+  goalEditor = 'inline',
 }: {
   loggedMl: number
   goal: WaterGoal
   onGoalChange: (goal: WaterGoal) => void
+  /** Circles keeps the goal fields visible. Today opens them from Edit goal. */
+  goalEditor?: 'inline' | 'action'
 }) {
   const [draft, setDraft] = useState(() => String(goal.amount))
+  const [editing, setEditing] = useState(false)
   const goalMl = Math.max(mlFromAmount(goal.amount, goal.unit), 1)
   const progress = Math.min(1, Math.max(0, loggedMl / goalMl))
+  const showGoalFields = goalEditor === 'inline' || editing
 
   function commitDraft() {
     const amount = Number(draft)
@@ -82,38 +87,59 @@ export function WaterGoalBar({
           style={{ width: `${progress * 100}%`, backgroundColor: WATER_FILL }}
         />
       </div>
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <span className="w-14 text-xs text-muted-foreground">Goal</span>
-        <Input
-          type="number"
-          inputMode="decimal"
-          min={0}
-          step={waterUnitMeta(goal.unit).step}
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onBlur={commitDraft}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') {
-              event.preventDefault()
-              event.currentTarget.blur()
-            }
-          }}
-          aria-label="Water goal"
-          className="h-9 w-24"
-        />
-        <Select value={goal.unit} onValueChange={(value) => changeUnit(value as WaterUnit)}>
-          <SelectTrigger size="sm" className="!h-9 w-[6.75rem]" aria-label="Goal unit">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {WATER_UNITS.map((item) => (
-              <SelectItem key={item.id} value={item.id}>
-                {item.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      {goalEditor === 'action' && !editing ? (
+        <Button type="button" size="sm" variant="outline" className="mt-3" onClick={() => setEditing(true)}>
+          Edit goal
+        </Button>
+      ) : null}
+      {showGoalFields ? (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className="w-14 text-xs text-muted-foreground">Goal</span>
+          <Input
+            type="number"
+            inputMode="decimal"
+            min={0}
+            step={waterUnitMeta(goal.unit).step}
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onBlur={commitDraft}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                event.currentTarget.blur()
+              }
+            }}
+            aria-label="Water goal"
+            className="h-9 w-24"
+          />
+          <Select value={goal.unit} onValueChange={(value) => changeUnit(value as WaterUnit)}>
+            <SelectTrigger size="sm" className="!h-9 w-[6.75rem]" aria-label="Goal unit">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {WATER_UNITS.map((item) => (
+                <SelectItem key={item.id} value={item.id}>
+                  {item.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {goalEditor === 'action' ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-9"
+              onClick={() => {
+                commitDraft()
+                setEditing(false)
+              }}
+            >
+              Done
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -151,7 +177,6 @@ export function WaterVolumeForm({
 
   return (
     <form onSubmit={(event) => apply(event, 1)} className={cn('flex flex-wrap items-center gap-2', className)}>
-      <span className="w-14 text-xs text-muted-foreground">Add</span>
       <Input
         type="number"
         inputMode="decimal"
@@ -175,10 +200,10 @@ export function WaterVolumeForm({
         </SelectContent>
       </Select>
       <Button type="submit" className="h-9">
-        Add
+        Add water
       </Button>
       <Button type="button" variant="outline" className="h-9" onClick={(event) => apply(event, -1)}>
-        Remove
+        Remove water
       </Button>
     </form>
   )

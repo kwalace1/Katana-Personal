@@ -1,9 +1,9 @@
 export const TODAY_SECTIONS = [
-  { id: 'do_this_next', label: 'Do this next' },
-  { id: 'together', label: 'Together' },
-  { id: 'also_today', label: 'Also today' },
-  { id: 'for_you', label: 'For you' },
+  { id: 'do_this_next', label: 'Next step' },
+  { id: 'also_today', label: 'Your day' },
   { id: 'evening_close', label: 'Evening close' },
+  { id: 'together', label: 'Together' },
+  { id: 'for_you', label: 'For you' },
   { id: 'coming_up', label: 'Coming up' },
   { id: 'goals', label: 'Goals' },
   { id: 'recent_notes', label: 'Recent notes' },
@@ -15,10 +15,9 @@ export type TodayLayoutPrefs = {
   hidden: TodaySectionId[]
 }
 
-/** Quieter Today by default — create + recent feed + next action stay front. */
+/** Extra sections stay off until someone turns them on from the Today menu. */
 export const DEFAULT_HIDDEN_SECTIONS: TodaySectionId[] = [
   'together',
-  'also_today',
   'for_you',
   'coming_up',
   'goals',

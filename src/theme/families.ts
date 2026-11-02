@@ -1,0 +1,521 @@
+import { CLASSIC_DARK, CLASSIC_LIGHT, type ThemePalette } from './classic'
+import type { ThemeFamily } from './types'
+
+/** Sunrise — warm cream, terracotta. Light values start from #FFF8EF, #A54F35, #FFE8D4. */
+export const SUNRISE_LIGHT: ThemePalette = {
+  '--background': '34 100% 97%',
+  '--foreground': '18 27% 19%',
+  '--card': '0 0% 100%',
+  '--card-foreground': '18 27% 19%',
+  '--popover': '0 0% 100%',
+  '--popover-foreground': '18 27% 19%',
+  '--primary': '12 53% 40%',
+  '--primary-foreground': '0 0% 100%',
+  '--secondary': '28 100% 92%',
+  '--secondary-foreground': '18 27% 19%',
+  '--muted': '30 56% 90%',
+  '--muted-foreground': '18 20% 35%',
+  '--accent': '28 100% 92%',
+  '--accent-foreground': '14 54% 31%',
+  '--border': '24 24% 74%',
+  '--input': '24 24% 74%',
+  '--ring': '12 53% 40%',
+  '--kp-glow': '18 45% 72%',
+  '--kp-glow-2': '28 50% 80%',
+  '--kp-glow-3': '16 35% 76%',
+  '--kp-glass': '0 0% 100%',
+  '--kp-glass-edge': '34 40% 96%',
+  '--kp-specular': '30 60% 98%',
+  '--kp-lens': '16 45% 48%',
+  '--kp-canvas-wash': '28 80% 86%',
+}
+
+export const SUNRISE_DARK: ThemePalette = {
+  '--background': '24 22% 8%',
+  '--foreground': '30 40% 94%',
+  '--card': '24 16% 12%',
+  '--card-foreground': '30 40% 94%',
+  '--popover': '24 16% 13%',
+  '--popover-foreground': '30 40% 94%',
+  '--primary': '16 62% 68%',
+  '--primary-foreground': '18 40% 12%',
+  '--secondary': '24 14% 16%',
+  '--secondary-foreground': '30 35% 92%',
+  '--muted': '24 12% 15%',
+  '--muted-foreground': '28 22% 78%',
+  '--accent': '20 16% 18%',
+  '--accent-foreground': '22 55% 82%',
+  '--border': '24 14% 32%',
+  '--input': '24 14% 32%',
+  '--ring': '16 62% 68%',
+  '--kp-glow': '16 30% 28%',
+  '--kp-glow-2': '24 25% 20%',
+  '--kp-glow-3': '18 20% 16%',
+  '--kp-glass': '24 16% 12%',
+  '--kp-glass-edge': '22 30% 70%',
+  '--kp-specular': '28 40% 86%',
+  '--kp-lens': '16 40% 46%',
+  '--kp-canvas-wash': '20 28% 16%',
+}
+
+/** Sunset — blush, plum, mauve. Light values start from #F9F2F7, #80527D, #F2DFEB. */
+export const SUNSET_LIGHT: ThemePalette = {
+  '--background': '317 37% 96%',
+  '--foreground': '305 23% 18%',
+  '--card': '0 0% 100%',
+  '--card-foreground': '305 23% 18%',
+  '--popover': '0 0% 100%',
+  '--popover-foreground': '305 23% 18%',
+  '--primary': '305 23% 39%',
+  '--primary-foreground': '0 0% 100%',
+  '--secondary': '322 42% 91%',
+  '--secondary-foreground': '305 23% 18%',
+  '--muted': '320 29% 92%',
+  '--muted-foreground': '315 18% 35%',
+  '--accent': '322 42% 91%',
+  '--accent-foreground': '306 27% 30%',
+  '--border': '316 18% 74%',
+  '--input': '316 18% 74%',
+  '--ring': '305 23% 39%',
+  '--kp-glow': '316 35% 76%',
+  '--kp-glow-2': '330 30% 82%',
+  '--kp-glow-3': '300 25% 78%',
+  '--kp-glass': '0 0% 100%',
+  '--kp-glass-edge': '320 30% 96%',
+  '--kp-specular': '320 40% 98%',
+  '--kp-lens': '308 28% 48%',
+  '--kp-canvas-wash': '322 45% 88%',
+}
+
+export const SUNSET_DARK: ThemePalette = {
+  '--background': '310 16% 8%',
+  '--foreground': '320 30% 94%',
+  '--card': '310 14% 12%',
+  '--card-foreground': '320 30% 94%',
+  '--popover': '310 14% 13%',
+  '--popover-foreground': '320 30% 94%',
+  '--primary': '310 32% 70%',
+  '--primary-foreground': '310 30% 12%',
+  '--secondary': '310 12% 16%',
+  '--secondary-foreground': '320 25% 92%',
+  '--muted': '310 10% 15%',
+  '--muted-foreground': '320 16% 78%',
+  '--accent': '310 14% 18%',
+  '--accent-foreground': '316 40% 84%',
+  '--border': '310 12% 32%',
+  '--input': '310 12% 32%',
+  '--ring': '310 32% 70%',
+  '--kp-glow': '310 22% 28%',
+  '--kp-glow-2': '320 18% 20%',
+  '--kp-glow-3': '300 16% 16%',
+  '--kp-glass': '310 14% 12%',
+  '--kp-glass-edge': '316 25% 72%',
+  '--kp-specular': '320 30% 86%',
+  '--kp-lens': '310 28% 48%',
+  '--kp-canvas-wash': '312 22% 16%',
+}
+
+/** Ocean — pale blue, deep ocean accent. Light values start from #F1F8FB, #246A89, #DDEDF5. */
+export const OCEAN_LIGHT: ThemePalette = {
+  '--background': '198 56% 96%',
+  '--foreground': '199 46% 16%',
+  '--card': '0 0% 100%',
+  '--card-foreground': '199 46% 16%',
+  '--popover': '0 0% 100%',
+  '--popover-foreground': '199 46% 16%',
+  '--primary': '199 60% 30%',
+  '--primary-foreground': '0 0% 100%',
+  '--secondary': '200 55% 91%',
+  '--secondary-foreground': '199 46% 16%',
+  '--muted': '198 49% 93%',
+  '--muted-foreground': '200 25% 33%',
+  '--accent': '200 55% 91%',
+  '--accent-foreground': '198 65% 24%',
+  '--border': '199 22% 72%',
+  '--input': '199 22% 72%',
+  '--ring': '199 60% 30%',
+  '--kp-glow': '196 45% 74%',
+  '--kp-glow-2': '205 40% 82%',
+  '--kp-glow-3': '190 30% 78%',
+  '--kp-glass': '0 0% 100%',
+  '--kp-glass-edge': '198 40% 96%',
+  '--kp-specular': '198 50% 98%',
+  '--kp-lens': '198 45% 46%',
+  '--kp-canvas-wash': '198 50% 86%',
+}
+
+export const OCEAN_DARK: ThemePalette = {
+  '--background': '205 28% 8%',
+  '--foreground': '198 40% 94%',
+  '--card': '205 22% 12%',
+  '--card-foreground': '198 40% 94%',
+  '--popover': '205 22% 13%',
+  '--popover-foreground': '198 40% 94%',
+  '--primary': '196 55% 62%',
+  '--primary-foreground': '200 40% 10%',
+  '--secondary': '205 18% 16%',
+  '--secondary-foreground': '198 30% 92%',
+  '--muted': '205 14% 14%',
+  '--muted-foreground': '198 16% 76%',
+  '--accent': '200 18% 18%',
+  '--accent-foreground': '196 50% 82%',
+  '--border': '205 16% 32%',
+  '--input': '205 16% 32%',
+  '--ring': '196 55% 62%',
+  '--kp-glow': '200 30% 26%',
+  '--kp-glow-2': '210 24% 18%',
+  '--kp-glow-3': '190 20% 16%',
+  '--kp-glass': '205 22% 12%',
+  '--kp-glass-edge': '198 30% 70%',
+  '--kp-specular': '196 40% 86%',
+  '--kp-lens': '196 40% 46%',
+  '--kp-canvas-wash': '204 30% 16%',
+}
+
+/** Forest — sage canvas, deep green accent. Light values start from #F3F8F1, #386A4B, #DFEBDD. */
+export const FOREST_LIGHT: ThemePalette = {
+  '--background': '103 33% 96%',
+  '--foreground': '137 26% 16%',
+  '--card': '0 0% 100%',
+  '--card-foreground': '137 26% 16%',
+  '--popover': '0 0% 100%',
+  '--popover-foreground': '137 26% 16%',
+  '--primary': '143 32% 27%',
+  '--primary-foreground': '0 0% 100%',
+  '--secondary': '111 26% 89%',
+  '--secondary-foreground': '137 26% 16%',
+  '--muted': '105 29% 92%',
+  '--muted-foreground': '135 16% 29%',
+  '--accent': '111 26% 89%',
+  '--accent-foreground': '144 35% 21%',
+  '--border': '120 16% 72%',
+  '--input': '120 16% 72%',
+  '--ring': '143 32% 27%',
+  '--kp-glow': '140 30% 72%',
+  '--kp-glow-2': '110 25% 80%',
+  '--kp-glow-3': '90 20% 78%',
+  '--kp-glass': '0 0% 100%',
+  '--kp-glass-edge': '110 25% 96%',
+  '--kp-specular': '100 30% 98%',
+  '--kp-lens': '142 30% 42%',
+  '--kp-canvas-wash': '110 30% 86%',
+}
+
+export const FOREST_DARK: ThemePalette = {
+  '--background': '140 14% 8%',
+  '--foreground': '120 25% 94%',
+  '--card': '140 12% 12%',
+  '--card-foreground': '120 25% 94%',
+  '--popover': '140 12% 13%',
+  '--popover-foreground': '120 25% 94%',
+  '--primary': '142 32% 58%',
+  '--primary-foreground': '140 30% 10%',
+  '--secondary': '140 10% 16%',
+  '--secondary-foreground': '120 20% 92%',
+  '--muted': '140 8% 14%',
+  '--muted-foreground': '130 12% 76%',
+  '--accent': '140 12% 18%',
+  '--accent-foreground': '140 30% 80%',
+  '--border': '140 10% 32%',
+  '--input': '140 10% 32%',
+  '--ring': '142 32% 58%',
+  '--kp-glow': '140 20% 24%',
+  '--kp-glow-2': '120 16% 18%',
+  '--kp-glow-3': '100 12% 16%',
+  '--kp-glass': '140 12% 12%',
+  '--kp-glass-edge': '130 20% 68%',
+  '--kp-specular': '120 25% 84%',
+  '--kp-lens': '142 28% 42%',
+  '--kp-canvas-wash': '140 18% 16%',
+}
+
+/**
+ * Spring — light olive and floral blush. Lighter and more delicate than Forest.
+ * Light values start from #F6FAF1, #657B46, #F4E6EB. The olive accent is slightly
+ * darker than the starting hex so white label text stays readable.
+ */
+export const SPRING_LIGHT: ThemePalette = {
+  '--background': '87 47% 96%',
+  '--foreground': '100 18% 16%',
+  '--card': '0 0% 100%',
+  '--card-foreground': '100 18% 16%',
+  '--popover': '0 0% 100%',
+  '--popover-foreground': '100 18% 16%',
+  '--primary': '85 28% 32%',
+  '--primary-foreground': '0 0% 100%',
+  '--secondary': '339 39% 93%',
+  '--secondary-foreground': '330 18% 24%',
+  '--muted': '90 24% 92%',
+  '--muted-foreground': '100 12% 30%',
+  '--accent': '339 39% 93%',
+  '--accent-foreground': '330 22% 28%',
+  '--border': '100 16% 74%',
+  '--input': '100 16% 74%',
+  '--ring': '85 28% 32%',
+  '--kp-glow': '90 28% 76%',
+  '--kp-glow-2': '340 30% 84%',
+  '--kp-glow-3': '80 20% 80%',
+  '--kp-glass': '0 0% 100%',
+  '--kp-glass-edge': '90 30% 96%',
+  '--kp-specular': '80 35% 98%',
+  '--kp-lens': '85 24% 46%',
+  '--kp-canvas-wash': '95 22% 88%',
+}
+
+export const SPRING_DARK: ThemePalette = {
+  '--background': '110 14% 8%',
+  '--foreground': '80 25% 94%',
+  '--card': '110 12% 12%',
+  '--card-foreground': '80 25% 94%',
+  '--popover': '110 12% 13%',
+  '--popover-foreground': '80 25% 94%',
+  '--primary': '88 32% 68%',
+  '--primary-foreground': '100 25% 12%',
+  '--secondary': '110 10% 16%',
+  '--secondary-foreground': '80 18% 90%',
+  '--muted': '110 8% 15%',
+  '--muted-foreground': '90 12% 76%',
+  '--accent': '330 12% 18%',
+  '--accent-foreground': '340 30% 82%',
+  '--border': '110 10% 32%',
+  '--input': '110 10% 32%',
+  '--ring': '88 32% 68%',
+  '--kp-glow': '95 18% 24%',
+  '--kp-glow-2': '330 14% 20%',
+  '--kp-glow-3': '80 12% 16%',
+  '--kp-glass': '110 12% 12%',
+  '--kp-glass-edge': '90 18% 68%',
+  '--kp-specular': '80 22% 84%',
+  '--kp-lens': '88 24% 44%',
+  '--kp-canvas-wash': '100 16% 16%',
+}
+
+/**
+ * Summer — golden cream with a coastal supporting tone. Distinct from Sunrise's peach.
+ * Light values start from #FFF9EC, #8D601B, #DDEDEA. The gold accent is slightly
+ * darker than the starting hex so white label text stays readable.
+ */
+export const SUMMER_LIGHT: ThemePalette = {
+  '--background': '41 100% 96%',
+  '--foreground': '36 28% 16%',
+  '--card': '0 0% 100%',
+  '--card-foreground': '36 28% 16%',
+  '--popover': '0 0% 100%',
+  '--popover-foreground': '36 28% 16%',
+  '--primary': '36 68% 30%',
+  '--primary-foreground': '0 0% 100%',
+  '--secondary': '169 31% 90%',
+  '--secondary-foreground': '170 30% 18%',
+  '--muted': '40 40% 92%',
+  '--muted-foreground': '36 16% 32%',
+  '--accent': '169 31% 90%',
+  '--accent-foreground': '172 40% 20%',
+  '--border': '40 18% 74%',
+  '--input': '40 18% 74%',
+  '--ring': '36 68% 30%',
+  '--kp-glow': '40 45% 74%',
+  '--kp-glow-2': '168 28% 80%',
+  '--kp-glow-3': '36 30% 78%',
+  '--kp-glass': '0 0% 100%',
+  '--kp-glass-edge': '42 40% 96%',
+  '--kp-specular': '40 50% 98%',
+  '--kp-lens': '38 40% 46%',
+  '--kp-canvas-wash': '42 50% 86%',
+}
+
+export const SUMMER_DARK: ThemePalette = {
+  '--background': '32 16% 8%',
+  '--foreground': '40 30% 94%',
+  '--card': '32 14% 12%',
+  '--card-foreground': '40 30% 94%',
+  '--popover': '32 14% 13%',
+  '--popover-foreground': '40 30% 94%',
+  '--primary': '40 48% 64%',
+  '--primary-foreground': '36 40% 12%',
+  '--secondary': '168 12% 16%',
+  '--secondary-foreground': '40 20% 90%',
+  '--muted': '32 10% 15%',
+  '--muted-foreground': '38 14% 76%',
+  '--accent': '168 14% 18%',
+  '--accent-foreground': '168 35% 78%',
+  '--border': '32 12% 32%',
+  '--input': '32 12% 32%',
+  '--ring': '40 48% 64%',
+  '--kp-glow': '38 24% 26%',
+  '--kp-glow-2': '168 16% 20%',
+  '--kp-glow-3': '32 14% 16%',
+  '--kp-glass': '32 14% 12%',
+  '--kp-glass-edge': '40 22% 70%',
+  '--kp-specular': '40 28% 84%',
+  '--kp-lens': '40 32% 44%',
+  '--kp-canvas-wash': '36 20% 16%',
+}
+
+/**
+ * Autumn — warm beige, copper, and tan. Richer and more subdued than Sunrise.
+ * Light values start from #FAF1E8, #FFFDF9, #945225, #EAD8C4. The copper accent
+ * is slightly darker than the starting hex so white label text stays readable.
+ */
+export const AUTUMN_LIGHT: ThemePalette = {
+  '--background': '30 64% 95%',
+  '--foreground': '22 28% 16%',
+  '--card': '40 100% 99%',
+  '--card-foreground': '22 28% 16%',
+  '--popover': '40 100% 99%',
+  '--popover-foreground': '22 28% 16%',
+  '--primary': '24 58% 32%',
+  '--primary-foreground': '0 0% 100%',
+  '--secondary': '32 47% 84%',
+  '--secondary-foreground': '24 30% 20%',
+  '--muted': '30 30% 90%',
+  '--muted-foreground': '22 16% 32%',
+  '--accent': '32 47% 84%',
+  '--accent-foreground': '22 40% 24%',
+  '--border': '28 20% 72%',
+  '--input': '28 20% 72%',
+  '--ring': '24 58% 32%',
+  '--kp-glow': '26 35% 70%',
+  '--kp-glow-2': '32 28% 78%',
+  '--kp-glow-3': '18 22% 74%',
+  '--kp-glass': '40 40% 99%',
+  '--kp-glass-edge': '32 30% 94%',
+  '--kp-specular': '36 40% 98%',
+  '--kp-lens': '24 36% 44%',
+  '--kp-canvas-wash': '28 35% 84%',
+}
+
+export const AUTUMN_DARK: ThemePalette = {
+  '--background': '20 18% 8%',
+  '--foreground': '30 28% 94%',
+  '--card': '20 16% 12%',
+  '--card-foreground': '30 28% 94%',
+  '--popover': '20 16% 13%',
+  '--popover-foreground': '30 28% 94%',
+  '--primary': '24 46% 62%',
+  '--primary-foreground': '20 40% 12%',
+  '--secondary': '22 12% 16%',
+  '--secondary-foreground': '30 20% 90%',
+  '--muted': '20 10% 15%',
+  '--muted-foreground': '28 14% 76%',
+  '--accent': '22 14% 18%',
+  '--accent-foreground': '28 40% 78%',
+  '--border': '20 12% 32%',
+  '--input': '20 12% 32%',
+  '--ring': '24 46% 62%',
+  '--kp-glow': '22 22% 26%',
+  '--kp-glow-2': '28 16% 18%',
+  '--kp-glow-3': '16 12% 16%',
+  '--kp-glass': '20 16% 12%',
+  '--kp-glass-edge': '28 20% 68%',
+  '--kp-specular': '30 24% 84%',
+  '--kp-lens': '24 30% 42%',
+  '--kp-canvas-wash': '18 18% 16%',
+}
+
+/**
+ * Winter — cool white, frosted slate, and lavender-gray. Quieter than Ocean.
+ * Light values start from #F3F5FA, #53627F, #E1E7F2. The slate accent is slightly
+ * darker than the starting hex so white label text stays readable.
+ */
+export const WINTER_LIGHT: ThemePalette = {
+  '--background': '223 41% 97%',
+  '--foreground': '222 22% 16%',
+  '--card': '0 0% 100%',
+  '--card-foreground': '222 22% 16%',
+  '--popover': '0 0% 100%',
+  '--popover-foreground': '222 22% 16%',
+  '--primary': '220 24% 36%',
+  '--primary-foreground': '0 0% 100%',
+  '--secondary': '219 40% 92%',
+  '--secondary-foreground': '222 20% 22%',
+  '--muted': '222 24% 93%',
+  '--muted-foreground': '222 12% 34%',
+  '--accent': '219 40% 92%',
+  '--accent-foreground': '226 22% 28%',
+  '--border': '222 16% 76%',
+  '--input': '222 16% 76%',
+  '--ring': '220 24% 36%',
+  '--kp-glow': '220 22% 76%',
+  '--kp-glow-2': '250 18% 82%',
+  '--kp-glow-3': '210 16% 80%',
+  '--kp-glass': '0 0% 100%',
+  '--kp-glass-edge': '222 25% 96%',
+  '--kp-specular': '220 30% 98%',
+  '--kp-lens': '222 18% 48%',
+  '--kp-canvas-wash': '222 25% 88%',
+}
+
+export const WINTER_DARK: ThemePalette = {
+  '--background': '222 12% 8%',
+  '--foreground': '220 20% 94%',
+  '--card': '222 10% 12%',
+  '--card-foreground': '220 20% 94%',
+  '--popover': '222 10% 13%',
+  '--popover-foreground': '220 20% 94%',
+  '--primary': '220 22% 72%',
+  '--primary-foreground': '222 25% 12%',
+  '--secondary': '222 8% 16%',
+  '--secondary-foreground': '220 16% 90%',
+  '--muted': '222 6% 15%',
+  '--muted-foreground': '220 10% 76%',
+  '--accent': '250 10% 18%',
+  '--accent-foreground': '230 25% 84%',
+  '--border': '222 8% 32%',
+  '--input': '222 8% 32%',
+  '--ring': '220 22% 72%',
+  '--kp-glow': '220 16% 26%',
+  '--kp-glow-2': '250 12% 20%',
+  '--kp-glow-3': '210 10% 16%',
+  '--kp-glass': '222 10% 12%',
+  '--kp-glass-edge': '220 16% 70%',
+  '--kp-specular': '220 18% 86%',
+  '--kp-lens': '222 16% 46%',
+  '--kp-canvas-wash': '224 14% 16%',
+}
+
+export const FAMILY_PALETTES: Record<
+  Exclude<ThemeFamily, 'classic'>,
+  { light: ThemePalette; dark: ThemePalette }
+> = {
+  sunrise: { light: SUNRISE_LIGHT, dark: SUNRISE_DARK },
+  sunset: { light: SUNSET_LIGHT, dark: SUNSET_DARK },
+  ocean: { light: OCEAN_LIGHT, dark: OCEAN_DARK },
+  forest: { light: FOREST_LIGHT, dark: FOREST_DARK },
+  spring: { light: SPRING_LIGHT, dark: SPRING_DARK },
+  summer: { light: SUMMER_LIGHT, dark: SUMMER_DARK },
+  autumn: { light: AUTUMN_LIGHT, dark: AUTUMN_DARK },
+  winter: { light: WINTER_LIGHT, dark: WINTER_DARK },
+}
+
+export const THEME_GROUPS = ['Classic', 'Atmosphere', 'Seasonal'] as const
+
+export const THEME_CHOICES: {
+  id: ThemeFamily
+  label: string
+  note: string
+  group: (typeof THEME_GROUPS)[number]
+}[] = [
+  { id: 'classic', label: 'Classic', note: 'Calm neutral', group: 'Classic' },
+  { id: 'sunrise', label: 'Sunrise', note: 'Warm and bright', group: 'Atmosphere' },
+  { id: 'sunset', label: 'Sunset', note: 'Soft evening', group: 'Atmosphere' },
+  { id: 'ocean', label: 'Ocean', note: 'Cool and clear', group: 'Atmosphere' },
+  { id: 'forest', label: 'Forest', note: 'Quiet green', group: 'Atmosphere' },
+  { id: 'spring', label: 'Spring', note: 'Fresh and floral', group: 'Seasonal' },
+  { id: 'summer', label: 'Summer', note: 'Golden and coastal', group: 'Seasonal' },
+  { id: 'autumn', label: 'Autumn', note: 'Warm and earthy', group: 'Seasonal' },
+  { id: 'winter', label: 'Winter', note: 'Quiet and cool', group: 'Seasonal' },
+]
+
+export function themeLabel(family: ThemeFamily) {
+  return THEME_CHOICES.find((choice) => choice.id === family)?.label ?? 'Classic'
+}
+
+/** Swatch palette for the appearance currently in effect. */
+export function themeSwatch(family: ThemeFamily, appearance: 'light' | 'dark'): ThemePalette {
+  return themePalette(family, appearance)
+}
+
+export function themePalette(family: ThemeFamily, appearance: 'light' | 'dark'): ThemePalette {
+  if (family === 'classic') return appearance === 'dark' ? CLASSIC_DARK : CLASSIC_LIGHT
+  return FAMILY_PALETTES[family][appearance]
+}

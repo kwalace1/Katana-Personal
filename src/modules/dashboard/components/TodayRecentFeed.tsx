@@ -13,7 +13,7 @@ import { FeedAvatar, profilePath, relativeWhen } from '@/modules/social/componen
 
 const LIMIT = 5
 
-export function TodayRecentFeed() {
+export function TodayRecentFeed({ hideEmpty = false }: { hideEmpty?: boolean }) {
   const { cloudEnabled, cloudUser, cloudProfile } = useCloudAuth()
   const [posts, setPosts] = useState<RankedPost[]>([])
   const [names, setNames] = useState<Record<string, string>>({})
@@ -46,6 +46,8 @@ export function TodayRecentFeed() {
   }, [cloudEnabled, cloudUser])
 
   const selfName = cloudProfile?.displayName || 'You'
+  const empty = !cloudEnabled || !cloudUser || posts.length === 0
+  if (hideEmpty && (loading || empty)) return null
 
   return (
     <section className="mb-3">

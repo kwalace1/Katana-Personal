@@ -5,6 +5,7 @@ import { CheckSquare, Dumbbell, LogOut, Salad, Trash2, Users } from 'lucide-reac
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
 import { TogetherSetup } from '@/components/TogetherSetup'
 import {
   Dialog,
@@ -251,7 +252,17 @@ export default function SharedPage() {
       {items.length === 0 ? (
         <>
           <TogetherSetup highlight="shared" compact cloudConnected className="mb-4" />
-          <p className="text-sm text-muted-foreground">Nothing shared yet. Share a task from Tasks.</p>
+          <EmptyState
+            compact
+            plain
+            title="Nothing shared yet"
+            description="Share a task from Tasks and it will show up here."
+            action={
+              <Button asChild>
+                <Link to="/tasks">Open Tasks</Link>
+              </Button>
+            }
+          />
         </>
       ) : (
         <ul className="kp-surface divide-y">

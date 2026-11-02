@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
 import { todayKey } from '@/lib/dates'
 import { formatMealTime } from '../../api'
 import { formatLb, formatSplitExerciseLine, liftApi } from '../../lift-api'
@@ -199,7 +200,9 @@ export function LiftOverviewPanel({ userId, tick, refresh, onGoLift, onGoSplits 
         <HealthInner className="mt-4">
           <p className="text-sm font-medium">{formatLiftDate(selectedDate)}</p>
           {dayDetail.sessions.length === 0 && !dayDetail.weight ? (
-            <p className="mt-1 text-sm text-muted-foreground">Nothing logged this day.</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Nothing logged this day. Sessions and weigh-ins show up here.
+            </p>
           ) : (
             <ul className="mt-2 space-y-2">
               {dayDetail.sessions.map((s) => (
@@ -237,7 +240,20 @@ export function LiftOverviewPanel({ userId, tick, refresh, onGoLift, onGoSplits 
         <div className="kp-surface p-4">
           <HealthCardHeader eyebrow="Recent" title="Workouts" />
           {sessions.length === 0 ? (
-            <p className="mt-3 text-sm text-muted-foreground">No lifts yet.</p>
+            <EmptyState
+              compact
+              plain
+              className="px-0"
+              title="No sessions yet"
+              description="Workouts you log will show up here."
+              action={
+                onGoLift ? (
+                  <Button type="button" size="sm" onClick={onGoLift}>
+                    Log a session
+                  </Button>
+                ) : undefined
+              }
+            />
           ) : (
             <ul className="mt-3 divide-y border-t border-border">
               {sessions.slice(0, 4).map((s) => {
@@ -267,7 +283,20 @@ export function LiftOverviewPanel({ userId, tick, refresh, onGoLift, onGoSplits 
             }
           />
           {!activeSplit ? (
-            <p className="mt-3 text-sm text-muted-foreground">No active split.</p>
+            <EmptyState
+              compact
+              plain
+              className="px-0"
+              title="No active split"
+              description="Choose a routine and it will show up here."
+              action={
+                onGoSplits ? (
+                  <Button type="button" size="sm" onClick={onGoSplits}>
+                    Browse splits
+                  </Button>
+                ) : undefined
+              }
+            />
           ) : (
             <ul className="mt-3 divide-y border-t border-border">
               {activeSplit.days.slice(0, 7).map((day, i) => (

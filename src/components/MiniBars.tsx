@@ -11,11 +11,11 @@ export function MiniBars({
   return (
     <div>
       <p className="mb-2 text-xs font-medium text-muted-foreground">{label}</p>
-      <div className="flex h-16 items-end gap-1">
+      <div className="flex h-10 items-end gap-1">
         {values.map((v, i) => (
           <div
             key={i}
-            className="flex-1 rounded-t-sm bg-primary/70 transition-all"
+            className="kp-chart-bar flex-1 rounded-t-sm bg-primary/70 transition-all"
             style={{ height: `${Math.max(4, (v / max) * 100)}%` }}
             title={String(v)}
           />
@@ -23,10 +23,6 @@ export function MiniBars({
       </div>
     </div>
   )
-}
-
-export function MoodSparkline({ moods }: { moods: number[] }) {
-  return <LineSparkline values={moods} fixedMax={4} />
 }
 
 /** Simple line chart for progress / body-weight series. */
@@ -62,6 +58,7 @@ export function LineSparkline({
           y2={yFor(target)}
           stroke="hsl(var(--muted-foreground))"
           strokeWidth="1"
+          className="kp-chart-target"
           strokeDasharray="4 3"
           opacity={0.5}
         />

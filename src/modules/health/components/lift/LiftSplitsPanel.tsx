@@ -1,7 +1,8 @@
 import { FormEvent, useMemo, useState } from 'react'
-import { Lock, Plus, Share2, Trash2 } from 'lucide-react'
+import { LayoutList, Lock, Plus, Share2, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
 import {
   EXERCISE_LIBRARY_NAMES,
@@ -13,7 +14,7 @@ import {
 } from '../../lift-api'
 import type { SplitDay, SplitPattern } from '../../types'
 import { cn } from '@/lib/utils'
-import { HealthCardHeader, HealthInner, HealthPill, HealthSegmented } from '../health-ui'
+import { HealthInner, HealthPill, HealthSegmented } from '../health-ui'
 import { WORKOUT_PROGRAMS, type WorkoutProgram } from '../../workout-programs'
 import { ShareAudiencePicker, type ShareAudienceSelection } from '@/components/ShareAudiencePicker'
 import { PlusPaywallSheet, usePlusStatus } from '@/components/PlusPaywall'
@@ -43,8 +44,6 @@ type Props = {
 
 type DraftExercise = { key: string; name: string; sets: string; repMin: string; repMax: string }
 type DraftDay = { key: string; name: string; focus: string; exercises: DraftExercise[] }
-
-const WEEKDAY_LABELS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
 let splitDraftKey = 0
 function nextSplitKey(prefix: string) {
@@ -77,18 +76,50 @@ function draftToExercises(exercises: DraftExercise[]): SplitDay['exercises'] {
     .filter((exercise) => exercise.name)
 }
 
-function weekdayDaysFromTrackerLabels(workouts: string[], previous?: DraftDay[]): DraftDay[] {
-  const byLabel: Record<string, string> = {}
-  WEEKDAY_LABELS.forEach((label, i) => {
-    byLabel[label] = workouts[i] || previous?.[i]?.focus || ''
+const SUN_SAT = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+function isRestDay(day: DraftDay): boolean {
+  const name = day.name.trim()
+  const focus = day.focus.trim()
+  return /^(rest|recovery)$/i.test(name) || /^(rest|recovery)$/i.test(focus)
+}
+
+/** Workout label for a weekday row. Rest days stay blank so the field reads as rest. */
+function weekdayWorkoutLabel(day: DraftDay): string {
+  if (isRestDay(day)) return ''
+  const name = day.name.trim()
+  const focus = day.focus.trim()
+  const generic = /^day \d+$/i.test(name) || SUN_SAT.includes(name)
+  if (!name || generic) return focus
+  if (!focus) return name
+  return `${name} — ${focus}`
+}
+
+/**
+ * Lay a repeating cycle across Sunday–Saturday.
+ * Push/Pull/Legs/Rest stays in order: Push, Pull, Legs, Rest, Push, Pull, Legs.
+ * Cycles that would put the same session on Saturday and Sunday (Upper/Lower/Rest)
+ * start on their rest day, so the weekend is rest instead of Upper back to back.
+ */
+function cycleToWeekdays(previous: DraftDay[]): DraftDay[] {
+  let source = previous.length ? [...previous] : []
+  if (source.length > 1 && 6 % source.length === 0) {
+    const restIndex = source.findIndex(isRestDay)
+    if (restIndex > 0) source = [...source.slice(restIndex), ...source.slice(0, restIndex)]
+  }
+  const days = SUN_SAT.map((label, i) => {
+    const from = source.length ? source[i % source.length] : undefined
+    return {
+      key: nextSplitKey('day'),
+      name: label,
+      focus: from ? weekdayWorkoutLabel(from) : '',
+      exercises: from?.exercises.map((exercise) => ({ ...exercise, key: nextSplitKey('ex') })) || [],
+    }
   })
-  const sunSat = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-  return sunSat.map((label, i) => ({
-    key: previous?.[i]?.key || nextSplitKey('day'),
-    name: label,
-    focus: byLabel[label] || previous?.[i]?.focus || '',
-    exercises: previous?.[i]?.exercises?.map((exercise) => ({ ...exercise })) || [],
-  }))
+  if (days[0]?.focus && days[0].focus === days[6]?.focus) {
+    days[6] = { ...days[6], focus: '', exercises: [] }
+  }
+  return days
 }
 
 function cycleDays(count: number, previous?: DraftDay[]): DraftDay[] {
@@ -141,6 +172,8 @@ export function LiftSplitsPanel({ userId, tick, refresh, onGoLift }: Props) {
     hasAny: false,
   })
   const [sharing, setSharing] = useState(false)
+  const [view, setView] = useState<'list' | 'create' | 'programs'>('list')
+  const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null)
 
   function resetForm() {
     setEditingSplitId(null)
@@ -149,9 +182,19 @@ export function LiftSplitsPanel({ userId, tick, refresh, onGoLift }: Props) {
     setDays(cycleDays(4))
   }
 
+  function openCreate() {
+    resetForm()
+    setView('create')
+  }
+
+  function closeEditor() {
+    resetForm()
+    setView('list')
+  }
+
   function switchPattern(next: SplitPattern) {
     setPattern(next)
-    setDays((prev) => (next === 'weekdays' ? weekdayDaysFromTrackerLabels(Array(7).fill(''), prev) : cycleDays(Math.max(4, prev.length), prev)))
+    setDays((prev) => (next === 'weekdays' ? cycleToWeekdays(prev) : cycleDays(Math.max(4, prev.length), prev)))
   }
 
   function applyPreset(preset: (typeof SPLIT_PRESETS)[number]) {
@@ -170,7 +213,7 @@ export function LiftSplitsPanel({ userId, tick, refresh, onGoLift }: Props) {
   function applyProgram(program: WorkoutProgram) {
     if (program.premium && !canUsePlusFeature('programs')) {
       setPlusOpen(true)
-      return
+      return false
     }
     setName(program.name)
     setPattern(program.pattern)
@@ -183,6 +226,14 @@ export function LiftSplitsPanel({ userId, tick, refresh, onGoLift }: Props) {
       })),
     )
     toast.message(`${program.name} loaded — review and save it`)
+    return true
+  }
+
+  function useProgram(program: WorkoutProgram) {
+    if (!applyProgram(program)) return
+    setSelectedProgramId(null)
+    setView('create')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   function startEditSplit(split: TrainingSplit) {
@@ -190,6 +241,7 @@ export function LiftSplitsPanel({ userId, tick, refresh, onGoLift }: Props) {
     setName(split.name)
     setPattern(split.pattern)
     setDays(splitToDraft(split))
+    setView('create')
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -233,7 +285,7 @@ export function LiftSplitsPanel({ userId, tick, refresh, onGoLift }: Props) {
       active: existing ? existing.active : true,
     })
     toast.success(editingSplitId ? 'Split updated' : 'Split saved')
-    resetForm()
+    closeEditor()
     refresh()
   }
 
@@ -280,6 +332,105 @@ export function LiftSplitsPanel({ userId, tick, refresh, onGoLift }: Props) {
 
   return (
     <div className="space-y-3">
+      {view === 'list' && splits.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" size="sm" className="gap-1.5" onClick={openCreate}>
+            <Plus className="h-4 w-4" />
+            Create split
+          </Button>
+          <Button type="button" size="sm" variant="outline" onClick={() => setView('programs')}>
+            Browse programs
+          </Button>
+        </div>
+      ) : null}
+
+      {view === 'list' && splits.length === 0 ? (
+        <EmptyState
+          compact
+          plain
+          icon={LayoutList}
+          title="Build a split"
+          description="Create your own, or start from a program."
+          action={
+            <Button type="button" className="gap-1.5" onClick={openCreate}>
+              <Plus className="h-4 w-4" />
+              Create split
+            </Button>
+          }
+          secondaryAction={
+            <Button type="button" variant="outline" onClick={() => setView('programs')}>
+              Browse programs
+            </Button>
+          }
+        />
+      ) : null}
+
+      {view === 'programs' ? (
+        <div>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <h3 className="font-display text-lg tracking-tight">Programs</h3>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setSelectedProgramId(null)
+                setView('list')
+              }}
+            >
+              Back
+            </Button>
+          </div>
+          <ul className="divide-y border-y border-border">
+            {WORKOUT_PROGRAMS.map((program) => {
+              const open = selectedProgramId === program.id
+              return (
+                <li key={program.id}>
+                  <button
+                    type="button"
+                    aria-expanded={open}
+                    onClick={() => setSelectedProgramId(open ? null : program.id)}
+                    className="flex w-full items-start justify-between gap-3 py-3 text-left"
+                  >
+                    <span className="min-w-0">
+                      <span className="block font-medium">{program.name}</span>
+                      <span className="mt-0.5 block text-xs text-muted-foreground">
+                        {program.level} · {program.daysPerWeek} days/week
+                      </span>
+                    </span>
+                    {program.premium && !plus ? (
+                      <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    ) : null}
+                  </button>
+                  {open ? (
+                    <div className="pb-3">
+                      <p className="text-sm leading-relaxed text-muted-foreground">{program.description}</p>
+                      <ul className="mt-2 space-y-1.5">
+                        {program.days.map((day, index) => (
+                          <li key={`${program.id}-${index}`} className="text-sm">
+                            <span className="font-medium">{day.name}</span>
+                            {day.focus ? <span className="text-muted-foreground"> · {day.focus}</span> : null}
+                            {day.exercises?.length ? (
+                              <span className="mt-0.5 block text-xs text-muted-foreground">
+                                {day.exercises.map((exercise) => formatSplitExerciseLine(exercise)).join(' · ')}
+                              </span>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ul>
+                      <Button type="button" size="sm" className="mt-3" onClick={() => useProgram(program)}>
+                        Use this program
+                      </Button>
+                    </div>
+                  ) : null}
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      ) : null}
+
+      {view === 'create' ? (
       <form
         onSubmit={save}
         className={cn('kp-surface space-y-3 p-4', editingSplitId && 'ring-2 ring-primary/20')}
@@ -289,18 +440,17 @@ export function LiftSplitsPanel({ userId, tick, refresh, onGoLift }: Props) {
             <option key={n} value={n} />
           ))}
         </datalist>
-        <HealthCardHeader
-          eyebrow={editingSplitId ? 'Editing split' : 'Training split'}
-          title={editingSplitId ? 'Update split' : 'Create split'}
-          description="Name the routine, then add exercises, sets, and rep ranges for each day."
-          actions={
-            editingSplitId ? (
-              <Button type="button" size="sm" variant="ghost" className="text-muted-foreground" onClick={resetForm}>
-                Cancel
-              </Button>
-            ) : null
-          }
-        />
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="font-display text-lg tracking-tight">
+            {editingSplitId ? 'Update split' : 'Create split'}
+          </h3>
+          <Button type="button" size="sm" variant="ghost" onClick={closeEditor}>
+            Cancel
+          </Button>
+        </div>
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          Name the routine, then add exercises, sets, and rep ranges for each day.
+        </p>
 
         <div className="flex flex-wrap gap-2">
           {SPLIT_PRESETS.map((preset) => (
@@ -308,33 +458,6 @@ export function LiftSplitsPanel({ userId, tick, refresh, onGoLift }: Props) {
               {preset.name}
             </Button>
           ))}
-        </div>
-
-        <div className="space-y-2">
-          <p className="kp-section-label">Pre-made programs</p>
-          <div>
-            {WORKOUT_PROGRAMS.map((program) => (
-              <button
-                key={program.id}
-                type="button"
-                onClick={() => applyProgram(program)}
-                className="border-t border-border py-2.5 text-left transition hover:bg-secondary/40"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <p className="font-semibold">{program.name}</p>
-                  {program.premium && !plus ? (
-                    <Lock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                  ) : null}
-                </div>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  {program.level} · {program.daysPerWeek} days/week
-                </p>
-                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                  {program.description}
-                </p>
-              </button>
-            ))}
-          </div>
         </div>
 
         <Input placeholder="Split name" value={name} onChange={(e) => setName(e.target.value)} />
@@ -535,13 +658,11 @@ export function LiftSplitsPanel({ userId, tick, refresh, onGoLift }: Props) {
           <Button type="submit">{editingSplitId ? 'Save changes' : 'Save split'}</Button>
         </div>
       </form>
+      ) : null}
 
+      {view === 'list' && splits.length > 0 ? (
       <div>
-        <p className="kp-section-label">Library</p>
-        <h3 className="mb-3 mt-1 font-display text-lg tracking-tight">Saved splits</h3>
-        {splits.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No splits yet.</p>
-        ) : (
+        <h3 className="mb-3 font-display text-lg tracking-tight">Saved splits</h3>
           <ul className="space-y-3">
             {splits.map((split) => (
               <li
@@ -604,7 +725,7 @@ export function LiftSplitsPanel({ userId, tick, refresh, onGoLift }: Props) {
                       size="icon"
                       variant="ghost"
                       onClick={() => {
-                        if (editingSplitId === split.id) resetForm()
+                        if (editingSplitId === split.id) closeEditor()
                         liftApi.removeSplit(userId, split.id)
                         refresh()
                       }}
@@ -642,8 +763,8 @@ export function LiftSplitsPanel({ userId, tick, refresh, onGoLift }: Props) {
               </li>
             ))}
           </ul>
-        )}
       </div>
+      ) : null}
       <Dialog open={Boolean(shareSplit)} onOpenChange={(open) => !open && setShareSplit(null)}>
         <DialogContent className="max-h-[85vh] max-w-md overflow-y-auto">
           <DialogHeader>

@@ -1,3 +1,4 @@
+import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useAuth } from '@/contexts/AuthContext'
 import { cn } from '@/lib/utils'
@@ -6,10 +7,17 @@ import { SettingsDetail, SettingsPanel } from '../components/settings-ui'
 
 export function SettingsAskPage() {
   const { profile, updatePreferences } = useAuth()
+  const [params] = useSearchParams()
+  const fromAsk = params.get('from') === 'ask'
   const askPersonality = parseAskPersonality(profile?.preferences)
 
   return (
-    <SettingsDetail title="Ask coach voice" description="How Katana talks to you in Ask — set once, change anytime.">
+    <SettingsDetail
+      title="Ask coach voice"
+      description="How Katana talks to you in Ask — set once, change anytime."
+      backTo={fromAsk ? '/ask' : '/settings'}
+      backLabel={fromAsk ? 'Ask' : 'Settings'}
+    >
       <SettingsPanel className="divide-y space-y-0 p-0">
         {ASK_PERSONALITIES.map((p) => {
           const on = askPersonality === p.id

@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { CheckCircle2, Send, Sparkles, Trash2 } from 'lucide-react'
+import { CheckCircle2, ChevronDown, Send, Sparkles, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
 import { FilterChip } from '@/components/ui/filter-chip'
@@ -60,6 +60,8 @@ export default function AskPage() {
   const [statusLabel, setStatusLabel] = useState<string | null>(null)
   const [streamingId, setStreamingId] = useState<string | null>(null)
   const [plusOpen, setPlusOpen] = useState(false)
+  const [promptsOpen, setPromptsOpen] = useState(false)
+  const [openActions, setOpenActions] = useState<Record<string, true>>({})
   const [llmHint, setLlmHint] = useState<string | null>(null)
   const seededQ = useRef(false)
   const plus = usePlusStatus()
@@ -71,7 +73,6 @@ export default function AskPage() {
 
   const llmLeft = plus ? null : freeLlmAsksRemaining()
   const modeMeta = ASK_PERSONALITIES.find((p) => p.id === personality) || ASK_PERSONALITIES[0]!
-  const emptyChat = messages.filter((m) => m.role === 'you').length === 0
   const emptyPrompts = useMemo(() => {
     const hour = suggestedAsksForHour()
     const merged = [...hour, ...STARTER_PROMPTS]
@@ -329,7 +330,7 @@ export default function AskPage() {
   return (
     <motion.div
       {...pageEnterSubtle}
-      className="kp-page relative mx-auto flex h-[calc(100dvh-3.75rem)] max-w-2xl flex-col overflow-hidden !py-4 md:h-[100dvh] md:!py-6 lg:!py-6"
+      className="kp-page relative mx-auto flex h-[calc(100dvh-max(0.5rem,env(safe-area-inset-top,0px))-4.5rem-env(safe-area-inset-bottom,0px))] max-w-2xl flex-col overflow-hidden !py-4 md:h-[100dvh] md:!py-6 lg:!py-6"
     >
       <div className="relative flex min-h-0 flex-1 flex-col">
         <PageHeader
@@ -339,7 +340,7 @@ export default function AskPage() {
           actions={
             <div className="flex flex-wrap items-center gap-2">
               <Button asChild variant="ghost" size="sm" className="text-xs">
-                <Link to="/settings/ask">Voice · {modeMeta.label}</Link>
+                <Link to="/settings/ask?from=ask">Voice · {modeMeta.label}</Link>
               </Button>
               {messages.length > 1 ? (
                 <Button
@@ -385,28 +386,6 @@ export default function AskPage() {
         {llmHint ? <p className="mb-2 shrink-0 text-xs text-muted-foreground">{llmHint}</p> : null}
 
         <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.75rem] border border-border/50 bg-gradient-to-b from-card/95 via-background/85 to-card/60 shadow-[0_20px_50px_-28px_hsl(200_25%_10%/0.35)]">
-          <div className="flex shrink-0 items-center gap-3 border-b border-border/40 px-4 py-3 sm:px-5">
-            <span className="relative flex h-9 w-9 items-center justify-center rounded-2xl bg-primary/15 text-primary">
-              <Sparkles className="h-4 w-4" />
-              {pending ? (
-                <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 animate-pulse rounded-full bg-primary ring-2 ring-background" />
-              ) : null}
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold tracking-tight">Katana Ask</p>
-              <p className="truncate text-[0.7rem] text-muted-foreground">
-                {pending
-                  ? statusLabel || coachThinkingLabel(personality)
-                  : `${modeMeta.label} · sees your life data`}
-              </p>
-            </div>
-            {pending ? (
-              <span className="hidden rounded-md bg-primary/10 px-2 py-1 text-[0.65rem] font-medium text-primary sm:inline">
-                Working
-              </span>
-            ) : null}
-          </div>
-
           <div
             className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4 sm:px-5"
             role="log"
@@ -451,24 +430,49 @@ export default function AskPage() {
                       <span className="ml-0.5 inline-block h-3 w-1.5 animate-pulse rounded-sm bg-primary/70 align-middle" />
                     ) : null}
                     {m.role === 'katana' && m.actions.length > 0 && !isStreaming ? (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {m.actions.map((action) => {
-                          const key = `${m.id}:${action.id}`
-                          const used = Boolean(spent[key])
-                          return (
-                            <Button
-                              key={action.id}
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              disabled={used || pending}
-                              className="px-3 text-xs"
-                              onClick={() => onAction(action, m)}
-                            >
-                              {used ? 'Done' : action.label}
-                            </Button>
-                          )
-                        })}
+                      <div className="mt-3">
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground"
+                          aria-expanded={Boolean(openActions[m.id])}
+                          onClick={() =>
+                            setOpenActions((current) => {
+                              const next = { ...current }
+                              if (next[m.id]) delete next[m.id]
+                              else next[m.id] = true
+                              return next
+                            })
+                          }
+                        >
+                          {m.actions.length === 1 ? '1 action' : `${m.actions.length} actions`}
+                          <ChevronDown
+                            className={cn(
+                              'h-3.5 w-3.5 transition',
+                              openActions[m.id] && 'rotate-180',
+                            )}
+                          />
+                        </button>
+                        {openActions[m.id] ? (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {m.actions.map((action) => {
+                              const key = `${m.id}:${action.id}`
+                              const used = Boolean(spent[key])
+                              return (
+                                <Button
+                                  key={action.id}
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={used || pending}
+                                  className="px-3 text-xs"
+                                  onClick={() => onAction(action, m)}
+                                >
+                                  {used ? 'Done' : action.label}
+                                </Button>
+                              )
+                            })}
+                          </div>
+                        ) : null}
                       </div>
                     ) : null}
                   </div>
@@ -476,17 +480,44 @@ export default function AskPage() {
               )
             })}
 
-            {emptyChat ? (
-              <div className="flex flex-wrap gap-2 pt-1">
+            <div ref={bottomRef} />
+          </div>
+
+          <div className="max-h-[40%] shrink-0 overflow-y-auto border-t border-border/40 px-3 py-2 sm:px-4">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="gap-1.5 px-2 text-muted-foreground"
+              aria-expanded={promptsOpen}
+              onClick={() => setPromptsOpen((open) => !open)}
+            >
+              Suggested prompts
+              <ChevronDown className={cn('h-3.5 w-3.5 transition', promptsOpen && 'rotate-180')} />
+            </Button>
+            {promptsOpen ? (
+              <div className="mt-2 flex flex-wrap gap-2">
                 {emptyPrompts.map((prompt) => (
-                  <FilterChip key={prompt} disabled={pending} onClick={() => void ask(prompt)}>
+                  <FilterChip
+                    key={prompt}
+                    disabled={pending}
+                    onClick={() => {
+                      setPromptsOpen(false)
+                      void ask(prompt)
+                    }}
+                  >
                     {prompt}
                   </FilterChip>
                 ))}
               </div>
             ) : null}
-            <div ref={bottomRef} />
           </div>
+
+          {pending ? (
+            <p className="shrink-0 px-4 pb-1 text-xs text-muted-foreground">
+              {statusLabel || coachThinkingLabel(personality)}
+            </p>
+          ) : null}
 
           <form
             onSubmit={onSubmit}

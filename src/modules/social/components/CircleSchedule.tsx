@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -331,7 +332,17 @@ export function CircleSchedule({
       ) : null}
 
       {events.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No plans yet.</p>
+        <EmptyState
+          compact
+          plain
+          title="No plans yet"
+          description="Add a plan and it will show on the week."
+          action={
+            <Button type="button" onClick={() => openAdd()}>
+              Add plan
+            </Button>
+          }
+        />
       ) : null}
 
       <Dialog open={addOpen} onOpenChange={setAddOpen}>

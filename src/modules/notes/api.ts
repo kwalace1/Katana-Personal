@@ -14,6 +14,21 @@ export function noteTitleFromInput(title: string | undefined | null): string {
   return (title ?? '').trim() || 'Untitled'
 }
 
+/** Plain-text excerpt for the notes list. Empty when the body has no visible text. */
+export function notePreviewText(body: string | undefined | null): string {
+  return (body ?? '')
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/`([^`]*)`/g, '$1')
+    .replace(/!\[[^\]]*]\([^)]*\)/g, ' ')
+    .replace(/\[([^\]]*)]\([^)]*\)/g, '$1')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/^\s*>\s?/gm, '')
+    .replace(/^\s*[-*+]\s+/gm, '')
+    .replace(/[*_~]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 function normalizeNote(note: Note): Note {
   return {
     ...note,
