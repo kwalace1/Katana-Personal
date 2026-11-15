@@ -1173,12 +1173,12 @@ export const SUGGESTED_ASKS = [
 /** Time-aware chips for Ask — keeps demos feeling alive without an LLM. */
 export function suggestedAsksForHour(hour = new Date().getHours()): string[] {
   if (hour < 12) {
-    return ['Clear my morning', 'What should I work on today?', 'Invite a friend']
+    return ['Clear my morning', 'What’s my one next move?', 'Hold me to my top priority']
   }
   if (hour < 17) {
-    return ['What should I work on today?', 'What’s shared with me?', 'How are my Circles?']
+    return ['What’s my one next move?', 'Am I avoiding something?', 'What’s shared with me?']
   }
-  return ['Close my day', 'Prep for tomorrow', 'How are my Circles?']
+  return ['Close my day', 'Did I keep my commitments?', 'Prep for tomorrow']
 }
 
 function tryParseCreate(question: string): AskReply | null {

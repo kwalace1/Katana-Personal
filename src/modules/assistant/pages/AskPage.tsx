@@ -38,9 +38,9 @@ import {
 } from '../personality'
 
 const STARTER_PROMPTS = [
-  'What should I work on today?',
+  'What’s my one next move?',
+  'Hold me to my top priority',
   'Help me plan around my calendar',
-  'How’s my week looking?',
   'Add gym tomorrow 7am',
 ] as const
 

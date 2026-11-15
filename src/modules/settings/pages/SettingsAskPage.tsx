@@ -14,7 +14,7 @@ export function SettingsAskPage() {
   return (
     <SettingsDetail
       title="Ask coach voice"
-      description="How Katana talks to you in Ask — set once, change anytime."
+      description="Companion tone for your accountability coach — set once, change anytime."
       backTo={fromAsk ? '/ask' : '/settings'}
       backLabel={fromAsk ? 'Ask' : 'Settings'}
     >

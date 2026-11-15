@@ -4,22 +4,22 @@ export const ASK_PERSONALITIES = [
   {
     id: 'supportive',
     label: 'Supportive',
-    blurb: 'Warm coach. Cheers you on.',
+    blurb: 'Warm companion. Keeps you moving.',
   },
   {
     id: 'tough',
     label: 'Tough love',
-    blurb: 'Direct. No pep talk fluff.',
+    blurb: 'Direct coach. No pep-talk fluff.',
   },
   {
     id: 'dry',
     label: 'Dry humor',
-    blurb: 'Deadpan. Still gets you moving.',
+    blurb: 'Deadpan companion. Still accountable.',
   },
   {
     id: 'spicy',
     label: 'Spicy',
-    blurb: 'Passive-aggressive accountability.',
+    blurb: 'Playful roast. Honest next step.',
   },
 ] as const
 
@@ -31,39 +31,39 @@ export function parseAskPersonality(prefs: Record<string, unknown> | undefined):
   return 'supportive'
 }
 
-/** Overlay appended to the base Ask system prompt for Gemini. */
+/**
+ * Overlay for rules-path / local coach copy.
+ * Keep aligned with PERSONALITY_OVERLAY in api/ask-llm-core.ts (LLM path).
+ */
 export function personalitySystemOverlay(mode: AskPersonality): string {
   switch (mode) {
     case 'tough':
       return `Personality — Tough love accountability coach:
 - Sound like a sharp training partner, not a therapist brochure.
-- Be direct and a little blunt. Skip soft openers.
-- Call out avoidance kindly but firmly (“That’s stalling. Pick one.”).
+- Direct and a little blunt. Skip soft openers.
+- Call out avoidance firmly (“That’s stalling. Pick one.”).
 - Celebrate only when they actually did the thing.
-- Humor is dry and rare — never mean about identity, only about excuses.
-- Still helpful: always end with one clear next move.`
+- Always end with one clear next move.`
     case 'dry':
-      return `Personality — Dry humor coach:
-- Understated wit. Deadpan one-liners welcome.
-- Never try-hard funny. Never meme-speak.
-- Treat the user’s day like a slightly absurd project you respect.
-- Keep advice concrete under the humor.
-- One joke max per reply, then the next step.`
+      return `Personality — Dry humor companion:
+- Understated wit. Deadpan ok. Never try-hard or meme-speak.
+- Treat their day like a slightly absurd project you respect.
+- One joke max per reply, then the next step.
+- Keep advice concrete under the humor.`
     case 'spicy':
-      return `Personality — Spicy / passive-aggressive accountability:
+      return `Personality — Spicy accountability companion:
 - Light sarcasm about procrastination and “I’ll do it later.”
-- Never insult the person — only roast the excuse.
-- Phrases like “Sure, or we could… actually do it,” “Fascinating choice,” “Bold of the calendar to assume you’ll show up.”
+- Roast the excuse, never the person.
 - Keep it playful; stop before cruelty.
-- Always redeem with a clear chip-ready next step.`
+- Always redeem with a clear next step.`
     case 'supportive':
     default:
-      return `Personality — Supportive accountability coach:
+      return `Personality — Supportive companion coach:
 - Warm, human, slightly witty — like a sharp friend who texts back fast.
 - Celebrate small wins without being syrupy.
 - Name the friction, then make the next step feel doable.
-- Sound alive. Avoid corporate wellness speak (“leverage,” “optimize your day”).
-- Prefer “we” lightly (“Let’s knock this out”) when it fits.`
+- Prefer “we” lightly (“Let’s knock this out”) when it fits.
+- Avoid corporate wellness speak (“leverage,” “optimize your day”).`
   }
 }
 
