@@ -381,7 +381,6 @@ export default function AskPage() {
               Accountability pack · unlimited depth
             </p>
           )}
-          <p className="text-muted-foreground/80">{modeMeta.blurb}</p>
         </div>
         {llmHint ? <p className="mb-2 shrink-0 text-xs text-muted-foreground">{llmHint}</p> : null}
 

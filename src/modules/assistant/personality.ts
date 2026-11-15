@@ -4,22 +4,14 @@ export const ASK_PERSONALITIES = [
   {
     id: 'supportive',
     label: 'Supportive',
-    blurb: 'Warm companion. Keeps you moving.',
   },
   {
     id: 'tough',
     label: 'Tough love',
-    blurb: 'Direct coach. No pep-talk fluff.',
   },
   {
     id: 'dry',
     label: 'Dry humor',
-    blurb: 'Deadpan companion. Still accountable.',
-  },
-  {
-    id: 'spicy',
-    label: 'Spicy',
-    blurb: 'Playful roast. Honest next step.',
   },
 ] as const
 
@@ -27,7 +19,8 @@ export type AskPersonality = (typeof ASK_PERSONALITIES)[number]['id']
 
 export function parseAskPersonality(prefs: Record<string, unknown> | undefined): AskPersonality {
   const raw = prefs?.ask_personality
-  if (raw === 'supportive' || raw === 'tough' || raw === 'dry' || raw === 'spicy') return raw
+  // Legacy "spicy" maps to supportive.
+  if (raw === 'supportive' || raw === 'tough' || raw === 'dry') return raw
   return 'supportive'
 }
 
@@ -50,12 +43,6 @@ export function personalitySystemOverlay(mode: AskPersonality): string {
 - Treat their day like a slightly absurd project you respect.
 - One joke max per reply, then the next step.
 - Keep advice concrete under the humor.`
-    case 'spicy':
-      return `Personality — Spicy accountability companion:
-- Light sarcasm about procrastination and “I’ll do it later.”
-- Roast the excuse, never the person.
-- Keep it playful; stop before cruelty.
-- Always redeem with a clear next step.`
     case 'supportive':
     default:
       return `Personality — Supportive companion coach:
@@ -82,12 +69,6 @@ export function coachGreeting(mode: AskPersonality, name: string, hour = new Dat
         : slot === 'afternoon'
           ? `Afternoon, ${name}. Still time to look intentional.`
           : `Evening, ${name}. Dramatic lighting optional. Progress preferred.`
-    case 'spicy':
-      return slot === 'morning'
-        ? `${name}. New day, same brain that said “tomorrow.” Shall we surprise it?`
-        : slot === 'afternoon'
-          ? `${name}. Halfway through — still “warming up,” or…?`
-          : `${name}. Night’s coming. Close something before the excuses clock out.`
     case 'supportive':
     default:
       return slot === 'morning'
@@ -104,8 +85,6 @@ export function coachFollowUp(mode: AskPersonality, result: string): string {
       return `${result} Good. Next.`
     case 'dry':
       return `${result} Miracles do happen. What’s next?`
-    case 'spicy':
-      return `${result} Look at you, doing the thing. Don’t let it go to your head — what’s next?`
     case 'supportive':
     default:
       return `${result} Nice. What’s next?`
@@ -118,8 +97,6 @@ export function coachThinkingLabel(mode: AskPersonality): string {
       return 'Looking at your plate…'
     case 'dry':
       return 'Consulting the evidence…'
-    case 'spicy':
-      return 'Judging lightly…'
     case 'supportive':
     default:
       return 'Thinking with you…'
@@ -132,8 +109,6 @@ export function coachPlaceholder(mode: AskPersonality): string {
       return 'What’s actually getting done?'
     case 'dry':
       return 'Ask me something useful…'
-    case 'spicy':
-      return 'Confess the plan… or the avoidance'
     case 'supportive':
     default:
       return 'Ask about your day, or “add gym tomorrow”…'
@@ -163,8 +138,6 @@ export function coachShareMoreNudge(
       return `${lead}, ${name} — no ${missing}. Share more in Katana or I can’t map your day. Log it, connect it, or tell me here.`
     case 'dry':
       return `${lead}. ${missing} would help. The more you put in Katana, the less I have to pretend I’m psychic.`
-    case 'spicy':
-      return `${lead} — fascinating strategy. No ${missing}, though. Connect a calendar, log sleep, add a habit… communicate with me so I can actually orchestrate your day.`
     case 'supportive':
     default:
       return `${lead} — I’m missing ${missing}. The more you share (habits, calendar, sleep, journal), the better I can map your day and suggest what’s next.`

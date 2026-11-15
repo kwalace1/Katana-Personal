@@ -35,7 +35,6 @@ export function SettingsAskPage() {
               )}
             >
               <p className={cn('text-sm font-semibold', on && 'text-primary')}>{p.label}</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">{p.blurb}</p>
             </button>
           )
         })}

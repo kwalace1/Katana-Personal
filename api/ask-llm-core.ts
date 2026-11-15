@@ -38,7 +38,7 @@ Hard rules:
 - Prefer short paragraphs or tight bullets when longer answers help.
 - When context_gaps lists missing areas (habits, calendar, sleep, etc.), weave in one brief encouragement to log or connect more — in your personality voice. Never preach; name what’s missing.`
 
-export type AskPersonalityId = 'supportive' | 'tough' | 'dry' | 'spicy'
+export type AskPersonalityId = 'supportive' | 'tough' | 'dry'
 
 const PERSONALITY_OVERLAY: Record<AskPersonalityId, string> = {
   supportive: `Personality — Supportive companion coach:
@@ -58,16 +58,11 @@ const PERSONALITY_OVERLAY: Record<AskPersonalityId, string> = {
 - Treat their day like a slightly absurd project you respect.
 - One joke max per reply, then the next step.
 - Keep advice concrete under the humor.`,
-  spicy: `Personality — Spicy accountability companion:
-- Light sarcasm about procrastination and “I’ll do it later.”
-- Roast the excuse, never the person.
-- Keep it playful; stop before cruelty.
-- Always redeem with a clear next step.`,
 }
 
 export function resolveAskSystemPrompt(personality?: string | null): string {
   const mode: AskPersonalityId =
-    personality === 'tough' || personality === 'dry' || personality === 'spicy' || personality === 'supportive'
+    personality === 'tough' || personality === 'dry' || personality === 'supportive'
       ? personality
       : 'supportive'
   return `${KATANA_ASK_SYSTEM_PROMPT}\n\n${PERSONALITY_OVERLAY[mode]}`
@@ -433,7 +428,7 @@ function resolveEnv(env: { apiKey?: string; model?: string } = {}) {
 }
 
 function temperatureFor(personality?: string | null) {
-  if (personality === 'spicy' || personality === 'dry') return 0.75
+  if (personality === 'dry') return 0.75
   if (personality === 'tough') return 0.55
   return 0.65
 }
