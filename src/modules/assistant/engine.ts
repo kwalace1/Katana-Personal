@@ -21,8 +21,9 @@ import { tryOrchestrationIntent } from './engine-orchestration'
 import { goalsBehindPace, goalPaceStatus } from '@/lib/orchestration/goal-pace'
 import { pickWorkoutSlot } from '@/lib/orchestration/schedule-workout'
 import { resolveWorkoutPlan } from '@/lib/orchestration/workout-plan'
-import { flavorBriefingText, type AskPersonality } from './personality'
+import { coachGreeting, flavorBriefingText, type AskPersonality } from './personality'
 import { enrichReplyWithShareMore, shouldSkipShareMoreNudge } from './share-more'
+import { pickNextStepForUser } from '@/lib/orchestration/build-input'
 
 export interface LifeSnapshot {
   name: string
@@ -227,6 +228,33 @@ export function buildBriefingActions(snap: LifeSnapshot): AskAction[] {
 /** @deprecated use buildBriefingActions */
 function briefingActions(snap: LifeSnapshot): AskAction[] {
   return buildBriefingActions(snap)
+}
+
+/**
+ * Coach-first Ask open: one next move + act chips (not a long day briefing).
+ */
+export function buildCoachOpening(
+  userId: string,
+  displayName?: string,
+  personality: AskPersonality = 'supportive',
+  preferences?: Record<string, unknown>,
+): AskReply {
+  const snap = buildSnapshot(userId, displayName)
+  const greeting = coachGreeting(personality, snap.name)
+  const next = pickNextStepForUser(userId, snap, { preferences })
+
+  if (!next) {
+    return {
+      text: `${greeting} Nothing urgent on the plate. Capture one thing, or ask me to hold you to a commitment.`,
+      actions: buildBriefingActions(snap).slice(0, 3),
+    }
+  }
+
+  const actions = (next.actions.length > 0 ? next.actions : buildBriefingActions(snap)).slice(0, 4)
+  return {
+    text: `${greeting}\n\nNext move: ${next.title}.\n${next.reason}`,
+    actions,
+  }
 }
 
 function answerFocus(snap: LifeSnapshot): AskReply {

@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { CheckCircle2, ChevronDown, Send, Sparkles, Trash2 } from 'lucide-react'
+import { Send, Sparkles, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Button } from '@/components/ui/button'
 import { FilterChip } from '@/components/ui/filter-chip'
@@ -19,6 +19,7 @@ import {
 } from '@/lib/plus'
 import {
   answerQuestionWithActions,
+  buildCoachOpening,
   buildSnapshot,
   runAskAction,
   suggestedAsksForHour,
@@ -37,11 +38,10 @@ import {
   parseAskPersonality,
 } from '../personality'
 
-const STARTER_PROMPTS = [
+const COACH_PROMPTS = [
   'What’s my one next move?',
   'Hold me to my top priority',
-  'Help me plan around my calendar',
-  'Add gym tomorrow 7am',
+  'Close my day',
 ] as const
 
 export default function AskPage() {
@@ -60,8 +60,6 @@ export default function AskPage() {
   const [statusLabel, setStatusLabel] = useState<string | null>(null)
   const [streamingId, setStreamingId] = useState<string | null>(null)
   const [plusOpen, setPlusOpen] = useState(false)
-  const [promptsOpen, setPromptsOpen] = useState(false)
-  const [openActions, setOpenActions] = useState<Record<string, true>>({})
   const [llmHint, setLlmHint] = useState<string | null>(null)
   const seededQ = useRef(false)
   const plus = usePlusStatus()
@@ -73,10 +71,9 @@ export default function AskPage() {
 
   const llmLeft = plus ? null : freeLlmAsksRemaining()
   const modeMeta = ASK_PERSONALITIES.find((p) => p.id === personality) || ASK_PERSONALITIES[0]!
-  const emptyPrompts = useMemo(() => {
+  const coachPrompts = useMemo(() => {
     const hour = suggestedAsksForHour()
-    const merged = [...hour, ...STARTER_PROMPTS]
-    return [...new Set(merged)].slice(0, 6)
+    return [...new Set([...hour.slice(0, 2), ...COACH_PROMPTS])].slice(0, 3)
   }, [])
 
   function isCaptureReply(reply: AskReply): boolean {
@@ -85,7 +82,7 @@ export default function AskPage() {
 
   useEffect(() => {
     if (messages.length === 0) {
-      const opening = answerQuestionWithActions(userId, 'briefing', name, personality, profile?.preferences)
+      const opening = buildCoachOpening(userId, name, personality, profile?.preferences)
       askApi.append(userId, { role: 'katana', text: opening.text, actions: opening.actions })
       refresh()
     }
@@ -318,7 +315,7 @@ export default function AskPage() {
     askApi.clear(userId)
     setSpent({})
     seededQ.current = false
-    const opening = answerQuestionWithActions(userId, 'briefing', name, personality, profile?.preferences)
+    const opening = buildCoachOpening(userId, name, personality, profile?.preferences)
     askApi.append(userId, {
       role: 'katana',
       text: opening.text,
@@ -336,7 +333,7 @@ export default function AskPage() {
         <PageHeader
           className="mb-3 shrink-0 sm:mb-4"
           title="Ask"
-          description="Sees your tasks, calendar, habits, and goals — and can act on them."
+          description="Your companion coach — one next move, then act."
           actions={
             <div className="flex flex-wrap items-center gap-2">
               <Button asChild variant="ghost" size="sm" className="text-xs">
@@ -361,7 +358,7 @@ export default function AskPage() {
         <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
           {llmLeft != null ? (
             <p>
-              Deeper Ask: {llmLeft}/{FREE_LLM_ASKS_PER_DAY} free today
+              Coach depth: {llmLeft}/{FREE_LLM_ASKS_PER_DAY} free today
               {llmLeft === 0 ? (
                 <>
                   {' · '}
@@ -378,7 +375,7 @@ export default function AskPage() {
           ) : (
             <p className="inline-flex items-center gap-1.5 text-primary">
               <Sparkles className="h-3.5 w-3.5" />
-              Accountability pack · unlimited depth
+              Accountability pack · unlimited coaching
             </p>
           )}
         </div>
@@ -412,12 +409,6 @@ export default function AskPage() {
                         : 'rounded-2xl rounded-bl-md border border-border/50 bg-background/90 text-foreground shadow-[0_1px_0_hsl(200_20%_10%/0.04)]',
                     )}
                   >
-                    {m.role === 'katana' && m.viaLlm && !isStreaming ? (
-                      <p className="mb-2 inline-flex items-center gap-1 text-[0.65rem] font-medium uppercase tracking-[0.12em] text-primary/80">
-                        <CheckCircle2 className="h-3 w-3" />
-                        Deeper reply
-                      </p>
-                    ) : null}
                     {showStatusOnly ? (
                       <span className="text-muted-foreground">
                         {statusLabel || coachThinkingLabel(personality)}
@@ -429,49 +420,24 @@ export default function AskPage() {
                       <span className="ml-0.5 inline-block h-3 w-1.5 animate-pulse rounded-sm bg-primary/70 align-middle" />
                     ) : null}
                     {m.role === 'katana' && m.actions.length > 0 && !isStreaming ? (
-                      <div className="mt-3">
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground"
-                          aria-expanded={Boolean(openActions[m.id])}
-                          onClick={() =>
-                            setOpenActions((current) => {
-                              const next = { ...current }
-                              if (next[m.id]) delete next[m.id]
-                              else next[m.id] = true
-                              return next
-                            })
-                          }
-                        >
-                          {m.actions.length === 1 ? '1 action' : `${m.actions.length} actions`}
-                          <ChevronDown
-                            className={cn(
-                              'h-3.5 w-3.5 transition',
-                              openActions[m.id] && 'rotate-180',
-                            )}
-                          />
-                        </button>
-                        {openActions[m.id] ? (
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {m.actions.map((action) => {
-                              const key = `${m.id}:${action.id}`
-                              const used = Boolean(spent[key])
-                              return (
-                                <Button
-                                  key={action.id}
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  disabled={used || pending}
-                                  className="px-3 text-xs"
-                                  onClick={() => onAction(action, m)}
-                                >
-                                  {used ? 'Done' : action.label}
-                                </Button>
-                              )
-                            })}
-                          </div>
-                        ) : null}
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {m.actions.map((action, index) => {
+                          const key = `${m.id}:${action.id}`
+                          const used = Boolean(spent[key])
+                          return (
+                            <Button
+                              key={action.id}
+                              type="button"
+                              size="sm"
+                              variant={index === 0 ? 'default' : 'outline'}
+                              disabled={used || pending}
+                              className="min-h-10 px-3.5 text-xs"
+                              onClick={() => onAction(action, m)}
+                            >
+                              {used ? 'Done' : action.label}
+                            </Button>
+                          )
+                        })}
                       </div>
                     ) : null}
                   </div>
@@ -482,34 +448,23 @@ export default function AskPage() {
             <div ref={bottomRef} />
           </div>
 
-          <div className="max-h-[40%] shrink-0 overflow-y-auto border-t border-border/40 px-3 py-2 sm:px-4">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="gap-1.5 px-2 text-muted-foreground"
-              aria-expanded={promptsOpen}
-              onClick={() => setPromptsOpen((open) => !open)}
-            >
-              Suggested prompts
-              <ChevronDown className={cn('h-3.5 w-3.5 transition', promptsOpen && 'rotate-180')} />
-            </Button>
-            {promptsOpen ? (
-              <div className="mt-2 flex flex-wrap gap-2">
-                {emptyPrompts.map((prompt) => (
-                  <FilterChip
-                    key={prompt}
-                    disabled={pending}
-                    onClick={() => {
-                      setPromptsOpen(false)
-                      void ask(prompt)
-                    }}
-                  >
-                    {prompt}
-                  </FilterChip>
-                ))}
-              </div>
-            ) : null}
+          <div className="shrink-0 border-t border-border/40 px-3 py-2.5 sm:px-4">
+            <p className="mb-2 text-[0.65rem] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+              Coach moves
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {coachPrompts.map((prompt) => (
+                <FilterChip
+                  key={prompt}
+                  disabled={pending}
+                  onClick={() => {
+                    void ask(prompt)
+                  }}
+                >
+                  {prompt}
+                </FilterChip>
+              ))}
+            </div>
           </div>
 
           {pending ? (

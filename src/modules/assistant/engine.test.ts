@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from 'vitest'
-import { answerQuestionWithActions, buildSnapshot, runAskAction } from './engine'
+import { answerQuestionWithActions, buildCoachOpening, buildSnapshot, runAskAction } from './engine'
 import { localDb } from '@/lib/local-db'
 import { tasksApi } from '@/modules/tasks/api'
 import { calendarApi } from '@/modules/calendar/api'
@@ -13,6 +13,19 @@ describe('Ask engine (no LLM)', () => {
   beforeEach(() => {
     localStorage.clear()
     localDb.clearAll(USER)
+  })
+
+  it('opens Ask as a coach with one next move when a priority task exists', () => {
+    tasksApi.createTask(USER, { title: 'Ship the demo', priority: 'high' })
+    const reply = buildCoachOpening(USER, 'Alex', 'supportive')
+    expect(reply.text).toMatch(/Next move:/)
+    expect(reply.text).toMatch(/Ship the demo/)
+    expect(reply.actions[0]?.kind).toBe('complete_task')
+  })
+
+  it('opens Ask coach empty state without inventing work', () => {
+    const reply = buildCoachOpening(USER, 'Alex', 'tough')
+    expect(reply.text.toLowerCase()).toMatch(/nothing urgent|commitment|capture/)
   })
 
   it('answers focus with empty state', () => {
