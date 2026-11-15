@@ -17,7 +17,7 @@ import { toast } from 'sonner'
 
 const STEP_KEY = 'katana-personal:ritual-step'
 const EXAMPLE = 'Call Mom Friday 3pm'
-const ASK_FOCUS = '/ask?q=What%20should%20I%20work%20on%20today'
+const ASK_FOCUS = '/ask?q=What%E2%80%99s%20my%20one%20next%20move%3F'
 
 type Step = 'welcome' | 'capture' | 'next' | 'ask' | 'invite'
 

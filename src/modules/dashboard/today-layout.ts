@@ -3,7 +3,7 @@ export const TODAY_SECTIONS = [
   { id: 'also_today', label: 'Your day' },
   { id: 'evening_close', label: 'Evening close' },
   { id: 'together', label: 'Together' },
-  { id: 'for_you', label: 'For you' },
+  { id: 'for_you', label: 'Coach' },
   { id: 'coming_up', label: 'Coming up' },
   { id: 'goals', label: 'Goals' },
   { id: 'recent_notes', label: 'Recent notes' },
