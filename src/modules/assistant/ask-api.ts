@@ -22,6 +22,7 @@ export interface AskAction {
     | 'create_habit'
     | 'schedule_workout'
     | 'adjust_goal'
+    | 'drop_commitment'
   taskId?: string
   habitId?: string
   goalId?: string

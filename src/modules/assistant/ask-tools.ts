@@ -1,9 +1,11 @@
 import { createId } from '@/lib/id'
 import { healthApi } from '@/modules/health/api'
 import { formatWater, mlFromAmount, readWaterGoal, readWaterUnit, waterUnitMeta, type WaterUnit } from '@/modules/health/water'
+import { bindCommitmentToTask, makeCommitment } from './commitments'
 import { buildSnapshot, runAskAction } from './engine'
 import type { AskAction } from './ask-api'
 import type { AskToolCall } from './ask-llm-types'
+import { tasksApi } from '@/modules/tasks/api'
 
 export type AskToolExecResult = {
   toolCallId: string
@@ -96,6 +98,44 @@ export function executeAskTool(userId: string, call: AskToolCall): AskToolExecRe
         ok: true,
         message: message || `Added “${title}”.`,
         action: { id: createId(), label: 'Open Tasks', kind: 'open_route', route: '/tasks' },
+      }
+    }
+
+    if (name === 'make_commitment') {
+      const title = asString(args.title)
+      const taskId = asString(args.taskId)
+      if (taskId) {
+        const task = tasksApi.getTask(userId, taskId)
+        if (!task || task.status === 'done') {
+          return { toolCallId, name, ok: false, message: 'Could not find that open task to commit to.' }
+        }
+        bindCommitmentToTask(userId, task.id, task.title)
+        return {
+          toolCallId,
+          name,
+          ok: true,
+          message: `Holding them to “${task.title}.” Will check back next Ask open.`,
+          action: {
+            id: createId(),
+            label: `Mark “${task.title}” done`,
+            kind: 'complete_task',
+            taskId: task.id,
+          },
+        }
+      }
+      if (!title) return { toolCallId, name, ok: false, message: 'Missing commitment title.' }
+      const made = makeCommitment(userId, title)
+      return {
+        toolCallId,
+        name,
+        ok: true,
+        message: `Commitment locked: “${made.title}” (high priority, due today). Will check back next Ask open.`,
+        action: {
+          id: createId(),
+          label: `Mark “${made.title}” done`,
+          kind: 'complete_task',
+          taskId: made.taskId,
+        },
       }
     }
 

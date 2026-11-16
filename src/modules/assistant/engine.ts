@@ -24,6 +24,13 @@ import { resolveWorkoutPlan } from '@/lib/orchestration/workout-plan'
 import { coachGreeting, flavorBriefingText, type AskPersonality } from './personality'
 import { enrichReplyWithShareMore, shouldSkipShareMoreNudge } from './share-more'
 import { pickNextStepForUser } from '@/lib/orchestration/build-input'
+import {
+  bindCommitmentToTask,
+  clearCommitment,
+  clearCommitmentForTask,
+  getActiveCommitment,
+  makeCommitment,
+} from './commitments'
 
 export interface LifeSnapshot {
   name: string
@@ -231,7 +238,7 @@ function briefingActions(snap: LifeSnapshot): AskAction[] {
 }
 
 /**
- * Coach-first Ask open: one next move + act chips (not a long day briefing).
+ * Coach-first Ask open: check back on commitments first, else one next move.
  */
 export function buildCoachOpening(
   userId: string,
@@ -241,6 +248,30 @@ export function buildCoachOpening(
 ): AskReply {
   const snap = buildSnapshot(userId, displayName)
   const greeting = coachGreeting(personality, snap.name)
+  const commitment = getActiveCommitment(userId)
+
+  if (commitment) {
+    const task = tasksApi.getTask(userId, commitment.taskId)
+    if (task && task.status !== 'done') {
+      return {
+        text: `${greeting}\n\nCheck-in: you asked me to hold you to “${commitment.title}.” It’s still open — do it now, or drop the commitment.`,
+        actions: [
+          {
+            id: createId(),
+            label: `Mark “${commitment.title}” done`,
+            kind: 'complete_task',
+            taskId: commitment.taskId,
+          },
+          {
+            id: createId(),
+            label: 'Drop commitment',
+            kind: 'drop_commitment',
+          },
+        ],
+      }
+    }
+  }
+
   const next = pickNextStepForUser(userId, snap, { preferences })
 
   if (!next) {
@@ -254,6 +285,33 @@ export function buildCoachOpening(
   return {
     text: `${greeting}\n\nNext move: ${next.title}.\n${next.reason}`,
     actions,
+  }
+}
+
+/** Create a commitment task and return a coach reply (rules path + shared helper). */
+export function commitToTitle(
+  userId: string,
+  title: string,
+  personality: AskPersonality = 'supportive',
+): AskReply {
+  const { taskId, title: clean } = makeCommitment(userId, title)
+  const greeting =
+    personality === 'tough'
+      ? `Locked. “${clean}” is your commitment — no soft outs.`
+      : personality === 'dry'
+        ? `Noted. I’m holding you to “${clean}.” How novel.`
+        : `Got it — I’m holding you to “${clean}.” I’ll check back next time you open Ask.`
+  return {
+    text: greeting,
+    actions: [
+      {
+        id: createId(),
+        label: `Mark “${clean}” done`,
+        kind: 'complete_task',
+        taskId,
+      },
+      { id: createId(), label: 'Open Tasks', kind: 'open_route', route: '/tasks' },
+    ],
   }
 }
 
@@ -1015,6 +1073,9 @@ export function answerQuestionWithActions(
     return enrichReplyWithShareMore(userId, reply, snap, personality)
   }
 
+  const commitment = tryParseCommitment(userId, question.trim(), personality, preferences)
+  if (commitment) return commitment
+
   const created = tryParseCreate(question.trim())
   if (created) return created
 
@@ -1043,8 +1104,15 @@ export function answerQuestionWithActions(
 }
 
 export function runAskAction(userId: string, action: AskAction): string {
+  if (action.kind === 'drop_commitment') {
+    const active = getActiveCommitment(userId)
+    if (!active) return 'No active commitment to drop.'
+    clearCommitment(userId, active.id)
+    return `Dropped the commitment on “${active.title}.”`
+  }
   if (action.kind === 'complete_task' && action.taskId) {
     tasksApi.completeTask(userId, action.taskId)
+    clearCommitmentForTask(userId, action.taskId)
     return 'Marked done.'
   }
   if (action.kind === 'toggle_habit' && action.habitId) {
@@ -1207,6 +1275,140 @@ export function suggestedAsksForHour(hour = new Date().getHours()): string[] {
     return ['What’s my one next move?', 'Am I avoiding something?', 'What’s shared with me?']
   }
   return ['Close my day', 'Did I keep my commitments?', 'Prep for tomorrow']
+}
+
+function tryParseCommitment(
+  userId: string,
+  question: string,
+  personality: AskPersonality,
+  preferences?: Record<string, unknown>,
+): AskReply | null {
+  const q = question.trim()
+  const lower = q.toLowerCase()
+
+  if (/^(?:drop|cancel|clear)(?:\s+my)?\s+commitment\s*[?.!]*$/i.test(lower)) {
+    const active = getActiveCommitment(userId)
+    if (!active) {
+      return {
+        text: 'No active commitment to drop.',
+        actions: [{ id: createId(), label: 'Open Ask', kind: 'open_route', route: '/ask' }],
+      }
+    }
+    clearCommitment(userId, active.id)
+    return {
+      text: `Dropped the commitment on “${active.title}.” The task stays on your list unless you delete it.`,
+      actions: [
+        { id: createId(), label: 'Open Tasks', kind: 'open_route', route: '/tasks' },
+        {
+          id: createId(),
+          label: `Mark “${active.title}” done`,
+          kind: 'complete_task',
+          taskId: active.taskId,
+        },
+      ],
+    }
+  }
+
+  if (/^(?:did i keep|check)(?:\s+my)?\s+commitments?\s*[?.!]*$/i.test(lower)) {
+    const active = getActiveCommitment(userId)
+    if (!active) {
+      return {
+        text: 'No open commitment right now. Say “hold me to [thing]” and I’ll lock it in.',
+        actions: [
+          {
+            id: createId(),
+            label: 'Hold me to my top priority',
+            kind: 'open_route',
+            route: `/ask?q=${encodeURIComponent('Hold me to my top priority')}`,
+          },
+        ],
+      }
+    }
+    return {
+      text: `Still holding you to “${active.title}.” It’s open — finish it or drop it.`,
+      actions: [
+        {
+          id: createId(),
+          label: `Mark “${active.title}” done`,
+          kind: 'complete_task',
+          taskId: active.taskId,
+        },
+        {
+          id: createId(),
+          label: 'Drop commitment',
+          kind: 'drop_commitment',
+        },
+      ],
+    }
+  }
+
+  const bareHold =
+    /^(?:hold me to(?:\s+it)?|keep me accountable|don't let me skip(?:\s+it)?|make me do (?:it|this))\s*[?.!]*$/i.test(
+      lower,
+    ) ||
+    /hold me to (?:my )?(?:top )?priority|hold me to (?:my )?next(?: step)?/i.test(lower)
+
+  if (bareHold) {
+    const snap = buildSnapshot(userId)
+    const next = pickNextStepForUser(userId, snap, { preferences })
+    const title =
+      next?.title ||
+      snap.priorityTasks[0]?.title ||
+      snap.todayTasks[0]?.title ||
+      snap.openTasks[0]?.title
+    if (!title) {
+      return {
+        text: 'Nothing on the plate to lock yet. Tell me what to hold you to — “hold me to finish the report.”',
+        actions: [{ id: createId(), label: 'Open Tasks', kind: 'open_route', route: '/tasks' }],
+      }
+    }
+    // If they're already committed to this task, just check in.
+    const existing = getActiveCommitment(userId)
+    if (existing && existing.title.toLowerCase() === title.toLowerCase()) {
+      return {
+        text: `Already holding you to “${existing.title}.” Still open — do it.`,
+        actions: [
+          {
+            id: createId(),
+            label: `Mark “${existing.title}” done`,
+            kind: 'complete_task',
+            taskId: existing.taskId,
+          },
+        ],
+      }
+    }
+    // Prefer committing an existing open task when the title matches.
+    const match =
+      snap.openTasks.find((t) => t.title.toLowerCase() === title.toLowerCase()) ||
+      snap.priorityTasks.find((t) => t.title.toLowerCase() === title.toLowerCase())
+    if (match) {
+      bindCommitmentToTask(userId, match.id, match.title)
+      return {
+        text:
+          personality === 'tough'
+            ? `Locked on “${match.title}.” Do it.`
+            : `I’m holding you to “${match.title}.” I’ll check back next time you open Ask.`,
+        actions: [
+          {
+            id: createId(),
+            label: `Mark “${match.title}” done`,
+            kind: 'complete_task',
+            taskId: match.id,
+          },
+        ],
+      }
+    }
+    return commitToTitle(userId, title, personality)
+  }
+
+  const titled = q.match(
+    /^(?:hold me to|keep me (?:accountable )?(?:for|to)|don't let me skip|make me (?:do|finish))\s+(.+)$/i,
+  )
+  if (!titled?.[1]) return null
+  let raw = titled[1].trim().replace(/[.?!]+$/, '')
+  raw = raw.replace(/^(?:my\s+)?(?:top\s+)?priority$/i, '').trim()
+  if (!raw || /^(?:it|this|that)$/i.test(raw)) return null
+  return commitToTitle(userId, raw, personality)
 }
 
 function tryParseCreate(question: string): AskReply | null {

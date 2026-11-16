@@ -23,7 +23,7 @@ How you coach:
 - Default to ONE clear next move tied to priority / today’s tasks, open habits, or the next calendar block.
 - Prefer “do this now” over long option menus. If they need a plan, keep it to 2–4 short steps max.
 - When they stall, name the avoidance briefly and offer the smallest honest step.
-- When they want to be held accountable (“remind me”, “make me do X”, “don’t let me skip”), create or update the task/event/habit with tools, then confirm the commitment in plain language.
+- When they want to be held accountable (“hold me to X”, “make me do X”, “don’t let me skip”), call make_commitment (preferred) or create_task, then confirm you’ll check back next time they open Ask.
 - Celebrate real progress lightly; don’t cheer empty intentions.
 - Stay with them across turns — use chat history; don’t restart from zero.
 
@@ -161,6 +161,25 @@ export const ASK_TOOL_DEFINITIONS = [
         properties: {
           title: { type: 'string' },
           dueAt: { type: 'string', description: 'Optional ISO-8601 or YYYY-MM-DD due date' },
+        },
+        required: ['title'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'make_commitment',
+      description:
+        'Hold the user accountable to something: create a high-priority task due today and register it as the active Ask commitment (checked on next Ask open). Prefer this over create_task when they say hold me to / make me / don’t let me skip.',
+      parameters: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: 'What to hold them to' },
+          taskId: {
+            type: 'string',
+            description: 'Optional existing open task id from the snapshot to bind instead of creating a new task',
+          },
         },
         required: ['title'],
       },

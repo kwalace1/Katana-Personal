@@ -1,4 +1,5 @@
 import { describe, expect, it, beforeEach } from 'vitest'
+import { getActiveCommitment } from './commitments'
 import { answerQuestionWithActions, buildCoachOpening, buildSnapshot, runAskAction } from './engine'
 import { localDb } from '@/lib/local-db'
 import { tasksApi } from '@/modules/tasks/api'
@@ -26,6 +27,29 @@ describe('Ask engine (no LLM)', () => {
   it('opens Ask coach empty state without inventing work', () => {
     const reply = buildCoachOpening(USER, 'Alex', 'tough')
     expect(reply.text.toLowerCase()).toMatch(/nothing urgent|commitment|capture/)
+  })
+
+  it('holds the user to a titled commitment', () => {
+    const reply = answerQuestionWithActions(USER, 'Hold me to finish the report', 'Alex')
+    expect(reply.text.toLowerCase()).toMatch(/holding you to|locked|commitment/)
+    expect(reply.actions[0]?.kind).toBe('complete_task')
+    expect(getActiveCommitment(USER)?.title.toLowerCase()).toContain('finish the report')
+  })
+
+  it('checks back on an open commitment when Ask opens', () => {
+    answerQuestionWithActions(USER, 'Hold me to write the brief', 'Alex')
+    const opening = buildCoachOpening(USER, 'Alex', 'supportive')
+    expect(opening.text).toMatch(/Check-in:/)
+    expect(opening.text).toMatch(/write the brief/i)
+    expect(opening.actions.some((a) => a.kind === 'complete_task')).toBe(true)
+    expect(opening.actions.some((a) => a.kind === 'drop_commitment')).toBe(true)
+  })
+
+  it('drops an active commitment', () => {
+    answerQuestionWithActions(USER, 'Hold me to call Mom', 'Alex')
+    const reply = answerQuestionWithActions(USER, 'drop commitment', 'Alex')
+    expect(reply.text.toLowerCase()).toMatch(/dropped/)
+    expect(getActiveCommitment(USER)).toBeNull()
   })
 
   it('answers focus with empty state', () => {
