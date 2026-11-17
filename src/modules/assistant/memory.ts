@@ -233,20 +233,51 @@ export function toMemorySlice(userId: string): PersonalMemorySlice | null {
   return { items }
 }
 
+/**
+ * Shared certainty rules for local coaching + LLM.
+ * Confirmed = user-explicit, full confidence, not a pattern kind.
+ * Everything else (inferred source, confidence below 1, pattern kind) is unconfirmed.
+ */
+export type MemoryCertainty = 'confirmed' | 'unconfirmed'
+
+export function isConfirmedMemory(m: {
+  confidence: number
+  source: string
+  kind?: string
+}): boolean {
+  if (m.source !== 'explicit') return false
+  if (typeof m.confidence !== 'number' || m.confidence < 1) return false
+  if (m.kind === 'pattern') return false
+  return true
+}
+
+export function memoryCertainty(m: {
+  confidence: number
+  source: string
+  kind?: string
+}): MemoryCertainty {
+  return isConfirmedMemory(m) ? 'confirmed' : 'unconfirmed'
+}
+
+export function memoryKindLabel(kind: string): string {
+  if (kind === 'preference') return 'Preference'
+  if (kind === 'pattern') return 'Pattern'
+  if (kind === 'fact') return 'Fact'
+  return 'Note'
+}
+
+/** Display tag shared by coach copy, Settings, and LLM snapshot formatting. */
+export function formatMemoryDisplayTag(m: {
+  confidence: number
+  source: string
+  kind: string
+}): string {
+  const base = memoryKindLabel(m.kind)
+  return memoryCertainty(m) === 'confirmed' ? base : `${base} (unconfirmed)`
+}
+
 export function formatMemoriesForCoach(userId: string): string | null {
   const items = selectMemoriesForContext(userId, 4)
   if (items.length === 0) return null
-  return items
-    .map((m) => {
-      const tag =
-        m.kind === 'preference'
-          ? 'Preference'
-          : m.kind === 'pattern'
-            ? 'Pattern (unconfirmed)'
-            : m.kind === 'fact'
-              ? 'Fact'
-              : 'Note'
-      return `${tag}: ${m.text}`
-    })
-    .join(' · ')
+  return items.map((m) => `${formatMemoryDisplayTag(m)}: ${m.text}`).join(' · ')
 }

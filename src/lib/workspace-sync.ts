@@ -11,6 +11,17 @@ const SYNC_COLLECTIONS = WORKSPACE_COLLECTIONS.filter(
   (c) => c !== 'documents' && c !== 'ask_messages',
 )
 
+/**
+ * User-owned durable history that must never be silently truncated on upload.
+ * If oversized, we keep the full payload (upload may fail with a size error)
+ * rather than drop older memories / accountability outcomes.
+ */
+export const NEVER_TRUNCATE_SYNC_COLLECTIONS = new Set([
+  'personal_memory',
+  'ask_commitments',
+  'ask_commitment_outcomes',
+])
+
 export type WorkspaceSyncStatus = {
   lastSyncedAt: string | null
   busy: boolean
@@ -91,9 +102,24 @@ function approxBytes(value: unknown): number {
   }
 }
 
-function fitItems(items: unknown[]): unknown[] {
+/**
+ * Prepare collection rows for cloud upsert.
+ * Non-protected collections drop oldest-stamped rows when over ~700KB.
+ * Protected collections never truncate — silent loss of memory/accountability is worse
+ * than a sync size error the user can act on.
+ */
+export function prepareCollectionItemsForSync(
+  collection: string,
+  items: unknown[],
+): { items: unknown[]; truncated: boolean; protectedFromTruncation: boolean } {
   const clean = sanitizeForFirestore(items) as unknown[]
-  if (approxBytes(clean) <= MAX_COLLECTION_BYTES) return clean
+  const protectedFromTruncation = NEVER_TRUNCATE_SYNC_COLLECTIONS.has(collection)
+  if (approxBytes(clean) <= MAX_COLLECTION_BYTES) {
+    return { items: clean, truncated: false, protectedFromTruncation }
+  }
+  if (protectedFromTruncation) {
+    return { items: clean, truncated: false, protectedFromTruncation: true }
+  }
   const sorted = [...clean].sort((a, b) => rowStamp(b).localeCompare(rowStamp(a)))
   const kept: unknown[] = []
   for (const row of sorted) {
@@ -101,7 +127,11 @@ function fitItems(items: unknown[]): unknown[] {
     if (approxBytes(next) > MAX_COLLECTION_BYTES) break
     kept.push(row)
   }
-  return kept
+  return { items: kept, truncated: kept.length < clean.length, protectedFromTruncation: false }
+}
+
+function fitItems(collection: string, items: unknown[]): unknown[] {
+  return prepareCollectionItemsForSync(collection, items).items
 }
 
 function friendlyCloudError(err: unknown): string {
@@ -258,7 +288,7 @@ async function commitWorkspace(
   const supabase = getSupabase()
   let count = 0
   const rows = SYNC_COLLECTIONS.map((collection) => {
-    const items = fitItems(byCollection.get(collection) || [])
+    const items = fitItems(collection, byCollection.get(collection) || [])
     count += items.length
     return {
       user_id: cloudUid,

@@ -189,10 +189,19 @@ function formatSnapshot(snap: CompactLifeSnapshot): string {
     snap.personalMemories && snap.personalMemories.length > 0
       ? snap.personalMemories
           .map((m) => {
-            const confirmed = m.source === 'explicit' && m.confidence >= 1
-            const tag = confirmed
-              ? m.kind
-              : `${m.kind} (unconfirmed)`
+            // Same certainty rules as src/modules/assistant/memory.ts
+            // (confirmed = explicit + confidence >= 1 + kind !== pattern).
+            const confirmed =
+              m.source === 'explicit' && m.confidence >= 1 && m.kind !== 'pattern'
+            const kindLabel =
+              m.kind === 'preference'
+                ? 'Preference'
+                : m.kind === 'pattern'
+                  ? 'Pattern'
+                  : m.kind === 'fact'
+                    ? 'Fact'
+                    : 'Note'
+            const tag = confirmed ? kindLabel : `${kindLabel} (unconfirmed)`
             return `${tag}: ${m.text}`
           })
           .join('; ')

@@ -9,30 +9,27 @@ import {
   MEMORY_KINDS,
   createMemory,
   deleteMemory,
+  formatMemoryDisplayTag,
+  isConfirmedMemory,
   listMemories,
+  memoryKindLabel,
   updateMemory,
   type MemoryKind,
   type PersonalMemory,
 } from '@/modules/assistant/memory'
 import { SettingsDetail, SettingsPanel } from '../components/settings-ui'
 
-const KIND_LABEL: Record<MemoryKind, string> = {
-  fact: 'Fact',
-  preference: 'Preference',
-  pattern: 'Pattern',
-  note: 'Note',
-}
-
-function KindBadge({ kind, confidence }: { kind: MemoryKind; confidence: number }) {
-  const unconfirmed = kind === 'pattern' || confidence < 1
+function KindBadge({ memory }: { memory: PersonalMemory }) {
+  const confirmed = isConfirmedMemory(memory)
   return (
     <span className="inline-flex items-center gap-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-      {KIND_LABEL[kind]}
-      {unconfirmed ? (
+      {memoryKindLabel(memory.kind)}
+      {!confirmed ? (
         <span className="font-normal normal-case text-amber-700/90 dark:text-amber-400/90">
           · unconfirmed
         </span>
       ) : null}
+      <span className="sr-only">{formatMemoryDisplayTag(memory)}</span>
     </span>
   )
 }
@@ -130,7 +127,7 @@ export function SettingsMemoryPage() {
           >
             {MEMORY_KINDS.filter((k) => k !== 'pattern').map((k) => (
               <option key={k} value={k}>
-                {KIND_LABEL[k]}
+                {memoryKindLabel(k)}
               </option>
             ))}
           </select>
@@ -166,7 +163,7 @@ export function SettingsMemoryPage() {
                     >
                       {MEMORY_KINDS.map((k) => (
                         <option key={k} value={k}>
-                          {KIND_LABEL[k]}
+                          {memoryKindLabel(k)}
                           {k === 'pattern' ? ' (unconfirmed)' : ''}
                         </option>
                       ))}
@@ -182,7 +179,7 @@ export function SettingsMemoryPage() {
               ) : (
                 <div className="flex items-start gap-3">
                   <div className="min-w-0 flex-1">
-                    <KindBadge kind={m.kind} confidence={m.confidence} />
+                    <KindBadge memory={m} />
                     <p className="mt-1 text-sm text-foreground">{m.text}</p>
                     <p className="mt-1 text-[11px] text-muted-foreground">
                       {m.source === 'explicit' ? 'You saved this' : 'Inferred'} ·{' '}

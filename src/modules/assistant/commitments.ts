@@ -216,10 +216,26 @@ export function pruneCommitments(userId: string, now = new Date()): AskCommitmen
   return kept
 }
 
-/** The single active (non-snoozed) commitment, if any. */
+/**
+ * The single active (non-snoozed) commitment, if any.
+ * Selection is deterministic: newest createdAt, then id ascending.
+ * If multiple actives exist (legacy / race), extras are retired as replaced.
+ */
 export function getActiveCommitment(userId: string, now = new Date()): AskCommitment | null {
-  const open = pruneCommitments(userId, now).filter((c) => c.status === 'active' && !isSnoozed(c, now))
-  return open[0] ?? null
+  const open = pruneCommitments(userId, now)
+    .filter((c) => c.status === 'active' && !isSnoozed(c, now))
+    .sort((a, b) => {
+      const byCreated = b.createdAt.localeCompare(a.createdAt)
+      if (byCreated !== 0) return byCreated
+      return a.id.localeCompare(b.id)
+    })
+  if (open.length <= 1) return open[0] ?? null
+  const keeper = open[0]!
+  for (const extra of open.slice(1)) {
+    recordOutcome(userId, extra, 'replaced', 'Deterministic single-active cleanup')
+    localDb.remove(COLLECTION, userId, extra.id)
+  }
+  return keeper
 }
 
 /** Compact shape for LifeSnapshot / LLM / PersonalContext. */

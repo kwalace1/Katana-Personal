@@ -101,7 +101,7 @@ export type PersonalContext = {
   commitment: CommitmentSnapshot | null
   workload: WorkloadSummary
   conflicts: SituationConflict[]
-  /** Future context sources — null in Phase 1. */
+  /** Extensible context: memory (Phase 3+); patterns/history reserved for Phase 4+. */
   extensions: PersonalContextExtensions
 }
 

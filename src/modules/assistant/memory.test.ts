@@ -5,7 +5,10 @@ import { answerQuestionWithActions } from './engine'
 import {
   createMemory,
   deleteMemory,
+  formatMemoryDisplayTag,
+  isConfirmedMemory,
   listMemories,
+  memoryCertainty,
   selectMemoriesForContext,
   tryParseMemoryCommand,
   updateMemory,
@@ -109,5 +112,21 @@ describe('Personal memory v1', () => {
     const reply = answerQuestionWithActions(USER, 'What should I work on today?', 'Alex')
     expect(reply.text.length).toBeGreaterThan(0)
     expect(listMemories(USER)).toHaveLength(1)
+  })
+
+  it('uses unified certainty labels for confirmed vs unconfirmed', () => {
+    const pref = createMemory(USER, { text: 'Morning person', kind: 'preference' })!
+    expect(isConfirmedMemory(pref)).toBe(true)
+    expect(memoryCertainty(pref)).toBe('confirmed')
+    expect(formatMemoryDisplayTag(pref)).toBe('Preference')
+
+    const asPattern = updateMemory(USER, pref.id, { kind: 'pattern' })!
+    expect(isConfirmedMemory(asPattern)).toBe(false)
+    expect(memoryCertainty(asPattern)).toBe('unconfirmed')
+    expect(formatMemoryDisplayTag(asPattern)).toBe('Pattern (unconfirmed)')
+
+    expect(
+      formatMemoryDisplayTag({ kind: 'fact', text: 'x', confidence: 0.6, source: 'inferred' }),
+    ).toBe('Fact (unconfirmed)')
   })
 })

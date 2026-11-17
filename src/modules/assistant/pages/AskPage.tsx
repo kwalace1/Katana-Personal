@@ -27,7 +27,9 @@ import {
 } from '../engine'
 import { resolveAskAgent, historyToAskMessages } from '../llm'
 import { buildPersonalContext } from '@/lib/personal-context'
+import { dayClosedToday } from '@/lib/notifications/preferences'
 import { askApi, type AskAction, type AskMessage } from '../ask-api'
+import { shouldUseLlmForReply } from '../ask-reply-policy'
 import { logFeedback, computeWeights, askActionFeedbackKind } from '@/lib/orchestration/feedback'
 import { createId } from '@/lib/id'
 import { toast } from 'sonner'
@@ -77,14 +79,11 @@ export default function AskPage() {
     return [...new Set([...hour.slice(0, 2), ...COACH_PROMPTS])].slice(0, 3)
   }, [])
 
-  function isCaptureReply(reply: AskReply): boolean {
-    return reply.actions.some((a) => a.kind === 'create_task' || a.kind === 'create_event')
-  }
-
   useEffect(() => {
     const ctx = buildPersonalContext(userId, {
       displayName: name,
       preferences: profile?.preferences,
+      dayClosed: dayClosedToday(profile?.preferences),
     })
     const checkInOpts = {
       workloadLevel: ctx.workload.level,
@@ -122,11 +121,15 @@ export default function AskPage() {
 
   async function finalizeReply(question: string, reply: AskReply, prior: AskMessage[]) {
     const lastKatana = [...prior].reverse().find((m) => m.role === 'katana')
-    const continueLlm = Boolean(lastKatana?.viaLlm) && !isCaptureReply(reply)
-    const useLlm = Boolean(reply.useLlm || continueLlm)
+    const useLlm = shouldUseLlmForReply(reply, Boolean(lastKatana?.viaLlm))
 
     if (!useLlm) {
-      askApi.append(userId, { role: 'katana', text: reply.text, actions: reply.actions })
+      askApi.append(userId, {
+        role: 'katana',
+        text: reply.text,
+        actions: reply.actions,
+        viaLlm: false,
+      })
       refresh()
       return
     }
@@ -167,6 +170,7 @@ export default function AskPage() {
       const personalContext = buildPersonalContext(userId, {
         displayName: name,
         preferences: profile?.preferences,
+        dayClosed: dayClosedToday(profile?.preferences),
       })
       const history = historyToAskMessages(
         prior
@@ -344,6 +348,7 @@ export default function AskPage() {
     const ctx = buildPersonalContext(userId, {
       displayName: name,
       preferences: profile?.preferences,
+      dayClosed: dayClosedToday(profile?.preferences),
     })
     const opening = buildCoachOpening(userId, name, personality, profile?.preferences, prior, {
       snap: ctx.life,

@@ -40,9 +40,11 @@ import {
 } from './commitments'
 import {
   formatMemoriesForCoach,
+  formatMemoryDisplayTag,
   listMemories,
   tryParseMemoryCommand,
 } from './memory'
+import { asAuthoritative } from './ask-reply-policy'
 import type { AskMessage } from './ask-api'
 
 export interface LifeSnapshot {
@@ -88,6 +90,11 @@ export interface AskReply {
   actions: AskAction[]
   /** When true, Ask UI should try Gemini for a richer open-ended reply. */
   useLlm?: boolean
+  /**
+   * When true, this reply confirms a durable local mutation (memory, commitment, etc.).
+   * Ask must not overwrite it with an LLM continuation.
+   */
+  authoritative?: boolean
 }
 
 export function buildSnapshot(userId: string, displayName = 'there'): LifeSnapshot {
@@ -362,7 +369,7 @@ export function commitToTitle(
       : personality === 'dry'
         ? `Noted. I’m holding you to “${clean}.” How novel.`
         : `Got it — I’m holding you to “${clean}.” I’ll check back next time you open Ask.`
-  return {
+  return asAuthoritative({
     text: greeting,
     actions: [
       {
@@ -373,7 +380,7 @@ export function commitToTitle(
       },
       { id: createId(), label: 'Open Tasks', kind: 'open_route', route: '/tasks' },
     ],
-  }
+  })
 }
 
 function answerFocus(snap: LifeSnapshot): AskReply {
@@ -783,17 +790,7 @@ function answerListMemories(userId: string): AskReply {
   }
   const lines = items
     .slice(0, 12)
-    .map((m) => {
-      const label =
-        m.kind === 'preference'
-          ? 'Preference'
-          : m.kind === 'pattern'
-            ? 'Pattern (unconfirmed)'
-            : m.kind === 'fact'
-              ? 'Fact'
-              : 'Note'
-      return `· ${label}: ${m.text}`
-    })
+    .map((m) => `· ${formatMemoryDisplayTag(m)}: ${m.text}`)
     .join('\n')
   return {
     text: `Here’s what you’ve asked me to remember:\n${lines}${
@@ -816,16 +813,16 @@ function replyForMemoryCommand(
         : result.memory.kind === 'fact'
           ? 'fact'
           : 'note'
-    return {
+    return asAuthoritative({
       text: `Got it — I’ll remember that ${kindLabel}: “${result.memory.text}.” You can edit or delete it anytime in Settings → Personal memory.`,
       actions: [
         { id: createId(), label: 'Manage memories', kind: 'open_route', route: '/settings/memory' },
       ],
-    }
+    })
   }
   const removed = result.removed ?? 0
   if (result.text === 'all') {
-    return {
+    return asAuthoritative({
       text:
         removed > 0
           ? `Cleared ${removed} personal memor${removed === 1 ? 'y' : 'ies'}.`
@@ -833,9 +830,9 @@ function replyForMemoryCommand(
       actions: [
         { id: createId(), label: 'Open personal memory', kind: 'open_route', route: '/settings/memory' },
       ],
-    }
+    })
   }
-  return {
+  return asAuthoritative({
     text:
       removed > 0
         ? `Forgot ${removed} memor${removed === 1 ? 'y' : 'ies'} matching “${result.text}.”`
@@ -843,7 +840,7 @@ function replyForMemoryCommand(
     actions: [
       { id: createId(), label: 'Manage memories', kind: 'open_route', route: '/settings/memory' },
     ],
-  }
+  })
 }
 
 function answerTogether(q: string): AskReply {
@@ -1471,7 +1468,7 @@ function tryParseCommitment(
       }
     }
     clearCommitment(userId, active.id)
-    return {
+    return asAuthoritative({
       text: `Dropped the commitment on “${active.title}.” The task stays on your list unless you delete it.`,
       actions: [
         { id: createId(), label: 'Open Tasks', kind: 'open_route', route: '/tasks' },
@@ -1482,7 +1479,7 @@ function tryParseCommitment(
           taskId: active.taskId,
         },
       ],
-    }
+    })
   }
 
   if (
@@ -1501,7 +1498,7 @@ function tryParseCommitment(
         actions: [{ id: createId(), label: 'Open Ask', kind: 'open_route', route: '/ask' }],
       }
     }
-    return {
+    return asAuthoritative({
       text: message,
       actions: [
         {
@@ -1511,7 +1508,7 @@ function tryParseCommitment(
           taskId: before.taskId,
         },
       ],
-    }
+    })
   }
 
   if (/^(?:did i keep|check)(?:\s+my)?\s+commitments?\s*[?.!]*$/i.test(lower)) {
@@ -1593,7 +1590,7 @@ function tryParseCommitment(
       snap.priorityTasks.find((t) => t.title.toLowerCase() === title.toLowerCase())
     if (match) {
       bindCommitmentToTask(userId, match.id, match.title)
-      return {
+      return asAuthoritative({
         text:
           personality === 'tough'
             ? `Locked on “${match.title}.” Do it.`
@@ -1606,7 +1603,7 @@ function tryParseCommitment(
             taskId: match.id,
           },
         ],
-      }
+      })
     }
     return commitToTitle(userId, title, personality)
   }

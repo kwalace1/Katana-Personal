@@ -140,4 +140,32 @@ describe('Ask commitments', () => {
     expect(getActiveCommitment(USER)?.title).toBe('Second')
     expect(listCommitmentOutcomes(USER).some((o) => o.outcome === 'replaced')).toBe(true)
   })
+
+  it('selects the newest active commitment deterministically and retires extras', () => {
+    const olderTask = tasksApi.createTask(USER, { title: 'Older', priority: 'high' })
+    const newerTask = tasksApi.createTask(USER, { title: 'Newer', priority: 'high' })
+    localDb.insert('ask_commitments', USER, {
+      id: 'commit-older',
+      userId: USER,
+      taskId: olderTask.id,
+      title: 'Older',
+      createdAt: '2026-01-01T10:00:00.000Z',
+      status: 'active',
+      snoozeUntil: null,
+      source: 'ask',
+    })
+    localDb.insert('ask_commitments', USER, {
+      id: 'commit-newer',
+      userId: USER,
+      taskId: newerTask.id,
+      title: 'Newer',
+      createdAt: '2026-01-02T10:00:00.000Z',
+      status: 'active',
+      snoozeUntil: null,
+      source: 'ask',
+    })
+    expect(getActiveCommitment(USER)?.id).toBe('commit-newer')
+    expect(localDb.list('ask_commitments', USER)).toHaveLength(1)
+    expect(listCommitmentOutcomes(USER).some((o) => o.note?.includes('Deterministic'))).toBe(true)
+  })
 })
