@@ -139,6 +139,20 @@ export function executeAskTool(userId: string, call: AskToolCall): AskToolExecRe
       }
     }
 
+    if (name === 'drop_commitment') {
+      const message = runAskAction(userId, {
+        id: createId(),
+        label: 'Drop commitment',
+        kind: 'drop_commitment',
+      })
+      return {
+        toolCallId,
+        name,
+        ok: Boolean(message),
+        message: message || 'No active commitment to drop.',
+      }
+    }
+
     if (name === 'complete_task') {
       const taskId = findTaskId(userId, asString(args.taskId), asString(args.title))
       if (!taskId) return { toolCallId, name, ok: false, message: 'Could not find that open task.' }
@@ -177,6 +191,43 @@ export function executeAskTool(userId: string, call: AskToolCall): AskToolExecRe
       }
     }
 
+    if (name === 'create_habit') {
+      const title = asString(args.title)
+      if (!title) return { toolCallId, name, ok: false, message: 'Missing habit title.' }
+      const message = runAskAction(userId, {
+        id: createId(),
+        label: `Add habit “${title}”`,
+        kind: 'create_habit',
+        title,
+      })
+      return {
+        toolCallId,
+        name,
+        ok: true,
+        message: message || `Added habit “${title}”.`,
+        action: { id: createId(), label: 'Open Habits', kind: 'open_route', route: '/habits' },
+      }
+    }
+
+    if (name === 'create_goal') {
+      const title = asString(args.title)
+      if (!title) return { toolCallId, name, ok: false, message: 'Missing goal title.' }
+      const message = runAskAction(userId, {
+        id: createId(),
+        label: `Add goal “${title}”`,
+        kind: 'create_goal',
+        title,
+        dueAt: asString(args.targetDate) ?? null,
+      })
+      return {
+        toolCallId,
+        name,
+        ok: true,
+        message: message || `Added goal “${title}”.`,
+        action: { id: createId(), label: 'Open Goals', kind: 'open_route', route: '/goals' },
+      }
+    }
+
     if (name === 'create_event') {
       const title = asString(args.title)
       const startsAt = asString(args.startsAt)
@@ -197,6 +248,25 @@ export function executeAskTool(userId: string, call: AskToolCall): AskToolExecRe
         name,
         ok: true,
         message: message || `Scheduled “${title}”.`,
+        action: { id: createId(), label: 'Open Calendar', kind: 'open_route', route: '/calendar' },
+      }
+    }
+
+    if (name === 'schedule_workout') {
+      const title = asString(args.title)
+      const preferTomorrow = args.preferTomorrow === true
+      const message = runAskAction(userId, {
+        id: createId(),
+        label: title ? `Schedule “${title}”` : 'Schedule workout',
+        kind: 'schedule_workout',
+        title,
+        body: preferTomorrow ? 'tomorrow' : undefined,
+      })
+      return {
+        toolCallId,
+        name,
+        ok: Boolean(message),
+        message: message || 'Scheduled a workout block.',
         action: { id: createId(), label: 'Open Calendar', kind: 'open_route', route: '/calendar' },
       }
     }

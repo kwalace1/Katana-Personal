@@ -74,6 +74,14 @@ export function compactSnapshot(snap: LifeSnapshot, userId?: string): CompactLif
       allDay: e.all_day,
     })),
     recentJournal: (snap.recentJournal || []).slice(0, 5),
+    activeCommitment: snap.activeCommitment
+      ? {
+          id: snap.activeCommitment.id,
+          taskId: snap.activeCommitment.taskId,
+          title: snap.activeCommitment.title,
+          createdAt: snap.activeCommitment.createdAt,
+        }
+      : null,
     ...(userId
       ? (() => {
           const ctx = assessContextGaps(userId, snap)

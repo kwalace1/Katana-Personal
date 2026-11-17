@@ -5,8 +5,12 @@ import {
   clearCommitmentForTask,
   getActiveCommitment,
   makeCommitment,
+  markCommitmentCheckedIn,
+  messagesCoverCommitment,
+  needsCommitmentCheckIn,
   pruneCommitments,
 } from './commitments'
+import type { AskAction } from './ask-api'
 
 const USER = 'test-commit-user'
 
@@ -36,5 +40,41 @@ describe('Ask commitments', () => {
     const { taskId } = makeCommitment(USER, 'Another')
     clearCommitmentForTask(USER, taskId)
     expect(getActiveCommitment(USER)).toBeNull()
+  })
+
+  it('needs check-in until marked for today', () => {
+    makeCommitment(USER, 'Write the brief')
+    expect(needsCommitmentCheckIn(USER, [])).toBe(true)
+    const active = getActiveCommitment(USER)!
+    markCommitmentCheckedIn(USER, active.id)
+    expect(needsCommitmentCheckIn(USER, [])).toBe(false)
+  })
+
+  it('skips check-in when recent messages already cover the commitment', () => {
+    const { taskId } = makeCommitment(USER, 'Call Mom')
+    const actions: AskAction[] = [
+      { id: '1', label: 'Done', kind: 'complete_task', taskId },
+      { id: '2', label: 'Drop', kind: 'drop_commitment' },
+    ]
+    expect(
+      needsCommitmentCheckIn(USER, [{ role: 'katana', actions }]),
+    ).toBe(false)
+  })
+
+  it('messagesCoverCommitment detects complete_task for the committed task', () => {
+    const { taskId } = makeCommitment(USER, 'Ship it')
+    const active = getActiveCommitment(USER)!
+    expect(
+      messagesCoverCommitment(
+        [{ role: 'katana', actions: [{ id: '1', label: 'x', kind: 'complete_task', taskId }] }],
+        active,
+      ),
+    ).toBe(true)
+    expect(
+      messagesCoverCommitment(
+        [{ role: 'katana', actions: [{ id: '1', label: 'x', kind: 'complete_task', taskId: 'other' }] }],
+        active,
+      ),
+    ).toBe(false)
   })
 })

@@ -1,6 +1,13 @@
 import { describe, expect, it, beforeEach } from 'vitest'
 import { getActiveCommitment } from './commitments'
-import { answerQuestionWithActions, buildCoachOpening, buildSnapshot, runAskAction } from './engine'
+import {
+  answerQuestionWithActions,
+  buildCoachOpening,
+  buildSnapshot,
+  maybeAppendCommitmentCheckIn,
+  runAskAction,
+} from './engine'
+import { compactSnapshot } from './llm'
 import { localDb } from '@/lib/local-db'
 import { tasksApi } from '@/modules/tasks/api'
 import { calendarApi } from '@/modules/calendar/api'
@@ -43,6 +50,38 @@ describe('Ask engine (no LLM)', () => {
     expect(opening.text).toMatch(/write the brief/i)
     expect(opening.actions.some((a) => a.kind === 'complete_task')).toBe(true)
     expect(opening.actions.some((a) => a.kind === 'drop_commitment')).toBe(true)
+  })
+
+  it('does not repeat a same-day commitment check-in', () => {
+    answerQuestionWithActions(USER, 'Hold me to write the brief', 'Alex')
+    const first = buildCoachOpening(USER, 'Alex', 'supportive')
+    expect(first.text).toMatch(/Check-in:/)
+    const second = buildCoachOpening(USER, 'Alex', 'supportive')
+    expect(second.text).not.toMatch(/Check-in:/)
+  })
+
+  it('surfaces a mid-thread check-in when history does not cover the commitment', () => {
+    answerQuestionWithActions(USER, 'Hold me to finish taxes', 'Alex')
+    const active = getActiveCommitment(USER)!
+    // Simulate an older thread that never mentioned this commitment.
+    const prior = [
+      { role: 'you' as const, actions: [] },
+      { role: 'katana' as const, actions: [] },
+    ]
+    const checkIn = maybeAppendCommitmentCheckIn(USER, prior, 'Alex', 'supportive')
+    expect(checkIn?.text).toMatch(/Check-in:/)
+    expect(checkIn?.text).toMatch(/finish taxes/i)
+    expect(getActiveCommitment(USER)?.id).toBe(active.id)
+    expect(maybeAppendCommitmentCheckIn(USER, prior, 'Alex', 'supportive')).toBeNull()
+  })
+
+  it('includes active commitment in snapshot and LLM compact context', () => {
+    answerQuestionWithActions(USER, 'Hold me to ship Phase 0', 'Alex')
+    const snap = buildSnapshot(USER, 'Alex')
+    expect(snap.activeCommitment?.title.toLowerCase()).toContain('ship phase 0')
+    const compact = compactSnapshot(snap, USER)
+    expect(compact.activeCommitment?.taskId).toBe(snap.activeCommitment?.taskId)
+    expect(compact.activeCommitment?.title.toLowerCase()).toContain('ship phase 0')
   })
 
   it('drops an active commitment', () => {

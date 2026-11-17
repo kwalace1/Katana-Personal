@@ -21,6 +21,7 @@ import {
   answerQuestionWithActions,
   buildCoachOpening,
   buildSnapshot,
+  maybeAppendCommitmentCheckIn,
   runAskAction,
   suggestedAsksForHour,
   type AskReply,
@@ -82,8 +83,15 @@ export default function AskPage() {
 
   useEffect(() => {
     if (messages.length === 0) {
-      const opening = buildCoachOpening(userId, name, personality, profile?.preferences)
+      const opening = buildCoachOpening(userId, name, personality, profile?.preferences, [])
       askApi.append(userId, { role: 'katana', text: opening.text, actions: opening.actions })
+      refresh()
+      return
+    }
+    // Existing thread: surface a once-per-day commitment check-in without duplicating recent prompts.
+    const checkIn = maybeAppendCommitmentCheckIn(userId, messages, name, personality)
+    if (checkIn) {
+      askApi.append(userId, { role: 'katana', text: checkIn.text, actions: checkIn.actions })
       refresh()
     }
   }, [userId, name, messages.length, personality])
@@ -315,7 +323,9 @@ export default function AskPage() {
     askApi.clear(userId)
     setSpent({})
     seededQ.current = false
-    const opening = buildCoachOpening(userId, name, personality, profile?.preferences)
+    // Pass prior messages so a same-day check-in is not repeated after clear.
+    const prior = messages
+    const opening = buildCoachOpening(userId, name, personality, profile?.preferences, prior)
     askApi.append(userId, {
       role: 'katana',
       text: opening.text,

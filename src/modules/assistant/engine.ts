@@ -29,8 +29,13 @@ import {
   clearCommitment,
   clearCommitmentForTask,
   getActiveCommitment,
+  getActiveCommitmentSnapshot,
   makeCommitment,
+  markCommitmentCheckedIn,
+  needsCommitmentCheckIn,
+  type CommitmentSnapshot,
 } from './commitments'
+import type { AskMessage } from './ask-api'
 
 export interface LifeSnapshot {
   name: string
@@ -57,6 +62,8 @@ export interface LifeSnapshot {
   caloriesToday: number
   recentNotes: number
   week: WeekStats
+  /** Active Ask accountability commitment, when one exists. */
+  activeCommitment: CommitmentSnapshot | null
 }
 
 function loggedWaterMl(snap: { waterMl?: number; waterGlasses: number }) {
@@ -121,6 +128,7 @@ export function buildSnapshot(userId: string, displayName = 'there'): LifeSnapsh
       .reduce((s, n) => s + (n.calories || 0), 0),
     recentNotes: notesApi.listNotes(userId).length,
     week: buildWeekStats(userId, today),
+    activeCommitment: getActiveCommitmentSnapshot(userId),
   }
 }
 
@@ -237,39 +245,66 @@ function briefingActions(snap: LifeSnapshot): AskAction[] {
   return buildBriefingActions(snap)
 }
 
+/** Build the standard commitment check-in reply and mark it shown for today. */
+export function buildCommitmentCheckInReply(
+  userId: string,
+  displayName?: string,
+  personality: AskPersonality = 'supportive',
+): AskReply | null {
+  const commitment = getActiveCommitment(userId)
+  if (!commitment) return null
+  const task = tasksApi.getTask(userId, commitment.taskId)
+  if (!task || task.status === 'done') return null
+
+  markCommitmentCheckedIn(userId, commitment.id)
+  const greeting = coachGreeting(personality, displayName || 'there')
+  return {
+    text: `${greeting}\n\nCheck-in: you asked me to hold you to “${commitment.title}.” It’s still open — do it now, or drop the commitment.`,
+    actions: [
+      {
+        id: createId(),
+        label: `Mark “${commitment.title}” done`,
+        kind: 'complete_task',
+        taskId: commitment.taskId,
+      },
+      {
+        id: createId(),
+        label: 'Drop commitment',
+        kind: 'drop_commitment',
+      },
+    ],
+  }
+}
+
 /**
- * Coach-first Ask open: check back on commitments first, else one next move.
+ * Mid-conversation / revisit check-in: once per day, skipped if recent chat already covers it.
+ */
+export function maybeAppendCommitmentCheckIn(
+  userId: string,
+  messages: Pick<AskMessage, 'role' | 'actions'>[],
+  displayName?: string,
+  personality: AskPersonality = 'supportive',
+): AskReply | null {
+  if (!needsCommitmentCheckIn(userId, messages)) return null
+  return buildCommitmentCheckInReply(userId, displayName, personality)
+}
+
+/**
+ * Coach-first Ask open: check back on commitments first (once/day), else one next move.
  */
 export function buildCoachOpening(
   userId: string,
   displayName?: string,
   personality: AskPersonality = 'supportive',
   preferences?: Record<string, unknown>,
+  priorMessages: Pick<AskMessage, 'role' | 'actions'>[] = [],
 ): AskReply {
   const snap = buildSnapshot(userId, displayName)
   const greeting = coachGreeting(personality, snap.name)
-  const commitment = getActiveCommitment(userId)
 
-  if (commitment) {
-    const task = tasksApi.getTask(userId, commitment.taskId)
-    if (task && task.status !== 'done') {
-      return {
-        text: `${greeting}\n\nCheck-in: you asked me to hold you to “${commitment.title}.” It’s still open — do it now, or drop the commitment.`,
-        actions: [
-          {
-            id: createId(),
-            label: `Mark “${commitment.title}” done`,
-            kind: 'complete_task',
-            taskId: commitment.taskId,
-          },
-          {
-            id: createId(),
-            label: 'Drop commitment',
-            kind: 'drop_commitment',
-          },
-        ],
-      }
-    }
+  if (needsCommitmentCheckIn(userId, priorMessages)) {
+    const checkIn = buildCommitmentCheckInReply(userId, displayName, personality)
+    if (checkIn) return checkIn
   }
 
   const next = pickNextStepForUser(userId, snap, { preferences })

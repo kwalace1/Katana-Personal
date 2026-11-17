@@ -2,7 +2,32 @@
  * Shared Ask LLM helpers — OpenRouter → Gemini Flash.
  * Streaming + tool calling for a life-aware accountability companion.
  * Used by Vercel `/api/ask-llm` and the Vite dev middleware.
+ *
+ * Compact snapshot types + ASK_TOOL_DEFINITIONS live in
+ * `src/modules/assistant/ask-llm-types.ts` (single source of truth).
  */
+
+import {
+  ASK_TOOL_DEFINITIONS,
+  type AskChatMessage,
+  type AskToolCall,
+  type CompactLifeSnapshot,
+} from '../src/modules/assistant/ask-llm-types'
+
+export {
+  ASK_TOOL_DEFINITIONS,
+  ASK_TOOL_NAMES,
+  type AskChatMessage,
+  type AskToolCall,
+  type AskToolName,
+  type CompactCommitment,
+  type CompactEvent,
+  type CompactGoal,
+  type CompactHabit,
+  type CompactJournal,
+  type CompactLifeSnapshot,
+  type CompactTask,
+} from '../src/modules/assistant/ask-llm-types'
 
 export const DEFAULT_OPENROUTER_MODEL = 'google/gemini-2.5-flash'
 
@@ -17,7 +42,7 @@ Who you are:
 You can:
 - Ground every reply in their real tasks, calendar, habits, goals, journal, and health from the life snapshot.
 - Answer planning / writing / decision questions when asked — still steer back to what matters today when it fits.
-- Take action in Katana via tools (create/complete tasks, habits, events, water, journal, park tasks, close day).
+- Take action in Katana via tools (tasks, commitments, habits, goals, events, workout blocks, water, journal, park tasks, close day).
 
 How you coach:
 - Default to ONE clear next move tied to priority / today’s tasks, open habits, or the next calendar block.
@@ -68,72 +93,6 @@ export function resolveAskSystemPrompt(personality?: string | null): string {
   return `${KATANA_ASK_SYSTEM_PROMPT}\n\n${PERSONALITY_OVERLAY[mode]}`
 }
 
-export type CompactTask = { id: string; title: string; dueAt?: string | null }
-export type CompactHabit = { id: string; title: string; done: boolean }
-export type CompactGoal = {
-  id: string
-  title: string
-  progress: number
-  target: number
-  horizon: string
-}
-export type CompactEvent = { title: string; startsAt: string; allDay?: boolean }
-export type CompactJournal = { date: string; mood: string | null; excerpt: string }
-
-export type CompactLifeSnapshot = {
-  name: string
-  todayLabel: string
-  openTaskTitles: string[]
-  todayTaskTitles: string[]
-  priorityTaskTitles: string[]
-  todayEventTitles: string[]
-  upcomingEventTitles: string[]
-  habitsOpen: string[]
-  habitsDone: string[]
-  goalTitles: string[]
-  behindGoalTitles: string[]
-  journalToday: boolean
-  journalMood: string | null
-  waterGlasses: number
-  /** Daily water goal in milliliters, when the client knows it. */
-  waterGoalMl?: number
-  sleepHoursLast: number
-  caloriesToday: number
-  week: {
-    label: string
-    tasksCompleted: number
-    habitDays: number
-    workouts: number
-    journalEntries: number
-  }
-  /** Richer fields for tool calling + deeper context */
-  openTasks?: CompactTask[]
-  todayTasks?: CompactTask[]
-  priorityTasks?: CompactTask[]
-  habits?: CompactHabit[]
-  goals?: CompactGoal[]
-  behindGoals?: CompactGoal[]
-  todayEvents?: CompactEvent[]
-  upcomingEvents?: CompactEvent[]
-  recentJournal?: CompactJournal[]
-  contextGapLabels?: string[]
-  richnessScore?: number
-}
-
-export type AskToolCall = {
-  id: string
-  type: 'function'
-  function: { name: string; arguments: string }
-}
-
-export type AskChatMessage = {
-  role: 'user' | 'assistant' | 'system' | 'tool'
-  content: string | null
-  tool_call_id?: string
-  name?: string
-  tool_calls?: AskToolCall[]
-}
-
 export type AskLlmRequest = {
   question?: string
   snapshot: CompactLifeSnapshot
@@ -149,138 +108,6 @@ export type AskLlmRequest = {
 export type AskLlmResult =
   | { ok: true; text: string; model: string; tool_calls?: AskToolCall[] }
   | { ok: false; error: string; status: number }
-
-export const ASK_TOOL_DEFINITIONS = [
-  {
-    type: 'function' as const,
-    function: {
-      name: 'create_task',
-      description: 'Create a new task in Katana.',
-      parameters: {
-        type: 'object',
-        properties: {
-          title: { type: 'string' },
-          dueAt: { type: 'string', description: 'Optional ISO-8601 or YYYY-MM-DD due date' },
-        },
-        required: ['title'],
-      },
-    },
-  },
-  {
-    type: 'function' as const,
-    function: {
-      name: 'make_commitment',
-      description:
-        'Hold the user accountable to something: create a high-priority task due today and register it as the active Ask commitment (checked on next Ask open). Prefer this over create_task when they say hold me to / make me / don’t let me skip.',
-      parameters: {
-        type: 'object',
-        properties: {
-          title: { type: 'string', description: 'What to hold them to' },
-          taskId: {
-            type: 'string',
-            description: 'Optional existing open task id from the snapshot to bind instead of creating a new task',
-          },
-        },
-        required: ['title'],
-      },
-    },
-  },
-  {
-    type: 'function' as const,
-    function: {
-      name: 'complete_task',
-      description: 'Mark an open task done. Prefer taskId from the snapshot; title match is ok.',
-      parameters: {
-        type: 'object',
-        properties: {
-          taskId: { type: 'string' },
-          title: { type: 'string' },
-        },
-      },
-    },
-  },
-  {
-    type: 'function' as const,
-    function: {
-      name: 'toggle_habit',
-      description: 'Check or uncheck a habit due today.',
-      parameters: {
-        type: 'object',
-        properties: {
-          habitId: { type: 'string' },
-          title: { type: 'string' },
-        },
-      },
-    },
-  },
-  {
-    type: 'function' as const,
-    function: {
-      name: 'create_event',
-      description: 'Schedule a calendar event.',
-      parameters: {
-        type: 'object',
-        properties: {
-          title: { type: 'string' },
-          startsAt: { type: 'string', description: 'ISO-8601 start' },
-          endsAt: { type: 'string', description: 'ISO-8601 end' },
-        },
-        required: ['title', 'startsAt', 'endsAt'],
-      },
-    },
-  },
-  {
-    type: 'function' as const,
-    function: {
-      name: 'log_water',
-      description: 'Log drinking water by volume. Use the person’s unit when they name one.',
-      parameters: {
-        type: 'object',
-        properties: {
-          amount: { type: 'number', description: 'How much to add' },
-          unit: { type: 'string', enum: ['ml', 'floz', 'cup', 'l'], description: 'mL, fl oz, cup, or L' },
-        },
-        required: ['amount', 'unit'],
-      },
-    },
-  },
-  {
-    type: 'function' as const,
-    function: {
-      name: 'upsert_journal',
-      description: 'Write or update today’s journal entry.',
-      parameters: {
-        type: 'object',
-        properties: {
-          body: { type: 'string' },
-          mood: { type: 'string', enum: ['great', 'good', 'okay', 'low', 'rough'] },
-        },
-        required: ['body'],
-      },
-    },
-  },
-  {
-    type: 'function' as const,
-    function: {
-      name: 'park_tasks',
-      description: 'Move unfinished today tasks to tomorrow.',
-      parameters: { type: 'object', properties: {} },
-    },
-  },
-  {
-    type: 'function' as const,
-    function: {
-      name: 'close_day',
-      description: 'Close the day: park leftover tasks and optionally journal a note.',
-      parameters: {
-        type: 'object',
-        properties: {
-          note: { type: 'string' },
-        },
-      },
-    },
-  },
-]
 
 function corsHeaders(): HeadersInit {
   return {
@@ -347,10 +174,15 @@ function formatSnapshot(snap: CompactLifeSnapshot): string {
           .join('\n  ')
       : 'none'
 
+  const commitment = snap.activeCommitment
+    ? `[${snap.activeCommitment.taskId}] ${snap.activeCommitment.title}`
+    : 'none'
+
   return [
     `Name: ${snap.name}`,
     `Today: ${snap.todayLabel}`,
     `Data richness: ${snap.richnessScore != null ? `${Math.round(snap.richnessScore * 100)}%` : 'unknown'}${snap.contextGapLabels?.length ? ` — sparse; missing: ${snap.contextGapLabels.join(', ')}` : ''}`,
+    `Active commitment: ${commitment}`,
     `Priority tasks: ${priority}`,
     `Today’s tasks: ${today}`,
     `Open tasks: ${open}`,
@@ -510,7 +342,7 @@ export async function runGeminiAsk(
         temperature: temperatureFor(body.personality),
         max_tokens: 1200,
         messages,
-        ...(useTools ? { tools: ASK_TOOL_DEFINITIONS, tool_choice: 'auto' } : {}),
+        ...(useTools ? { tools: [...ASK_TOOL_DEFINITIONS], tool_choice: 'auto' } : {}),
       }),
     })
   } catch (err) {
@@ -574,7 +406,7 @@ export async function streamGeminiAsk(
         max_tokens: 1200,
         stream: true,
         messages,
-        ...(useTools ? { tools: ASK_TOOL_DEFINITIONS, tool_choice: 'auto' } : {}),
+        ...(useTools ? { tools: [...ASK_TOOL_DEFINITIONS], tool_choice: 'auto' } : {}),
       }),
     })
   } catch (err) {
