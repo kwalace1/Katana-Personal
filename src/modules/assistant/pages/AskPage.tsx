@@ -20,13 +20,13 @@ import {
 import {
   answerQuestionWithActions,
   buildCoachOpening,
-  buildSnapshot,
   maybeAppendCommitmentCheckIn,
   runAskAction,
   suggestedAsksForHour,
   type AskReply,
 } from '../engine'
 import { resolveAskAgent, historyToAskMessages } from '../llm'
+import { buildPersonalContext } from '@/lib/personal-context'
 import { askApi, type AskAction, type AskMessage } from '../ask-api'
 import { logFeedback, computeWeights, askActionFeedbackKind } from '@/lib/orchestration/feedback'
 import { createId } from '@/lib/id'
@@ -83,7 +83,14 @@ export default function AskPage() {
 
   useEffect(() => {
     if (messages.length === 0) {
-      const opening = buildCoachOpening(userId, name, personality, profile?.preferences, [])
+      const ctx = buildPersonalContext(userId, {
+        displayName: name,
+        preferences: profile?.preferences,
+      })
+      const opening = buildCoachOpening(userId, name, personality, profile?.preferences, [], {
+        snap: ctx.life,
+        next: ctx.focus,
+      })
       askApi.append(userId, { role: 'katana', text: opening.text, actions: opening.actions })
       refresh()
       return
@@ -152,7 +159,10 @@ export default function AskPage() {
 
     let acc = ''
     try {
-      const snap = buildSnapshot(userId, name)
+      const personalContext = buildPersonalContext(userId, {
+        displayName: name,
+        preferences: profile?.preferences,
+      })
       const history = historyToAskMessages(
         prior
           .filter((m) => m.id !== placeholder.id)
@@ -162,9 +172,10 @@ export default function AskPage() {
           })),
       )
 
-      const resolved = await resolveAskAgent(userId, question, snap, reply, {
+      const resolved = await resolveAskAgent(userId, question, personalContext.life, reply, {
         personality,
         history,
+        personalContext,
         handlers: {
           onStatus: (label) => {
             setStatusLabel(label)
@@ -325,7 +336,14 @@ export default function AskPage() {
     seededQ.current = false
     // Pass prior messages so a same-day check-in is not repeated after clear.
     const prior = messages
-    const opening = buildCoachOpening(userId, name, personality, profile?.preferences, prior)
+    const ctx = buildPersonalContext(userId, {
+      displayName: name,
+      preferences: profile?.preferences,
+    })
+    const opening = buildCoachOpening(userId, name, personality, profile?.preferences, prior, {
+      snap: ctx.life,
+      next: ctx.focus,
+    })
     askApi.append(userId, {
       role: 'katana',
       text: opening.text,

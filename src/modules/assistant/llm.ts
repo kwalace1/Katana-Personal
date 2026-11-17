@@ -2,13 +2,18 @@ import type { AskReply, LifeSnapshot } from './engine'
 import type { AskAction } from './ask-api'
 import { executeAskTools } from './ask-tools'
 import { createId } from '@/lib/id'
-import { assessContextGaps } from './context-gaps'
+import { assessContextGaps, type ContextAssessment } from './context-gaps'
 import type { AskChatMessage, AskToolCall, CompactLifeSnapshot } from './ask-llm-types'
 import { waterGoalMl } from '@/modules/health/water'
+import { compactPersonalContext, type PersonalContext } from '@/lib/personal-context'
 
 export type { CompactLifeSnapshot, AskChatMessage, AskToolCall }
 
-export function compactSnapshot(snap: LifeSnapshot, userId?: string): CompactLifeSnapshot {
+export function compactSnapshot(
+  snap: LifeSnapshot,
+  userId?: string,
+  assessment?: ContextAssessment,
+): CompactLifeSnapshot {
   const done = new Set(snap.habitsDoneIds)
   const toTask = (t: { id: string; title: string; due_at?: string | null }) => ({
     id: t.id,
@@ -82,15 +87,20 @@ export function compactSnapshot(snap: LifeSnapshot, userId?: string): CompactLif
           createdAt: snap.activeCommitment.createdAt,
         }
       : null,
-    ...(userId
-      ? (() => {
-          const ctx = assessContextGaps(userId, snap)
-          return {
-            contextGapLabels: ctx.gaps.map((g) => g.label),
-            richnessScore: ctx.richnessScore,
-          }
-        })()
-      : {}),
+    ...(assessment
+      ? {
+          contextGapLabels: assessment.gaps.map((g) => g.label),
+          richnessScore: assessment.richnessScore,
+        }
+      : userId
+        ? (() => {
+            const ctx = assessContextGaps(userId, snap)
+            return {
+              contextGapLabels: ctx.gaps.map((g) => g.label),
+              richnessScore: ctx.richnessScore,
+            }
+          })()
+        : {}),
   }
 }
 
@@ -230,9 +240,13 @@ export async function resolveAskAgent(
     personality?: string | null
     history?: AskChatMessage[]
     handlers?: AskStreamHandlers
+    /** When provided, LLM compact includes workload / conflicts from PersonalContext. */
+    personalContext?: PersonalContext
   } = {},
 ): Promise<AskAgentResult> {
-  const snapshot = compactSnapshot(snap, userId)
+  const snapshot = opts.personalContext
+    ? compactPersonalContext(opts.personalContext)
+    : compactSnapshot(snap, userId)
   const personality = opts.personality || 'supportive'
   const handlers = opts.handlers
   const actions: AskAction[] = [...fallback.actions.slice(0, 2)]

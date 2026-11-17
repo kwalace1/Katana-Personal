@@ -24,6 +24,7 @@ import { resolveWorkoutPlan } from '@/lib/orchestration/workout-plan'
 import { coachGreeting, flavorBriefingText, type AskPersonality } from './personality'
 import { enrichReplyWithShareMore, shouldSkipShareMoreNudge } from './share-more'
 import { pickNextStepForUser } from '@/lib/orchestration/build-input'
+import type { NextStep } from '@/lib/orchestration/next-step'
 import {
   bindCommitmentToTask,
   clearCommitment,
@@ -289,8 +290,16 @@ export function maybeAppendCommitmentCheckIn(
   return buildCommitmentCheckInReply(userId, displayName, personality)
 }
 
+export type CoachOpeningParts = {
+  /** Prebuilt life snapshot from PersonalContext.life */
+  snap: LifeSnapshot
+  /** Precomputed next step from PersonalContext.focus (null = nothing urgent) */
+  next: NextStep | null
+}
+
 /**
  * Coach-first Ask open: check back on commitments first (once/day), else one next move.
+ * Pass `parts` from buildPersonalContext when available so Ask shares one situation model.
  */
 export function buildCoachOpening(
   userId: string,
@@ -298,8 +307,9 @@ export function buildCoachOpening(
   personality: AskPersonality = 'supportive',
   preferences?: Record<string, unknown>,
   priorMessages: Pick<AskMessage, 'role' | 'actions'>[] = [],
+  parts?: CoachOpeningParts,
 ): AskReply {
-  const snap = buildSnapshot(userId, displayName)
+  const snap = parts?.snap ?? buildSnapshot(userId, displayName)
   const greeting = coachGreeting(personality, snap.name)
 
   if (needsCommitmentCheckIn(userId, priorMessages)) {
@@ -307,7 +317,8 @@ export function buildCoachOpening(
     if (checkIn) return checkIn
   }
 
-  const next = pickNextStepForUser(userId, snap, { preferences })
+  const next =
+    parts && 'next' in parts ? parts.next : pickNextStepForUser(userId, snap, { preferences })
 
   if (!next) {
     return {

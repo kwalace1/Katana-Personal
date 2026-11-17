@@ -51,7 +51,6 @@ import { takeDayCloseMoment, type DayCloseSummary } from '@/lib/ritual-path'
 import {
   buildDailyBriefing,
   buildBriefingActions,
-  buildSnapshot,
   runAskAction,
 } from '@/modules/assistant/engine'
 import { flavorBriefingText, parseAskPersonality } from '@/modules/assistant/personality'
@@ -71,14 +70,14 @@ import { WeatherGlance } from '@/components/WeatherGlance'
 import { toast } from 'sonner'
 import { listFriendships } from '@/lib/social/friends'
 import { listMyCircles } from '@/lib/social/circles'
-import { buildPickNextStepInput } from '@/lib/orchestration/build-input'
+import { buildPersonalContext } from '@/lib/personal-context'
 import {
   logFeedback,
   logNextStepDismissedIfNeeded,
   nextStepTrackingId,
   computeWeights,
 } from '@/lib/orchestration/feedback'
-import { pickNextStep, workoutLogTarget, type NextStep, type NextStepKind } from '@/lib/orchestration/next-step'
+import { workoutLogTarget, type NextStep, type NextStepKind } from '@/lib/orchestration/next-step'
 
 const CLOSE_KEY = 'katana-personal:day-close'
 
@@ -240,38 +239,34 @@ export default function DashboardPage() {
 
   const data = useMemo(() => {
     void tick
-    const snap = buildSnapshot(userId, displayName)
-    const overdue = tasksApi.overdue(userId)
-    const priority = tasksApi.priorityTasks(userId, 8)
-    const todayEvents = calendarApi.forDay(userId, new Date())
-    const habits = habitsApi.dueToday(userId)
-    const openHabits = habits.filter((h) => !habitsApi.isDoneToday(userId, h.id))
-    const atRisk = habits.filter((h) => {
-      const streak = habitsApi.streak(userId, h.id)
-      return streak >= 3 && !habitsApi.isDoneToday(userId, h.id)
+    const ctx = buildPersonalContext(userId, {
+      displayName,
+      preferences: prefs,
+      dayClosed,
     })
-    const next = pickNextStep(
-      buildPickNextStepInput(userId, snap, {
-        preferences: prefs,
-        dayClosed: dayClosed,
-      }),
-    )
+    const snap = ctx.life
+    const habits = snap.habitsDue
+    const openHabits = ctx.pick.openHabits
+    const atRisk = ctx.pick.atRiskHabits
 
     return {
       snap,
+      context: ctx,
       briefing: flavorBriefingText(askPersonality, buildDailyBriefing(snap), displayName),
       briefingActions: buildBriefingActions(snap),
-      overdue,
-      priority,
+      overdue: ctx.pick.overdue,
+      priority: tasksApi.priorityTasks(userId, 8),
       events: calendarApi.upcoming(userId),
-      todayEvents,
+      todayEvents: snap.todayEvents,
       habits,
       openHabits,
       atRisk,
       notes: notesApi.recent(userId),
-      goals: goalsApi.active(userId),
-      next,
-      unfinishedToday: tasksApi.todayTasks(userId),
+      goals: snap.activeGoals,
+      next: ctx.focus,
+      unfinishedToday: snap.todayTasks,
+      workload: ctx.workload,
+      conflicts: ctx.conflicts,
     }
   }, [userId, tick, displayName, prefs, dayClosed, askPersonality])
 

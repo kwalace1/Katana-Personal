@@ -177,12 +177,17 @@ function formatSnapshot(snap: CompactLifeSnapshot): string {
   const commitment = snap.activeCommitment
     ? `[${snap.activeCommitment.taskId}] ${snap.activeCommitment.title}`
     : 'none'
+  const workload =
+    snap.workloadLevel != null
+      ? `Workload: ${snap.workloadLevel}${snap.freeMinutes != null ? ` · ~${snap.freeMinutes}m free before next block` : ''}${snap.conflictLabels?.length ? ` · conflicts: ${snap.conflictLabels.join('; ')}` : ''}`
+      : null
 
   return [
     `Name: ${snap.name}`,
     `Today: ${snap.todayLabel}`,
     `Data richness: ${snap.richnessScore != null ? `${Math.round(snap.richnessScore * 100)}%` : 'unknown'}${snap.contextGapLabels?.length ? ` — sparse; missing: ${snap.contextGapLabels.join(', ')}` : ''}`,
     `Active commitment: ${commitment}`,
+    ...(workload ? [workload] : []),
     `Priority tasks: ${priority}`,
     `Today’s tasks: ${today}`,
     `Open tasks: ${open}`,

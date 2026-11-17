@@ -62,6 +62,10 @@ export type CompactLifeSnapshot = {
   richnessScore?: number
   /** Active accountability commitment, when present. */
   activeCommitment?: CompactCommitment | null
+  /** From PersonalContext.workload — optional Phase 1+ signal */
+  workloadLevel?: 'light' | 'moderate' | 'heavy'
+  freeMinutes?: number
+  conflictLabels?: string[]
 }
 
 export type AskToolCall = {
