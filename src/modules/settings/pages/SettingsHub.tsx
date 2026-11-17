@@ -12,6 +12,7 @@ import {
   ScrollText,
   Shield,
   Sparkles,
+  Brain,
   User,
   Wrench,
   Zap,
@@ -24,6 +25,7 @@ import { useCloudAuth } from '@/contexts/CloudAuthContext'
 import { readIntegrationStatus } from '@/lib/integrations/status'
 import { pageEnterSubtle } from '@/lib/motion-ui'
 import { parseAskPersonality, ASK_PERSONALITIES } from '@/modules/assistant/personality'
+import { listMemories } from '@/modules/assistant/memory'
 import { SettingsGroup, SettingsRow } from '../components/settings-ui'
 import { useLocalRefresh } from '@/hooks/useLocalRefresh'
 import { readThemePreferences } from '@/theme/preferences'
@@ -38,6 +40,7 @@ export function SettingsHub() {
 
   const integrations = user ? readIntegrationStatus(user.id) : null
   const askVoice = ASK_PERSONALITIES.find((p) => p.id === parseAskPersonality(profile?.preferences))?.label
+  const memoryCount = user ? listMemories(user.id).length : 0
 
   const connectionDetail = integrations
     ? integrations.calendarConnected && integrations.healthConnected
@@ -75,6 +78,13 @@ export function SettingsHub() {
         <SettingsRow to="/settings/appearance" icon={Palette} label="Appearance" value={themeLabel(readThemePreferences().family)} />
         <SettingsRow to="/settings/notifications" icon={Bell} label="Notifications" value="Reminders & nudges" />
         <SettingsRow to="/settings/ask" icon={Sparkles} label="Ask coach voice" value={askVoice} />
+        <SettingsRow
+          to="/settings/memory"
+          icon={Brain}
+          label="Personal memory"
+          value={memoryCount > 0 ? `${memoryCount}` : undefined}
+          detail={memoryCount > 0 ? 'What Ask remembers about you' : 'Nothing saved yet — you stay in control'}
+        />
       </SettingsGroup>
 
       <SettingsGroup title="Integrations">

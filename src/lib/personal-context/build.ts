@@ -4,6 +4,7 @@ import { pickNextStep } from '@/lib/orchestration/next-step'
 import { DEFAULT_WEIGHTS } from '@/lib/orchestration/feedback'
 import { assessContextGaps } from '@/modules/assistant/context-gaps'
 import { buildSnapshot } from '@/modules/assistant/engine'
+import { toMemorySlice } from '@/modules/assistant/memory'
 import {
   PERSONAL_CONTEXT_VERSION,
   type BuildPersonalContextOptions,
@@ -52,7 +53,7 @@ export function buildPersonalContext(
     workload,
     conflicts,
     extensions: {
-      memory: null,
+      memory: toMemorySlice(userId),
       patterns: null,
       history: null,
     },

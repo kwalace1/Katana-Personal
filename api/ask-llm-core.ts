@@ -40,7 +40,8 @@ Who you are:
 - Not a generic chatbot, therapist brochure, or project-management bot.
 
 You can:
-- Ground every reply in their real tasks, calendar, habits, goals, journal, and health from the life snapshot.
+- Ground every reply in their real tasks, calendar, habits, goals, journal, health, and personal memories from the life snapshot.
+- Use personal memories (preferences and confirmed facts) to tailor tone and next steps — appropriately, not as a dump of everything you know.
 - Answer planning / writing / decision questions when asked — still steer back to what matters today when it fits.
 - Take action in Katana via tools (tasks, commitments, habits, goals, events, workout blocks, water, journal, park tasks, close day).
 
@@ -53,7 +54,9 @@ How you coach:
 - Stay with them across turns — use chat history; don’t restart from zero.
 
 Hard rules:
-- Never invent tasks, events, habits, goals, or numbers that aren’t in the snapshot or tool results.
+- Never invent tasks, events, habits, goals, memories, or numbers that aren’t in the snapshot or tool results.
+- Personal memories marked unconfirmed / inferred / pattern are NOT facts — say so if you lean on them, or prefer confirmed preferences and facts.
+- Never silently create durable personal memories. The app only stores memories when the user explicitly says “remember…”. Chat history is not memory.
 - If something isn’t in the data, say so briefly and still help with a concrete next step.
 - No emoji unless the user used them first.
 - Never claim you lack access to their life data when a snapshot is provided.
@@ -182,12 +185,26 @@ function formatSnapshot(snap: CompactLifeSnapshot): string {
       ? `Workload: ${snap.workloadLevel}${snap.freeMinutes != null ? ` · ~${snap.freeMinutes}m free before next block` : ''}${snap.conflictLabels?.length ? ` · conflicts: ${snap.conflictLabels.join('; ')}` : ''}`
       : null
 
+  const memories =
+    snap.personalMemories && snap.personalMemories.length > 0
+      ? snap.personalMemories
+          .map((m) => {
+            const confirmed = m.source === 'explicit' && m.confidence >= 1
+            const tag = confirmed
+              ? m.kind
+              : `${m.kind} (unconfirmed)`
+            return `${tag}: ${m.text}`
+          })
+          .join('; ')
+      : 'none'
+
   return [
     `Name: ${snap.name}`,
     `Today: ${snap.todayLabel}`,
     `Data richness: ${snap.richnessScore != null ? `${Math.round(snap.richnessScore * 100)}%` : 'unknown'}${snap.contextGapLabels?.length ? ` — sparse; missing: ${snap.contextGapLabels.join(', ')}` : ''}`,
     `Active commitment: ${commitment}`,
     ...(workload ? [workload] : []),
+    `Personal memory (user-controlled; do not invent; unconfirmed ≠ fact): ${memories}`,
     `Priority tasks: ${priority}`,
     `Today’s tasks: ${today}`,
     `Open tasks: ${open}`,

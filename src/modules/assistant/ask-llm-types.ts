@@ -68,6 +68,16 @@ export type CompactLifeSnapshot = {
   workloadLevel?: 'light' | 'moderate' | 'heavy'
   freeMinutes?: number
   conflictLabels?: string[]
+  /**
+   * Small deterministic personal-memory selection from PersonalContext.extensions.memory.
+   * Treat confidence below 1 or source inferred as unconfirmed — never invent memories.
+   */
+  personalMemories?: {
+    kind: string
+    text: string
+    confidence: number
+    source: 'explicit' | 'inferred'
+  }[]
 }
 
 export type AskToolCall = {

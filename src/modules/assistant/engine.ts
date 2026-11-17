@@ -38,6 +38,11 @@ import {
   type CommitmentCheckInOptions,
   type CommitmentSnapshot,
 } from './commitments'
+import {
+  formatMemoriesForCoach,
+  listMemories,
+  tryParseMemoryCommand,
+} from './memory'
 import type { AskMessage } from './ask-api'
 
 export interface LifeSnapshot {
@@ -688,11 +693,17 @@ function answerHealth(snap: LifeSnapshot): AskReply {
   }
 }
 
-function answerAboutMe(snap: LifeSnapshot): AskReply {
+function answerAboutMe(snap: LifeSnapshot, userId: string): AskReply {
   const parts: string[] = [
     `Here’s a snapshot of you in Katana, ${snap.name}.`,
     `Today is ${snap.todayLabel}.`,
   ]
+  const remembered = formatMemoriesForCoach(userId)
+  if (remembered) {
+    parts.push(`What you’ve asked me to remember: ${remembered}.`)
+  } else {
+    parts.push('No personal memories saved yet — say “remember that…” anytime.')
+  }
   parts.push(
     snap.openTasks.length > 0
       ? `You have ${snap.openTasks.length} open task${snap.openTasks.length === 1 ? '' : 's'}${
@@ -737,9 +748,9 @@ function answerAboutMe(snap: LifeSnapshot): AskReply {
   return {
     text: parts.join(' '),
     actions: [
+      { id: createId(), label: 'Manage memories', kind: 'open_route', route: '/settings/memory' },
       { id: createId(), label: 'Open Today', kind: 'open_route', route: '/dashboard' },
       { id: createId(), label: 'Open goals', kind: 'open_route', route: '/goals' },
-      { id: createId(), label: 'Open journal', kind: 'open_route', route: '/journal' },
     ],
   }
 }
@@ -749,12 +760,88 @@ function answerCapabilities(_snap: LifeSnapshot): AskReply {
     text: keepShort([
       'I’m your day guide inside Katana — a calm daily OS, not another list app.',
       'I brief the day, focus you, and draft small actions — add a task or event, check a habit, log water, park work, or close the evening.',
+      'Say “remember that…” to save a personal fact or preference; manage them anytime in Settings → Personal memory.',
       'Say what you need, like “add Call Mom Friday 3pm,” and tap to confirm. Together is optional.',
     ]),
     actions: [
       { id: createId(), label: 'What should I work on?', kind: 'open_route', route: '/ask?q=What%20should%20I%20work%20on%20today' },
+      { id: createId(), label: 'Personal memory', kind: 'open_route', route: '/settings/memory' },
       { id: createId(), label: 'Open Today', kind: 'open_route', route: '/dashboard' },
-      { id: createId(), label: 'Invite a friend', kind: 'open_route', route: '/social?tab=friends' },
+    ],
+  }
+}
+
+function answerListMemories(userId: string): AskReply {
+  const items = listMemories(userId)
+  if (items.length === 0) {
+    return {
+      text: 'I don’t have any personal memories saved yet. Say “remember that…” and I’ll keep it — you can edit or delete anything in Settings.',
+      actions: [
+        { id: createId(), label: 'Open personal memory', kind: 'open_route', route: '/settings/memory' },
+      ],
+    }
+  }
+  const lines = items
+    .slice(0, 12)
+    .map((m) => {
+      const label =
+        m.kind === 'preference'
+          ? 'Preference'
+          : m.kind === 'pattern'
+            ? 'Pattern (unconfirmed)'
+            : m.kind === 'fact'
+              ? 'Fact'
+              : 'Note'
+      return `· ${label}: ${m.text}`
+    })
+    .join('\n')
+  return {
+    text: `Here’s what you’ve asked me to remember:\n${lines}${
+      items.length > 12 ? `\n…and ${items.length - 12} more in Settings.` : ''
+    }`,
+    actions: [
+      { id: createId(), label: 'Manage memories', kind: 'open_route', route: '/settings/memory' },
+    ],
+  }
+}
+
+function replyForMemoryCommand(
+  userId: string,
+  result: NonNullable<ReturnType<typeof tryParseMemoryCommand>>,
+): AskReply {
+  if (result.kind === 'remember' && result.memory) {
+    const kindLabel =
+      result.memory.kind === 'preference'
+        ? 'preference'
+        : result.memory.kind === 'fact'
+          ? 'fact'
+          : 'note'
+    return {
+      text: `Got it — I’ll remember that ${kindLabel}: “${result.memory.text}.” You can edit or delete it anytime in Settings → Personal memory.`,
+      actions: [
+        { id: createId(), label: 'Manage memories', kind: 'open_route', route: '/settings/memory' },
+      ],
+    }
+  }
+  const removed = result.removed ?? 0
+  if (result.text === 'all') {
+    return {
+      text:
+        removed > 0
+          ? `Cleared ${removed} personal memor${removed === 1 ? 'y' : 'ies'}.`
+          : 'No personal memories to clear.',
+      actions: [
+        { id: createId(), label: 'Open personal memory', kind: 'open_route', route: '/settings/memory' },
+      ],
+    }
+  }
+  return {
+    text:
+      removed > 0
+        ? `Forgot ${removed} memor${removed === 1 ? 'y' : 'ies'} matching “${result.text}.”`
+        : `I couldn’t find a memory matching “${result.text}.” Check Settings → Personal memory to edit or delete.`,
+    actions: [
+      { id: createId(), label: 'Manage memories', kind: 'open_route', route: '/settings/memory' },
     ],
   }
 }
@@ -917,7 +1004,10 @@ export function answerQuestion(userId: string, question: string, displayName?: s
   return answerQuestionWithActions(userId, question, displayName).text
 }
 
-type Intent = { test: (q: string) => boolean; answer: (snap: LifeSnapshot, q: string) => AskReply }
+type Intent = {
+  test: (q: string) => boolean
+  answer: (snap: LifeSnapshot, q: string, userId: string) => AskReply
+}
 
 function isGreeting(q: string): boolean {
   const cleaned = q.replace(/[!?.,]+$/g, '').trim()
@@ -956,7 +1046,18 @@ const INTENTS: Intent[] = [
       q.includes('my profile') ||
       q.includes('know about me') ||
       q.includes('tell me about my life'),
-    answer: answerAboutMe,
+    answer: (snap, _q, userId) => answerAboutMe(snap, userId),
+  },
+  {
+    test: (q) =>
+      q.includes('what do you remember') ||
+      q.includes('what you remember') ||
+      q.includes('my memories') ||
+      q.includes('personal memory') ||
+      q.includes('what have you remembered') ||
+      (q.includes('remember') &&
+        (q.includes('what') || q.includes('show') || q.includes('list') || q.includes('tell'))),
+    answer: (_snap, _q, userId) => answerListMemories(userId),
   },
   {
     test: (q) =>
@@ -1132,6 +1233,9 @@ export function answerQuestionWithActions(
   const commitment = tryParseCommitment(userId, question.trim(), personality, preferences)
   if (commitment) return commitment
 
+  const memoryCmd = tryParseMemoryCommand(userId, question.trim())
+  if (memoryCmd) return replyForMemoryCommand(userId, memoryCmd)
+
   const created = tryParseCreate(question.trim())
   if (created) return created
 
@@ -1143,7 +1247,7 @@ export function answerQuestionWithActions(
 
   for (const intent of INTENTS) {
     if (intent.test(q)) {
-      const reply = intent.answer(snap, q)
+      const reply = intent.answer(snap, q, userId)
       if (shouldSkipShareMoreNudge(q)) return reply
       return enrichReplyWithShareMore(userId, reply, snap, personality)
     }

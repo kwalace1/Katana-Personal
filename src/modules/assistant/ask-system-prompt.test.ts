@@ -6,6 +6,8 @@ describe('Ask companion coach system prompt', () => {
     expect(KATANA_ASK_SYSTEM_PROMPT).toMatch(/companion and accountability coach/i)
     expect(KATANA_ASK_SYSTEM_PROMPT).toMatch(/ONE clear next move/)
     expect(KATANA_ASK_SYSTEM_PROMPT).toMatch(/held accountable/)
+    expect(KATANA_ASK_SYSTEM_PROMPT).toMatch(/personal memories/i)
+    expect(KATANA_ASK_SYSTEM_PROMPT).toMatch(/Never silently create durable personal memories/i)
     expect(KATANA_ASK_SYSTEM_PROMPT).not.toMatch(/capable general assistant/)
   })
 

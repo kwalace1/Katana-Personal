@@ -8,6 +8,7 @@ import type { PersonalContext } from './types'
  */
 export function compactPersonalContext(ctx: PersonalContext): CompactLifeSnapshot {
   const base = compactSnapshot(ctx.life, ctx.userId, ctx.assessment)
+  const memoryItems = ctx.extensions.memory?.items
   return {
     ...base,
     contextGapLabels: ctx.assessment.gaps.map((g) => g.label),
@@ -15,5 +16,14 @@ export function compactPersonalContext(ctx: PersonalContext): CompactLifeSnapsho
     workloadLevel: ctx.workload.level,
     freeMinutes: ctx.workload.freeMinutes,
     conflictLabels: ctx.conflicts.map((c) => c.label),
+    personalMemories:
+      memoryItems && memoryItems.length > 0
+        ? memoryItems.map((m) => ({
+            kind: m.kind,
+            text: m.text,
+            confidence: m.confidence,
+            source: m.source,
+          }))
+        : undefined,
   }
 }

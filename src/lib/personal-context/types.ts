@@ -45,11 +45,18 @@ export type WorkloadSummary = {
 }
 
 /**
- * Reserved for future durable personal memory (Phase 3).
- * Keep null until that phase; do not invent facts here.
+ * Durable personal memory slice (Phase 3).
+ * Only user-confirmed items should appear with confidence 1 / source explicit.
+ * Inferred / pattern items must stay clearly lower confidence — never invent facts.
  */
 export type PersonalMemorySlice = {
-  items: { id: string; kind: string; text: string }[]
+  items: {
+    id: string
+    kind: string
+    text: string
+    confidence: number
+    source: 'explicit' | 'inferred'
+  }[]
 }
 
 /** Reserved for inferred behavioral patterns (Phase 4). */

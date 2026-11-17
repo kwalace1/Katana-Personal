@@ -20,7 +20,7 @@ describe('buildPersonalContext', () => {
     localDb.clearAll(USER)
   })
 
-  it('builds a versioned read-only context with empty extensions', () => {
+  it('builds a versioned read-only context with empty memory when none saved', () => {
     const ctx = buildPersonalContext(USER, { displayName: 'Alex' })
     expect(ctx.version).toBe(PERSONAL_CONTEXT_VERSION)
     expect(ctx.userId).toBe(USER)
@@ -29,6 +29,16 @@ describe('buildPersonalContext', () => {
     expect(ctx.extensions).toEqual({ memory: null, patterns: null, history: null })
     expect(ctx.assessment.domainsTotal).toBeGreaterThan(0)
     expect(['light', 'moderate', 'heavy']).toContain(ctx.workload.level)
+  })
+
+  it('fills extensions.memory from personal_memory without inventing patterns', async () => {
+    const { createMemory } = await import('@/modules/assistant/memory')
+    createMemory(USER, { text: 'I prefer texting', kind: 'preference' })
+    const ctx = buildPersonalContext(USER, { displayName: 'Alex' })
+    expect(ctx.extensions.memory?.items).toHaveLength(1)
+    expect(ctx.extensions.memory?.items[0]?.source).toBe('explicit')
+    expect(ctx.extensions.patterns).toBeNull()
+    expect(ctx.extensions.history).toBeNull()
   })
 
   it('includes overdue, habits, commitment, and focus consistently', () => {
