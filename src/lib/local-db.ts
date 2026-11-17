@@ -34,6 +34,16 @@ export const WORKSPACE_COLLECTIONS = [
   'weight_goals',
   'documents',
   'ask_messages',
+  /** Ask accountability commitments (active + snoozed). */
+  'ask_commitments',
+  /** Commitment outcome history (completed / dropped / snoozed / replaced). */
+  'ask_commitment_outcomes',
+  /**
+   * Durable personal memory (facts / preferences / notes).
+   * User-controlled; separate from tasks, commitments, and chat history.
+   * Syncs with workspace when cloud sync is on — never shared socially.
+   */
+  'personal_memory',
 ] as const
 
 export type WorkspaceCollection = (typeof WORKSPACE_COLLECTIONS)[number]

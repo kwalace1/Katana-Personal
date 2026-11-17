@@ -22,6 +22,8 @@ export interface AskAction {
     | 'create_habit'
     | 'schedule_workout'
     | 'adjust_goal'
+    | 'drop_commitment'
+    | 'snooze_commitment'
   taskId?: string
   habitId?: string
   goalId?: string
@@ -30,7 +32,7 @@ export interface AskAction {
   dueAt?: string | null
   startsAt?: string
   endsAt?: string
-  /** Journal body for upsert_journal / close_day */
+  /** Journal body for upsert_journal / close_day; hours for snooze_commitment */
   body?: string
 }
 

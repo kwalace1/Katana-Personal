@@ -1,9 +1,11 @@
 import { createId } from '@/lib/id'
 import { healthApi } from '@/modules/health/api'
 import { formatWater, mlFromAmount, readWaterGoal, readWaterUnit, waterUnitMeta, type WaterUnit } from '@/modules/health/water'
+import { bindCommitmentToTask, makeCommitment } from './commitments'
 import { buildSnapshot, runAskAction } from './engine'
 import type { AskAction } from './ask-api'
 import type { AskToolCall } from './ask-llm-types'
+import { tasksApi } from '@/modules/tasks/api'
 
 export type AskToolExecResult = {
   toolCallId: string
@@ -99,6 +101,74 @@ export function executeAskTool(userId: string, call: AskToolCall): AskToolExecRe
       }
     }
 
+    if (name === 'make_commitment') {
+      const title = asString(args.title)
+      const taskId = asString(args.taskId)
+      if (taskId) {
+        const task = tasksApi.getTask(userId, taskId)
+        if (!task || task.status === 'done') {
+          return { toolCallId, name, ok: false, message: 'Could not find that open task to commit to.' }
+        }
+        bindCommitmentToTask(userId, task.id, task.title)
+        return {
+          toolCallId,
+          name,
+          ok: true,
+          message: `Holding them to “${task.title}.” Will check back next Ask open.`,
+          action: {
+            id: createId(),
+            label: `Mark “${task.title}” done`,
+            kind: 'complete_task',
+            taskId: task.id,
+          },
+        }
+      }
+      if (!title) return { toolCallId, name, ok: false, message: 'Missing commitment title.' }
+      const made = makeCommitment(userId, title)
+      return {
+        toolCallId,
+        name,
+        ok: true,
+        message: `Commitment locked: “${made.title}” (high priority, due today). Will check back next Ask open.`,
+        action: {
+          id: createId(),
+          label: `Mark “${made.title}” done`,
+          kind: 'complete_task',
+          taskId: made.taskId,
+        },
+      }
+    }
+
+    if (name === 'drop_commitment') {
+      const message = runAskAction(userId, {
+        id: createId(),
+        label: 'Drop commitment',
+        kind: 'drop_commitment',
+      })
+      return {
+        toolCallId,
+        name,
+        ok: Boolean(message) && !message.startsWith('No active'),
+        message: message || 'No active commitment to drop.',
+      }
+    }
+
+    if (name === 'snooze_commitment') {
+      const hours = typeof args.hours === 'number' ? args.hours : undefined
+      const message = runAskAction(userId, {
+        id: createId(),
+        label: 'Snooze commitment',
+        kind: 'snooze_commitment',
+        body: hours != null ? String(hours) : undefined,
+      })
+      return {
+        toolCallId,
+        name,
+        ok: Boolean(message) && !message.startsWith('No active'),
+        message: message || 'No active commitment to snooze.',
+      }
+    }
+
     if (name === 'complete_task') {
       const taskId = findTaskId(userId, asString(args.taskId), asString(args.title))
       if (!taskId) return { toolCallId, name, ok: false, message: 'Could not find that open task.' }
@@ -137,6 +207,43 @@ export function executeAskTool(userId: string, call: AskToolCall): AskToolExecRe
       }
     }
 
+    if (name === 'create_habit') {
+      const title = asString(args.title)
+      if (!title) return { toolCallId, name, ok: false, message: 'Missing habit title.' }
+      const message = runAskAction(userId, {
+        id: createId(),
+        label: `Add habit “${title}”`,
+        kind: 'create_habit',
+        title,
+      })
+      return {
+        toolCallId,
+        name,
+        ok: true,
+        message: message || `Added habit “${title}”.`,
+        action: { id: createId(), label: 'Open Habits', kind: 'open_route', route: '/habits' },
+      }
+    }
+
+    if (name === 'create_goal') {
+      const title = asString(args.title)
+      if (!title) return { toolCallId, name, ok: false, message: 'Missing goal title.' }
+      const message = runAskAction(userId, {
+        id: createId(),
+        label: `Add goal “${title}”`,
+        kind: 'create_goal',
+        title,
+        dueAt: asString(args.targetDate) ?? null,
+      })
+      return {
+        toolCallId,
+        name,
+        ok: true,
+        message: message || `Added goal “${title}”.`,
+        action: { id: createId(), label: 'Open Goals', kind: 'open_route', route: '/goals' },
+      }
+    }
+
     if (name === 'create_event') {
       const title = asString(args.title)
       const startsAt = asString(args.startsAt)
@@ -157,6 +264,25 @@ export function executeAskTool(userId: string, call: AskToolCall): AskToolExecRe
         name,
         ok: true,
         message: message || `Scheduled “${title}”.`,
+        action: { id: createId(), label: 'Open Calendar', kind: 'open_route', route: '/calendar' },
+      }
+    }
+
+    if (name === 'schedule_workout') {
+      const title = asString(args.title)
+      const preferTomorrow = args.preferTomorrow === true
+      const message = runAskAction(userId, {
+        id: createId(),
+        label: title ? `Schedule “${title}”` : 'Schedule workout',
+        kind: 'schedule_workout',
+        title,
+        body: preferTomorrow ? 'tomorrow' : undefined,
+      })
+      return {
+        toolCallId,
+        name,
+        ok: Boolean(message),
+        message: message || 'Scheduled a workout block.',
         action: { id: createId(), label: 'Open Calendar', kind: 'open_route', route: '/calendar' },
       }
     }

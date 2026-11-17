@@ -1,6 +1,8 @@
 # Ask LLM (via OpenRouter)
 
-Deeper Ask is a **life-aware general assistant**: streaming replies, multi-turn memory, rich life context, and tools that create/complete tasks, habits, events, journal, water, and close the day.
+Deeper Ask is a **life-aware companion / accountability coach**: streaming replies, multi-turn memory, rich life context, and tools that create/complete tasks, habits, events, journal, water, and close the day. It steers toward one next move in the day loop — not generic chat.
+
+**Commitments:** say “hold me to X” (or “hold me to my top priority”). Katana creates/binds a high-priority task and checks back the next time Ask opens until you finish it or drop the commitment.
 
 Rules still handle capture phrases and known day intents offline. Open-ended questions and follow-ups in an LLM thread go through the model.
 

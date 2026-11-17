@@ -14,7 +14,7 @@ export function SettingsAskPage() {
   return (
     <SettingsDetail
       title="Ask coach voice"
-      description="How Katana talks to you in Ask — set once, change anytime."
+      description="Companion tone for your accountability coach — set once, change anytime."
       backTo={fromAsk ? '/ask' : '/settings'}
       backLabel={fromAsk ? 'Ask' : 'Settings'}
     >
@@ -35,7 +35,6 @@ export function SettingsAskPage() {
               )}
             >
               <p className={cn('text-sm font-semibold', on && 'text-primary')}>{p.label}</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">{p.blurb}</p>
             </button>
           )
         })}

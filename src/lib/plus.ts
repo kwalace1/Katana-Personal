@@ -26,8 +26,8 @@ export const PLUS_FEATURE_MATRIX: PlusTierRow[] = [
   {
     feature: 'llm',
     label: 'Ask coach depth',
-    free: `${FREE_LLM_ASKS_PER_DAY} open-ended LLM replies/day`,
-    plus: 'Unlimited streaming Ask with memory & tools',
+    free: `${FREE_LLM_ASKS_PER_DAY} open-ended coach replies/day`,
+    plus: 'Unlimited companion coach — streaming, memory & tools',
   },
   {
     feature: 'challenge',
@@ -144,8 +144,8 @@ export function canUsePlusFeature(feature: PlusFeature): boolean {
 export function plusFeatureBlurb(feature: PlusFeature): { title: string; body: string } {
   if (feature === 'llm') {
     return {
-      title: 'Accountability pack · deeper Ask',
-      body: `Free keeps action chips forever. Plus unlocks unlimited Ask depth (streaming, memory, tools) after ${FREE_LLM_ASKS_PER_DAY} open-ended replies/day.`,
+      title: 'Accountability pack · companion coach',
+      body: `Free keeps action chips forever. Plus unlocks unlimited Ask coaching (streaming, memory, tools) after ${FREE_LLM_ASKS_PER_DAY} open-ended replies/day.`,
     }
   }
   if (feature === 'challenge') {

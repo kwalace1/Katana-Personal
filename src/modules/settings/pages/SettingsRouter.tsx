@@ -7,6 +7,7 @@ import { SettingsNotificationsPage } from './SettingsNotificationsPage'
 import { SettingsConnectionsPage } from './SettingsConnectionsPage'
 import { SettingsPrivacyPage } from './SettingsPrivacyPage'
 import { SettingsAskPage } from './SettingsAskPage'
+import { SettingsMemoryPage } from './SettingsMemoryPage'
 import { SettingsPlusPage } from './SettingsPlusPage'
 import { SettingsTogetherPage } from './SettingsTogetherPage'
 import { SettingsSharingPage } from './SettingsSharingPage'
@@ -29,6 +30,7 @@ export default function SettingsRouter() {
         <Route path="legal/privacy" element={<SettingsLegalPrivacyPage />} />
         <Route path="legal/terms" element={<SettingsLegalTermsPage />} />
         <Route path="ask" element={<SettingsAskPage />} />
+        <Route path="memory" element={<SettingsMemoryPage />} />
         <Route path="plus" element={<SettingsPlusPage />} />
         <Route path="together" element={<SettingsTogetherPage />} />
         <Route path="sharing" element={<SettingsSharingPage />} />

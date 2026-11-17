@@ -21,8 +21,31 @@ import { tryOrchestrationIntent } from './engine-orchestration'
 import { goalsBehindPace, goalPaceStatus } from '@/lib/orchestration/goal-pace'
 import { pickWorkoutSlot } from '@/lib/orchestration/schedule-workout'
 import { resolveWorkoutPlan } from '@/lib/orchestration/workout-plan'
-import { flavorBriefingText, type AskPersonality } from './personality'
+import { coachGreeting, flavorBriefingText, type AskPersonality } from './personality'
 import { enrichReplyWithShareMore, shouldSkipShareMoreNudge } from './share-more'
+import { pickNextStepForUser } from '@/lib/orchestration/build-input'
+import type { NextStep } from '@/lib/orchestration/next-step'
+import {
+  bindCommitmentToTask,
+  clearCommitment,
+  clearCommitmentForTask,
+  getActiveCommitment,
+  getActiveCommitmentSnapshot,
+  makeCommitment,
+  markCommitmentCheckedIn,
+  needsCommitmentCheckIn,
+  snoozeCommitment,
+  type CommitmentCheckInOptions,
+  type CommitmentSnapshot,
+} from './commitments'
+import {
+  formatMemoriesForCoach,
+  formatMemoryDisplayTag,
+  listMemories,
+  tryParseMemoryCommand,
+} from './memory'
+import { asAuthoritative } from './ask-reply-policy'
+import type { AskMessage } from './ask-api'
 
 export interface LifeSnapshot {
   name: string
@@ -49,6 +72,8 @@ export interface LifeSnapshot {
   caloriesToday: number
   recentNotes: number
   week: WeekStats
+  /** Active Ask accountability commitment, when one exists. */
+  activeCommitment: CommitmentSnapshot | null
 }
 
 function loggedWaterMl(snap: { waterMl?: number; waterGlasses: number }) {
@@ -65,6 +90,11 @@ export interface AskReply {
   actions: AskAction[]
   /** When true, Ask UI should try Gemini for a richer open-ended reply. */
   useLlm?: boolean
+  /**
+   * When true, this reply confirms a durable local mutation (memory, commitment, etc.).
+   * Ask must not overwrite it with an LLM continuation.
+   */
+  authoritative?: boolean
 }
 
 export function buildSnapshot(userId: string, displayName = 'there'): LifeSnapshot {
@@ -113,6 +143,7 @@ export function buildSnapshot(userId: string, displayName = 'there'): LifeSnapsh
       .reduce((s, n) => s + (n.calories || 0), 0),
     recentNotes: notesApi.listNotes(userId).length,
     week: buildWeekStats(userId, today),
+    activeCommitment: getActiveCommitmentSnapshot(userId),
   }
 }
 
@@ -227,6 +258,129 @@ export function buildBriefingActions(snap: LifeSnapshot): AskAction[] {
 /** @deprecated use buildBriefingActions */
 function briefingActions(snap: LifeSnapshot): AskAction[] {
   return buildBriefingActions(snap)
+}
+
+/** Build the standard commitment check-in reply and mark it shown for today. */
+export function buildCommitmentCheckInReply(
+  userId: string,
+  displayName?: string,
+  personality: AskPersonality = 'supportive',
+): AskReply | null {
+  const commitment = getActiveCommitment(userId)
+  if (!commitment) return null
+  const task = tasksApi.getTask(userId, commitment.taskId)
+  if (!task || task.status === 'done') return null
+
+  markCommitmentCheckedIn(userId, commitment.id)
+  const greeting = coachGreeting(personality, displayName || 'there')
+  return {
+    text: `${greeting}\n\nCheck-in: you asked me to hold you to “${commitment.title}.” It’s still open — do it now, snooze the check-in, or drop the commitment.`,
+    actions: [
+      {
+        id: createId(),
+        label: `Mark “${commitment.title}” done`,
+        kind: 'complete_task',
+        taskId: commitment.taskId,
+      },
+      {
+        id: createId(),
+        label: 'Snooze check-in',
+        kind: 'snooze_commitment',
+      },
+      {
+        id: createId(),
+        label: 'Drop commitment',
+        kind: 'drop_commitment',
+      },
+    ],
+  }
+}
+
+/**
+ * Mid-conversation / revisit check-in: once per day, skipped if recent chat already covers it.
+ */
+export function maybeAppendCommitmentCheckIn(
+  userId: string,
+  messages: Pick<AskMessage, 'role' | 'actions'>[],
+  displayName?: string,
+  personality: AskPersonality = 'supportive',
+  checkInOpts?: CommitmentCheckInOptions,
+): AskReply | null {
+  if (!needsCommitmentCheckIn(userId, messages, new Date(), checkInOpts)) return null
+  return buildCommitmentCheckInReply(userId, displayName, personality)
+}
+
+export type CoachOpeningParts = {
+  /** Prebuilt life snapshot from PersonalContext.life */
+  snap: LifeSnapshot
+  /** Precomputed next step from PersonalContext.focus (null = nothing urgent) */
+  next: NextStep | null
+  /** Optional workload signals for gentler check-ins */
+  checkInOpts?: CommitmentCheckInOptions
+}
+
+/**
+ * Coach-first Ask open: check back on commitments first (once/day), else one next move.
+ * Pass `parts` from buildPersonalContext when available so Ask shares one situation model.
+ */
+export function buildCoachOpening(
+  userId: string,
+  displayName?: string,
+  personality: AskPersonality = 'supportive',
+  preferences?: Record<string, unknown>,
+  priorMessages: Pick<AskMessage, 'role' | 'actions'>[] = [],
+  parts?: CoachOpeningParts,
+): AskReply {
+  const snap = parts?.snap ?? buildSnapshot(userId, displayName)
+  const greeting = coachGreeting(personality, snap.name)
+
+  if (needsCommitmentCheckIn(userId, priorMessages, new Date(), parts?.checkInOpts)) {
+    const checkIn = buildCommitmentCheckInReply(userId, displayName, personality)
+    if (checkIn) return checkIn
+  }
+
+  const next =
+    parts && 'next' in parts ? parts.next : pickNextStepForUser(userId, snap, { preferences })
+
+  if (!next) {
+    return {
+      text: `${greeting} Nothing urgent on the plate. Capture one thing, or ask me to hold you to a commitment.`,
+      actions: buildBriefingActions(snap).slice(0, 3),
+    }
+  }
+
+  const actions = (next.actions.length > 0 ? next.actions : buildBriefingActions(snap)).slice(0, 4)
+  return {
+    text: `${greeting}\n\nNext move: ${next.title}.\n${next.reason}`,
+    actions,
+  }
+}
+
+/** Create a commitment task and return a coach reply (rules path + shared helper). */
+export function commitToTitle(
+  userId: string,
+  title: string,
+  personality: AskPersonality = 'supportive',
+): AskReply {
+  const { taskId, title: clean } = makeCommitment(userId, title)
+  const greeting =
+    personality === 'tough'
+      ? `Locked. “${clean}” is your commitment — no soft outs.`
+      : personality === 'dry'
+        ? `Noted. I’m holding you to “${clean}.” How novel.`
+        : `Got it — I’m holding you to “${clean}.” I’ll check back next time you open Ask.`
+  return asAuthoritative({
+    text: greeting,
+    actions: [
+      {
+        id: createId(),
+        label: `Mark “${clean}” done`,
+        kind: 'complete_task',
+        taskId,
+      },
+      { id: createId(), label: 'Open Tasks', kind: 'open_route', route: '/tasks' },
+    ],
+  })
 }
 
 function answerFocus(snap: LifeSnapshot): AskReply {
@@ -546,11 +700,17 @@ function answerHealth(snap: LifeSnapshot): AskReply {
   }
 }
 
-function answerAboutMe(snap: LifeSnapshot): AskReply {
+function answerAboutMe(snap: LifeSnapshot, userId: string): AskReply {
   const parts: string[] = [
     `Here’s a snapshot of you in Katana, ${snap.name}.`,
     `Today is ${snap.todayLabel}.`,
   ]
+  const remembered = formatMemoriesForCoach(userId)
+  if (remembered) {
+    parts.push(`What you’ve asked me to remember: ${remembered}.`)
+  } else {
+    parts.push('No personal memories saved yet — say “remember that…” anytime.')
+  }
   parts.push(
     snap.openTasks.length > 0
       ? `You have ${snap.openTasks.length} open task${snap.openTasks.length === 1 ? '' : 's'}${
@@ -595,9 +755,9 @@ function answerAboutMe(snap: LifeSnapshot): AskReply {
   return {
     text: parts.join(' '),
     actions: [
+      { id: createId(), label: 'Manage memories', kind: 'open_route', route: '/settings/memory' },
       { id: createId(), label: 'Open Today', kind: 'open_route', route: '/dashboard' },
       { id: createId(), label: 'Open goals', kind: 'open_route', route: '/goals' },
-      { id: createId(), label: 'Open journal', kind: 'open_route', route: '/journal' },
     ],
   }
 }
@@ -607,14 +767,80 @@ function answerCapabilities(_snap: LifeSnapshot): AskReply {
     text: keepShort([
       'I’m your day guide inside Katana — a calm daily OS, not another list app.',
       'I brief the day, focus you, and draft small actions — add a task or event, check a habit, log water, park work, or close the evening.',
+      'Say “remember that…” to save a personal fact or preference; manage them anytime in Settings → Personal memory.',
       'Say what you need, like “add Call Mom Friday 3pm,” and tap to confirm. Together is optional.',
     ]),
     actions: [
       { id: createId(), label: 'What should I work on?', kind: 'open_route', route: '/ask?q=What%20should%20I%20work%20on%20today' },
+      { id: createId(), label: 'Personal memory', kind: 'open_route', route: '/settings/memory' },
       { id: createId(), label: 'Open Today', kind: 'open_route', route: '/dashboard' },
-      { id: createId(), label: 'Invite a friend', kind: 'open_route', route: '/social?tab=friends' },
     ],
   }
+}
+
+function answerListMemories(userId: string): AskReply {
+  const items = listMemories(userId)
+  if (items.length === 0) {
+    return {
+      text: 'I don’t have any personal memories saved yet. Say “remember that…” and I’ll keep it — you can edit or delete anything in Settings.',
+      actions: [
+        { id: createId(), label: 'Open personal memory', kind: 'open_route', route: '/settings/memory' },
+      ],
+    }
+  }
+  const lines = items
+    .slice(0, 12)
+    .map((m) => `· ${formatMemoryDisplayTag(m)}: ${m.text}`)
+    .join('\n')
+  return {
+    text: `Here’s what you’ve asked me to remember:\n${lines}${
+      items.length > 12 ? `\n…and ${items.length - 12} more in Settings.` : ''
+    }`,
+    actions: [
+      { id: createId(), label: 'Manage memories', kind: 'open_route', route: '/settings/memory' },
+    ],
+  }
+}
+
+function replyForMemoryCommand(
+  userId: string,
+  result: NonNullable<ReturnType<typeof tryParseMemoryCommand>>,
+): AskReply {
+  if (result.kind === 'remember' && result.memory) {
+    const kindLabel =
+      result.memory.kind === 'preference'
+        ? 'preference'
+        : result.memory.kind === 'fact'
+          ? 'fact'
+          : 'note'
+    return asAuthoritative({
+      text: `Got it — I’ll remember that ${kindLabel}: “${result.memory.text}.” You can edit or delete it anytime in Settings → Personal memory.`,
+      actions: [
+        { id: createId(), label: 'Manage memories', kind: 'open_route', route: '/settings/memory' },
+      ],
+    })
+  }
+  const removed = result.removed ?? 0
+  if (result.text === 'all') {
+    return asAuthoritative({
+      text:
+        removed > 0
+          ? `Cleared ${removed} personal memor${removed === 1 ? 'y' : 'ies'}.`
+          : 'No personal memories to clear.',
+      actions: [
+        { id: createId(), label: 'Open personal memory', kind: 'open_route', route: '/settings/memory' },
+      ],
+    })
+  }
+  return asAuthoritative({
+    text:
+      removed > 0
+        ? `Forgot ${removed} memor${removed === 1 ? 'y' : 'ies'} matching “${result.text}.”`
+        : `I couldn’t find a memory matching “${result.text}.” Check Settings → Personal memory to edit or delete.`,
+    actions: [
+      { id: createId(), label: 'Manage memories', kind: 'open_route', route: '/settings/memory' },
+    ],
+  })
 }
 
 function answerTogether(q: string): AskReply {
@@ -775,7 +1001,10 @@ export function answerQuestion(userId: string, question: string, displayName?: s
   return answerQuestionWithActions(userId, question, displayName).text
 }
 
-type Intent = { test: (q: string) => boolean; answer: (snap: LifeSnapshot, q: string) => AskReply }
+type Intent = {
+  test: (q: string) => boolean
+  answer: (snap: LifeSnapshot, q: string, userId: string) => AskReply
+}
 
 function isGreeting(q: string): boolean {
   const cleaned = q.replace(/[!?.,]+$/g, '').trim()
@@ -814,7 +1043,18 @@ const INTENTS: Intent[] = [
       q.includes('my profile') ||
       q.includes('know about me') ||
       q.includes('tell me about my life'),
-    answer: answerAboutMe,
+    answer: (snap, _q, userId) => answerAboutMe(snap, userId),
+  },
+  {
+    test: (q) =>
+      q.includes('what do you remember') ||
+      q.includes('what you remember') ||
+      q.includes('my memories') ||
+      q.includes('personal memory') ||
+      q.includes('what have you remembered') ||
+      (q.includes('remember') &&
+        (q.includes('what') || q.includes('show') || q.includes('list') || q.includes('tell'))),
+    answer: (_snap, _q, userId) => answerListMemories(userId),
   },
   {
     test: (q) =>
@@ -987,6 +1227,12 @@ export function answerQuestionWithActions(
     return enrichReplyWithShareMore(userId, reply, snap, personality)
   }
 
+  const commitment = tryParseCommitment(userId, question.trim(), personality, preferences)
+  if (commitment) return commitment
+
+  const memoryCmd = tryParseMemoryCommand(userId, question.trim())
+  if (memoryCmd) return replyForMemoryCommand(userId, memoryCmd)
+
   const created = tryParseCreate(question.trim())
   if (created) return created
 
@@ -998,7 +1244,7 @@ export function answerQuestionWithActions(
 
   for (const intent of INTENTS) {
     if (intent.test(q)) {
-      const reply = intent.answer(snap, q)
+      const reply = intent.answer(snap, q, userId)
       if (shouldSkipShareMoreNudge(q)) return reply
       return enrichReplyWithShareMore(userId, reply, snap, personality)
     }
@@ -1015,8 +1261,31 @@ export function answerQuestionWithActions(
 }
 
 export function runAskAction(userId: string, action: AskAction): string {
+  if (action.kind === 'drop_commitment') {
+    const active = getActiveCommitment(userId)
+    if (!active) return 'No active commitment to drop.'
+    clearCommitment(userId, active.id)
+    return `Dropped the commitment on “${active.title}.” The task stays on your list.`
+  }
+  if (action.kind === 'snooze_commitment') {
+    const hours = action.body ? Number(action.body) : undefined
+    const snoozed = snoozeCommitment(userId, {
+      hours: Number.isFinite(hours) && (hours as number) > 0 ? (hours as number) : undefined,
+      until: action.dueAt ?? undefined,
+    })
+    if (!snoozed) return 'No active commitment to snooze.'
+    const when = snoozed.snoozeUntil
+      ? new Date(snoozed.snoozeUntil).toLocaleString(undefined, {
+          weekday: 'short',
+          hour: 'numeric',
+          minute: '2-digit',
+        })
+      : 'later'
+    return `Snoozed “${snoozed.title}” until ${when}. I’ll check back then.`
+  }
   if (action.kind === 'complete_task' && action.taskId) {
     tasksApi.completeTask(userId, action.taskId)
+    clearCommitmentForTask(userId, action.taskId)
     return 'Marked done.'
   }
   if (action.kind === 'toggle_habit' && action.habitId) {
@@ -1173,12 +1442,180 @@ export const SUGGESTED_ASKS = [
 /** Time-aware chips for Ask — keeps demos feeling alive without an LLM. */
 export function suggestedAsksForHour(hour = new Date().getHours()): string[] {
   if (hour < 12) {
-    return ['Clear my morning', 'What should I work on today?', 'Invite a friend']
+    return ['Clear my morning', 'What’s my one next move?', 'Hold me to my top priority']
   }
   if (hour < 17) {
-    return ['What should I work on today?', 'What’s shared with me?', 'How are my Circles?']
+    return ['What’s my one next move?', 'Am I avoiding something?', 'What’s shared with me?']
   }
-  return ['Close my day', 'Prep for tomorrow', 'How are my Circles?']
+  return ['Close my day', 'Did I keep my commitments?', 'Prep for tomorrow']
+}
+
+function tryParseCommitment(
+  userId: string,
+  question: string,
+  personality: AskPersonality,
+  preferences?: Record<string, unknown>,
+): AskReply | null {
+  const q = question.trim()
+  const lower = q.toLowerCase()
+
+  if (/^(?:drop|cancel|clear)(?:\s+my)?\s+commitment\s*[?.!]*$/i.test(lower)) {
+    const active = getActiveCommitment(userId)
+    if (!active) {
+      return {
+        text: 'No active commitment to drop.',
+        actions: [{ id: createId(), label: 'Open Ask', kind: 'open_route', route: '/ask' }],
+      }
+    }
+    clearCommitment(userId, active.id)
+    return asAuthoritative({
+      text: `Dropped the commitment on “${active.title}.” The task stays on your list unless you delete it.`,
+      actions: [
+        { id: createId(), label: 'Open Tasks', kind: 'open_route', route: '/tasks' },
+        {
+          id: createId(),
+          label: `Mark “${active.title}” done`,
+          kind: 'complete_task',
+          taskId: active.taskId,
+        },
+      ],
+    })
+  }
+
+  if (
+    /^(?:snooze|pause|defer)(?:\s+(?:my|the))?\s+commitment\s*[?.!]*$/i.test(lower) ||
+    /^(?:remind me later|not now)\s*[?.!]*$/i.test(lower)
+  ) {
+    const before = getActiveCommitment(userId)
+    const message = runAskAction(userId, {
+      id: createId(),
+      label: 'Snooze',
+      kind: 'snooze_commitment',
+    })
+    if (!before || !message || message.startsWith('No active')) {
+      return {
+        text: 'No active commitment to snooze.',
+        actions: [{ id: createId(), label: 'Open Ask', kind: 'open_route', route: '/ask' }],
+      }
+    }
+    return asAuthoritative({
+      text: message,
+      actions: [
+        {
+          id: createId(),
+          label: `Mark “${before.title}” done`,
+          kind: 'complete_task',
+          taskId: before.taskId,
+        },
+      ],
+    })
+  }
+
+  if (/^(?:did i keep|check)(?:\s+my)?\s+commitments?\s*[?.!]*$/i.test(lower)) {
+    const active = getActiveCommitment(userId)
+    if (!active) {
+      return {
+        text: 'No open commitment right now. Say “hold me to [thing]” and I’ll lock it in.',
+        actions: [
+          {
+            id: createId(),
+            label: 'Hold me to my top priority',
+            kind: 'open_route',
+            route: `/ask?q=${encodeURIComponent('Hold me to my top priority')}`,
+          },
+        ],
+      }
+    }
+    return {
+      text: `Still holding you to “${active.title}.” It’s open — finish it, snooze the check-in, or drop it.`,
+      actions: [
+        {
+          id: createId(),
+          label: `Mark “${active.title}” done`,
+          kind: 'complete_task',
+          taskId: active.taskId,
+        },
+        {
+          id: createId(),
+          label: 'Snooze check-in',
+          kind: 'snooze_commitment',
+        },
+        {
+          id: createId(),
+          label: 'Drop commitment',
+          kind: 'drop_commitment',
+        },
+      ],
+    }
+  }
+
+  const bareHold =
+    /^(?:hold me to(?:\s+it)?|keep me accountable|don't let me skip(?:\s+it)?|make me do (?:it|this))\s*[?.!]*$/i.test(
+      lower,
+    ) ||
+    /hold me to (?:my )?(?:top )?priority|hold me to (?:my )?next(?: step)?/i.test(lower)
+
+  if (bareHold) {
+    const snap = buildSnapshot(userId)
+    const next = pickNextStepForUser(userId, snap, { preferences })
+    const title =
+      next?.title ||
+      snap.priorityTasks[0]?.title ||
+      snap.todayTasks[0]?.title ||
+      snap.openTasks[0]?.title
+    if (!title) {
+      return {
+        text: 'Nothing on the plate to lock yet. Tell me what to hold you to — “hold me to finish the report.”',
+        actions: [{ id: createId(), label: 'Open Tasks', kind: 'open_route', route: '/tasks' }],
+      }
+    }
+    // If they're already committed to this task, just check in.
+    const existing = getActiveCommitment(userId)
+    if (existing && existing.title.toLowerCase() === title.toLowerCase()) {
+      return {
+        text: `Already holding you to “${existing.title}.” Still open — do it.`,
+        actions: [
+          {
+            id: createId(),
+            label: `Mark “${existing.title}” done`,
+            kind: 'complete_task',
+            taskId: existing.taskId,
+          },
+        ],
+      }
+    }
+    // Prefer committing an existing open task when the title matches.
+    const match =
+      snap.openTasks.find((t) => t.title.toLowerCase() === title.toLowerCase()) ||
+      snap.priorityTasks.find((t) => t.title.toLowerCase() === title.toLowerCase())
+    if (match) {
+      bindCommitmentToTask(userId, match.id, match.title)
+      return asAuthoritative({
+        text:
+          personality === 'tough'
+            ? `Locked on “${match.title}.” Do it.`
+            : `I’m holding you to “${match.title}.” I’ll check back next time you open Ask.`,
+        actions: [
+          {
+            id: createId(),
+            label: `Mark “${match.title}” done`,
+            kind: 'complete_task',
+            taskId: match.id,
+          },
+        ],
+      })
+    }
+    return commitToTitle(userId, title, personality)
+  }
+
+  const titled = q.match(
+    /^(?:hold me to|keep me (?:accountable )?(?:for|to)|don't let me skip|make me (?:do|finish))\s+(.+)$/i,
+  )
+  if (!titled?.[1]) return null
+  let raw = titled[1].trim().replace(/[.?!]+$/, '')
+  raw = raw.replace(/^(?:my\s+)?(?:top\s+)?priority$/i, '').trim()
+  if (!raw || /^(?:it|this|that)$/i.test(raw)) return null
+  return commitToTitle(userId, raw, personality)
 }
 
 function tryParseCreate(question: string): AskReply | null {

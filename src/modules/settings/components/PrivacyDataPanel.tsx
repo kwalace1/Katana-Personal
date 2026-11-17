@@ -31,6 +31,9 @@ const COLLECTION_LABELS: Record<string, string> = {
   supplement_logs: 'Supplement logs',
   documents: 'Files (metadata on device)',
   ask_messages: 'Ask chat history',
+  ask_commitments: 'Ask commitments',
+  ask_commitment_outcomes: 'Ask commitment history',
+  personal_memory: 'Personal memory (Ask)',
   deletions: 'Deletion markers (sync safety)',
 }
 
@@ -86,7 +89,8 @@ export function PrivacyDataPanel({
           <ul className="mt-2 space-y-2 text-sm text-muted-foreground">
             <li>
               <span className="font-medium text-foreground">Cloud workspace sync</span> — most life
-              collections (not Ask chat or file blobs).
+              collections including personal memory (not Ask chat or file blobs). Never shared with
+              friends unless you explicitly share something else.
             </li>
             <li>
               <span className="font-medium text-foreground">Together share prefs</span> —{' '}

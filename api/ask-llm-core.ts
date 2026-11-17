@@ -1,120 +1,99 @@
 /**
  * Shared Ask LLM helpers — OpenRouter → Gemini Flash.
- * Streaming + tool calling for a life-aware general assistant.
+ * Streaming + tool calling for a life-aware accountability companion.
  * Used by Vercel `/api/ask-llm` and the Vite dev middleware.
+ *
+ * Compact snapshot types + ASK_TOOL_DEFINITIONS live in
+ * `src/modules/assistant/ask-llm-types.ts` (single source of truth).
  */
+
+import {
+  ASK_TOOL_DEFINITIONS,
+  type AskChatMessage,
+  type AskToolCall,
+  type CompactLifeSnapshot,
+} from '../src/modules/assistant/ask-llm-types'
+
+export {
+  ASK_TOOL_DEFINITIONS,
+  ASK_TOOL_NAMES,
+  type AskChatMessage,
+  type AskToolCall,
+  type AskToolName,
+  type CompactCommitment,
+  type CompactEvent,
+  type CompactGoal,
+  type CompactHabit,
+  type CompactJournal,
+  type CompactLifeSnapshot,
+  type CompactTask,
+} from '../src/modules/assistant/ask-llm-types'
 
 export const DEFAULT_OPENROUTER_MODEL = 'google/gemini-2.5-flash'
 
-/** General AI that already sees the user’s Katana life data. */
-export const KATANA_ASK_SYSTEM_PROMPT = `You are Katana Ask — a capable general assistant inside Katana Personal who already sees the user’s life data.
+/** Companion / accountability coach that already sees the user’s Katana life data. */
+export const KATANA_ASK_SYSTEM_PROMPT = `You are Katana Ask — the user’s companion and accountability coach inside Katana Personal. You already see their life data for today.
+
+Who you are:
+- A sidekick for the day loop: pick the next step, do it, stay honest, close the day.
+- Warm enough to feel like a companion; sharp enough to keep them accountable.
+- Not a generic chatbot, therapist brochure, or project-management bot.
 
 You can:
-- Answer general questions (ideas, explanations, planning, writing, decisions) like a strong chat AI.
-- Use the life snapshot and chat history to ground answers in their real tasks, calendar, habits, goals, journal, and health.
-- Take action in Katana via tools when they want something done (create/complete tasks, habits, events, water, journal, park tasks, close day).
+- Ground every reply in their real tasks, calendar, habits, goals, journal, health, and personal memories from the life snapshot.
+- Use personal memories (preferences and confirmed facts) to tailor tone and next steps — appropriately, not as a dump of everything you know.
+- Answer planning / writing / decision questions when asked — still steer back to what matters today when it fits.
+- Take action in Katana via tools (tasks, commitments, habits, goals, events, workout blocks, water, journal, park tasks, close day).
+
+How you coach:
+- Default to ONE clear next move tied to priority / today’s tasks, open habits, or the next calendar block.
+- Prefer “do this now” over long option menus. If they need a plan, keep it to 2–4 short steps max.
+- When they stall, name the avoidance briefly and offer the smallest honest step.
+- When they want to be held accountable (“hold me to X”, “make me do X”, “don’t let me skip”), call make_commitment (preferred) or create_task, then confirm you’ll check back next time they open Ask.
+- Celebrate real progress lightly; don’t cheer empty intentions.
+- Stay with them across turns — use chat history; don’t restart from zero.
 
 Hard rules:
-- Be useful and specific. Prefer clear structure when answers are longer (short paragraphs or tight bullets).
-- Never invent tasks, events, habits, goals, or numbers that aren’t in the snapshot or tool results.
+- Never invent tasks, events, habits, goals, memories, or numbers that aren’t in the snapshot or tool results.
+- Personal memories marked unconfirmed / inferred / pattern are NOT facts — say so if you lean on them, or prefer confirmed preferences and facts.
+- Never silently create durable personal memories. The app only stores memories when the user explicitly says “remember…”. Chat history is not memory.
 - If something isn’t in the data, say so briefly and still help with a concrete next step.
 - No emoji unless the user used them first.
 - Never claim you lack access to their life data when a snapshot is provided.
 - Never say you cannot create tasks/events — use tools (or ask one clarifying question if critical info is missing).
 - When acting, call tools instead of only telling them what to type.
-- After tools run, confirm what changed in plain language.
-- Stay conversational across turns — use prior messages; don’t restart from zero.
-- When context_gaps lists missing areas (habits, calendar, sleep, etc.), weave in one brief encouragement to log or connect more — in your personality voice — so you can map their day better. Never preach; name what's missing.`
+- After tools run, confirm what changed and what happens next.
+- Prefer short paragraphs or tight bullets when longer answers help.
+- When context_gaps lists missing areas (habits, calendar, sleep, etc.), weave in one brief encouragement to log or connect more — in your personality voice. Never preach; name what’s missing.`
 
-export type AskPersonalityId = 'supportive' | 'tough' | 'dry' | 'spicy'
+export type AskPersonalityId = 'supportive' | 'tough' | 'dry'
 
 const PERSONALITY_OVERLAY: Record<AskPersonalityId, string> = {
-  supportive: `Personality — Supportive:
+  supportive: `Personality — Supportive companion coach:
 - Warm, human, slightly witty — like a sharp friend who texts back fast.
 - Celebrate small wins without being syrupy.
-- Avoid corporate wellness speak.`,
-  tough: `Personality — Tough love:
+- Name the friction, then make the next step feel doable.
+- Prefer “we” lightly (“Let’s knock this out”) when it fits.
+- Avoid corporate wellness speak (“leverage,” “optimize your day”).`,
+  tough: `Personality — Tough love accountability coach:
+- Sound like a sharp training partner, not a therapist brochure.
 - Direct and a little blunt. Skip soft openers.
-- Call out avoidance firmly. Always end with one clear next move.`,
-  dry: `Personality — Dry humor:
-- Understated wit. Deadpan ok. Never try-hard. One joke max, then the point.`,
-  spicy: `Personality — Spicy:
-- Light sarcasm about procrastination. Roast the excuse, never the person.
-- Always redeem with a clear next step.`,
+- Call out avoidance firmly (“That’s stalling. Pick one.”).
+- Celebrate only when they actually did the thing.
+- Always end with one clear next move.`,
+  dry: `Personality — Dry humor companion:
+- Understated wit. Deadpan ok. Never try-hard or meme-speak.
+- Treat their day like a slightly absurd project you respect.
+- One joke max per reply, then the next step.
+- Keep advice concrete under the humor.`,
 }
 
 export function resolveAskSystemPrompt(personality?: string | null): string {
   const mode: AskPersonalityId =
-    personality === 'tough' || personality === 'dry' || personality === 'spicy' || personality === 'supportive'
+    personality === 'tough' || personality === 'dry' || personality === 'supportive'
       ? personality
       : 'supportive'
   return `${KATANA_ASK_SYSTEM_PROMPT}\n\n${PERSONALITY_OVERLAY[mode]}`
-}
-
-export type CompactTask = { id: string; title: string; dueAt?: string | null }
-export type CompactHabit = { id: string; title: string; done: boolean }
-export type CompactGoal = {
-  id: string
-  title: string
-  progress: number
-  target: number
-  horizon: string
-}
-export type CompactEvent = { title: string; startsAt: string; allDay?: boolean }
-export type CompactJournal = { date: string; mood: string | null; excerpt: string }
-
-export type CompactLifeSnapshot = {
-  name: string
-  todayLabel: string
-  openTaskTitles: string[]
-  todayTaskTitles: string[]
-  priorityTaskTitles: string[]
-  todayEventTitles: string[]
-  upcomingEventTitles: string[]
-  habitsOpen: string[]
-  habitsDone: string[]
-  goalTitles: string[]
-  behindGoalTitles: string[]
-  journalToday: boolean
-  journalMood: string | null
-  waterGlasses: number
-  /** Daily water goal in milliliters, when the client knows it. */
-  waterGoalMl?: number
-  sleepHoursLast: number
-  caloriesToday: number
-  week: {
-    label: string
-    tasksCompleted: number
-    habitDays: number
-    workouts: number
-    journalEntries: number
-  }
-  /** Richer fields for tool calling + deeper context */
-  openTasks?: CompactTask[]
-  todayTasks?: CompactTask[]
-  priorityTasks?: CompactTask[]
-  habits?: CompactHabit[]
-  goals?: CompactGoal[]
-  behindGoals?: CompactGoal[]
-  todayEvents?: CompactEvent[]
-  upcomingEvents?: CompactEvent[]
-  recentJournal?: CompactJournal[]
-  contextGapLabels?: string[]
-  richnessScore?: number
-}
-
-export type AskToolCall = {
-  id: string
-  type: 'function'
-  function: { name: string; arguments: string }
-}
-
-export type AskChatMessage = {
-  role: 'user' | 'assistant' | 'system' | 'tool'
-  content: string | null
-  tool_call_id?: string
-  name?: string
-  tool_calls?: AskToolCall[]
 }
 
 export type AskLlmRequest = {
@@ -132,119 +111,6 @@ export type AskLlmRequest = {
 export type AskLlmResult =
   | { ok: true; text: string; model: string; tool_calls?: AskToolCall[] }
   | { ok: false; error: string; status: number }
-
-export const ASK_TOOL_DEFINITIONS = [
-  {
-    type: 'function' as const,
-    function: {
-      name: 'create_task',
-      description: 'Create a new task in Katana.',
-      parameters: {
-        type: 'object',
-        properties: {
-          title: { type: 'string' },
-          dueAt: { type: 'string', description: 'Optional ISO-8601 or YYYY-MM-DD due date' },
-        },
-        required: ['title'],
-      },
-    },
-  },
-  {
-    type: 'function' as const,
-    function: {
-      name: 'complete_task',
-      description: 'Mark an open task done. Prefer taskId from the snapshot; title match is ok.',
-      parameters: {
-        type: 'object',
-        properties: {
-          taskId: { type: 'string' },
-          title: { type: 'string' },
-        },
-      },
-    },
-  },
-  {
-    type: 'function' as const,
-    function: {
-      name: 'toggle_habit',
-      description: 'Check or uncheck a habit due today.',
-      parameters: {
-        type: 'object',
-        properties: {
-          habitId: { type: 'string' },
-          title: { type: 'string' },
-        },
-      },
-    },
-  },
-  {
-    type: 'function' as const,
-    function: {
-      name: 'create_event',
-      description: 'Schedule a calendar event.',
-      parameters: {
-        type: 'object',
-        properties: {
-          title: { type: 'string' },
-          startsAt: { type: 'string', description: 'ISO-8601 start' },
-          endsAt: { type: 'string', description: 'ISO-8601 end' },
-        },
-        required: ['title', 'startsAt', 'endsAt'],
-      },
-    },
-  },
-  {
-    type: 'function' as const,
-    function: {
-      name: 'log_water',
-      description: 'Log drinking water by volume. Use the person’s unit when they name one.',
-      parameters: {
-        type: 'object',
-        properties: {
-          amount: { type: 'number', description: 'How much to add' },
-          unit: { type: 'string', enum: ['ml', 'floz', 'cup', 'l'], description: 'mL, fl oz, cup, or L' },
-        },
-        required: ['amount', 'unit'],
-      },
-    },
-  },
-  {
-    type: 'function' as const,
-    function: {
-      name: 'upsert_journal',
-      description: 'Write or update today’s journal entry.',
-      parameters: {
-        type: 'object',
-        properties: {
-          body: { type: 'string' },
-          mood: { type: 'string', enum: ['great', 'good', 'okay', 'low', 'rough'] },
-        },
-        required: ['body'],
-      },
-    },
-  },
-  {
-    type: 'function' as const,
-    function: {
-      name: 'park_tasks',
-      description: 'Move unfinished today tasks to tomorrow.',
-      parameters: { type: 'object', properties: {} },
-    },
-  },
-  {
-    type: 'function' as const,
-    function: {
-      name: 'close_day',
-      description: 'Close the day: park leftover tasks and optionally journal a note.',
-      parameters: {
-        type: 'object',
-        properties: {
-          note: { type: 'string' },
-        },
-      },
-    },
-  },
-]
 
 function corsHeaders(): HeadersInit {
   return {
@@ -311,10 +177,43 @@ function formatSnapshot(snap: CompactLifeSnapshot): string {
           .join('\n  ')
       : 'none'
 
+  const commitment = snap.activeCommitment
+    ? `[${snap.activeCommitment.taskId}] ${snap.activeCommitment.title}`
+    : 'none'
+  const workload =
+    snap.workloadLevel != null
+      ? `Workload: ${snap.workloadLevel}${snap.freeMinutes != null ? ` · ~${snap.freeMinutes}m free before next block` : ''}${snap.conflictLabels?.length ? ` · conflicts: ${snap.conflictLabels.join('; ')}` : ''}`
+      : null
+
+  const memories =
+    snap.personalMemories && snap.personalMemories.length > 0
+      ? snap.personalMemories
+          .map((m) => {
+            // Same certainty rules as src/modules/assistant/memory.ts
+            // (confirmed = explicit + confidence >= 1 + kind !== pattern).
+            const confirmed =
+              m.source === 'explicit' && m.confidence >= 1 && m.kind !== 'pattern'
+            const kindLabel =
+              m.kind === 'preference'
+                ? 'Preference'
+                : m.kind === 'pattern'
+                  ? 'Pattern'
+                  : m.kind === 'fact'
+                    ? 'Fact'
+                    : 'Note'
+            const tag = confirmed ? kindLabel : `${kindLabel} (unconfirmed)`
+            return `${tag}: ${m.text}`
+          })
+          .join('; ')
+      : 'none'
+
   return [
     `Name: ${snap.name}`,
     `Today: ${snap.todayLabel}`,
     `Data richness: ${snap.richnessScore != null ? `${Math.round(snap.richnessScore * 100)}%` : 'unknown'}${snap.contextGapLabels?.length ? ` — sparse; missing: ${snap.contextGapLabels.join(', ')}` : ''}`,
+    `Active commitment: ${commitment}`,
+    ...(workload ? [workload] : []),
+    `Personal memory (user-controlled; do not invent; unconfirmed ≠ fact): ${memories}`,
     `Priority tasks: ${priority}`,
     `Today’s tasks: ${today}`,
     `Open tasks: ${open}`,
@@ -411,7 +310,7 @@ function resolveEnv(env: { apiKey?: string; model?: string } = {}) {
 }
 
 function temperatureFor(personality?: string | null) {
-  if (personality === 'spicy' || personality === 'dry') return 0.75
+  if (personality === 'dry') return 0.75
   if (personality === 'tough') return 0.55
   return 0.65
 }
@@ -474,7 +373,7 @@ export async function runGeminiAsk(
         temperature: temperatureFor(body.personality),
         max_tokens: 1200,
         messages,
-        ...(useTools ? { tools: ASK_TOOL_DEFINITIONS, tool_choice: 'auto' } : {}),
+        ...(useTools ? { tools: [...ASK_TOOL_DEFINITIONS], tool_choice: 'auto' } : {}),
       }),
     })
   } catch (err) {
@@ -538,7 +437,7 @@ export async function streamGeminiAsk(
         max_tokens: 1200,
         stream: true,
         messages,
-        ...(useTools ? { tools: ASK_TOOL_DEFINITIONS, tool_choice: 'auto' } : {}),
+        ...(useTools ? { tools: [...ASK_TOOL_DEFINITIONS], tool_choice: 'auto' } : {}),
       }),
     })
   } catch (err) {

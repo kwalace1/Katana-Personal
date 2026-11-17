@@ -30,6 +30,7 @@ function emptySnap(): LifeSnapshot {
     caloriesToday: 0,
     recentNotes: 0,
     week: { ...week, workouts: 0, lifts: 0, journalDays: 0, habitCheckInDays: 0, tasksCompleted: 0 },
+    activeCommitment: null,
   }
 }
 

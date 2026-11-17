@@ -51,9 +51,9 @@ import { takeDayCloseMoment, type DayCloseSummary } from '@/lib/ritual-path'
 import {
   buildDailyBriefing,
   buildBriefingActions,
-  buildSnapshot,
   runAskAction,
 } from '@/modules/assistant/engine'
+import { flavorBriefingText, parseAskPersonality } from '@/modules/assistant/personality'
 import { TogetherTodayCard } from '@/components/TogetherTodayCard'
 import { WeeklyReviewCard } from '@/components/WeeklyReviewCard'
 import { offerPwaNudge } from '@/components/PwaInstallNudge'
@@ -70,14 +70,14 @@ import { WeatherGlance } from '@/components/WeatherGlance'
 import { toast } from 'sonner'
 import { listFriendships } from '@/lib/social/friends'
 import { listMyCircles } from '@/lib/social/circles'
-import { buildPickNextStepInput } from '@/lib/orchestration/build-input'
+import { buildPersonalContext } from '@/lib/personal-context'
 import {
   logFeedback,
   logNextStepDismissedIfNeeded,
   nextStepTrackingId,
   computeWeights,
 } from '@/lib/orchestration/feedback'
-import { pickNextStep, workoutLogTarget, type NextStep, type NextStepKind } from '@/lib/orchestration/next-step'
+import { workoutLogTarget, type NextStep, type NextStepKind } from '@/lib/orchestration/next-step'
 
 const CLOSE_KEY = 'katana-personal:day-close'
 
@@ -234,42 +234,41 @@ export default function DashboardPage() {
     }
   }, [cloudEnabled, cloudUser?.uid, tick])
 
+  const askPersonality = parseAskPersonality(profile?.preferences)
+  const displayName = profile?.display_name || 'there'
+
   const data = useMemo(() => {
     void tick
-    const snap = buildSnapshot(userId, profile?.display_name || 'there')
-    const overdue = tasksApi.overdue(userId)
-    const priority = tasksApi.priorityTasks(userId, 8)
-    const todayEvents = calendarApi.forDay(userId, new Date())
-    const habits = habitsApi.dueToday(userId)
-    const openHabits = habits.filter((h) => !habitsApi.isDoneToday(userId, h.id))
-    const atRisk = habits.filter((h) => {
-      const streak = habitsApi.streak(userId, h.id)
-      return streak >= 3 && !habitsApi.isDoneToday(userId, h.id)
+    const ctx = buildPersonalContext(userId, {
+      displayName,
+      preferences: prefs,
+      dayClosed,
     })
-    const next = pickNextStep(
-      buildPickNextStepInput(userId, snap, {
-        preferences: prefs,
-        dayClosed: dayClosed,
-      }),
-    )
+    const snap = ctx.life
+    const habits = snap.habitsDue
+    const openHabits = ctx.pick.openHabits
+    const atRisk = ctx.pick.atRiskHabits
 
     return {
       snap,
-      briefing: buildDailyBriefing(snap),
+      context: ctx,
+      briefing: flavorBriefingText(askPersonality, buildDailyBriefing(snap), displayName),
       briefingActions: buildBriefingActions(snap),
-      overdue,
-      priority,
+      overdue: ctx.pick.overdue,
+      priority: tasksApi.priorityTasks(userId, 8),
       events: calendarApi.upcoming(userId),
-      todayEvents,
+      todayEvents: snap.todayEvents,
       habits,
       openHabits,
       atRisk,
       notes: notesApi.recent(userId),
-      goals: goalsApi.active(userId),
-      next,
-      unfinishedToday: tasksApi.todayTasks(userId),
+      goals: snap.activeGoals,
+      next: ctx.focus,
+      unfinishedToday: snap.todayTasks,
+      workload: ctx.workload,
+      conflicts: ctx.conflicts,
     }
-  }, [userId, tick, profile?.display_name, prefs, dayClosed])
+  }, [userId, tick, displayName, prefs, dayClosed, askPersonality])
 
   useEffect(() => {
     if (!onboardingDone || !data.next) return
@@ -515,7 +514,20 @@ export default function DashboardPage() {
     return []
   }
 
-  const stepControls = data.next ? nextControls(data.next) : []
+  const askAboutNext: NextControl = data.next
+    ? {
+        key: 'ask',
+        label: 'Ask coach',
+        to: `/ask?q=${encodeURIComponent(
+          `Hold me to this next step: ${data.next.title}. ${data.next.reason}`,
+        )}`,
+      }
+    : {
+        key: 'ask',
+        label: 'Ask coach',
+        to: `/ask?q=${encodeURIComponent('What’s my one next move?')}`,
+      }
+  const stepControls = data.next ? [...nextControls(data.next), askAboutNext] : [askAboutNext]
   const primaryStep = stepControls[0]
 
   return (
@@ -612,7 +624,7 @@ export default function DashboardPage() {
               transition={springSoft}
               className="relative mb-6 overflow-hidden kp-surface p-4"
             >
-              <p className="kp-section-label uppercase tracking-wide">Next step</p>
+              <p className="kp-section-label uppercase tracking-wide">Next step · coach</p>
               {data.next ? (
                 <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
@@ -627,11 +639,16 @@ export default function DashboardPage() {
                   ) : null}
                 </div>
               ) : (
-                <div className="mt-2">
-                  <h2 className="font-display text-lg tracking-tight">Nothing urgent</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Open tasks and due habits will show up here.
-                  </p>
+                <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <h2 className="font-display text-lg tracking-tight">Nothing urgent</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Ask can still pick a next move or hold you to a commitment.
+                    </p>
+                  </div>
+                  {primaryStep ? (
+                    <NextStepActions primary={primaryStep} more={stepControls.slice(1)} />
+                  ) : null}
                 </div>
               )}
             </motion.section>
@@ -681,9 +698,9 @@ export default function DashboardPage() {
           {isSectionVisible(prefs, 'for_you') && (
             <section className="relative mb-3 overflow-hidden kp-surface p-4" aria-live="polite">
               <div className="mb-2 flex items-center justify-between gap-2">
-                <p className="kp-section-label">For you</p>
+                <p className="kp-section-label">Coach</p>
                 <Link to="/ask" className="text-xs font-medium text-primary hover:underline">
-                  Ask more
+                  Open Ask
                 </Link>
               </div>
               <p className="max-w-3xl text-sm leading-relaxed text-foreground/90">
