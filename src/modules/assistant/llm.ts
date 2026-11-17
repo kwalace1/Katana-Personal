@@ -85,6 +85,8 @@ export function compactSnapshot(
           taskId: snap.activeCommitment.taskId,
           title: snap.activeCommitment.title,
           createdAt: snap.activeCommitment.createdAt,
+          status: snap.activeCommitment.status,
+          snoozeUntil: snap.activeCommitment.snoozeUntil,
         }
       : null,
     ...(assessment

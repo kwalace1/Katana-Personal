@@ -82,21 +82,26 @@ export default function AskPage() {
   }
 
   useEffect(() => {
+    const ctx = buildPersonalContext(userId, {
+      displayName: name,
+      preferences: profile?.preferences,
+    })
+    const checkInOpts = {
+      workloadLevel: ctx.workload.level,
+      conflictKinds: ctx.conflicts.map((c) => c.kind),
+    }
     if (messages.length === 0) {
-      const ctx = buildPersonalContext(userId, {
-        displayName: name,
-        preferences: profile?.preferences,
-      })
       const opening = buildCoachOpening(userId, name, personality, profile?.preferences, [], {
         snap: ctx.life,
         next: ctx.focus,
+        checkInOpts,
       })
       askApi.append(userId, { role: 'katana', text: opening.text, actions: opening.actions })
       refresh()
       return
     }
     // Existing thread: surface a once-per-day commitment check-in without duplicating recent prompts.
-    const checkIn = maybeAppendCommitmentCheckIn(userId, messages, name, personality)
+    const checkIn = maybeAppendCommitmentCheckIn(userId, messages, name, personality, checkInOpts)
     if (checkIn) {
       askApi.append(userId, { role: 'katana', text: checkIn.text, actions: checkIn.actions })
       refresh()
@@ -343,6 +348,10 @@ export default function AskPage() {
     const opening = buildCoachOpening(userId, name, personality, profile?.preferences, prior, {
       snap: ctx.life,
       next: ctx.focus,
+      checkInOpts: {
+        workloadLevel: ctx.workload.level,
+        conflictKinds: ctx.conflicts.map((c) => c.kind),
+      },
     })
     askApi.append(userId, {
       role: 'katana',

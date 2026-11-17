@@ -31,6 +31,7 @@ describe('Ask tool parity', () => {
         'create_task',
         'make_commitment',
         'drop_commitment',
+        'snooze_commitment',
         'complete_task',
         'toggle_habit',
         'create_habit',

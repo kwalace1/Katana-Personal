@@ -34,6 +34,8 @@ import {
   makeCommitment,
   markCommitmentCheckedIn,
   needsCommitmentCheckIn,
+  snoozeCommitment,
+  type CommitmentCheckInOptions,
   type CommitmentSnapshot,
 } from './commitments'
 import type { AskMessage } from './ask-api'
@@ -260,13 +262,18 @@ export function buildCommitmentCheckInReply(
   markCommitmentCheckedIn(userId, commitment.id)
   const greeting = coachGreeting(personality, displayName || 'there')
   return {
-    text: `${greeting}\n\nCheck-in: you asked me to hold you to “${commitment.title}.” It’s still open — do it now, or drop the commitment.`,
+    text: `${greeting}\n\nCheck-in: you asked me to hold you to “${commitment.title}.” It’s still open — do it now, snooze the check-in, or drop the commitment.`,
     actions: [
       {
         id: createId(),
         label: `Mark “${commitment.title}” done`,
         kind: 'complete_task',
         taskId: commitment.taskId,
+      },
+      {
+        id: createId(),
+        label: 'Snooze check-in',
+        kind: 'snooze_commitment',
       },
       {
         id: createId(),
@@ -285,8 +292,9 @@ export function maybeAppendCommitmentCheckIn(
   messages: Pick<AskMessage, 'role' | 'actions'>[],
   displayName?: string,
   personality: AskPersonality = 'supportive',
+  checkInOpts?: CommitmentCheckInOptions,
 ): AskReply | null {
-  if (!needsCommitmentCheckIn(userId, messages)) return null
+  if (!needsCommitmentCheckIn(userId, messages, new Date(), checkInOpts)) return null
   return buildCommitmentCheckInReply(userId, displayName, personality)
 }
 
@@ -295,6 +303,8 @@ export type CoachOpeningParts = {
   snap: LifeSnapshot
   /** Precomputed next step from PersonalContext.focus (null = nothing urgent) */
   next: NextStep | null
+  /** Optional workload signals for gentler check-ins */
+  checkInOpts?: CommitmentCheckInOptions
 }
 
 /**
@@ -312,7 +322,7 @@ export function buildCoachOpening(
   const snap = parts?.snap ?? buildSnapshot(userId, displayName)
   const greeting = coachGreeting(personality, snap.name)
 
-  if (needsCommitmentCheckIn(userId, priorMessages)) {
+  if (needsCommitmentCheckIn(userId, priorMessages, new Date(), parts?.checkInOpts)) {
     const checkIn = buildCommitmentCheckInReply(userId, displayName, personality)
     if (checkIn) return checkIn
   }
@@ -1154,7 +1164,23 @@ export function runAskAction(userId: string, action: AskAction): string {
     const active = getActiveCommitment(userId)
     if (!active) return 'No active commitment to drop.'
     clearCommitment(userId, active.id)
-    return `Dropped the commitment on “${active.title}.”`
+    return `Dropped the commitment on “${active.title}.” The task stays on your list.`
+  }
+  if (action.kind === 'snooze_commitment') {
+    const hours = action.body ? Number(action.body) : undefined
+    const snoozed = snoozeCommitment(userId, {
+      hours: Number.isFinite(hours) && (hours as number) > 0 ? (hours as number) : undefined,
+      until: action.dueAt ?? undefined,
+    })
+    if (!snoozed) return 'No active commitment to snooze.'
+    const when = snoozed.snoozeUntil
+      ? new Date(snoozed.snoozeUntil).toLocaleString(undefined, {
+          weekday: 'short',
+          hour: 'numeric',
+          minute: '2-digit',
+        })
+      : 'later'
+    return `Snoozed “${snoozed.title}” until ${when}. I’ll check back then.`
   }
   if (action.kind === 'complete_task' && action.taskId) {
     tasksApi.completeTask(userId, action.taskId)
@@ -1355,6 +1381,35 @@ function tryParseCommitment(
     }
   }
 
+  if (
+    /^(?:snooze|pause|defer)(?:\s+(?:my|the))?\s+commitment\s*[?.!]*$/i.test(lower) ||
+    /^(?:remind me later|not now)\s*[?.!]*$/i.test(lower)
+  ) {
+    const before = getActiveCommitment(userId)
+    const message = runAskAction(userId, {
+      id: createId(),
+      label: 'Snooze',
+      kind: 'snooze_commitment',
+    })
+    if (!before || !message || message.startsWith('No active')) {
+      return {
+        text: 'No active commitment to snooze.',
+        actions: [{ id: createId(), label: 'Open Ask', kind: 'open_route', route: '/ask' }],
+      }
+    }
+    return {
+      text: message,
+      actions: [
+        {
+          id: createId(),
+          label: `Mark “${before.title}” done`,
+          kind: 'complete_task',
+          taskId: before.taskId,
+        },
+      ],
+    }
+  }
+
   if (/^(?:did i keep|check)(?:\s+my)?\s+commitments?\s*[?.!]*$/i.test(lower)) {
     const active = getActiveCommitment(userId)
     if (!active) {
@@ -1371,13 +1426,18 @@ function tryParseCommitment(
       }
     }
     return {
-      text: `Still holding you to “${active.title}.” It’s open — finish it or drop it.`,
+      text: `Still holding you to “${active.title}.” It’s open — finish it, snooze the check-in, or drop it.`,
       actions: [
         {
           id: createId(),
           label: `Mark “${active.title}” done`,
           kind: 'complete_task',
           taskId: active.taskId,
+        },
+        {
+          id: createId(),
+          label: 'Snooze check-in',
+          kind: 'snooze_commitment',
         },
         {
           id: createId(),

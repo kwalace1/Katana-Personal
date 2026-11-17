@@ -31,6 +31,8 @@ const COLLECTION_LABELS: Record<string, string> = {
   supplement_logs: 'Supplement logs',
   documents: 'Files (metadata on device)',
   ask_messages: 'Ask chat history',
+  ask_commitments: 'Ask commitments',
+  ask_commitment_outcomes: 'Ask commitment history',
   deletions: 'Deletion markers (sync safety)',
 }
 

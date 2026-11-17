@@ -34,6 +34,10 @@ export const WORKSPACE_COLLECTIONS = [
   'weight_goals',
   'documents',
   'ask_messages',
+  /** Ask accountability commitments (active + snoozed). */
+  'ask_commitments',
+  /** Commitment outcome history (completed / dropped / snoozed / replaced). */
+  'ask_commitment_outcomes',
 ] as const
 
 export type WorkspaceCollection = (typeof WORKSPACE_COLLECTIONS)[number]

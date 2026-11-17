@@ -148,8 +148,24 @@ export function executeAskTool(userId: string, call: AskToolCall): AskToolExecRe
       return {
         toolCallId,
         name,
-        ok: Boolean(message),
+        ok: Boolean(message) && !message.startsWith('No active'),
         message: message || 'No active commitment to drop.',
+      }
+    }
+
+    if (name === 'snooze_commitment') {
+      const hours = typeof args.hours === 'number' ? args.hours : undefined
+      const message = runAskAction(userId, {
+        id: createId(),
+        label: 'Snooze commitment',
+        kind: 'snooze_commitment',
+        body: hours != null ? String(hours) : undefined,
+      })
+      return {
+        toolCallId,
+        name,
+        ok: Boolean(message) && !message.startsWith('No active'),
+        message: message || 'No active commitment to snooze.',
       }
     }
 

@@ -20,6 +20,8 @@ export type CompactCommitment = {
   taskId: string
   title: string
   createdAt: string
+  status?: 'active' | 'snoozed'
+  snoozeUntil?: string | null
 }
 
 export type CompactLifeSnapshot = {
@@ -125,6 +127,20 @@ export const ASK_TOOL_DEFINITIONS = [
       description:
         'Drop the active Ask commitment without deleting the underlying task. Use when the user asks to cancel or drop the commitment.',
       parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'snooze_commitment',
+      description:
+        'Defer the active commitment check-in. Prefer when the user says later / not now / snooze. Does not drop the commitment.',
+      parameters: {
+        type: 'object',
+        properties: {
+          hours: { type: 'number', description: 'Optional hours to snooze; default is later today or tomorrow morning' },
+        },
+      },
     },
   },
   {
