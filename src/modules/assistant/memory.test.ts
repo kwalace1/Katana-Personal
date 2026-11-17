@@ -37,6 +37,7 @@ describe('Personal memory v1', () => {
   it('only creates via explicit remember parsing — not ordinary chat', () => {
     expect(tryParseMemoryCommand(USER, 'I remember when I used to run every day')).toBeNull()
     expect(tryParseMemoryCommand(USER, 'hold me to finish the report')).toBeNull()
+    expect(tryParseMemoryCommand(USER, 'Remember to call Mom')).toBeNull()
     expect(listMemories(USER)).toHaveLength(0)
 
     const cmd = tryParseMemoryCommand(USER, 'Remember that I hate late meetings')

@@ -141,14 +141,20 @@ export function tryParseMemoryCommand(
   const q = question.trim()
   if (!q) return null
 
+  // Prefer “remember that…” / “don’t forget that…”. Skip “remember to …” (task reminder phrasing).
+  const rememberTo = /^(?:please\s+)?remember\s+to\b/i.test(q)
   const remember =
-    q.match(/^(?:please\s+)?remember(?:\s+that)?\s+(.+)$/i) ||
-    q.match(/^(?:please\s+)?(?:don't|do not)\s+forget(?:\s+that)?\s+(.+)$/i) ||
-    q.match(/^note(?:\s+that)?\s+(.+)\s+for later\.?$/i)
+    !rememberTo &&
+    (q.match(/^(?:please\s+)?remember(?:\s+that)\s+(.+)$/i) ||
+      q.match(/^(?:please\s+)?remember\s+(.+)$/i) ||
+      q.match(/^(?:please\s+)?(?:don't|do not)\s+forget(?:\s+that)?\s+(.+)$/i) ||
+      q.match(/^note(?:\s+that)?\s+(.+)\s+for later\.?$/i))
 
-  if (remember?.[1]) {
+  if (remember && remember[1]) {
     const raw = remember[1].trim().replace(/[.?!]+$/, '')
     if (!raw || /^(this|that|it)$/i.test(raw)) return null
+    // “remember to …” already excluded; also skip bare reminder-like infinitives after remember
+    if (/^to\s+/i.test(raw)) return null
     const memory = createMemory(userId, { text: raw })
     if (!memory) return null
     return { kind: 'remember', memory, text: memory.text }
